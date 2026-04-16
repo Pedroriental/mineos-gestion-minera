@@ -19,8 +19,8 @@ export default function ProcesamientoPage() {
   const emptyForm = { fecha: new Date().toISOString().split('T')[0], sacos_vaciados: '', peso_procesado_kg: '', tenor_real_gpt: '', proceso: 'molienda' as ProcesamientoPlanta['proceso'], horas_proceso: '', quimicos_utilizados: '', estado: 'en_proceso' as ProcesamientoPlanta['estado'], observaciones: '' };
 
   const handleSacosChange = (value: string, currentForm: typeof emptyForm) => {
-    const sacosN = parseInt(value) || 0;
-    const autoKg = sacosN > 0 ? String(sacosN * PESO_SACO_KG) : '';
+    const sacosN = parseFloat(value) || 0;
+    const autoKg = sacosN > 0 ? (sacosN * PESO_SACO_KG).toFixed(1) : '';
     return { ...currentForm, sacos_vaciados: value, peso_procesado_kg: currentForm.peso_procesado_kg || autoKg };
   };
   const [form, setForm] = useState(emptyForm);
@@ -36,7 +36,7 @@ export default function ProcesamientoPage() {
   const handleSave = async () => {
     setSaving(true);
     const payload = {
-      fecha: form.fecha, sacos_vaciados: parseInt(form.sacos_vaciados) || 1,
+      fecha: form.fecha, sacos_vaciados: parseFloat(form.sacos_vaciados) || 1,
       peso_procesado_kg: parseFloat(form.peso_procesado_kg) || 0, tenor_real_gpt: parseFloat(form.tenor_real_gpt) || null,
       proceso: form.proceso, horas_proceso: parseFloat(form.horas_proceso) || null,
       quimicos_utilizados: form.quimicos_utilizados || null, estado: form.estado,
@@ -166,9 +166,9 @@ export default function ProcesamientoPage() {
               </div>
               <div>
                 <label className="input-label">Sacos Vaciados * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
-                <input type="number" value={form.sacos_vaciados} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field" />
-                {parseInt(form.sacos_vaciados) > 0 && (
-                  <p className="text-xs text-slate-400 mt-1">{parseInt(form.sacos_vaciados)} sacos × 50 kg = <span className="text-amber-600 font-semibold">{parseInt(form.sacos_vaciados) * PESO_SACO_KG} kg</span></p>
+                <input type="number" step="0.1" value={form.sacos_vaciados} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field" />
+                {parseFloat(form.sacos_vaciados) > 0 && (
+                  <p className="text-xs text-slate-400 mt-1">{parseFloat(form.sacos_vaciados)} sacos × 50 kg = <span className="text-amber-600 font-semibold">{(parseFloat(form.sacos_vaciados) * PESO_SACO_KG).toFixed(1)} kg</span></p>
                 )}
               </div>
               <div>

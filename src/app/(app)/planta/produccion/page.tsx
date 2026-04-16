@@ -86,7 +86,7 @@ export default function ProduccionPage() {
     const amalg1 = parseFloat(updated.amalgama_1_g) || 0;
     const amalg2 = parseFloat(updated.amalgama_2_g) || 0;
     const recup = parseFloat(updated.oro_recuperado_g) || 0;
-    const sacos = parseInt(updated.sacos) || 0;
+    const sacos = parseFloat(updated.sacos) || 0;
 
     // Auto-calculate toneladas from sacos (1 saco = 50 kg) if field is empty
     const autoTon = sacos > 0 ? (sacos * PESO_SACO_KG / 1000).toFixed(3) : '';
@@ -120,7 +120,7 @@ export default function ProduccionPage() {
   const handleSave = async () => {
     // ── Validation: no negative values allowed ──
     const oroG = parseFloat(form.oro_recuperado_g);
-    const sacosN = parseInt(form.sacos);
+    const sacosN = parseFloat(form.sacos);
     if (!form.oro_recuperado_g || isNaN(oroG) || oroG < 0) {
       setFormError('Oro Recuperado es obligatorio y no puede ser negativo.');
       return;
@@ -150,7 +150,7 @@ export default function ProduccionPage() {
       oro_recuperado_g: parseFloat(form.oro_recuperado_g) || 0,
       merma_1_pct: parseFloat(form.merma_1_pct) || null,
       merma_2_pct: parseFloat(form.merma_2_pct) || null,
-      sacos: parseInt(form.sacos) || 0,
+      sacos: parseFloat(form.sacos) || 0,
       toneladas_procesadas: parseFloat(form.toneladas_procesadas) || null,
       tenor_tonelada_gpt: parseFloat(form.tenor_tonelada_gpt) || null,
       tenor_saco_gps: parseFloat(form.tenor_saco_gps) || null,
@@ -563,9 +563,9 @@ export default function ProduccionPage() {
               {/* Row 5: Sacos, Toneladas, Tenores */}
               <div>
                 <label className="input-label">Sacos * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
-                <input type="number" value={form.sacos} onChange={e => handleFieldChange('sacos', e.target.value)} className="input-field" placeholder="39" />
-                {parseInt(form.sacos) > 0 && (
-                  <p className="text-xs text-white/35 mt-1">{parseInt(form.sacos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{parseInt(form.sacos) * PESO_SACO_KG} kg</span></p>
+                <input type="number" step="0.1" value={form.sacos} onChange={e => handleFieldChange('sacos', e.target.value)} className="input-field" placeholder="39" />
+                {parseFloat(form.sacos) > 0 && (
+                  <p className="text-xs text-white/35 mt-1">{parseFloat(form.sacos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{(parseFloat(form.sacos) * PESO_SACO_KG).toFixed(1)} kg</span></p>
                 )}
               </div>
               <div>

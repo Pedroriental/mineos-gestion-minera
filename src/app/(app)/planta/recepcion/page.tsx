@@ -19,8 +19,8 @@ export default function RecepcionPage() {
   const emptyForm = { fecha: new Date().toISOString().split('T')[0], turno: 'dia' as RecepcionMaterial['turno'], origen: '', sacos_recibidos: '', peso_estimado_kg: '', tipo_material: 'mineral_bruto', tenor_estimado_gpt: '', transportista: '', observaciones: '' };
 
   const handleSacosChange = (value: string, currentForm: typeof emptyForm) => {
-    const sacosN = parseInt(value) || 0;
-    const autoKg = sacosN > 0 ? String(sacosN * PESO_SACO_KG) : '';
+    const sacosN = parseFloat(value) || 0;
+    const autoKg = sacosN > 0 ? (sacosN * PESO_SACO_KG).toFixed(1) : '';
     return {
       ...currentForm,
       sacos_recibidos: value,
@@ -41,7 +41,7 @@ export default function RecepcionPage() {
     setSaving(true);
     const payload = {
       fecha: form.fecha, turno: form.turno, origen: form.origen,
-      sacos_recibidos: parseInt(form.sacos_recibidos) || 1, peso_estimado_kg: parseFloat(form.peso_estimado_kg) || null,
+      sacos_recibidos: parseFloat(form.sacos_recibidos) || 1, peso_estimado_kg: parseFloat(form.peso_estimado_kg) || null,
       tipo_material: form.tipo_material, tenor_estimado_gpt: parseFloat(form.tenor_estimado_gpt) || null,
       transportista: form.transportista || null, observaciones: form.observaciones || null, registrado_por: user?.id,
     };
@@ -167,9 +167,9 @@ export default function RecepcionPage() {
               <div className="col-span-1 md:col-span-2"><label className="input-label">Origen *</label><input value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })} className="input-field" placeholder="Zona mina, terceros..." /></div>
               <div>
                 <label className="input-label">Sacos Recibidos * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
-                <input type="number" value={form.sacos_recibidos} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field text-xl font-bold" />
-                {parseInt(form.sacos_recibidos) > 0 && (
-                  <p className="text-xs text-white/35 mt-1">{parseInt(form.sacos_recibidos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{parseInt(form.sacos_recibidos) * PESO_SACO_KG} kg</span></p>
+                <input type="number" step="0.1" value={form.sacos_recibidos} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field text-xl font-bold" />
+                {parseFloat(form.sacos_recibidos) > 0 && (
+                  <p className="text-xs text-white/35 mt-1">{parseFloat(form.sacos_recibidos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{(parseFloat(form.sacos_recibidos) * PESO_SACO_KG).toFixed(1)} kg</span></p>
                 )}
               </div>
               <div>
