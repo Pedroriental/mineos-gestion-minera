@@ -69,6 +69,7 @@ const navigation: NavSection[] = [
     icon: <Pickaxe className="w-4 h-4" />,
     items: [
       { label: 'Voladuras', href: '/mina/voladuras', icon: <Zap className="w-4 h-4" /> },
+      { label: 'Quemado',   href: '/mina/quemado',   icon: <Flame className="w-4 h-4" /> },
       { label: 'Equipos',   href: '/mina/equipos',   icon: <Wrench className="w-4 h-4" /> },
       { label: 'Seguridad', href: '/mina/seguridad', icon: <ShieldCheck className="w-4 h-4" /> },
     ],

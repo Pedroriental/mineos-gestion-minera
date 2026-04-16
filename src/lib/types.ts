@@ -271,6 +271,30 @@ export interface QuemadaPlancha {
   updated_at: string;
 }
 
+// --- Quemado de Planchas ---
+export interface PlanchaItem {
+  amalgama_g: number;
+  oro_recuperado_g: number;
+}
+
+export interface ReporteQuemado {
+  id: string;
+  fecha: string;
+  turno: 'dia' | 'noche' | 'completo';
+  numero_quemada?: string;
+  planchas: PlanchaItem[];
+  manto_amalgama_g?: number;
+  manto_oro_g?: number;
+  retorta_oro_g?: number;
+  total_amalgama_g: number;
+  total_oro_g: number;
+  responsable?: string;
+  observaciones?: string;
+  registrado_por?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface VentaArenas {
   id: string;
   fecha: string;
