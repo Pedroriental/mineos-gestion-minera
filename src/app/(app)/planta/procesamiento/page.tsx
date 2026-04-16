@@ -166,7 +166,7 @@ export default function ProcesamientoPage() {
               </div>
               <div>
                 <label className="input-label">Sacos Vaciados * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
-                <input type="number" step="0.1" value={form.sacos_vaciados} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field" />
+                <input type="text" inputMode="decimal" value={form.sacos_vaciados} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field" />
                 {parseFloat(form.sacos_vaciados) > 0 && (
                   <p className="text-xs text-slate-400 mt-1">{parseFloat(form.sacos_vaciados)} sacos × 50 kg = <span className="text-amber-600 font-semibold">{(parseFloat(form.sacos_vaciados) * PESO_SACO_KG).toFixed(1)} kg</span></p>
                 )}

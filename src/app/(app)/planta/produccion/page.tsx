@@ -563,7 +563,7 @@ export default function ProduccionPage() {
               {/* Row 5: Sacos, Toneladas, Tenores */}
               <div>
                 <label className="input-label">Sacos * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
-                <input type="number" step="0.1" value={form.sacos} onChange={e => handleFieldChange('sacos', e.target.value)} className="input-field" placeholder="39" />
+                <input type="text" inputMode="decimal" value={form.sacos} onChange={e => handleFieldChange('sacos', e.target.value)} className="input-field" placeholder="39" />
                 {parseFloat(form.sacos) > 0 && (
                   <p className="text-xs text-white/35 mt-1">{parseFloat(form.sacos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{(parseFloat(form.sacos) * PESO_SACO_KG).toFixed(1)} kg</span></p>
                 )}

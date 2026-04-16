@@ -167,7 +167,7 @@ export default function RecepcionPage() {
               <div className="col-span-1 md:col-span-2"><label className="input-label">Origen *</label><input value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })} className="input-field" placeholder="Zona mina, terceros..." /></div>
               <div>
                 <label className="input-label">Sacos Recibidos * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
-                <input type="number" step="0.1" value={form.sacos_recibidos} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field text-xl font-bold" />
+                <input type="text" inputMode="decimal" value={form.sacos_recibidos} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field text-xl font-bold" />
                 {parseFloat(form.sacos_recibidos) > 0 && (
                   <p className="text-xs text-white/35 mt-1">{parseFloat(form.sacos_recibidos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{(parseFloat(form.sacos_recibidos) * PESO_SACO_KG).toFixed(1)} kg</span></p>
                 )}
