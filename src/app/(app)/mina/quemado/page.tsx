@@ -104,7 +104,7 @@ export default function QuemadoPage() {
   // ── Day-scoped summaries ───────────────────────────────────────────────
   const totalAmalgamaDay = data.reduce((s, d) => s + Number(d.total_amalgama_g || 0), 0);
   const totalOroDay      = data.reduce((s, d) => s + Number(d.total_oro_g || 0), 0);
-  const rendimientoDay   = totalAmalgamaDay > 0 ? (totalOroDay / totalAmalgamaDay) * 100 : 0;
+  const mermaDay         = totalAmalgamaDay > 0 ? ((totalAmalgamaDay - totalOroDay) / totalAmalgamaDay) * 100 : 0;
   const totalPlanchasDay = data.reduce((s, d) => s + (d.planchas?.length || 0), 0);
 
   // Form live totals
@@ -214,8 +214,8 @@ export default function QuemadoPage() {
           <p className="text-white/40 text-sm mt-1">
             <span className="text-amber-400 font-semibold">{fmtN(totalOroDay)} g Au</span> recuperados
             {' '}— {data.length} quemadas
-            {rendimientoDay > 0 && (
-              <span className="text-white/25"> — Rendim. {rendimientoDay.toFixed(1)}%</span>
+            {mermaDay > 0 && (
+              <span className="text-white/25"> — Merma: {mermaDay.toFixed(1)}%</span>
             )}
           </p>
         </div>
@@ -288,10 +288,10 @@ export default function QuemadoPage() {
         <MetricCard label="Total Amalgama" value={totalAmalgamaDay} unit="g" variant="neutral" icon={<span className="text-base">⚗️</span>} />
         <MetricCard label="Planchas" value={totalPlanchasDay} variant="neutral" icon={<span className="text-base">🟫</span>} />
         <MetricCard
-          label="Rendimiento"
-          value={rendimientoDay > 0 ? rendimientoDay.toFixed(1) : '—'}
-          unit={rendimientoDay > 0 ? '%' : undefined}
-          variant={rendimientoDay > 0 ? (rendimientoDay > 40 ? 'positive' : 'gold') : 'neutral'}
+          label="Merma Prom."
+          value={mermaDay > 0 ? mermaDay.toFixed(1) : '—'}
+          unit={mermaDay > 0 ? '%' : undefined}
+          variant={mermaDay > 0 ? (mermaDay < 55 ? 'positive' : mermaDay < 70 ? 'neutral' : 'negative') : 'neutral'}
           icon={<Calculator className="w-4 h-4" />}
         />
       </div>
@@ -330,9 +330,9 @@ export default function QuemadoPage() {
                     <span className="text-white/70 font-semibold">{fmtN(d.total_amalgama_g)} g</span>
                   </div>
                   <div>
-                    <span className="text-xs text-white/35 block mb-0.5">Rendim.</span>
-                    <span className="text-emerald-400 font-bold">
-                      {d.total_amalgama_g > 0 ? `${((d.total_oro_g / d.total_amalgama_g) * 100).toFixed(1)}%` : '—'}
+                    <span className="text-xs text-white/35 block mb-0.5">Merma</span>
+                    <span className="text-orange-400 font-bold">
+                      {d.total_amalgama_g > 0 ? `${(((d.total_amalgama_g - d.total_oro_g) / d.total_amalgama_g) * 100).toFixed(1)}%` : '—'}
                     </span>
                   </div>
                 </div>
@@ -389,7 +389,7 @@ export default function QuemadoPage() {
                   <th>Planchas</th>
                   <th className="text-right">Total Amalgama (g)</th>
                   <th className="text-right">Total Au (g)</th>
-                  <th>Rendim.</th>
+                  <th>Merma</th>
                   <th>Retorta (g)</th>
                   <th>Responsable</th>
                   <th>Acciones</th>
@@ -407,8 +407,8 @@ export default function QuemadoPage() {
                     </td>
                     <td>
                       {d.total_amalgama_g > 0 ? (
-                        <span className="badge badge-success">
-                          {((d.total_oro_g / d.total_amalgama_g) * 100).toFixed(1)}%
+                        <span className="badge badge-danger">
+                          {(((d.total_amalgama_g - d.total_oro_g) / d.total_amalgama_g) * 100).toFixed(1)}%
                         </span>
                       ) : '—'}
                     </td>
@@ -612,9 +612,9 @@ export default function QuemadoPage() {
                     <p className="font-bold text-amber-400 text-lg">{fmtN(formOro)} <span className="text-xs">g Au</span></p>
                   </div>
                   <div className="text-center">
-                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">Rendimiento</p>
-                    <p className="font-bold text-emerald-400 text-lg">
-                      {formAmalgama > 0 ? `${((formOro / formAmalgama) * 100).toFixed(1)}%` : '—'}
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">Merma</p>
+                    <p className="font-bold text-orange-400 text-lg">
+                      {formAmalgama > 0 ? `${(((formAmalgama - formOro) / formAmalgama) * 100).toFixed(1)}%` : '—'}
                     </p>
                   </div>
                 </div>
