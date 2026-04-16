@@ -139,15 +139,16 @@ export function downloadProduccionPDF(data: ReporteProduccion[], dateLabel?: str
 
   const totalOro   = data.reduce((s, d) => s + Number(d.oro_recuperado_g || 0), 0);
   const totalSacos = data.reduce((s, d) => s + Number(d.sacos || 0), 0);
+  const totalKg    = totalSacos * 50;
   const totalTon   = data.reduce((s, d) => s + Number(d.toneladas_procesadas || 0), 0);
   const avgTenor   = totalTon > 0 ? (totalOro / totalTon).toFixed(4) : '—';
 
   addSummaryBox(doc, 33, [
-    { label: 'Registros',   value: String(data.length) },
-    { label: 'Oro Rec. (g)', value: totalOro.toFixed(4) },
-    { label: 'Sacos',       value: String(totalSacos) },
-    { label: 'Toneladas',   value: totalTon.toFixed(2) },
-    { label: 'Tenor (g/t)', value: avgTenor },
+    { label: 'Registros',          value: String(data.length) },
+    { label: 'Oro Rec. (g)',       value: totalOro.toFixed(4) },
+    { label: 'Sacos (×50 kg c/u)', value: `${totalSacos} (=${totalKg} kg)` },
+    { label: 'Toneladas',          value: totalTon.toFixed(2) },
+    { label: 'Tenor (g/t)',        value: avgTenor },
   ]);
 
   autoTable(doc, {
@@ -157,7 +158,7 @@ export function downloadProduccionPDF(data: ReporteProduccion[], dateLabel?: str
       'Fecha', 'Turno', 'Molino', 'Material', 'Código',
       'Amalg. 1 (g)', 'Amalg. 2 (g)', 'Oro Rec. (g)',
       'Merma 1 %', 'Merma 2 %',
-      'Sacos', 'Ton. Proc.', 'Tenor g/t', 'Tenor g/s',
+      'Sacos (×50 kg)', 'Ton. Proc.', 'Tenor g/t', 'Tenor g/s (x50kg)',
       'Responsable', 'Observaciones',
     ]],
     body: data.map(d => [

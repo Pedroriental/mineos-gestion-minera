@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/auth-context';
 import { FlaskConical, Plus, X, Loader2, Edit2 } from 'lucide-react';
 import type { ProcesamientoPlanta } from '@/lib/types';
 
+const PESO_SACO_KG = 50;
+
 export default function ProcesamientoPage() {
   const { user } = useAuth();
   const [data, setData] = useState<ProcesamientoPlanta[]>([]);
@@ -15,6 +17,12 @@ export default function ProcesamientoPage() {
   const [saving, setSaving] = useState(false);
 
   const emptyForm = { fecha: new Date().toISOString().split('T')[0], sacos_vaciados: '', peso_procesado_kg: '', tenor_real_gpt: '', proceso: 'molienda' as ProcesamientoPlanta['proceso'], horas_proceso: '', quimicos_utilizados: '', estado: 'en_proceso' as ProcesamientoPlanta['estado'], observaciones: '' };
+
+  const handleSacosChange = (value: string, currentForm: typeof emptyForm) => {
+    const sacosN = parseInt(value) || 0;
+    const autoKg = sacosN > 0 ? String(sacosN * PESO_SACO_KG) : '';
+    return { ...currentForm, sacos_vaciados: value, peso_procesado_kg: currentForm.peso_procesado_kg || autoKg };
+  };
   const [form, setForm] = useState(emptyForm);
 
   const loadData = useCallback(async () => {
@@ -75,8 +83,9 @@ export default function ProcesamientoPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/10 rounded-lg">
                   <div>
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">Sacos Vaciados</span>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">Sacos (×50 kg)</span>
                     <span className="font-semibold text-slate-700">{p.sacos_vaciados}</span>
+                    <span className="text-slate-400 text-xs"> (= {p.sacos_vaciados * PESO_SACO_KG} kg)</span>
                   </div>
                   <div>
                     <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">Peso Proc.</span>
@@ -106,7 +115,7 @@ export default function ProcesamientoPage() {
                 <tr>
                   <th>Fecha</th>
                   <th>Proceso</th>
-                  <th>Sacos</th>
+                  <th>Sacos (×50 kg)</th>
                   <th>Peso (kg)</th>
                   <th>Tenor (g/t)</th>
                   <th>Horas</th>
@@ -119,7 +128,10 @@ export default function ProcesamientoPage() {
                   <tr key={p.id}>
                     <td className="whitespace-nowrap">{p.fecha}</td>
                     <td><span className="badge badge-info">{procesoLabels[p.proceso]}</span></td>
-                    <td className="font-semibold">{p.sacos_vaciados}</td>
+                    <td className="font-semibold">
+                      {p.sacos_vaciados}
+                      <span className="text-slate-400 text-xs ml-1">(= {p.sacos_vaciados * PESO_SACO_KG} kg)</span>
+                    </td>
                     <td>{p.peso_procesado_kg}</td>
                     <td className="text-amber-700 font-medium">{p.tenor_real_gpt || '—'}</td>
                     <td>{p.horas_proceso || '—'}</td>
@@ -152,8 +164,17 @@ export default function ProcesamientoPage() {
                   {Object.entries(procesoLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
-              <div><label className="input-label">Sacos Vaciados *</label><input type="number" value={form.sacos_vaciados} onChange={e => setForm({ ...form, sacos_vaciados: e.target.value })} className="input-field" /></div>
-              <div><label className="input-label">Peso Procesado (kg) *</label><input type="number" step="0.01" value={form.peso_procesado_kg} onChange={e => setForm({ ...form, peso_procesado_kg: e.target.value })} className="input-field" /></div>
+              <div>
+                <label className="input-label">Sacos Vaciados * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
+                <input type="number" value={form.sacos_vaciados} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field" />
+                {parseInt(form.sacos_vaciados) > 0 && (
+                  <p className="text-xs text-slate-400 mt-1">{parseInt(form.sacos_vaciados)} sacos × 50 kg = <span className="text-amber-600 font-semibold">{parseInt(form.sacos_vaciados) * PESO_SACO_KG} kg</span></p>
+                )}
+              </div>
+              <div>
+                <label className="input-label">Peso Procesado (kg) * <span className="text-slate-400 font-normal">(auto desde sacos)</span></label>
+                <input type="number" step="0.01" value={form.peso_procesado_kg} onChange={e => setForm({ ...form, peso_procesado_kg: e.target.value })} className="input-field" />
+              </div>
               <div><label className="input-label">Tenor Real (g/t)</label><input type="number" step="0.0001" value={form.tenor_real_gpt} onChange={e => setForm({ ...form, tenor_real_gpt: e.target.value })} className="input-field" /></div>
               <div><label className="input-label">Horas Proceso</label><input type="number" step="0.01" value={form.horas_proceso} onChange={e => setForm({ ...form, horas_proceso: e.target.value })} className="input-field" /></div>
               <div className="col-span-1 md:col-span-2">

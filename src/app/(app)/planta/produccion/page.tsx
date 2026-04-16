@@ -11,6 +11,8 @@ import MetricCard from '@/components/MetricCard';
 import EmptyState from '@/components/EmptyState';
 
 
+const PESO_SACO_KG = 50; // 1 saco estándar = 50 kg
+
 export default function ProduccionPage() {
   const { user } = useAuth();
   const canEdit = useCanEdit();
@@ -79,13 +81,17 @@ export default function ProduccionPage() {
 
   const isToday = selectedDate === new Date().toISOString().split('T')[0];
 
-  // ── Auto-calculate merma and tenors when inputs change ──
+  // ── Auto-calculate merma, tenors, and toneladas when inputs change ──
   const updateCalcs = (updated: typeof form) => {
     const amalg1 = parseFloat(updated.amalgama_1_g) || 0;
     const amalg2 = parseFloat(updated.amalgama_2_g) || 0;
     const recup = parseFloat(updated.oro_recuperado_g) || 0;
     const sacos = parseInt(updated.sacos) || 0;
-    const ton = parseFloat(updated.toneladas_procesadas) || 0;
+
+    // Auto-calculate toneladas from sacos (1 saco = 50 kg) if field is empty
+    const autoTon = sacos > 0 ? (sacos * PESO_SACO_KG / 1000).toFixed(3) : '';
+    const toneladas = updated.toneladas_procesadas || autoTon;
+    const ton = parseFloat(toneladas) || 0;
 
     const merma1 = amalg1 > 0 && recup > 0 ? (((amalg1 - recup) / amalg1) * 100).toFixed(2) : '';
     const merma2 = amalg2 > 0 && recup > 0 ? (((amalg2 - recup) / amalg2) * 100).toFixed(2) : '';
@@ -94,6 +100,7 @@ export default function ProduccionPage() {
 
     return {
       ...updated,
+      toneladas_procesadas: toneladas,
       merma_1_pct: merma1,
       merma_2_pct: merma2,
       tenor_tonelada_gpt: tenorT,
@@ -236,7 +243,7 @@ export default function ProduccionPage() {
             <Factory className="w-6 h-6 text-amber-400" /> Reportes de Producción
           </h1>
           <p className="text-white/40 text-sm mt-1">
-            <span className="text-amber-400 font-semibold">{fmtNum(totalOroDay)} g Au</span> recuperados — {totalSacosDay} sacos —
+            <span className="text-amber-400 font-semibold">{fmtNum(totalOroDay)} g Au</span> recuperados — {totalSacosDay} sacos <span className="text-white/25">(≈ {totalSacosDay * PESO_SACO_KG} kg)</span> —
             Merma prom: <span className={getMermaColor(avgMerma)}>{avgMerma > 0 ? `${avgMerma.toFixed(1)}%` : '—'}</span>
           </p>
         </div>
@@ -320,7 +327,7 @@ export default function ProduccionPage() {
       {/* Summary Cards — refactored with MetricCard */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <MetricCard label="Oro Recuperado" value={totalOroDay} unit="g" variant="gold" icon={<span className="text-base">⚗️</span>} />
-        <MetricCard label="Sacos" value={totalSacosDay} variant="neutral" icon={<span className="text-base">📦</span>} />
+        <MetricCard label="Sacos (×50 kg)" value={totalSacosDay} unit="s" subValue={totalSacosDay > 0 ? `≈ ${totalSacosDay * PESO_SACO_KG} kg` : undefined} variant="neutral" icon={<span className="text-base">📦</span>} />
         <MetricCard label="Registros" value={data.length} variant="neutral" icon={<span className="text-base">📊</span>} />
         <MetricCard label="Toneladas" value={totalTonDay > 0 ? totalTonDay : '—'} unit={totalTonDay > 0 ? 't' : undefined} variant="neutral" icon={<span className="text-base">⚖️</span>} />
         <MetricCard
@@ -364,8 +371,8 @@ export default function ProduccionPage() {
                     {d.merma_1_pct ? <span className={`badge ${getMermaBadge(d.merma_1_pct)} scale-90 origin-left`}>{d.merma_1_pct}%</span> : <span className="text-white/30">—</span>}
                   </div>
                   <div>
-                    <span className="text-xs text-white/35 block mb-0.5">Sacos Proc.</span>
-                    <span className="text-white/70 font-medium">{d.sacos} s</span>
+                    <span className="text-xs text-white/35 block mb-0.5">Sacos (×50 kg)</span>
+                    <span className="text-white/70 font-medium">{d.sacos} s <span className="text-white/35 text-xs">(= {d.sacos * PESO_SACO_KG} kg)</span></span>
                   </div>
                   <div>
                     <span className="text-xs text-white/35 block mb-0.5">Tenor (g/t)</span>
@@ -402,7 +409,7 @@ export default function ProduccionPage() {
                 <th className="text-right">Au Recup.</th>
                 <th>Merma 1</th>
                 <th>Merma 2</th>
-                <th>Sacos</th>
+                <th>Sacos (×50 kg)</th>
                 <th>Ton</th>
                 <th>Tenor g/t</th>
                 <th>Acciones</th>
@@ -436,7 +443,10 @@ export default function ProduccionPage() {
                       <span className={`badge ${getMermaBadge(d.merma_2_pct)}`}>{d.merma_2_pct}%</span>
                     ) : '—'}
                   </td>
-                  <td className="text-center text-white/65">{d.sacos}</td>
+                  <td className="text-center text-white/65">
+                    <span className="font-semibold">{d.sacos}</span>
+                    <span className="text-white/30 text-xs ml-1">(= {d.sacos * PESO_SACO_KG} kg)</span>
+                  </td>
                   <td className="text-white/40">{d.toneladas_procesadas || '—'}</td>
                   <td className="text-blue-400 font-medium">{d.tenor_tonelada_gpt ? `${fmtNum(d.tenor_tonelada_gpt)}` : '—'}</td>
                   <td>
@@ -551,8 +561,17 @@ export default function ProduccionPage() {
               </div>
 
               {/* Row 5: Sacos, Toneladas, Tenores */}
-              <div><label className="input-label">Sacos *</label><input type="number" value={form.sacos} onChange={e => handleFieldChange('sacos', e.target.value)} className="input-field" placeholder="39" /></div>
-              <div><label className="input-label">Ton. Procesadas</label><input type="number" step="0.01" value={form.toneladas_procesadas} onChange={e => handleFieldChange('toneladas_procesadas', e.target.value)} className="input-field" placeholder="1.95" /></div>
+              <div>
+                <label className="input-label">Sacos * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
+                <input type="number" value={form.sacos} onChange={e => handleFieldChange('sacos', e.target.value)} className="input-field" placeholder="39" />
+                {parseInt(form.sacos) > 0 && (
+                  <p className="text-xs text-white/35 mt-1">{parseInt(form.sacos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{parseInt(form.sacos) * PESO_SACO_KG} kg</span></p>
+                )}
+              </div>
+              <div>
+                <label className="input-label">Ton. Procesadas <span className="text-white/30 font-normal">(auto desde sacos)</span></label>
+                <input type="number" step="0.001" value={form.toneladas_procesadas} onChange={e => handleFieldChange('toneladas_procesadas', e.target.value)} className="input-field" placeholder="1.950" />
+              </div>
               <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => handleFieldChange('responsable', e.target.value)} className="input-field" /></div>
 
               {/* Row 6: Tenores (auto-calculated) */}

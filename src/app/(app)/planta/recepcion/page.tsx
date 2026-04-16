@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/auth-context';
 import { Package, Plus, X, Loader2, Edit2 } from 'lucide-react';
 import type { RecepcionMaterial } from '@/lib/types';
 
+const PESO_SACO_KG = 50;
+
 export default function RecepcionPage() {
   const { user } = useAuth();
   const [data, setData] = useState<RecepcionMaterial[]>([]);
@@ -15,6 +17,16 @@ export default function RecepcionPage() {
   const [saving, setSaving] = useState(false);
 
   const emptyForm = { fecha: new Date().toISOString().split('T')[0], turno: 'dia' as RecepcionMaterial['turno'], origen: '', sacos_recibidos: '', peso_estimado_kg: '', tipo_material: 'mineral_bruto', tenor_estimado_gpt: '', transportista: '', observaciones: '' };
+
+  const handleSacosChange = (value: string, currentForm: typeof emptyForm) => {
+    const sacosN = parseInt(value) || 0;
+    const autoKg = sacosN > 0 ? String(sacosN * PESO_SACO_KG) : '';
+    return {
+      ...currentForm,
+      sacos_recibidos: value,
+      peso_estimado_kg: currentForm.peso_estimado_kg || autoKg,
+    };
+  };
   const [form, setForm] = useState(emptyForm);
 
   const loadData = useCallback(async () => {
@@ -49,7 +61,7 @@ export default function RecepcionPage() {
           <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
             <Package className="w-6 h-6 text-teal-400" /> Recepción de Material
           </h1>
-          <p className="text-white/40 text-sm mt-1">{totalSacos} sacos recibidos en total</p>
+          <p className="text-white/40 text-sm mt-1">{totalSacos} sacos recibidos en total <span className="text-white/25">(≈ {totalSacos * PESO_SACO_KG} kg)</span></p>
         </div>
         <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} className="btn-primary">
           <Plus className="w-4 h-4" /> Nueva Recepción
@@ -71,8 +83,9 @@ export default function RecepcionPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 p-3 bg-white/[0.05] rounded-lg border border-white/[0.07]">
                   <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Sacos</span>
+                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Sacos (×50 kg)</span>
                     <span className="font-bold text-amber-400 text-lg">{r.sacos_recibidos}</span>
+                    <span className="text-white/35 text-xs">(= {r.sacos_recibidos * PESO_SACO_KG} kg)</span>
                   </div>
                   <div>
                     <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Peso (kg)</span>
@@ -103,7 +116,7 @@ export default function RecepcionPage() {
                   <th>Fecha</th>
                   <th>Turno</th>
                   <th>Origen</th>
-                  <th>Sacos</th>
+                  <th>Sacos (×50 kg)</th>
                   <th>Peso (kg)</th>
                   <th>Tenor (g/t)</th>
                   <th>Transportista</th>
@@ -116,7 +129,10 @@ export default function RecepcionPage() {
                     <td className="whitespace-nowrap">{r.fecha}</td>
                     <td>{turnoLabel[r.turno]}</td>
                     <td className="text-white/80 font-medium">{r.origen}</td>
-                    <td className="font-semibold text-amber-400">{r.sacos_recibidos}</td>
+                    <td className="font-semibold text-amber-400">
+                      {r.sacos_recibidos}
+                      <span className="text-white/30 text-xs ml-1">(= {r.sacos_recibidos * PESO_SACO_KG} kg)</span>
+                    </td>
                     <td className="text-white/65">{r.peso_estimado_kg || '—'}</td>
                     <td className="text-white/65">{r.tenor_estimado_gpt || '—'}</td>
                     <td className="text-white/40">{r.transportista || '—'}</td>
@@ -149,8 +165,17 @@ export default function RecepcionPage() {
                 </select>
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Origen *</label><input value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })} className="input-field" placeholder="Zona mina, terceros..." /></div>
-              <div><label className="input-label">Sacos Recibidos *</label><input type="number" value={form.sacos_recibidos} onChange={e => setForm({ ...form, sacos_recibidos: e.target.value })} className="input-field text-xl font-bold" /></div>
-              <div><label className="input-label">Peso Estimado (kg)</label><input type="number" step="0.01" value={form.peso_estimado_kg} onChange={e => setForm({ ...form, peso_estimado_kg: e.target.value })} className="input-field" /></div>
+              <div>
+                <label className="input-label">Sacos Recibidos * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
+                <input type="number" value={form.sacos_recibidos} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field text-xl font-bold" />
+                {parseInt(form.sacos_recibidos) > 0 && (
+                  <p className="text-xs text-white/35 mt-1">{parseInt(form.sacos_recibidos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{parseInt(form.sacos_recibidos) * PESO_SACO_KG} kg</span></p>
+                )}
+              </div>
+              <div>
+                <label className="input-label">Peso Real (kg) <span className="text-white/30 font-normal">(auto desde sacos)</span></label>
+                <input type="number" step="0.01" value={form.peso_estimado_kg} onChange={e => setForm({ ...form, peso_estimado_kg: e.target.value })} className="input-field" />
+              </div>
               <div><label className="input-label">Tenor Estimado (g/t)</label><input type="number" step="0.0001" value={form.tenor_estimado_gpt} onChange={e => setForm({ ...form, tenor_estimado_gpt: e.target.value })} className="input-field" /></div>
               <div><label className="input-label">Transportista</label><input value={form.transportista} onChange={e => setForm({ ...form, transportista: e.target.value })} className="input-field" /></div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Observaciones</label><textarea value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} className="input-field" rows={2} /></div>
