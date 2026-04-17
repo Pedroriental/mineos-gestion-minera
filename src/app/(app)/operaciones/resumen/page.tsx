@@ -20,7 +20,7 @@ export default function ResumenEjecutivoPage() {
     const [repRes, gastosRes, quemadasRes, recRes, guardiaRes, precioRes, precioFallbackRes] = await Promise.all([
       supabase.from('reportes_produccion').select('*').order('fecha', { ascending: false }).limit(1000),
       supabase.from('gastos').select('monto, fecha, categorias_gasto(nombre)').order('fecha', { ascending: false }).limit(1000),
-      supabase.from('quemada_plancha').select('*').order('fecha', { ascending: false }).limit(200),
+      supabase.from('reportes_quemado').select('*').order('fecha', { ascending: false }).limit(200),
       supabase.from('recepcion_material').select('*').order('fecha', { ascending: false }).limit(500),
       supabase.from('libro_guardia').select('id, fecha, incidentes').order('fecha', { ascending: false }).limit(200),
       supabase.from('precio_oro_cache').select('precio_usd_por_gramo, precio_usd_por_onza').eq('fecha', new Date().toISOString().split('T')[0]).single(),
@@ -57,7 +57,8 @@ export default function ResumenEjecutivoPage() {
   const totalTon = useMemo(() => filteredReportes.reduce((s, r) => s + Number(r.toneladas_procesadas || 0), 0), [filteredReportes]);
   const totalSacos = useMemo(() => filteredReportes.reduce((s, r) => s + (r.sacos || 0), 0), [filteredReportes]);
   const totalGastos = useMemo(() => filteredGastos.reduce((s, g) => s + Number(g.monto || 0), 0), [filteredGastos]);
-  const totalQuemadaGrams = useMemo(() => filteredQuemadas.reduce((s, q) => s + Number(q.peso_bruto_g || 0), 0), [filteredQuemadas]);
+  const totalQuemadaOro      = useMemo(() => filteredQuemadas.reduce((s, q) => s + Number(q.total_oro_g     || 0), 0), [filteredQuemadas]);
+  const totalQuemadaAmalgama = useMemo(() => filteredQuemadas.reduce((s, q) => s + Number(q.total_amalgama_g || 0), 0), [filteredQuemadas]);
   const totalRecepcionKg = useMemo(() => filteredRecepciones.reduce((s, r) => s + Number(r.peso_estimado_kg || 0), 0), [filteredRecepciones]);
   const totalRecepcionSacos = useMemo(() => filteredRecepciones.reduce((s, r) => s + (r.sacos_recibidos || 0), 0), [filteredRecepciones]);
   const incidentes = useMemo(() => filteredGuardias.filter(g => g.incidentes && g.incidentes.trim().length > 0), [filteredGuardias]);
@@ -206,7 +207,7 @@ export default function ResumenEjecutivoPage() {
           { icon: <Factory className="w-4 h-4 text-blue-400" />, label: 'Toneladas', value: `${fmtNum(totalTon)} t`, sub: `${fmtNum(promDiarioTon)} t/día`, color: 'text-blue-400' },
           { icon: <Target className="w-4 h-4 text-cyan-400" />, label: 'Ley Cabeza', value: fmtNum(leyCabeza, 3), sub: 'g Au / t', color: 'text-cyan-400' },
           { icon: <Scale className="w-4 h-4 text-white/50" />, label: 'Costo/g', value: `$${fmtNum(costoPorGramo, 2)}`, sub: `Mar: $${fmtNum(goldPrice ? goldPrice.usd_gramo - costoPorGramo : 0, 2)}/g`, color: 'text-white/80' },
-          { icon: <Pickaxe className="w-4 h-4 text-orange-400" />, label: 'Quemadas', value: String(filteredQuemadas.length), sub: `${fmtNum(totalQuemadaGrams)} g`, color: 'text-orange-400' },
+          { icon: <Pickaxe className="w-4 h-4 text-orange-400" />, label: 'Quemadas', value: String(filteredQuemadas.length), sub: `${fmtNum(totalQuemadaOro, 4)} g Au`, color: 'text-orange-400' },
           { icon: <AlertTriangle className="w-4 h-4 text-red-400" />, label: 'Incidentes', value: String(incidentes.length), sub: incidentes.length === 0 ? '✓ Sin novedad' : 'Registrados', color: incidentes.length > 0 ? 'text-red-400' : 'text-emerald-400' },
         ].map((kpi, i) => (
           <div key={i} className="card-glass rounded-xl p-3 sm:p-4">
@@ -386,8 +387,8 @@ export default function ResumenEjecutivoPage() {
             accent: '#F59E0B',
             rows: [
               { label: 'Quemadas', value: filteredQuemadas.length, color: 'text-white/80' },
-              { label: 'Peso bruto total', value: `${fmtNum(totalQuemadaGrams)} g`, color: 'text-amber-400' },
-              { label: 'Valor estimado', value: fmt(totalQuemadaGrams * (goldPrice?.usd_gramo || 0)), color: 'text-emerald-400' },
+              { label: 'Au recuperado', value: `${fmtNum(totalQuemadaOro, 4)} g`, color: 'text-amber-400' },
+              { label: 'Amalgama total', value: `${fmtNum(totalQuemadaAmalgama, 2)} g`, color: 'text-white/60' },
             ],
           },
           {
