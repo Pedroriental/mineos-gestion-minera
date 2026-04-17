@@ -216,7 +216,7 @@ export default function ResumenEjecutivoPage() {
         {[
           { icon: <Gem className="w-4 h-4 text-amber-400" />, label: 'Oro', value: `${fmtNum(totalGrams)} g`, sub: `${fmtNum(promDiarioGramos)} g/día`, color: 'text-amber-400' },
           { icon: <Factory className="w-4 h-4 text-blue-400" />, label: 'Toneladas', value: `${fmtNum(totalTon)} t`, sub: `${fmtNum(promDiarioTon)} t/día`, color: 'text-blue-400' },
-          { icon: <Target className="w-4 h-4 text-cyan-400" />, label: 'Ley Cabeza', value: fmtNum(leyCabeza, 3), sub: 'g Au / t', color: 'text-cyan-400' },
+          { icon: <Target className="w-4 h-4 text-emerald-400" />, label: 'Total Au', value: `${fmtNum(totalGrams + totalQuemadaOro, 4)} g`, sub: `P: ${fmtNum(totalGrams, 2)} + Q: ${fmtNum(totalQuemadaOro, 2)}`, color: 'text-emerald-400' },
           { icon: <Scale className="w-4 h-4 text-white/50" />, label: 'Costo/g', value: `$${fmtNum(costoPorGramo, 2)}`, sub: `Mar: $${fmtNum(goldPrice ? goldPrice.usd_gramo - costoPorGramo : 0, 2)}/g`, color: 'text-white/80' },
           { icon: <Pickaxe className="w-4 h-4 text-orange-400" />, label: 'Quemadas', value: String(filteredQuemadas.length), sub: `${fmtNum(totalQuemadaOro, 4)} g Au`, color: 'text-orange-400' },
           { icon: <AlertTriangle className="w-4 h-4 text-red-400" />, label: 'Incidentes', value: String(incidentes.length), sub: incidentes.length === 0 ? '✓ Sin novedad' : 'Registrados', color: incidentes.length > 0 ? 'text-red-400' : 'text-emerald-400' },
