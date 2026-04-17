@@ -176,7 +176,7 @@ export default function ResumenEjecutivoPage() {
             </span>
           </div>
           <p className="text-xs sm:text-sm text-white/45 leading-snug">
-            Producción diaria: <span className="text-white/65 font-medium">{fmtNum(totalGrams, 2)} g</span>
+            Producción planta: <span className="text-white/65 font-medium">{fmtNum(totalGrams, 2)} g</span>
             {' '}— Quemado real: <span className="text-amber-400 font-medium">{fmtNum(totalQuemadaOro, 2)} g</span>
           </p>
         </div>
