@@ -5,14 +5,48 @@
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "background_color": "#0B1E27",
+  "background_color": "#09090b",
   "theme_color": "#F59E0B",
   "lang": "es",
   "categories": ["business", "productivity"],
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icons/icon-128.png",       "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png",       "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-256.png",       "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png",       "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Producción",
+      "short_name": "Prod.",
+      "description": "Registrar producción de planta",
+      "url": "/planta/produccion",
+      "icons": [{ "src": "/icons/icon-128.png", "sizes": "128x128" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Inicio",
+      "description": "Ver métricas en tiempo real",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/icon-128.png", "sizes": "128x128" }]
+    },
+    {
+      "name": "Quemado de Planchas",
+      "short_name": "Quemado",
+      "description": "Registrar quemado de planchas",
+      "url": "/mina/quemado",
+      "icons": [{ "src": "/icons/icon-128.png", "sizes": "128x128" }]
+    },
+    {
+      "name": "Resumen Ejecutivo",
+      "short_name": "Resumen",
+      "description": "KPIs y rentabilidad",
+      "url": "/operaciones/resumen",
+      "icons": [{ "src": "/icons/icon-128.png", "sizes": "128x128" }]
+    }
   ]
 }
