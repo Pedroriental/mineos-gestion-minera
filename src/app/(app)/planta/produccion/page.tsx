@@ -300,7 +300,7 @@ export default function ProduccionPage() {
         {/* Quick date chips */}
         {availableDates.length > 0 && (
           <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-            {availableDates.slice(-7).reverse().map(date => {
+            {[...availableDates].reverse().map(date => {
               const d = new Date(date + 'T12:00:00');
               const isSelected = date === selectedDate;
               const count = getRecordCount(date);
