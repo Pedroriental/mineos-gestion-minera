@@ -66,9 +66,11 @@ export default function ResumenEjecutivoPage() {
   const leyCabeza = totalTon > 0 ? totalGrams / totalTon : 0;
   const costoPorGramo = totalGrams > 0 ? totalGastos / totalGrams : 0;
   const ingresoEstimado = goldPrice ? totalGrams * goldPrice.usd_gramo : 0;
-  const ganancia = ingresoEstimado - totalGastos;
+  // Rentabilidad real: usa el oro puro quemado como referencia (es el dato definitivo)
+  const ingresoReal    = goldPrice && totalQuemadaOro > 0 ? totalQuemadaOro * goldPrice.usd_gramo : ingresoEstimado;
+  const ganancia = ingresoReal - totalGastos;
   const isProfitable = ganancia > 0;
-  const margenPct = ingresoEstimado > 0 ? (ganancia / ingresoEstimado) * 100 : 0;
+  const margenPct = ingresoReal > 0 ? (ganancia / ingresoReal) * 100 : 0;
 
   const prodDays = useMemo(() => new Set(filteredReportes.map(r => r.fecha)).size, [filteredReportes]);
   const promDiarioGramos = prodDays > 0 ? totalGrams / prodDays : 0;
@@ -188,8 +190,17 @@ export default function ResumenEjecutivoPage() {
             </span>
           </div>
           <p className="text-xs sm:text-sm text-white/45 leading-snug">
-            Ingreso: <span className="text-white/65 font-medium">{fmt(ingresoEstimado)}</span>
-            {' '}— Gastos: <span className="text-white/65 font-medium">{fmt(totalGastos)}</span>
+            {totalQuemadaOro > 0 ? (
+              <>
+                Ingreso real (Au quemado): <span className="text-amber-400 font-medium">{fmt(ingresoReal)}</span>
+                {' '}— Gastos: <span className="text-white/65 font-medium">{fmt(totalGastos)}</span>
+              </>
+            ) : (
+              <>
+                Ingreso estimado: <span className="text-white/65 font-medium">{fmt(ingresoEstimado)}</span>
+                {' '}— Gastos: <span className="text-white/65 font-medium">{fmt(totalGastos)}</span>
+              </>
+            )}
           </p>
         </div>
         {/* Gold price — shown sm+ */}
@@ -388,7 +399,7 @@ export default function ResumenEjecutivoPage() {
             rows: [
               { label: 'Quemadas', value: filteredQuemadas.length, color: 'text-white/80' },
               { label: 'Au recuperado', value: `${fmtNum(totalQuemadaOro, 4)} g`, color: 'text-amber-400' },
-              { label: 'Amalgama total', value: `${fmtNum(totalQuemadaAmalgama, 2)} g`, color: 'text-white/60' },
+              { label: 'Valor estimado', value: fmt(totalQuemadaOro * (goldPrice?.usd_gramo || 0)), color: 'text-emerald-400' },
             ],
           },
           {

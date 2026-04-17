@@ -81,7 +81,7 @@ const navigation: NavSection[] = [
     items: [
       { label: 'Producción', href: '/planta/produccion', icon: <FlaskConical className="w-4 h-4" /> },
       { label: 'Recepción',  href: '/planta/recepcion',  icon: <Layers className="w-4 h-4" /> },
-      { label: 'Quemado',    href: '/planta/quemada',    icon: <Flame className="w-4 h-4" /> },
+      { label: 'Procesamiento', href: '/planta/procesamiento', icon: <Factory className="w-4 h-4" /> },
       { label: 'Arenas',     href: '/planta/arenas',     icon: <Package className="w-4 h-4" /> },
     ],
   },

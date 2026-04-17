@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import {
   Flame, Plus, X, Loader2, Edit2, Trash2, Calculator,
-  ChevronLeft, ChevronRight, CalendarDays, AlertCircle,
+  ChevronLeft, ChevronRight, CalendarDays, AlertCircle, Gem,
 } from 'lucide-react';
 import type { ReporteQuemado, PlanchaItem } from '@/lib/types';
 import MetricCard from '@/components/MetricCard';
@@ -229,6 +229,16 @@ export default function QuemadoPage() {
         </button>
       </div>
 
+      {/* ── Rentabilidad Real Banner ── */}
+      <div className="card-glass p-4 flex items-start gap-3 border border-amber-400/20">
+        <Gem className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+        <p className="text-sm text-white/50">
+          El campo <strong className="text-amber-400">Au Total Recuperado</strong> alimenta directamente el Balance Diario
+          para calcular la <strong className="text-white/70">rentabilidad real</strong> de la operación.
+          Este dato supera en precisión a la producción estimada de los molinos.
+        </p>
+      </div>
+
       {/* ── Day Selector ── */}
       <div className="card-glass p-4">
         <div className="flex items-center justify-between">
@@ -335,6 +345,12 @@ export default function QuemadoPage() {
                       {d.total_amalgama_g > 0 ? `${(((d.total_amalgama_g - d.total_oro_g) / d.total_amalgama_g) * 100).toFixed(1)}%` : '—'}
                     </span>
                   </div>
+                  <div>
+                    <span className="text-xs text-white/35 block mb-0.5">% Rec.</span>
+                    <span className={`font-bold ${d.total_amalgama_g > 0 ? ((d.total_oro_g / d.total_amalgama_g) * 100 >= 40 ? 'text-emerald-400' : 'text-amber-400') : 'text-white/30'}`}>
+                      {d.total_amalgama_g > 0 ? `${((d.total_oro_g / d.total_amalgama_g) * 100).toFixed(1)}%` : '—'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Individual planchas */}
@@ -390,6 +406,7 @@ export default function QuemadoPage() {
                   <th className="text-right">Total Amalgama (g)</th>
                   <th className="text-right">Total Au (g)</th>
                   <th>Merma</th>
+                  <th>% Rec.</th>
                   <th>Retorta (g)</th>
                   <th>Responsable</th>
                   <th>Acciones</th>
@@ -409,6 +426,13 @@ export default function QuemadoPage() {
                       {d.total_amalgama_g > 0 ? (
                         <span className="badge badge-danger">
                           {(((d.total_amalgama_g - d.total_oro_g) / d.total_amalgama_g) * 100).toFixed(1)}%
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td>
+                      {d.total_amalgama_g > 0 ? (
+                        <span className={`badge ${(d.total_oro_g / d.total_amalgama_g) * 100 >= 40 ? 'badge-success' : 'badge-warning'}`}>
+                          {((d.total_oro_g / d.total_amalgama_g) * 100).toFixed(1)}%
                         </span>
                       ) : '—'}
                     </td>
