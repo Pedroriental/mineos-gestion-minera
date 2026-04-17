@@ -372,6 +372,104 @@ export default function ResumenEjecutivoPage() {
         </div>
       </div>
 
+      {/* ── Balance de Oro ── */}
+      <div className="card-glass rounded-xl p-5">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-[11px] font-medium uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+            <span className="text-amber-400">⚖️</span> Balance de Oro — Producción vs Quemado Real
+          </h3>
+          {totalGrams > 0 && totalQuemadaOro > 0 && (
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+              (totalQuemadaOro / totalGrams) * 100 >= 80
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-400/25'
+                : (totalQuemadaOro / totalGrams) * 100 >= 50
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-400/25'
+                  : 'bg-red-500/10 text-red-400 border-red-400/25'
+            }`}>
+              {((totalQuemadaOro / totalGrams) * 100).toFixed(1)}% recuperación real
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          {/* Producción estimada */}
+          <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-4">
+            <p className="text-[10px] text-white/35 uppercase tracking-wider font-bold mb-1">Producción (est.)</p>
+            <p className="text-xl font-black text-blue-400">{fmtNum(totalGrams, 4)} <span className="text-xs font-normal text-white/40">g Au</span></p>
+            <p className="text-[10px] text-white/25 mt-1">Reportes de planta</p>
+          </div>
+
+          {/* Quemado real */}
+          <div className="bg-amber-500/[0.06] border border-amber-400/20 rounded-xl p-4">
+            <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-bold mb-1">Quemado (real) 🔥</p>
+            <p className="text-xl font-black text-amber-400">{fmtNum(totalQuemadaOro, 4)} <span className="text-xs font-normal text-amber-400/50">g Au</span></p>
+            <p className="text-[10px] text-white/25 mt-1">Au puro recuperado</p>
+          </div>
+
+          {/* Diferencia */}
+          {(() => {
+            const diff = totalGrams - totalQuemadaOro;
+            const isPos = diff >= 0;
+            return (
+              <div className={`border rounded-xl p-4 ${isPos ? 'bg-white/[0.04] border-white/[0.07]' : 'bg-emerald-500/[0.05] border-emerald-400/20'}`}>
+                <p className="text-[10px] text-white/35 uppercase tracking-wider font-bold mb-1">Diferencia</p>
+                <p className={`text-xl font-black ${isPos ? 'text-orange-400' : 'text-emerald-400'}`}>
+                  {isPos ? '-' : '+'}{fmtNum(Math.abs(diff), 4)} <span className="text-xs font-normal text-white/40">g</span>
+                </p>
+                <p className="text-[10px] text-white/25 mt-1">
+                  {totalGrams === 0 ? 'Sin datos producción' : totalQuemadaOro === 0 ? 'Sin datos quemado' : isPos ? 'No quemado aún' : 'Quemado supera est.'}
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Valor real vs estimado */}
+          {goldPrice && (
+            <div className={`border rounded-xl p-4 ${totalQuemadaOro > 0 ? 'bg-emerald-500/[0.05] border-emerald-400/20' : 'bg-white/[0.04] border-white/[0.07]'}`}>
+              <p className="text-[10px] text-white/35 uppercase tracking-wider font-bold mb-1">
+                {totalQuemadaOro > 0 ? 'Ingreso Real (Au)' : 'Ingreso Estimado'}
+              </p>
+              <p className={`text-xl font-black ${totalQuemadaOro > 0 ? 'text-emerald-400' : 'text-white/60'}`}>
+                {totalQuemadaOro > 0 ? fmt(totalQuemadaOro * goldPrice.usd_gramo) : fmt(totalGrams * goldPrice.usd_gramo)}
+              </p>
+              <p className="text-[10px] text-white/25 mt-1">
+                {totalQuemadaOro > 0 ? `${fmtNum(totalQuemadaOro, 4)} g × $${fmtNum(goldPrice.usd_gramo, 2)}/g` : 'Basado en prod. planta'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Barra de progreso comparativa */}
+        {totalGrams > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5 text-[10px] text-white/35">
+              <span>0 g</span>
+              <span className="text-white/50 font-medium">
+                {totalQuemadaOro > 0
+                  ? `${fmtNum(totalQuemadaOro, 2)} g quemados de ${fmtNum(totalGrams, 2)} g producidos`
+                  : `${fmtNum(totalGrams, 2)} g producidos — sin quemado registrado`}
+              </span>
+              <span>{fmtNum(totalGrams, 2)} g</span>
+            </div>
+            <div className="h-3 bg-white/[0.06] rounded-full overflow-hidden relative">
+              {/* Base (producción) */}
+              <div className="absolute inset-0 bg-blue-500/20 rounded-full" />
+              {/* Quemado real */}
+              {totalQuemadaOro > 0 && (
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-700"
+                  style={{ width: `${Math.min((totalQuemadaOro / totalGrams) * 100, 100)}%` }}
+                />
+              )}
+            </div>
+            <div className="flex gap-4 mt-2 text-[10px] text-white/30">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500/40 inline-block" /> Producción planta</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Au real quemado</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Bottom Stats Row ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
