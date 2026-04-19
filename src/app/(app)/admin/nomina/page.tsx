@@ -361,8 +361,19 @@ export default function NominaPage() {
   const ejecutarBorradoTodo = async () => {
     setBorrandoTodo(true);
     // Hard delete all active personal records
-    await supabase.from('personal').delete().eq('activo', true);
+    const { error } = await supabase.from('personal').delete().eq('activo', true);
     setBorrandoTodo(false);
+    
+    if (error) {
+      if (error.message.includes('foreign key constraint')) {
+        alert('❌ No se puede borrar el personal porque hay una nómina procesada que depende de ellos.\n\nPor favor, ve al "Historial de Semanas Procesadas" abajo y haz clic en "Revertir" antes de borrar los trabajadores.');
+      } else {
+        alert('Ocurrió un error al intentar borrar: ' + error.message);
+      }
+      setShowBorrarModal(false);
+      return;
+    }
+    
     setShowBorrarModal(false);
     loadData();
   };
