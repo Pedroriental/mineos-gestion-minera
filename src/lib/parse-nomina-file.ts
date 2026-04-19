@@ -269,13 +269,18 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
               continue;
             }
 
-            // Look for a cedula in the row
+            // Omitir automáticamente lo del molino también en Excel
+            if (currentSection.toLowerCase().includes('molino')) continue;
+
+            // Look for a cedula OR a date in the row
             let ciIdx = -1;
             let ciValue = '';
+            let dateIdx = -1;
 
             for (let i = 0; i < row.length; i++) {
               const cell = row[i];
-              const s = String(cell ?? '').trim();
+              if (!cell) continue;
+              const s = String(cell).trim();
               if (isCedula(s)) {
                 const norm = normCedula(s);
                 if (norm.length >= 6) {
@@ -283,19 +288,28 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
                   ciValue = norm;
                   break;
                 }
+              } else if (ciIdx < 0 && parseDate(s)) { // if we find a date before finding CI
+                dateIdx = i;
               }
             }
 
-            if (ciIdx < 0) continue; // Not an employee row
-
-            // Name = concatenation of text cells before CI
+            // Name = concatenation of text cells before CI or Date
             let nombre = '';
-            for (let i = 0; i < ciIdx; i++) {
+            const endIdx = ciIdx >= 0 ? ciIdx : dateIdx;
+            if (endIdx < 0) continue; // Not an employee row
+
+            for (let i = 0; i < endIdx; i++) {
               const s = String(row[i] ?? '').trim();
               if (s) nombre += (nombre ? ' ' : '') + s;
             }
             nombre = nombre.trim();
             if (!nombre || shouldSkipRow(nombre)) continue;
+
+            if (ciIdx < 0 && dateIdx >= 0) {
+              // Generar seudo-cédula basada en el nombre
+              ciValue = `SC-${nombre.replace(/[^A-Za-z0-9]/g, '').substring(0,8).toUpperCase()}`;
+              ciIdx = dateIdx - 1; // Para la lógica que sigue
+            }
 
             // Date = first date-like cell after CI
             let fechaIngreso = new Date().toISOString().split('T')[0];
@@ -398,29 +412,47 @@ function parseEmployeeLine(
   line: string,
   currentSection: string
 ): EmpleadoParseado | null {
-  const ciMatch = line.match(CI_REGEX_PDF);
-  if (!ciMatch) return null;
+  // Omitir automáticamente todo lo que sea del molino
+  if (currentSection.toLowerCase().includes('molino')) return null;
 
-  const ciRaw = ciMatch[0];
-  const ciIdx = line.indexOf(ciRaw);
-  const namePart = line.substring(0, ciIdx).trim();
-  const afterCI = line.substring(ciIdx + ciRaw.length).trim();
+  const ciMatch = line.match(CI_REGEX_PDF);
+  const dateMatch = line.match(/\d{2}\/\d{2}\/\d{4}/);
+  
+  let ciRaw = '';
+  let namePart = '';
+  let afterCI = line;
+
+  if (ciMatch) {
+    ciRaw = ciMatch[0];
+    const ciIdx = line.indexOf(ciRaw);
+    namePart = line.substring(0, ciIdx).trim();
+    afterCI = line.substring(ciIdx + ciRaw.length).trim();
+  } else if (dateMatch) {
+    // Si no hay cédula, dividimos usando la fecha
+    const dateIdx = line.indexOf(dateMatch[0]);
+    namePart = line.substring(0, dateIdx).trim();
+    afterCI = line.substring(dateIdx).trim(); // Incluye la fecha para que el parser de fecha lo agarre luego
+    // Generar una seudo-cédula única basada en el nombre para BD
+    ciRaw = `SC-${namePart.replace(/[^A-Za-z0-9]/g, '').substring(0,8).toUpperCase()}`;
+  } else {
+    return null; // Imposible procesar si no hay CI ni Fecha que delimite el nombre
+  }
 
   if (!namePart || namePart.length < 2) return null;
   if (shouldSkipLinePDF(namePart)) return null;
 
   // Date
-  const dateMatch = afterCI.match(/\d{2}\/\d{2}\/\d{4}/);
   let fechaIngreso = new Date().toISOString().split('T')[0];
+  let afterDate = afterCI;
+
   if (dateMatch) {
     const parts = dateMatch[0].split('/');
     fechaIngreso = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    // Si afterCI incluye la fecha, cortamos a partir de ahí
+    if (afterCI.includes(dateMatch[0])) {
+      afterDate = afterCI.substring(afterCI.indexOf(dateMatch[0]) + dateMatch[0].length);
+    }
   }
-
-  // Numbers after date (or after CI if no date)
-  const afterDate = dateMatch
-    ? afterCI.substring(afterCI.indexOf(dateMatch[0]) + dateMatch[0].length)
-    : afterCI;
 
   const tokens = afterDate.split(/\s+/).filter(Boolean);
   let salario = 0;
