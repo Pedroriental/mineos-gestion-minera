@@ -19,8 +19,8 @@ import { cn } from '@/lib/utils';
 // ── All navigable routes (for search palette) ────────────────────────────
 const ALL_ROUTES = [
   { label: 'Dashboard',          href: '/dashboard',              section: 'Principal',      icon: <LayoutDashboard className="w-4 h-4" /> },
-  { label: 'Nómina Mina',        href: '/mina/nomina',            section: 'Mina',           icon: <Users className="w-4 h-4" /> },
   { label: 'Nómina Molino',      href: '/planta/nomina',          section: 'Molino',         icon: <Users className="w-4 h-4" /> },
+  { label: 'Nómina Mina',        href: '/mina/nomina',            section: 'Mina',           icon: <Users className="w-4 h-4" /> },
   { label: 'Gastos',             href: '/admin/gastos',           section: 'Administración', icon: <Receipt className="w-4 h-4" /> },
   { label: 'Inventario',         href: '/admin/inventario',       section: 'Administración', icon: <Package className="w-4 h-4" /> },
   { label: 'Compras',            href: '/admin/compras',          section: 'Administración', icon: <ShoppingCart className="w-4 h-4" /> },
