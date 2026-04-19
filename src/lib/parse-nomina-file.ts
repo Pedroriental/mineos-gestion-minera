@@ -106,15 +106,13 @@ export function inferArea(
 ): EmpleadoParseado['area'] {
   const lower = sectionName.toLowerCase();
   
-  // Si explícitamente es administrativo de molinos
-  if (lower.includes('administrativ') && lower.includes('molino')) return 'planta';
-  
-  // Todo lo que diga molino, planta o cocina va para Molino (planta)
-  if (lower.includes('molino') || lower.includes('planta') || lower.includes('cocina')) {
+  // Como se ve en el PDF: Administrativos Molinos, Semanas Molinos- Grupo, etc.
+  if (lower.includes('molino') || lower.includes('planta')) {
     return 'planta';
   }
 
-  // Cualquier otra cosa (Mina, Seguridad, Transporte, Administrativos Mina, Vertical, etc) va a Mina
+  // De lo contrario (ej: Administrativo Mina, Cocinera Mina, Vertical, Compresor)
+  // todo pertenece a Mina.
   return 'mina';
 }
 
