@@ -399,12 +399,16 @@ const SKIP_LINES_PDF = [
 const CI_REGEX_PDF = /\b(\d{1,2}\.\d{3}\.\d{3})\b/;
 
 function isSectionHeaderPDF(line: string): boolean {
+  // Si contiene fecha o cédula, definitivamente es un empleado (pdfjs pegó el header a la misma línea)
+  if (/\d{2}\/\d{2}\/\d{4}/.test(line) || CI_REGEX_PDF.test(line)) return false;
   return SECTION_PATTERNS_PDF.some((p) => p.test(line.trim()));
 }
 
 function shouldSkipLinePDF(line: string): boolean {
   const t = line.trim();
   if (!t) return true;
+  // Mismo principio: si tiene fecha/cédula, no saltar (aunque el nombre ensucie el inicio)
+  if (/\d{2}\/\d{2}\/\d{4}/.test(line) || CI_REGEX_PDF.test(line)) return false;
   return SKIP_LINES_PDF.some((p) => p.test(t));
 }
 
@@ -437,6 +441,17 @@ function parseEmployeeLine(
   } else {
     return null; // Imposible procesar si no hay CI ni Fecha que delimite el nombre
   }
+
+  // Limpiar namePart por si el PDF pegó el header en la misma línea (ej: "Semanas Mina Belen - Cocinera NURBELIS")
+  namePart = namePart
+    .replace(/^(N[oó]minas?|Semanas?)\s+[^A-Z]+(?=[A-Z]{2,})/i, '') // Quita el "Semanas Mina Belen - Cocinera " si le sigue un nombre en mayúsculas
+    .replace(/^(N[oó]minas?|Semanas?).*?-\s*([A-Za-z\s]+)?(?=[A-Z])/i, '') // Fallback más agresivo
+    .trim();
+
+  // Si quedó alguna basura obvia al inicio que sea idéntica a SECTION_PATTERNS, quitarla
+  SECTION_PATTERNS_PDF.forEach(p => {
+    namePart = namePart.replace(p, '').trim();
+  });
 
   if (!namePart || namePart.length < 2) return null;
   if (shouldSkipLinePDF(namePart)) return null;
