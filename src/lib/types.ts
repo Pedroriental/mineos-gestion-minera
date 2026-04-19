@@ -35,6 +35,17 @@ export interface NominaPago {
   personal?: Personal;
 }
 
+export interface NominaSemana {
+  id: string;
+  semana_inicio: string;
+  semana_fin: string;
+  total_trabajadores: number;
+  total_pagado: number;
+  notas?: string;
+  registrado_por?: string;
+  created_at: string;
+}
+
 export interface CategoriaGasto {
   id: string;
   nombre: string;
