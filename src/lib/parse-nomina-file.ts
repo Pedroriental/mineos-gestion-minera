@@ -443,12 +443,21 @@ function parseEmployeeLine(
   }
 
   // Limpiar namePart por si el PDF pegó el header en la misma línea (ej: "Semanas Mina Belen - Cocinera NURBELIS")
-  namePart = namePart
-    .replace(/^(N[oó]minas?|Semanas?)\s+[^A-Z]+(?=[A-Z]{2,})/i, '') // Quita el "Semanas Mina Belen - Cocinera " si le sigue un nombre en mayúsculas
-    .replace(/^(N[oó]minas?|Semanas?).*?-\s*([A-Za-z\s]+)?(?=[A-Z])/i, '') // Fallback más agresivo
-    .trim();
+  const knownHeaders = [
+    /^Semanas?\s+Mina\s+Belen\s*-\s*Cocinera\s*/i,
+    /^Semanas?\s+Mina\s+Belen\s*-\s*Tecnico\s+Operador\s+Compresor\s*/i,
+    /^Semanas?\s+Mina\s+Belen\s*-\s*Vertical\s+1PD\s*/i,
+    /^Semanas?\s+Mina\s+Belen\s*-\s*Vertical\s+2\s*/i,
+    /^N[oó]minas?\s+Administrativos?\s+Mina\s*/i,
+    /^(N[oó]minas?|Semanas?)\s+Mina\s+Belen\s*-\s*/i // fallback general si cambia algo
+  ];
 
-  // Si quedó alguna basura obvia al inicio que sea idéntica a SECTION_PATTERNS, quitarla
+  for (const headerRegex of knownHeaders) {
+    namePart = namePart.replace(headerRegex, '');
+  }
+  namePart = namePart.trim();
+
+  // Si quedó alguna basura obvia al inicio que sea idéntica a SECTION_PATTERNS sin nombre, quitarla
   SECTION_PATTERNS_PDF.forEach(p => {
     namePart = namePart.replace(p, '').trim();
   });
