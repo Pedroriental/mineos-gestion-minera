@@ -287,6 +287,7 @@ export default function NominaPage() {
   const [importResult, setImportResult] = useState<{ nuevos: number; actualizados: number } | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string>('');
   const [borrandoTodo, setBorrandoTodo] = useState(false);
+  const [showBorrarModal, setShowBorrarModal] = useState(false);
 
   // ── Load ─────────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -352,20 +353,17 @@ export default function NominaPage() {
     loadData();
   };
 
-  const handleBorrarTodoPersonal = async () => {
+  const handleBorrarTodoPersonal = () => {
     if (data.length === 0) return;
-    const primera = confirm(
-      `⚠ ¿Estás seguro de que deseas eliminar los ${data.length} trabajadores registrados?\n\nEsta acción borrará permanentemente todos los registros del personal activo.`
-    );
-    if (!primera) return;
-    const segunda = confirm(
-      `🔴 CONFIRMACIÓN FINAL\n\nSe eliminarán ${data.length} trabajadores de forma permanente.\n¿Continuar?`
-    );
-    if (!segunda) return;
+    setShowBorrarModal(true);
+  };
+
+  const ejecutarBorradoTodo = async () => {
     setBorrandoTodo(true);
     // Hard delete all active personal records
     await supabase.from('personal').delete().eq('activo', true);
     setBorrandoTodo(false);
+    setShowBorrarModal(false);
     loadData();
   };
 
@@ -820,6 +818,40 @@ export default function NominaPage() {
             </table>
           </div>
         </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          MODAL: Borrar Todo el Personal
+      ══════════════════════════════════════════════════════════════════ */}
+      {showBorrarModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowBorrarModal(false)}>
+          <div className="relative w-full max-w-sm bg-zinc-950 border border-red-500/30 rounded-2xl shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">¿Borrar todo el personal?</h2>
+            <p className="text-sm text-white/60 mb-6">
+              Estás a punto de eliminar <strong className="text-white">{data.length}</strong> trabajadores de forma <strong className="text-red-400">permanente</strong>.<br /><br />
+              Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowBorrarModal(false)}
+                disabled={borrandoTodo}
+                className="flex-1 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl transition-colors font-medium border border-zinc-800 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={ejecutarBorradoTodo}
+                disabled={borrandoTodo}
+                className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors font-medium flex items-center justify-center disabled:opacity-50"
+              >
+                {borrandoTodo ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, borrar todo'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
