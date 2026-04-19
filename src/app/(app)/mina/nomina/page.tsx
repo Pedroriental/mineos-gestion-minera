@@ -34,6 +34,8 @@ import {
   ChevronUp,
   Clock,
   Pickaxe,
+  Eye,
+  ArrowLeft,
 } from 'lucide-react';
 import type { Personal, NominaSemana } from '@/lib/types';
 import type { EmpleadoParseado, WeekRange } from '@/lib/parse-nomina-file';
@@ -295,6 +297,11 @@ export default function NominaMinaPage() {
   const [borrandoTodo, setBorrandoTodo] = useState(false);
   const [showBorrarModal, setShowBorrarModal] = useState(false);
 
+  // ── Modos de vista ───────────────────────────────────────────────────────
+  const [semanaVisualizada, setSemanaVisualizada] = useState<NominaSemana | null>(null);
+  const [historicalData, setHistoricalData] = useState<Personal[]>([]);
+  const [loadingHistorical, setLoadingHistorical] = useState(false);
+
   // ── Load — solo trabajadores de esta área ────────────────────────────────
   const loadData = useCallback(async () => {
     const { data: rows } = await supabase
@@ -325,6 +332,34 @@ export default function NominaMinaPage() {
     loadData();
     loadTodasSemanas();
   }, [loadData, loadTodasSemanas]);
+
+  // ── Load Historical Week ─────────────────────────────────────────────────
+  const loadHistoricalWeek = async (sem: NominaSemana) => {
+    setLoadingHistorical(true);
+    setSemanaVisualizada(sem);
+    
+    // Fetch payments of that week and join with personal table
+    const { data: pagos } = await supabase
+      .from('nomina_pagos')
+      .select(`
+        total_pagado,
+        personal:personal_id (
+          id, cedula, nombre_completo, cargo, area, fecha_ingreso
+        )
+      `)
+      .eq('periodo_inicio', sem.semana_inicio);
+
+    // Cast response back to the standard `Personal` interface for the table
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const histPersonal = (pagos || []).map((p: any) => ({
+      ...(p.personal || {}),
+      salario_base: p.total_pagado, // Represent what they made that week
+      activo: false,
+    })) as Personal[];
+    
+    setHistoricalData(histPersonal);
+    setLoadingHistorical(false);
+  };
 
   // ── Worker CRUD ───────────────────────────────────────────────────────────
   const resetForm = () => {
@@ -582,10 +617,14 @@ export default function NominaMinaPage() {
   const closeImport = () => { setShowImport(false); resetImport(); };
 
   // ── Derived values ───────────────────────────────────────────────────────
-  const filtered = data.filter(
+  const isHistoricalView = semanaVisualizada !== null;
+  const currentViewData = isHistoricalView ? historicalData : data;
+  const currentViewLoading = loading || loadingHistorical;
+
+  const filtered = currentViewData.filter(
     (p) => p.nombre_completo.toLowerCase().includes(search.toLowerCase()) || p.cedula.includes(search)
   );
-  const totalSemana = data.reduce((s, p) => s + Number(p.salario_base), 0);
+  const totalSemana = currentViewData.reduce((s, p) => s + Number(p.salario_base), 0);
   const validCount = parsedEmps.filter((e) => e._valid).length;
   const invalidCount = parsedEmps.length - validCount;
   const semanaActualProcesada = semanaActual !== null && semanaActual !== undefined;
@@ -646,38 +685,49 @@ export default function NominaMinaPage() {
       )}
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Pickaxe className="w-6 h-6 text-amber-400" /> {PAGE_TITLE}
+            <Pickaxe className="w-6 h-6 text-amber-400" />
+            {isHistoricalView 
+              ? `Semana Histórica: ${fmtDate(semanaVisualizada.semana_inicio)} al ${fmtDate(semanaVisualizada.semana_fin)}`
+              : PAGE_TITLE}
           </h1>
-          <p className="text-white/40 text-sm mt-1">{data.length} trabajadores activos</p>
+          <p className="text-white/40 text-sm mt-1">{currentViewData.length} trabajadores {isHistoricalView ? 'que cobraron en este período' : 'activos'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowImport(true)} disabled={!canEdit} className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
-            <Upload className="w-4 h-4" /><span className="hidden sm:inline">Importar</span>
-          </button>
-          <button
-            onClick={() => { setWeekRange({ inicio: getWeekStart(), fin: getWeekEnd() }); setShowProcesarModal(true); }}
-            disabled={!canEdit || data.length === 0}
-            className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Procesar</span>
-          </button>
-          {canEdit && data.length > 0 && (
-            <button
-              onClick={handleBorrarTodoPersonal}
-              disabled={borrandoTodo}
-              className="flex items-center gap-1.5 text-xs text-red-400/70 hover:text-red-400 transition-colors disabled:opacity-40 border border-red-500/20 hover:border-red-400/40 bg-red-500/5 rounded-xl px-3 py-2 font-medium"
-              title="Eliminar todos los trabajadores de Mina"
-            >
-              {borrandoTodo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">Borrar todo</span>
+          {isHistoricalView ? (
+            <button onClick={() => setSemanaVisualizada(null)} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <ArrowLeft className="w-4 h-4" /> Volver al Personal Activo
             </button>
+          ) : (
+            <>
+              <button onClick={() => setShowImport(true)} disabled={!canEdit} className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                <Upload className="w-4 h-4" /><span className="hidden sm:inline">Importar</span>
+              </button>
+              <button
+                onClick={() => { setWeekRange({ inicio: getWeekStart(), fin: getWeekEnd() }); setShowProcesarModal(true); }}
+                disabled={!canEdit || data.length === 0}
+                className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Procesar</span>
+              </button>
+              {canEdit && data.length > 0 && (
+                <button
+                  onClick={handleBorrarTodoPersonal}
+                  disabled={borrandoTodo}
+                  className="flex items-center gap-1.5 text-xs text-red-400/70 hover:text-red-400 transition-colors disabled:opacity-40 border border-red-500/20 hover:border-red-400/40 bg-red-500/5 rounded-xl px-3 py-2 font-medium"
+                  title="Eliminar todos los trabajadores"
+                >
+                  {borrandoTodo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <span className="hidden sm:inline">Borrar todo</span>
+                </button>
+              )}
+              <button onClick={openNew} disabled={!canEdit} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
+                <Plus className="w-4 h-4" /> Agregar
+              </button>
+            </>
           )}
-          <button onClick={openNew} disabled={!canEdit} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
-            <Plus className="w-4 h-4" /> Agregar
-          </button>
         </div>
       </div>
 
@@ -689,11 +739,11 @@ export default function NominaMinaPage() {
         </div>
         <div className="card-glass p-4">
           <p className="text-xs text-white/35 uppercase tracking-wider mb-1">Trabajadores</p>
-          <p className="text-xl font-black text-white/80">{data.length}</p>
+          <p className="text-xl font-black text-white/80">{currentViewData.length}</p>
         </div>
         <div className="card-glass p-4 col-span-2 sm:col-span-1">
           <p className="text-xs text-white/35 uppercase tracking-wider mb-1">Promedio / sem</p>
-          <p className="text-xl font-black text-white/80">{data.length > 0 ? fmtMoney(totalSemana / data.length) : '$0.00'}</p>
+          <p className="text-xl font-black text-white/80">{currentViewData.length > 0 ? fmtMoney(totalSemana / currentViewData.length) : '$0.00'}</p>
         </div>
       </div>
 
@@ -737,15 +787,24 @@ export default function NominaMinaPage() {
                         </td>
                         <td className="px-3 py-3 text-center text-white/50">{sem.total_trabajadores}</td>
                         <td className="px-3 py-3 text-right font-semibold text-amber-400">{fmtMoney(Number(sem.total_pagado))}</td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => handleRevertirSemana(sem)}
-                            disabled={!canEdit || revertiendoId === sem.id}
-                            className="flex items-center gap-1.5 text-xs text-red-400/60 hover:text-red-400 transition-colors disabled:opacity-40 ml-auto border border-red-500/20 hover:border-red-400/40 bg-red-500/5 rounded-lg px-2.5 py-1.5"
-                          >
-                            {revertiendoId === sem.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
-                            Revertir
-                          </button>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => loadHistoricalWeek(sem)}
+                              className="flex items-center gap-1.5 text-xs text-amber-400/80 hover:text-amber-400 transition-colors border border-amber-500/20 hover:border-amber-400/40 bg-amber-500/5 rounded-lg px-2.5 py-1.5 whitespace-nowrap"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span className="hidden sm:inline">Detalles</span>
+                            </button>
+                            <button
+                              onClick={() => handleRevertirSemana(sem)}
+                              disabled={!canEdit || revertiendoId === sem.id}
+                              className="flex items-center gap-1.5 text-xs text-red-400/60 hover:text-red-400 transition-colors disabled:opacity-40 border border-red-500/20 hover:border-red-400/40 bg-red-500/5 rounded-lg px-2.5 py-1.5 whitespace-nowrap"
+                            >
+                              {revertiendoId === sem.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                              <span className="hidden sm:inline">Revertir</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -764,7 +823,7 @@ export default function NominaMinaPage() {
       </div>
 
       {/* ── Lista trabajadores ───────────────────────────────────────────── */}
-      {loading ? (
+      {currentViewLoading ? (
         <div className="flex justify-center py-20">
           <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
         </div>
@@ -782,10 +841,10 @@ export default function NominaMinaPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <span className="font-black text-amber-400 text-lg block leading-none">{fmtMoney(p.salario_base)}</span>
-                    <span className="text-[10px] text-white/35">por semana</span>
+                    <span className="text-[10px] text-white/35">{isHistoricalView ? 'pagado' : 'por semana'}</span>
                   </div>
                 </div>
-                {canEdit && (
+                {!isHistoricalView && canEdit && (
                   <div className="flex gap-2 justify-end pt-3 border-t border-white/[0.07]">
                     <button onClick={() => openEdit(p)} className="btn-secondary !py-1.5 !px-3 !text-xs"><Edit2 className="w-3.5 h-3.5" /> Editar</button>
                     <button onClick={() => handleDelete(p.id)} className="btn-danger !py-1.5 !px-3 !text-xs"><Trash2 className="w-3.5 h-3.5" /> Archivar</button>
@@ -816,7 +875,7 @@ export default function NominaMinaPage() {
                     <td className="text-right text-amber-400 font-semibold">{fmtMoney(p.salario_base)}</td>
                     <td className="text-white/40">{p.fecha_ingreso}</td>
                     <td>
-                      {canEdit && (
+                      {!isHistoricalView && canEdit && (
                         <div className="flex gap-1">
                           <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors"><Edit2 className="w-4 h-4" /></button>
                           <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
