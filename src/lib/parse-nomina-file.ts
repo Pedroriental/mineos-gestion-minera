@@ -269,9 +269,6 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
               continue;
             }
 
-            // Omitir automáticamente lo del molino también en Excel
-            if (currentSection.toLowerCase().includes('molino')) continue;
-
             // Look for a cedula OR a date in the row
             let ciIdx = -1;
             let ciValue = '';
@@ -416,9 +413,6 @@ function parseEmployeeLine(
   line: string,
   currentSection: string
 ): EmpleadoParseado | null {
-  // Omitir automáticamente todo lo que sea del molino
-  if (currentSection.toLowerCase().includes('molino')) return null;
-
   const ciMatch = line.match(CI_REGEX_PDF);
   const dateMatch = line.match(/\d{2}\/\d{2}\/\d{4}/);
   

@@ -13,12 +13,12 @@ import {
   Receipt,
   Package,
   ShoppingCart,
-  // Mina section
+  // Mina section (Molino)
   Pickaxe,
   Zap,
   Wrench,
   ShieldCheck,
-  // Planta section
+  // Planta section (Mina)
   Factory,
   FlaskConical,
   Flame,
@@ -57,7 +57,6 @@ const navigation: NavSection[] = [
     title: 'Administración',
     icon: <CircleDollarSign className="w-4 h-4" />,
     items: [
-      { label: 'Nómina',     href: '/admin/nomina',     icon: <Users className="w-4 h-4" /> },
       { label: 'Gastos',     href: '/admin/gastos',     icon: <Receipt className="w-4 h-4" /> },
       { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
       { label: 'Compras',    href: '/admin/compras',    icon: <ShoppingCart className="w-4 h-4" /> },
@@ -65,9 +64,10 @@ const navigation: NavSection[] = [
   },
   {
     id: 'mina',
-    title: 'Mina',
+    title: 'Molino',
     icon: <Pickaxe className="w-4 h-4" />,
     items: [
+      { label: 'Nómina',    href: '/mina/nomina',    icon: <Users className="w-4 h-4" /> },
       { label: 'Voladuras', href: '/mina/voladuras', icon: <Zap className="w-4 h-4" /> },
       { label: 'Quemado',   href: '/mina/quemado',   icon: <Flame className="w-4 h-4" /> },
       { label: 'Equipos',   href: '/mina/equipos',   icon: <Wrench className="w-4 h-4" /> },
@@ -76,13 +76,14 @@ const navigation: NavSection[] = [
   },
   {
     id: 'planta',
-    title: 'Planta',
+    title: 'Mina',
     icon: <Factory className="w-4 h-4" />,
     items: [
-      { label: 'Producción', href: '/planta/produccion', icon: <FlaskConical className="w-4 h-4" /> },
-      { label: 'Recepción',  href: '/planta/recepcion',  icon: <Layers className="w-4 h-4" /> },
+      { label: 'Nómina',       href: '/planta/nomina',       icon: <Users className="w-4 h-4" /> },
+      { label: 'Producción',   href: '/planta/produccion',   icon: <FlaskConical className="w-4 h-4" /> },
+      { label: 'Recepción',    href: '/planta/recepcion',    icon: <Layers className="w-4 h-4" /> },
       { label: 'Procesamiento', href: '/planta/procesamiento', icon: <Factory className="w-4 h-4" /> },
-      { label: 'Arenas',     href: '/planta/arenas',     icon: <Package className="w-4 h-4" /> },
+      { label: 'Arenas',        href: '/planta/arenas',        icon: <Package className="w-4 h-4" /> },
     ],
   },
   {
