@@ -307,7 +307,7 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
               }
             }
 
-            // Salary = last positive number BEFORE any pure-text cell (e.g. "Salen libre")
+            // Salary = FIRST positive number after CI/date (= weekly wage column, not accumulated total)
             let salario = 0;
             for (let i = ciIdx + 2; i < row.length; i++) {
               const cell = row[i];
@@ -315,6 +315,7 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
               if (typeof cell === 'string' && /^[a-záéíóúñA-Z]/i.test(cell.trim())) break;
               if (isAmount(cell)) {
                 salario = normAmount(cell as string | number);
+                break; // stop at first valid amount (Semana 1 column)
               }
             }
 
@@ -423,9 +424,12 @@ function parseEmployeeLine(
   const tokens = afterDate.split(/\s+/).filter(Boolean);
   let salario = 0;
   for (const token of tokens) {
-    if (/^[a-záéíóúñA-ZÁÉÍÓÚÑ]{3,}/.test(token)) break;
+    if (/^[a-záéíóúnÑ]{3,}/i.test(token)) break;
     const n = parseFloat(token.replace(/\./g, '').replace(',', '.'));
-    if (!isNaN(n) && n > 0) salario = n;
+    if (!isNaN(n) && n > 0) {
+      salario = n;
+      break; // take FIRST positive number (= weekly wage, not multi-week total)
+    }
   }
 
   if (salario <= 0) return null;
