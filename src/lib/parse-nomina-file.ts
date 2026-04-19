@@ -105,16 +105,16 @@ export function inferArea(
   sectionName: string
 ): EmpleadoParseado['area'] {
   const lower = sectionName.toLowerCase();
-  if (lower.includes('transport')) return 'transporte';
-  if (lower.includes('seguridad') || lower.includes('vigilanci')) return 'seguridad';
-  if (
-    lower.includes('administrativo') ||
-    lower.includes('administrativos') ||
-    lower.includes('admin')
-  )
-    return 'administracion';
-  if (lower.includes('molino') && !lower.includes('mina')) return 'planta';
-  if (lower.includes('cocina') || lower.includes('cocinera')) return 'planta';
+  
+  // Si explícitamente es administrativo de molinos
+  if (lower.includes('administrativ') && lower.includes('molino')) return 'planta';
+  
+  // Todo lo que diga molino, planta o cocina va para Molino (planta)
+  if (lower.includes('molino') || lower.includes('planta') || lower.includes('cocina')) {
+    return 'planta';
+  }
+
+  // Cualquier otra cosa (Mina, Seguridad, Transporte, Administrativos Mina, Vertical, etc) va a Mina
   return 'mina';
 }
 
