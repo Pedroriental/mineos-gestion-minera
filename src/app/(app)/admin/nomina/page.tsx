@@ -541,6 +541,9 @@ export default function NominaPage() {
     setImporting(true);
     let nuevos = 0, actualizados = 0;
 
+    // Desactivar a todos los trabajadores actuales para que no se sumen a la nómina de esta nueva semana
+    await supabase.from('personal').update({ activo: false }).neq('activo', false);
+
     for (const emp of valid) {
       const payload = {
         cedula: emp.cedula,
@@ -603,10 +606,6 @@ export default function NominaPage() {
                 <p className="text-sm font-semibold text-amber-300">Nómina de esta semana pendiente</p>
                 <p className="text-xs text-amber-400/70 mt-0.5">
                   Semana del {fmtDate(getWeekStart())} al {fmtDate(getWeekEnd())} — {data.length} trabajadores — Total: <span className="font-bold">{fmtMoney(totalSemana)}</span>
-                  <br/>
-                  <span className="text-red-400 font-medium">Buscando desaparecido: {
-                    ["Rafael", "Renny", "Cedeño", "Angel Machiz", "Dennis", "Victor Rivas", "Luis A", "Ely David", "Luis Alcantara", "Jonder", "Luis Acosta", "Hurtado", "Vidal", "Yánez", "Eliezar", "Romero Reinaldo", "Romero Jesús", "Nurbelis", "Lugo"].filter(name => !data.some(d => d.nombre_completo.toLowerCase().includes(name.toLowerCase()))).join(', ')
-                  }</span>
                 </p>
               </div>
             </div>
