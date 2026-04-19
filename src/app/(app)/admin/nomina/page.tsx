@@ -286,6 +286,7 @@ export default function NominaPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ nuevos: number; actualizados: number } | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string>('');
+  const [borrandoTodo, setBorrandoTodo] = useState(false);
 
   // ── Load ─────────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -348,6 +349,23 @@ export default function NominaPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Desactivar este trabajador?')) return;
     await supabase.from('personal').update({ activo: false }).eq('id', id);
+    loadData();
+  };
+
+  const handleBorrarTodoPersonal = async () => {
+    if (data.length === 0) return;
+    const primera = confirm(
+      `⚠ ¿Estás seguro de que deseas eliminar los ${data.length} trabajadores registrados?\n\nEsta acción borrará permanentemente todos los registros del personal activo.`
+    );
+    if (!primera) return;
+    const segunda = confirm(
+      `🔴 CONFIRMACIÓN FINAL\n\nSe eliminarán ${data.length} trabajadores de forma permanente.\n¿Continuar?`
+    );
+    if (!segunda) return;
+    setBorrandoTodo(true);
+    // Hard delete all active personal records
+    await supabase.from('personal').delete().eq('activo', true);
+    setBorrandoTodo(false);
     loadData();
   };
 
@@ -632,6 +650,17 @@ export default function NominaPage() {
           >
             <RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Procesar</span>
           </button>
+          {canEdit && data.length > 0 && (
+            <button
+              onClick={handleBorrarTodoPersonal}
+              disabled={borrandoTodo}
+              className="flex items-center gap-1.5 text-xs text-red-400/70 hover:text-red-400 transition-colors disabled:opacity-40 border border-red-500/20 hover:border-red-400/40 bg-red-500/5 rounded-xl px-3 py-2 font-medium"
+              title="Eliminar todos los trabajadores permanentemente"
+            >
+              {borrandoTodo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">Borrar todo</span>
+            </button>
+          )}
           <button onClick={openNew} disabled={!canEdit} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
             <Plus className="w-4 h-4" /> Agregar
           </button>
