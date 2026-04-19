@@ -307,15 +307,17 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
               }
             }
 
-            // Salary = FIRST positive number after CI/date (= weekly wage column, not accumulated total)
+            // Salary = first number that is a plausible weekly wage:
+            // Skip: week counts (1,2,3), years (2019,2020...), and tiny numbers (≤ 15).
+            // PDF columns: [semanas_trabajadas:2] [salario:200] [libre] [total:400]
             let salario = 0;
             for (let i = ciIdx + 2; i < row.length; i++) {
               const cell = row[i];
               if (cell === '' || cell === null || cell === undefined) continue;
-              if (typeof cell === 'string' && /^[a-záéíóúñA-Z]/i.test(cell.trim())) break;
+              if (typeof cell === 'string' && /^[a-záéíóún]/i.test(cell.trim())) break;
               if (isAmount(cell)) {
-                salario = normAmount(cell as string | number);
-                break; // stop at first valid amount (Semana 1 column)
+                const n = normAmount(cell as string | number);
+                if (n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; break; }
               }
             }
 
@@ -424,12 +426,10 @@ function parseEmployeeLine(
   const tokens = afterDate.split(/\s+/).filter(Boolean);
   let salario = 0;
   for (const token of tokens) {
-    if (/^[a-záéíóúnÑ]{3,}/i.test(token)) break;
+    if (/^[a-zá-úñ]{3,}/i.test(token)) break; // stop at words like "libre"
     const n = parseFloat(token.replace(/\./g, '').replace(',', '.'));
-    if (!isNaN(n) && n > 0) {
-      salario = n;
-      break; // take FIRST positive number (= weekly wage, not multi-week total)
-    }
+    // Skip week counts (1,2...), years (2019...), row nums; take first real wage
+    if (!isNaN(n) && n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; break; }
   }
 
   if (salario <= 0) return null;
