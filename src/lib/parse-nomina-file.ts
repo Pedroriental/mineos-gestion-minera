@@ -11,6 +11,95 @@ export interface EmpleadoParseado {
   _error?: string;
 }
 
+export interface WeekRange {
+  inicio: string | null;
+  fin: string | null;
+}
+
+// ── Meses en español → número ────────────────────────────────────────────────
+const MONTH_MAP: Record<string, string> = {
+  enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05',
+  junio: '06', julio: '07', agosto: '08', septiembre: '09', octubre: '10',
+  noviembre: '11', diciembre: '12',
+};
+
+function parseSpanishDate(day: string, month: string, year: string): string | null {
+  const m = MONTH_MAP[month.toLowerCase()];
+  if (!m) return null;
+  return `${year}-${m}-${day.padStart(2, '0')}`;
+}
+
+function parseNumericDate(raw: string): string | null {
+  const parts = raw.split('/');
+  if (parts.length !== 3) return null;
+  const [d, mo, y] = parts;
+  if (y.length !== 4) return null;
+  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
+/**
+ * Intenta detectar el rango de la semana en texto extraído de un PDF o Excel.
+ * Busca patrones como:
+ *   "del 16 marzo al 05/04/2026"
+ *   "Semana del 30 ABRIL 2026 al 05/04/2026"
+ *   "16/03/2026 al 05/04/2026"
+ */
+export function detectWeekRange(text: string): WeekRange {
+  // Pattern 1: Spanish month name — "30 ABRIL 2026" or "16 de marzo de 2026"
+  const spanishPat = /(\d{1,2})\s+(?:de\s+)?([A-Za-záéíóúñ]+)\s+(?:de\s+)?(\d{4})/gi;
+  const spanishMatches: RegExpMatchArray[] = [...text.matchAll(spanishPat)];
+
+  if (spanishMatches.length >= 2) {
+    const first = parseSpanishDate(spanishMatches[0][1], spanishMatches[0][2], spanishMatches[0][3]);
+    const last = parseSpanishDate(
+      spanishMatches[spanishMatches.length - 1][1],
+      spanishMatches[spanishMatches.length - 1][2],
+      spanishMatches[spanishMatches.length - 1][3]
+    );
+    if (first && last && first !== last) return { inicio: first, fin: last };
+    if (first && last) return { inicio: first, fin: last };
+  }
+
+  // Pattern 2: DD/MM/YYYY numeric dates
+  const numericPat = /\b(\d{1,2}\/\d{2}\/\d{4})\b/g;
+  const numericMatches = [...text.matchAll(numericPat)];
+
+  if (numericMatches.length >= 2) {
+    const first = parseNumericDate(numericMatches[0][1]);
+    const last = parseNumericDate(numericMatches[numericMatches.length - 1][1]);
+    if (first && last) return { inicio: first, fin: last };
+  }
+
+  return { inicio: null, fin: null };
+}
+
+/**
+ * Detecta la semana desde las celdas de un archivo Excel.
+ */
+export function detectWeekRangeFromExcel(workbook: import('xlsx').WorkBook): WeekRange {
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+    // Scan first 10 rows looking for date range text
+    for (let i = 0; i < Math.min(10, rows.length); i++) {
+      const rowText = (rows[i] as unknown[]).map((c) => String(c ?? '')).join(' ');
+      if (/semana|nómina|nomina/i.test(rowText)) {
+        const range = detectWeekRange(rowText);
+        if (range.inicio && range.fin) return range;
+      }
+    }
+    // Broader scan of whole sheet text
+    const allText = rows
+      .slice(0, 20)
+      .map((r) => (r as unknown[]).map((c) => String(c ?? '')).join(' '))
+      .join('\n');
+    const range = detectWeekRange(allText);
+    if (range.inicio && range.fin) return range;
+  }
+  return { inicio: null, fin: null };
+}
+
+
 // ── Detección de área desde el nombre de la sección ──────────────────────────
 export function inferArea(
   sectionName: string

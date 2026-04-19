@@ -43,6 +43,7 @@ export interface NominaSemana {
   total_pagado: number;
   notas?: string;
   registrado_por?: string;
+  gasto_id?: string;
   created_at: string;
 }
 
