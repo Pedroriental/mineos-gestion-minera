@@ -307,9 +307,8 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
               }
             }
 
-            // Salary = first number that is a plausible weekly wage:
-            // Skip: week counts (1,2,3), years (2019,2020...), and tiny numbers (≤ 15).
-            // PDF columns: [semanas_trabajadas:2] [salario:200] [libre] [total:400]
+            // Salary = LAST number before any text cell ("salen libre").
+            // Toma la columna "Total Nóminas" acumulada que es la que se paga.
             let salario = 0;
             for (let i = ciIdx + 2; i < row.length; i++) {
               const cell = row[i];
@@ -317,7 +316,7 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
               if (typeof cell === 'string' && /^[a-záéíóún]/i.test(cell.trim())) break;
               if (isAmount(cell)) {
                 const n = normAmount(cell as string | number);
-                if (n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; break; }
+                if (n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; } // keeps updating to the last one
               }
             }
 
@@ -428,8 +427,8 @@ function parseEmployeeLine(
   for (const token of tokens) {
     if (/^[a-zá-úñ]{3,}/i.test(token)) break; // stop at words like "libre"
     const n = parseFloat(token.replace(/\./g, '').replace(',', '.'));
-    // Skip week counts (1,2...), years (2019...), row nums; take first real wage
-    if (!isNaN(n) && n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; break; }
+    // Skip week counts (1,2...), years (2019...), row nums; take the LAST real wage (Total)
+    if (!isNaN(n) && n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; } // keeps updating
   }
 
   if (salario <= 0) return null;
