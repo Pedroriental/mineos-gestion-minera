@@ -544,15 +544,37 @@ export async function parsePdfNomina(file: File): Promise<EmpleadoParseado[]> {
   const results: EmpleadoParseado[] = [];
   let currentSection = 'Personal';
 
+  let lastUnusedText = '';
+
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || shouldSkipLinePDF(trimmed)) continue;
-    if (isSectionHeaderPDF(trimmed)) {
-      currentSection = trimmed;
+    if (!trimmed || shouldSkipLinePDF(trimmed)) {
+      lastUnusedText = ''; // Reseteamos si hay basura vacía
       continue;
     }
-    const emp = parseEmployeeLine(trimmed, currentSection);
-    if (emp) results.push(emp);
+    
+    if (isSectionHeaderPDF(trimmed)) {
+      currentSection = trimmed;
+      lastUnusedText = ''; // Al cambiar de sección, la línea anterior no nos sirve
+      continue;
+    }
+
+    // Try parsing the line itself
+    let emp = parseEmployeeLine(trimmed, currentSection);
+
+    // Si falló, quizás pdfjs cortó el nombre en una línea y la cédula en otra (por 1 píxel de diferencia en la coordenada Y)
+    // Ejemplo de Yánez: 
+    // "Yánez Luis" (Falla y queda guardado) -> "19.039.337 24/02/2026..." (Falla porque no tiene nombre, PERO se combina!)
+    if (!emp && lastUnusedText) {
+      emp = parseEmployeeLine(`${lastUnusedText} ${trimmed}`, currentSection);
+    }
+
+    if (emp) {
+      results.push(emp);
+      lastUnusedText = ''; // Consumido exitosamente
+    } else {
+      lastUnusedText = trimmed; // Lo guardamos por si la siguiente línea es la cédula que le falta
+    }
   }
 
   // Deduplicate by cedula
