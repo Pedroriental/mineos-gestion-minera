@@ -80,7 +80,6 @@ const navigation: NavSection[] = [
     items: [
       { label: 'Voladuras',  href: '/mina/voladuras',  icon: <Zap className="w-4 h-4" /> },
       { label: 'Extracción', href: '/mina/extraccion', icon: <HardHat className="w-4 h-4" /> },
-      { label: 'Quemado',    href: '/mina/quemado',    icon: <Flame className="w-4 h-4" /> },
       { label: 'Equipos',    href: '/mina/equipos',    icon: <Wrench className="w-4 h-4" /> },
       { label: 'Seguridad',  href: '/mina/seguridad',  icon: <ShieldCheck className="w-4 h-4" /> },
     ],
@@ -90,10 +89,11 @@ const navigation: NavSection[] = [
     title: 'Molino',
     icon: <Factory className="w-4 h-4" />,
     items: [
-      { label: 'Producción',   href: '/planta/produccion',   icon: <FlaskConical className="w-4 h-4" /> },
-      { label: 'Recepción',    href: '/planta/recepcion',    icon: <Layers className="w-4 h-4" /> },
+      { label: 'Producción',    href: '/planta/produccion',   icon: <FlaskConical className="w-4 h-4" /> },
+      { label: 'Recepción',     href: '/planta/recepcion',    icon: <Layers className="w-4 h-4" /> },
       { label: 'Procesamiento', href: '/planta/procesamiento', icon: <Factory className="w-4 h-4" /> },
       { label: 'Arenas',        href: '/planta/arenas',        icon: <Package className="w-4 h-4" /> },
+      { label: 'Quemado',       href: '/mina/quemado',        icon: <Flame className="w-4 h-4" /> },
     ],
   },
   {
