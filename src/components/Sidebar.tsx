@@ -458,10 +458,9 @@ export default function Sidebar({
     <aside
       data-sidebar-rail
       className={cn(
-        'hidden md:flex flex-col h-full flex-shrink-0 relative',
+        'hidden md:flex flex-col h-full flex-shrink-0 relative overflow-hidden',
         'bg-zinc-950 border-r border-zinc-800/60 z-20',
         'transition-[width] duration-250 ease-in-out',
-        // Smooth width transition
         expanded ? 'w-[240px]' : 'w-[68px]',
       )}
     >
@@ -527,7 +526,7 @@ export default function Sidebar({
       <div className="mx-3 h-px bg-zinc-800/60 my-1" />
 
       {/* Navigation sections */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1 space-y-0.5">
+      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 py-1 space-y-0.5 scrollbar-thin">
         {expanded
           ? navigation.map((section) => (
               <AccordionSection
@@ -648,7 +647,7 @@ export default function Sidebar({
         <div className="mx-4 h-px bg-zinc-800/60 my-1" />
 
         {/* Full accordion nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-0.5">
           {navigation.map((section) => (
             <AccordionSection
               key={section.id}
