@@ -25,6 +25,7 @@ const ALL_ROUTES = [
   { label: 'Inventario',         href: '/admin/inventario',       section: 'Administración', icon: <Package className="w-4 h-4" /> },
   { label: 'Compras',            href: '/admin/compras',          section: 'Administración', icon: <ShoppingCart className="w-4 h-4" /> },
   { label: 'Voladuras',          href: '/mina/voladuras',         section: 'Mina',           icon: <Zap className="w-4 h-4" /> },
+  { label: 'Extracción',         href: '/mina/extraccion',        section: 'Mina',           icon: <Wrench className="w-4 h-4" /> },
   { label: 'Quemado de Planchas',href: '/mina/quemado',           section: 'Mina',           icon: <Flame className="w-4 h-4" /> },
   { label: 'Equipos',            href: '/mina/equipos',           section: 'Mina',           icon: <Wrench className="w-4 h-4" /> },
   { label: 'Seguridad',          href: '/mina/seguridad',         section: 'Mina',           icon: <ShieldCheck className="w-4 h-4" /> },

@@ -194,6 +194,28 @@ export interface DisparoDetalle {
   created_at: string;
 }
 
+export interface EventoExtraccion {
+  hora: string;
+  descripcion: string;
+}
+
+export interface ReporteExtraccion {
+  id: string;
+  fecha: string;
+  turno: 'dia' | 'noche' | 'completo';
+  vertical?: string;
+  mina?: string;
+  responsable?: string;
+  hora_inicio?: string;
+  hora_fin?: string;
+  eventos?: EventoExtraccion[];
+  sacos_extraidos: number;
+  numero_disparo?: string;
+  observaciones?: string;
+  registrado_por?: string;
+  created_at: string;
+}
+
 export interface Equipo {
   id: string;
   codigo: string;
