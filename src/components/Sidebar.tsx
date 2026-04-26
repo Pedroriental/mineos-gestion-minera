@@ -42,6 +42,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  subItems?: { label: string; href: string }[];
 }
 
 interface NavSection {
@@ -60,14 +61,22 @@ const navigation: NavSection[] = [
       { label: 'Gastos',     href: '/admin/gastos',     icon: <Receipt className="w-4 h-4" /> },
       { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
       { label: 'Compras',    href: '/admin/compras',    icon: <ShoppingCart className="w-4 h-4" /> },
+      {
+        label: 'Nómina de Personal',
+        href: '#',
+        icon: <Users className="w-4 h-4" />,
+        subItems: [
+          { label: 'Nómina Mina', href: '/mina/nomina' },
+          { label: 'Nómina Molinos', href: '/planta/nomina' },
+        ],
+      },
     ],
   },
   {
     id: 'mina',
-    title: 'Molino',
+    title: 'Mina',
     icon: <Pickaxe className="w-4 h-4" />,
     items: [
-      { label: 'Nómina',    href: '/planta/nomina',  icon: <Users className="w-4 h-4" /> },
       { label: 'Voladuras', href: '/mina/voladuras', icon: <Zap className="w-4 h-4" /> },
       { label: 'Quemado',   href: '/mina/quemado',   icon: <Flame className="w-4 h-4" /> },
       { label: 'Equipos',   href: '/mina/equipos',   icon: <Wrench className="w-4 h-4" /> },
@@ -76,10 +85,9 @@ const navigation: NavSection[] = [
   },
   {
     id: 'planta',
-    title: 'Mina',
+    title: 'Molino',
     icon: <Factory className="w-4 h-4" />,
     items: [
-      { label: 'Nómina',       href: '/mina/nomina',         icon: <Users className="w-4 h-4" /> },
       { label: 'Producción',   href: '/planta/produccion',   icon: <FlaskConical className="w-4 h-4" /> },
       { label: 'Recepción',    href: '/planta/recepcion',    icon: <Layers className="w-4 h-4" /> },
       { label: 'Procesamiento', href: '/planta/procesamiento', icon: <Factory className="w-4 h-4" /> },
@@ -147,7 +155,9 @@ function AccordionSection({
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const isActive = section.items.some((i) => pathname.startsWith(i.href));
+  const isActive = section.items.some((i) =>
+    pathname.startsWith(i.href) || i.subItems?.some(sub => pathname.startsWith(sub.href))
+  );
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Animate height using CSS max-height trick
@@ -188,12 +198,46 @@ function AccordionSection({
         ref={contentRef}
         className="overflow-hidden transition-all duration-200 ease-in-out"
         style={{
-          maxHeight: open ? `${(section.items.length * 40) + 8}px` : '0px',
+          maxHeight: open ? `${section.items.reduce((acc, item) => acc + 40 + (item.subItems ? item.subItems.length * 36 + 12 : 0), 8)}px` : '0px',
           opacity: open ? 1 : 0,
         }}
       >
         <div className="pl-3 pr-1.5 pb-1 space-y-0.5">
           {section.items.map((item) => {
+            if (item.subItems) {
+              const anySubActive = item.subItems.some(sub => pathname === sub.href || pathname.startsWith(sub.href + '/'));
+              return (
+                <div key={item.label} className="w-full flex flex-col mb-1.5 mt-0.5">
+                  <div className={cn(
+                    'w-full flex items-center gap-2.5 pl-4 pr-3 py-2 text-[13px] font-medium transition-colors',
+                    anySubActive ? 'text-amber-400' : 'text-zinc-500'
+                  )}>
+                    <span className={cn('flex-shrink-0', anySubActive ? 'text-amber-400' : 'text-zinc-600')}>{item.icon}</span>
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  <div className="pl-6 pr-1.5 space-y-0.5 border-l border-zinc-800 ml-[23px] mt-0.5">
+                    {item.subItems.map(sub => {
+                      const subActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
+                      return (
+                        <button
+                          key={sub.href}
+                          onClick={() => onNav(sub.href)}
+                          className={cn(
+                            'w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] transition-all duration-150 text-left',
+                            subActive
+                              ? 'bg-zinc-800/80 font-medium text-white border-l border-amber-500'
+                              : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900',
+                          )}
+                        >
+                          {sub.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
+
             const active = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <button
@@ -232,7 +276,7 @@ function RailSectionIcon({
   const [flyoutOpen, setFlyoutOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isActive = section.items.some(
-    (i) => pathname === i.href || pathname.startsWith(i.href + '/'),
+    (i) => pathname === i.href || pathname.startsWith(i.href + '/') || i.subItems?.some(sub => pathname === sub.href || pathname.startsWith(sub.href + '/'))
   );
 
   const show = useCallback(() => {
@@ -280,12 +324,42 @@ function RailSectionIcon({
             </div>
             <div className="p-1.5 space-y-0.5">
               {section.items.map((item) => {
+                if (item.subItems) {
+                  return (
+                    <div key={item.label} className="w-full flex flex-col mb-1.5 mt-1">
+                      <div className="flex items-center gap-2.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                        <span className="text-zinc-600">{item.icon}</span>
+                        {item.label}
+                      </div>
+                      <div className="pl-6 pr-1.5 space-y-0.5 border-l border-zinc-800 ml-[18px] mt-0.5">
+                        {item.subItems.map(sub => {
+                          const subActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
+                          return (
+                            <button
+                              key={sub.href}
+                              onClick={() => { hide(); onNav(sub.href); }}
+                              className={cn(
+                                'w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] transition-colors text-left',
+                                subActive
+                                  ? 'bg-zinc-800 text-amber-400 font-medium'
+                                  : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-white',
+                              )}
+                            >
+                              {sub.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
                 const active =
                   pathname === item.href || pathname.startsWith(item.href + '/');
                 return (
                   <button
                     key={item.href}
-                    onClick={() => onNav(item.href)}
+                    onClick={() => { hide(); onNav(item.href); }}
                     className={cn(
                       'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors text-left',
                       active
