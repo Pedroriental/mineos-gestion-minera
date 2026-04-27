@@ -48,7 +48,7 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
   const data = parsed.data;
 
   // 2) Insertar en Supabase
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('reportes_voladuras').insert({
     fecha:                 data.fecha,
     turno:                 data.turno,
@@ -102,7 +102,7 @@ export async function updateVoladura(raw: unknown): Promise<ActionResult> {
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase
     .from('reportes_voladuras')
     .update({
@@ -149,7 +149,7 @@ export async function deleteVoladura(id: string): Promise<ActionResult> {
     return { ok: false, message: 'ID de reporte inválido' };
   }
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase
     .from('reportes_voladuras')
     .delete()

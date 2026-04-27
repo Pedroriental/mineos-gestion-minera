@@ -50,7 +50,7 @@ export async function createGasto(raw: unknown): Promise<ActionResult> {
   const data = parsed.data;
 
   // 2) Insertar en Supabase
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('gastos').insert({
     fecha:               data.fecha,
     categoria_id:        data.categoria_id,
@@ -86,7 +86,7 @@ export async function updateGasto(raw: unknown): Promise<ActionResult> {
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase
     .from('gastos')
     .update({
@@ -119,7 +119,7 @@ export async function deleteGasto(id: string): Promise<ActionResult> {
     return { ok: false, message: 'ID de gasto inválido' };
   }
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('gastos').delete().eq('id', parsed.data);
 
   if (error) {

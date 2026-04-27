@@ -58,7 +58,7 @@ const FALLBACK_RENTABILIDAD: RentabilidadResult = {
 export async function getRentabilidad(
   dias: PeriodoDias = 30,
 ): Promise<RentabilidadResult> {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_rentabilidad', {
     periodo_dias: dias,
   });
@@ -72,7 +72,7 @@ export async function getRentabilidad(
 export async function getProduccionDiaria(
   dias: PeriodoDias = 30,
 ): Promise<ProduccionDiariaRow[]> {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_produccion_diaria', {
     periodo_dias: dias,
   });
@@ -86,7 +86,7 @@ export async function getProduccionDiaria(
 export async function getGastosPorCategoria(
   dias: PeriodoDias = 30,
 ): Promise<GastoCategoriaRow[]> {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_gastos_por_categoria', {
     periodo_dias: dias,
   });

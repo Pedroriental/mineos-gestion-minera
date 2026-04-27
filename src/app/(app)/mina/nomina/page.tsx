@@ -7,7 +7,7 @@ export const metadata = {
 };
 
 export default async function MinaNominaPage() {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const area = 'mina';
 
   // Obtener trabajadores activos de esta área

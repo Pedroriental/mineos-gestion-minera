@@ -29,7 +29,7 @@ export async function createQuemado(raw: unknown): Promise<ActionResult> {
   }
 
   const data = parsed.data;
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const { error } = await supabase.from('reportes_quemado').insert({
     fecha:            data.fecha,
@@ -65,7 +65,7 @@ export async function updateQuemado(raw: unknown): Promise<ActionResult> {
   }
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const { error } = await supabase.from('reportes_quemado').update({
     fecha:            rest.fecha,
@@ -94,7 +94,7 @@ export async function deleteQuemado(id: string): Promise<ActionResult> {
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) return { ok: false, message: 'ID inválido' };
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('reportes_quemado').delete().eq('id', parsed.data);
 
   if (error) {

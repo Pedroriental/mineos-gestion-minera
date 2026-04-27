@@ -29,7 +29,7 @@ export async function createProduccion(raw: unknown): Promise<ActionResult> {
   }
 
   const data = parsed.data;
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const { error } = await supabase.from('reportes_produccion').insert({
     fecha: data.fecha,
@@ -70,7 +70,7 @@ export async function updateProduccion(raw: unknown): Promise<ActionResult> {
   }
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const { error } = await supabase.from('reportes_produccion').update({
     fecha: rest.fecha,
@@ -104,7 +104,7 @@ export async function deleteProduccion(id: string): Promise<ActionResult> {
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) return { ok: false, message: 'ID inválido' };
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('reportes_produccion').delete().eq('id', parsed.data);
 
   if (error) {

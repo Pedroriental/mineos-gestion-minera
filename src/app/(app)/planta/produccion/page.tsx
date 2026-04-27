@@ -3,7 +3,7 @@ import ProduccionClient from './ProduccionClient';
 import type { ReporteProduccion } from '@/lib/types';
 
 export default async function ProduccionPage() {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const { data } = await supabase
     .from('reportes_produccion')

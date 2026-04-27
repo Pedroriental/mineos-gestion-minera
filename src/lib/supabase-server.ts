@@ -1,21 +1,33 @@
+import { createServerClient as createClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
 /**
  * Supabase client para Server Components / Server Actions.
- * Usa la anon key — los RPCs tienen SECURITY DEFINER + GRANT TO anon.
+ * Inyecta las cookies de sesión para que el servidor actúe con los permisos del usuario.
  * NUNCA importar este módulo en archivos 'use client'.
  */
-import { createClient } from '@supabase/supabase-js';
+export async function createServerClient() {
+  const cookieStore = await cookies();
 
-export function createServerClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      auth: {
-        // En el servidor no queremos persistir ni refrescar sesión
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch (error) {
+            // El método `setAll` fue llamado desde un Server Component.
+            // Puede ser ignorado si tienes un middleware refrescando sesiones.
+          }
+        },
       },
-    },
+    }
   );
 }

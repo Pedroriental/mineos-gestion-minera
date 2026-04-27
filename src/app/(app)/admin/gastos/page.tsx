@@ -16,7 +16,7 @@ import GastosClient from './GastosClient';
 import type { Gasto, CategoriaGasto } from '@/lib/types';
 
 export default async function GastosPage() {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   // Fetch en paralelo — ambas queries en el servidor
   const [gastosRes, catsRes] = await Promise.all([

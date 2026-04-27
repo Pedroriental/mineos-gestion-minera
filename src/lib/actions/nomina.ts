@@ -28,7 +28,7 @@ export async function createPersonal(raw: unknown): Promise<ActionResult> {
     return { ok: false, message: Object.values(fieldErrors).flat()[0] ?? 'Datos inválidos', fieldErrors };
   }
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('personal').insert(parsed.data);
 
   if (error) {
@@ -48,7 +48,7 @@ export async function updatePersonal(raw: unknown): Promise<ActionResult> {
   }
 
   const { id, ...data } = parsed.data;
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('personal').update(data).eq('id', id);
 
   if (error) {
@@ -64,7 +64,7 @@ export async function togglePersonalActivo(id: string, activo: boolean): Promise
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) return { ok: false, message: 'ID inválido' };
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('personal').update({ activo }).eq('id', parsed.data);
 
   if (error) {
@@ -80,7 +80,7 @@ export async function borrarTodoPersonalArea(area: string): Promise<ActionResult
   const parsed = z.string().min(2).safeParse(area);
   if (!parsed.success) return { ok: false, message: 'Área inválida' };
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.from('personal').delete().eq('activo', true).eq('area', parsed.data);
 
   if (error) {
@@ -102,7 +102,7 @@ export async function importarPersonalAction(rawEmps: unknown, area: string): Pr
   }
 
   const validEmps = parsed.data;
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   
   // Desactivar trabajadores actuales del área para reemplazarlos (soft-delete style like before)
   await supabase.from('personal').update({ activo: false }).eq('activo', true).eq('area', area);
@@ -142,7 +142,7 @@ export async function procesarNominaSemanaAction(
   inicio: string,
   fin: string
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   
   // 1. Get active workers for the area
   const { data: trabajadores } = await supabase.from('personal').select('*').eq('activo', true).eq('area', area);
@@ -221,7 +221,7 @@ export async function procesarNominaSemanaAction(
 }
 
 export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   await supabase.from('nomina_pagos').delete().eq('periodo_inicio', semana.semana_inicio);
   if (semana.gasto_id) {

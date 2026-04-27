@@ -16,7 +16,7 @@ import VoladurasClient from './VoladurasClient';
 import type { ReporteVoladura } from '@/lib/types';
 
 export default async function VoladurasPage() {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const { data } = await supabase
     .from('reportes_voladuras')

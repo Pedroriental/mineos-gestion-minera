@@ -3,7 +3,7 @@ import QuemadoClient from './QuemadoClient';
 import type { ReporteQuemado } from '@/lib/types';
 
 export default async function QuemadoPage() {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const { data } = await supabase
     .from('reportes_quemado')
