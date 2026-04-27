@@ -13,6 +13,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.101.1",
+    "@tanstack/react-table": "^8.21.3",
     "@tauri-apps/api": "^2.10.1",
     "@tremor/react": "^3.18.7",
     "@types/pdf-parse": "^1.1.5",
