@@ -391,6 +391,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [searchOpen,    setSearchOpen]    = useState(false);
   const [bellOpen,      setBellOpen]      = useState(false);
   const [bellCoords,    setBellCoords]    = useState({ top: 56, right: 56 });
+  const [userMenuOpen,  setUserMenuOpen]  = useState(false);
+
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
   const isDashboard = pathname === '/dashboard';

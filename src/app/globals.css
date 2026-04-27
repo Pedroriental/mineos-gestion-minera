@@ -862,6 +862,22 @@ input, textarea, select {
   .dash-card {
     padding: 14px 16px !important;
   }
+
+  /* ── Modal: bottom-sheet pattern on mobile ── */
+  /* The modal overlay uses items-end on mobile via this override */
+  .modal-mobile-sheet {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal-mobile-sheet > div {
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    max-height: 92dvh;
+    width: 100% !important;
+    max-width: 100% !important;
+    /* iOS safe area bottom */
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom)) !important;
+  }
 }
 
 /* ── Sidebar rail stays dark in light mode (icons legible on dark bg) ── */

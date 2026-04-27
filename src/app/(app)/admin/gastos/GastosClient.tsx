@@ -311,8 +311,33 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
         </div>
       </div>
 
-      {/* ── VISTA MÓVIL (Tarjetas) ── */}
-      <div className="grid grid-cols-1 gap-4 md:hidden">
+      {/* ── VISTA MÓVIL (Tarjetas TanStack — sorted + filtered) ── */}
+      <div className="md:hidden space-y-3">
+        {/* Paginación móvil top — solo si hay resultados */}
+        {table.getFilteredRowModel().rows.length > 0 && table.getPageCount() > 1 && (
+          <div className="flex items-center justify-between py-1">
+            <span className="text-xs text-white/35">
+              {table.getState().pagination.pageIndex + 1} / {table.getPageCount()} · {table.getFilteredRowModel().rows.length} gastos
+            </span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors disabled:opacity-30"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors disabled:opacity-30"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {table.getRowModel().rows.length === 0 ? (
           <EmptyState
             icon={<DollarSign className="w-8 h-8" />}
@@ -324,28 +349,74 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
           table.getRowModel().rows.map((row) => {
             const g = row.original;
             return (
-              <div key={g.id} className="card-glass p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/45 bg-white/[0.07] px-2 py-0.5 rounded-sm">
-                      {g.fecha}
-                    </span>
-                    <h3 className="font-bold text-white/85 mt-2 text-base leading-tight">{g.descripcion}</h3>
-                    <p className="text-sm text-white/55 mt-1">
-                      <span className="badge badge-neutral scale-90 origin-left">
-                        {g.categorias_gasto?.nombre || '—'}
-                      </span>
-                    </p>
-                  </div>
-                  <span className="font-black text-red-400 text-lg">{fmt(g.monto)}</span>
+              <div key={g.id} className="card-glass rounded-xl overflow-hidden">
+                {/* ── Franja superior: monto + categoría ── */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                  <span className="badge badge-neutral text-[10px]">
+                    {g.categorias_gasto?.nombre || '—'}
+                  </span>
+                  <span className="font-black text-red-400 text-xl leading-none">
+                    {fmt(g.monto)}
+                  </span>
                 </div>
+
+                {/* ── Descripción + fecha ── */}
+                <div className="px-4 pb-3">
+                  <h3 className="font-semibold text-white/85 text-[15px] leading-snug">
+                    {g.descripcion}
+                  </h3>
+                  <p className="text-xs text-white/35 mt-0.5 font-mono">{g.fecha}</p>
+                </div>
+
+                {/* ── Detalles secundarios (si existen) ── */}
+                {(g.proveedor || g.factura_referencia || g.notas) && (
+                  <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-white/[0.05] pt-2.5">
+                    {g.proveedor && (
+                      <div>
+                        <span className="text-[9px] text-white/30 uppercase tracking-wider font-bold block">Proveedor</span>
+                        <span className="text-xs text-white/60 truncate block">{g.proveedor}</span>
+                      </div>
+                    )}
+                    {g.factura_referencia && (
+                      <div>
+                        <span className="text-[9px] text-white/30 uppercase tracking-wider font-bold block">Factura</span>
+                        <span className="text-xs text-white/60 truncate block">{g.factura_referencia}</span>
+                      </div>
+                    )}
+                    {g.notas && (
+                      <div className="col-span-2">
+                        <span className="text-[9px] text-white/30 uppercase tracking-wider font-bold block">Notas</span>
+                        <span className="text-xs text-white/50 line-clamp-2">{g.notas}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Acciones táctiles (≥44px) ── */}
                 {canEdit && (
-                  <div className="flex gap-2 justify-end pt-3 border-t border-white/[0.07]">
-                    <button onClick={() => openEdit(g)} disabled={isPending} className="btn-secondary !py-1.5 !px-3 !text-xs">
+                  <div className="flex border-t border-white/[0.07]">
+                    <button
+                      onClick={() => openEdit(g)}
+                      disabled={isPending}
+                      className="flex-1 flex items-center justify-center gap-2 min-h-[48px] text-sm font-medium text-white/50 hover:text-amber-400 hover:bg-white/[0.04] transition-colors disabled:opacity-30"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
                       Editar
                     </button>
-                    <button onClick={() => handleDelete(g.id)} disabled={isPending} className="btn-danger !py-1.5 !px-3 !text-xs">
-                      Borrar
+                    <div className="w-px bg-white/[0.07]" />
+                    <button
+                      onClick={() => handleDelete(g.id)}
+                      disabled={isPending}
+                      className="flex-1 flex items-center justify-center gap-2 min-h-[48px] text-sm font-medium text-white/50 hover:text-red-400 hover:bg-red-500/[0.06] transition-colors disabled:opacity-30"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Eliminar
                     </button>
                   </div>
                 )}
@@ -446,13 +517,17 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
       {/* ── Modal ── */}
       {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm"
           onClick={closeModal}
         >
           <div
-            className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
+            className="relative w-full sm:max-w-2xl bg-zinc-950 border border-zinc-800 sm:rounded-2xl rounded-t-2xl shadow-2xl p-6 sm:p-8 max-h-[92dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Drag handle — visual cue for bottom sheet */}
+            <div className="sm:hidden flex justify-center mb-4 -mt-1">
+              <div className="w-8 h-1 rounded-full bg-zinc-700" />
+            </div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-white/90">
                 {editItem ? 'Editar Gasto' : 'Nuevo Gasto'}
