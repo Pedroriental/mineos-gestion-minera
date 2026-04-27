@@ -24,7 +24,7 @@ import {
   type PaginationState,
 } from '@tanstack/react-table';
 
-import { DollarSign, Plus, Search, X, Loader2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DollarSign, Plus, Search, X, Loader2, AlertCircle, ChevronLeft, ChevronRight, FileDown, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { Gasto, CategoriaGasto } from '@/lib/types';
@@ -109,6 +109,79 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
   });
 
   const totalGastos = data.reduce((s, g) => s + Number(g.monto), 0);
+
+  // ── Exportación CSV (nativa, sin dependencias) ───────────────
+  function exportToCSV() {
+    const rows = table.getFilteredRowModel().rows;
+    const headers = ['Fecha', 'Descripcion', 'Categoria', 'Proveedor', 'Monto USD'];
+    const escape  = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
+    const lines   = rows.map((row) => {
+      const g = row.original;
+      return [
+        g.fecha,
+        escape(g.descripcion),
+        g.categorias_gasto?.nombre || '',
+        g.proveedor               || '',
+        g.monto,
+      ].join(',');
+    });
+    const csv  = [headers.join(','), ...lines].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `gastos_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Exportación PDF (jspdf + jspdf-autotable, import dinámico) ─
+  async function exportToPDF() {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ]);
+
+    const doc  = new (jsPDF as any)({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const rows = table.getFilteredRowModel().rows;
+    const date = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    // Header corporativo
+    doc.setFillColor(9, 9, 11);
+    doc.rect(0, 0, 297, 22, 'F');
+    doc.setTextColor(245, 158, 11);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MineOS', 10, 10);
+    doc.setTextColor(200, 200, 200);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Reporte de Gastos', 10, 17);
+    doc.text(date, 287, 17, { align: 'right' });
+
+    autoTable(doc, {
+      startY: 26,
+      head:   [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto USD']],
+      body:   rows.map((row) => {
+        const g = row.original;
+        return [
+          g.fecha,
+          g.descripcion,
+          g.categorias_gasto?.nombre || '—',
+          g.proveedor               || '—',
+          fmt(g.monto),
+        ];
+      }),
+      foot:   [['', '', '', 'TOTAL', fmt(rows.reduce((s, r) => s + Number(r.original.monto), 0))]],
+      styles:              { fontSize: 8,  cellPadding: 3, textColor: [210, 210, 210] },
+      headStyles:          { fillColor: [24, 24, 27], textColor: [245, 158, 11], fontStyle: 'bold' },
+      footStyles:          { fillColor: [24, 24, 27], textColor: [245, 158, 11], fontStyle: 'bold' },
+      alternateRowStyles:  { fillColor: [20, 20, 24] },
+      bodyStyles:          { fillColor: [13, 13, 16] },
+    });
+
+    doc.save(`gastos_${new Date().toISOString().split('T')[0]}.pdf`);
+  }
 
   // ── Helpers de modal ──────────────────────────────────────
   function resetForm() {
@@ -202,19 +275,40 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
         </button>
       </div>
 
-      {/* Search + filtro global */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-        <input
-          value={globalFilter}
-          onChange={(e) => {
-            setGlobalFilter(e.target.value);
-            // Volver a la primera página al filtrar
-            setPagination((p) => ({ ...p, pageIndex: 0 }));
-          }}
-          placeholder="Buscar por descripción, categoría o proveedor..."
-          className="input-field pl-10"
-        />
+      {/* Toolbar: Search + Export buttons */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+          <input
+            value={globalFilter}
+            onChange={(e) => {
+              setGlobalFilter(e.target.value);
+              setPagination((p) => ({ ...p, pageIndex: 0 }));
+            }}
+            placeholder="Buscar por descripción, categoría o proveedor..."
+            className="input-field pl-10"
+          />
+        </div>
+
+        {/* Export buttons */}
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={exportToCSV}
+            title={`Exportar ${table.getFilteredRowModel().rows.length} registros a CSV`}
+            className="btn-secondary !py-2 !px-3 gap-1.5 text-xs"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            CSV
+          </button>
+          <button
+            onClick={exportToPDF}
+            title={`Exportar ${table.getFilteredRowModel().rows.length} registros a PDF`}
+            className="btn-secondary !py-2 !px-3 gap-1.5 text-xs"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            PDF
+          </button>
+        </div>
       </div>
 
       {/* ── VISTA MÓVIL (Tarjetas) ── */}
