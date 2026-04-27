@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { Pickaxe, Upload, RefreshCw, Plus, Trash2, Loader2, Calendar, Clock, ChevronDown, ChevronUp, ArrowLeft, CheckCircle2, AlertTriangle, Search, Factory, Shield, Truck, Briefcase } from 'lucide-react';
+import { Pickaxe, Upload, RefreshCw, Plus, Trash2, Loader2, Calendar, Clock, ChevronDown, ChevronUp, ArrowLeft, CheckCircle2, AlertTriangle, Search, Factory, Shield, Truck, Briefcase, Edit2 } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
