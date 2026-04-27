@@ -37,8 +37,9 @@ function revalidateAll() {
 // CREATE — Registrar nuevo gasto
 // ─────────────────────────────────────────────────────────────
 export async function createGasto(raw: unknown): Promise<ActionResult> {
-  // 1) Validar con Zod
-  const parsed = GastoSchema.safeParse(raw);
+  try {
+    // 1) Validar con Zod
+    const parsed = GastoSchema.safeParse(raw);
 
   if (!parsed.success) {
     const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
@@ -62,21 +63,26 @@ export async function createGasto(raw: unknown): Promise<ActionResult> {
     registrado_por:      data.registrado_por    || null,
   });
 
-  if (error) {
-    console.error('[Action] createGasto:', error.message);
-    return { ok: false, message: `Error al guardar: ${error.message}` };
-  }
+    if (error) {
+      console.error('[Action] createGasto Supabase error:', error.message);
+      return { ok: false, message: `Error al guardar: ${error.message}` };
+    }
 
-  // 3) Purgar caché y actualizar UI sin reload
-  revalidateAll();
-  return { ok: true, message: 'Gasto registrado correctamente' };
+    // 3) Purgar caché y actualizar UI sin reload
+    revalidateAll();
+    return { ok: true, message: 'Gasto registrado correctamente' };
+  } catch (err) {
+    console.error('[Action] createGasto Exception:', err);
+    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
 // UPDATE — Actualizar gasto existente
 // ─────────────────────────────────────────────────────────────
 export async function updateGasto(raw: unknown): Promise<ActionResult> {
-  const parsed = GastoUpdateSchema.safeParse(raw);
+  try {
+    const parsed = GastoUpdateSchema.safeParse(raw);
 
   if (!parsed.success) {
     const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
@@ -100,21 +106,26 @@ export async function updateGasto(raw: unknown): Promise<ActionResult> {
     })
     .eq('id', id);
 
-  if (error) {
-    console.error('[Action] updateGasto:', error.message);
-    return { ok: false, message: `Error al actualizar: ${error.message}` };
-  }
+    if (error) {
+      console.error('[Action] updateGasto Supabase error:', error.message);
+      return { ok: false, message: `Error al actualizar: ${error.message}` };
+    }
 
-  revalidateAll();
-  return { ok: true, message: 'Gasto actualizado correctamente' };
+    revalidateAll();
+    return { ok: true, message: 'Gasto actualizado correctamente' };
+  } catch (err) {
+    console.error('[Action] updateGasto Exception:', err);
+    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
 // DELETE — Eliminar gasto
 // ─────────────────────────────────────────────────────────────
 export async function deleteGasto(id: string): Promise<ActionResult> {
-  // Validar que el id sea un UUID válido
-  const parsed = z.string().uuid('ID inválido').safeParse(id);
+  try {
+    // Validar que el id sea un UUID válido
+    const parsed = z.string().uuid('ID inválido').safeParse(id);
   if (!parsed.success) {
     return { ok: false, message: 'ID de gasto inválido' };
   }
@@ -122,11 +133,15 @@ export async function deleteGasto(id: string): Promise<ActionResult> {
   const supabase = await createServerClient();
   const { error } = await supabase.from('gastos').delete().eq('id', parsed.data);
 
-  if (error) {
-    console.error('[Action] deleteGasto:', error.message);
-    return { ok: false, message: `Error al eliminar: ${error.message}` };
-  }
+    if (error) {
+      console.error('[Action] deleteGasto Supabase error:', error.message);
+      return { ok: false, message: `Error al eliminar: ${error.message}` };
+    }
 
-  revalidateAll();
-  return { ok: true, message: 'Gasto eliminado' };
+    revalidateAll();
+    return { ok: true, message: 'Gasto eliminado' };
+  } catch (err) {
+    console.error('[Action] deleteGasto Exception:', err);
+    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
+  }
 }

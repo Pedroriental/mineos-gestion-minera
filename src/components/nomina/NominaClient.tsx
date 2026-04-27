@@ -374,7 +374,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
               <div key={row.id} className="relative bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4 flex flex-col gap-2">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-semibold text-white/90">{row.getValue('nombre_completo')}</p>
+                    <p className="font-semibold text-white/90 truncate max-w-[180px] sm:max-w-[200px]">{row.getValue('nombre_completo')}</p>
                     <p className="text-xs text-white/40 font-mono mt-0.5">{row.getValue('cedula') || '—'}</p>
                   </div>
                   <div className="bg-amber-500/10 text-amber-400 font-bold px-2.5 py-1 rounded-lg text-sm border border-amber-500/20 shadow-inner">
@@ -465,7 +465,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       {/* Forms and Modals */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-6">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-6 max-h-[85vh] overflow-y-auto overflow-x-hidden">
             <h3 className="text-lg font-bold text-white mb-4">{editItem ? 'Editar Trabajador' : 'Nuevo Trabajador'}</h3>
             {formError && <p className="text-red-400 text-sm mb-4 bg-red-500/10 p-2 rounded">{formError}</p>}
             <div className="space-y-4">
@@ -487,7 +487,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       {/* Delete All Modal */}
       {showBorrarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-6 text-center">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-6 text-center max-h-[85vh] overflow-y-auto overflow-x-hidden">
             <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-white mb-2">Eliminar todos los trabajadores</h3>
             <p className="text-sm text-white/60 mb-6">Esta acción desactivará a los {data.length} trabajadores de {area}. ¿Estás seguro?</p>
@@ -502,7 +502,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       {/* Import Modal */}
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto overflow-x-hidden">
             <h3 className="text-lg font-bold text-white mb-4">Importar Nómina</h3>
             
             {!parsedEmps.length ? (
@@ -559,7 +559,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       {/* Procesar Modal */}
       {showProcesarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-6">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-6 max-h-[85vh] overflow-y-auto overflow-x-hidden">
             <h3 className="text-lg font-bold text-white mb-4">Procesar Nómina</h3>
             <p className="text-sm text-white/60 mb-6">Confirma el rango de fechas para cerrar y registrar el pago semanal.</p>
             <div className="flex items-center gap-3 mb-6">

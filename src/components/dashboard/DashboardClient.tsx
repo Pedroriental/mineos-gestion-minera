@@ -125,6 +125,7 @@ function LiveClock() {
 // ═══════════════════════════════════════════════════════════
 // MAIN CLIENT COMPONENT
 // ═══════════════════════════════════════════════════════════
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function DashboardClient({ data }: { data: any }) {
   const { theme } = useTheme();
   const C = useMemo(() => theme === 'light' ? CL : CD, [theme]);
@@ -417,8 +418,8 @@ export default function DashboardClient({ data }: { data: any }) {
               </div>
               {data?.molinoData?.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {data.molinoData.map((m: any, i: number) => {
-                    const maxOro = Math.max(...data.molinoData.map((x: any) => x.oro));
+                  {data.molinoData.map((m: { name: string; oro: number; sacos: number; color: string }, i: number) => {
+                    const maxOro = Math.max(...data.molinoData.map((x: { oro: number }) => x.oro));
                     const pct = maxOro > 0 ? (m.oro / maxOro) * 100 : 0;
                     return (
                       <div key={i}>
@@ -449,13 +450,13 @@ export default function DashboardClient({ data }: { data: any }) {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={data.expensesByCategory} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
-                          {data.expensesByCategory.map((entry: any, i: number) => <Cell key={i} fill={entry.color} />)}
+                          {data.expensesByCategory.map((entry: { color: string }, i: number) => <Cell key={i} fill={entry.color} />)}
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
-                    {data.expensesByCategory.slice(0, 5).map((cat: any, i: number) => (
+                    {data.expensesByCategory.slice(0, 5).map((cat: { name: string; value: number; color: string }, i: number) => (
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: cat.color, display: 'inline-block', flexShrink: 0 }} />
@@ -511,7 +512,7 @@ export default function DashboardClient({ data }: { data: any }) {
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {(data?.notifications || []).map((n: any, i: number) => (
+                {(data?.notifications || []).map((n: { id: string; title: string; desc: string; type: string }, i: number) => (
                   <div key={n.id + i} style={{ padding: '12px 0', borderBottom: i < (data?.notifications?.length || 0) - 1 ? `1px solid ${C.cardBorder}` : 'none' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: n.type === 'production' ? C.green : n.type === 'voladura' ? C.blue : n.type === 'arenas' ? C.cyan : C.red, display: 'inline-block', marginTop: 4, flexShrink: 0 }} />
