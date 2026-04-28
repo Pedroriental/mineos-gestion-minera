@@ -19,7 +19,6 @@ import {
 } from '@tanstack/react-table';
 import { columns } from './columns';
 import { FadeIn } from '@/components/ui/motion';
-import { DonutChart } from '@tremor/react';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
@@ -243,11 +242,10 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
     setShowModal(true);
   };
 
-  // Corrección del DonutChart de Tremor
-  const donutData = [
-     { name: 'Operativo', value: data.kpis.eficienciaMolino },
-     { name: 'Inactivo', value: 100 - data.kpis.eficienciaMolino }
-  ];
+  // Corrección: Gráfico Circular Nativo (SVG) para evitar fallos de Tremor
+  const eficienciaNum = Number(data.kpis.eficienciaMolino) || 0;
+  const strokeDasharray = 283; // 2 * Math.PI * 45
+  const strokeDashoffset = strokeDasharray - (strokeDasharray * eficienciaNum) / 100;
 
   return (
     <div className="w-full max-w-[1600px] mx-auto h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col overflow-hidden">
@@ -263,11 +261,7 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
           </p>
         </div>
         <div className="flex items-center gap-3">
-           {canEdit && (
-              <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setFormError(null); setShowModal(true); }} className="btn-primary h-10 px-4 whitespace-nowrap">
-                 <Plus className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Nuevo Registro</span>
-              </button>
-           )}
+           {/* El botón de Nuevo Registro se movió a la Action Bar de la tabla para mejor operatividad */}
         </div>
       </FadeIn>
 
@@ -321,16 +315,13 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
                      <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider block mb-2">Eficiencia</span>
                      <span className="text-2xl font-black text-white">{data.kpis.eficienciaMolino.toFixed(1)}%</span>
                   </div>
-                  <div className="w-16 h-16">
-                     <DonutChart
-                        data={donutData}
-                        category="value"
-                        index="name"
-                        colors={['amber', 'zinc']}
-                        showAnimation={true}
-                        variant="pie"
-                        className="w-full h-full"
-                     />
+                  <div className="w-16 h-16 relative">
+                     <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90 drop-shadow-md">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#27272a" strokeWidth="10" />
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#f59e0b" strokeWidth="10" strokeLinecap="round"
+                           strokeDasharray={strokeDasharray} strokeDashoffset={strokeDashoffset} 
+                           className="transition-all duration-1000 ease-out" />
+                     </svg>
                   </div>
                </div>
             </div>
@@ -373,7 +364,7 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
          <div className="lg:col-span-7 flex flex-col overflow-hidden bg-zinc-900/60 rounded-xl border border-zinc-800/80 p-4">
             
             {/* 1. Selector de Días Inteligente (Solo días con data) */}
-            <div className="flex-shrink-0 flex items-center gap-2 overflow-x-auto pb-3 scrollbar-none snap-x">
+            <div className="flex-shrink-0 flex items-center gap-2 overflow-x-auto pb-3 scrollbar-hide snap-x w-full">
                {diasConRegistros.length === 0 && (
                   <div className="text-xs text-white/40 italic">No hay registros en este período.</div>
                )}
@@ -415,17 +406,25 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
               </div>
             </div>
 
-            {/* 3. Header de la Tabla */}
-            <div className="flex-shrink-0 flex flex-col sm:flex-row justify-between items-center gap-3 mb-3">
-               <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 w-full sm:w-64">
-                 <Search className="w-3.5 h-3.5 text-white/40 mr-2" />
-                 <input type="text" placeholder="Buscar reporte..." value={globalFilter ?? ''} onChange={(e) => setGlobalFilter(e.target.value)}
-                   className="bg-transparent border-none outline-none text-xs text-white/90 placeholder:text-white/30 w-full" />
+            {/* 3. Header de la Tabla (Action Bar Rediseñada) */}
+            <div className="flex-shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 mb-3">
+               <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 w-full flex-1">
+                 <Search className="w-4 h-4 text-white/40 mr-2" />
+                 <input type="text" placeholder="Buscar reporte por molino o material..." value={globalFilter ?? ''} onChange={(e) => setGlobalFilter(e.target.value)}
+                   className="bg-transparent border-none outline-none text-sm text-white/90 placeholder:text-white/30 w-full" />
                </div>
-               <button onClick={() => downloadProduccionPDF(initialData, selectedDateStr)} disabled={initialData.length === 0}
-                 className="btn-secondary h-8 px-3 text-xs disabled:opacity-40 flex items-center gap-2 whitespace-nowrap">
-                 <Download className="w-3 h-3" /> Exportar PDF
-               </button>
+               <div className="flex items-center gap-3 w-full sm:w-auto">
+                 <button onClick={() => downloadProduccionPDF(initialData, selectedDateStr)} disabled={initialData.length === 0}
+                   className="btn-secondary h-10 px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap flex-1 sm:flex-none">
+                   <Download className="w-4 h-4" /> <span className="hidden sm:inline">Exportar PDF</span>
+                 </button>
+                 {canEdit && (
+                    <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setFormError(null); setShowModal(true); }} 
+                       className="bg-amber-600 hover:bg-amber-500 text-black font-bold h-10 px-4 rounded-lg flex items-center justify-center gap-2 whitespace-nowrap transition-colors flex-1 sm:flex-none shadow-lg shadow-amber-900/20">
+                       <Plus className="w-5 h-5" /> Nuevo Registro
+                    </button>
+                 )}
+               </div>
             </div>
 
             {/* 4. Tabla Interna con Scroll Independiente */}
