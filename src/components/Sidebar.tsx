@@ -130,7 +130,7 @@ function GlassAccordion({
       {/* Items */}
       <div
         className="overflow-hidden transition-all duration-200 ease-in-out"
-        style={{ maxHeight: open ? `${section.items.length * 48 + 20}px` : '0px', opacity: open ? 1 : 0 }}
+        style={{ maxHeight: open ? '600px' : '0px', opacity: open ? 1 : 0 }}
       >
         <div className="space-y-0.5 pb-2">
           {section.items.map((item) => {
