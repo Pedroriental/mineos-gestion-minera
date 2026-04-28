@@ -145,7 +145,7 @@ function GlassAccordion({
                     <span className={anySubActive ? 'text-amber-500' : 'text-zinc-600'}>{item.icon}</span>
                     <span className="truncate text-[13px]">{item.label}</span>
                   </div>
-                  <div className="pl-9 space-y-0.5">
+                  <div className="space-y-0.5 mt-1">
                     {item.subItems.map((sub) => {
                       const subActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
                       return (
@@ -153,12 +153,13 @@ function GlassAccordion({
                           key={sub.href}
                           onClick={() => onNav(sub.href)}
                           className={cn(
-                            'w-full text-left px-3 py-2 rounded-xl text-[12px] transition-all duration-150',
+                            'w-full flex items-center pl-11 pr-3 py-2 rounded-xl text-[12px] transition-all duration-150 text-left',
                             subActive
-                              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_2px_0_0_0_#DAA520]'
-                              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520]'
+                              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-colors'
                           )}
                         >
+                          <span className="w-1 h-1 rounded-full bg-zinc-600 mr-3 flex-shrink-0"></span>
                           {sub.label}
                         </button>
                       );
@@ -176,8 +177,8 @@ function GlassAccordion({
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 text-left',
                   active
-                    ? 'bg-amber-500/10 text-amber-500 shadow-[inset_2px_0_0_0_#DAA520]'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520]'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-colors'
                 )}
               >
                 <span className={cn('flex-shrink-0', active ? 'text-amber-500' : 'text-zinc-500')}>
@@ -259,8 +260,8 @@ export default function Sidebar({
           className={cn(
             'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
             pathname === '/dashboard'
-              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_2px_0_0_0_#DAA520]'
-              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520]'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-colors'
           )}
         >
           <LayoutDashboard className={cn('w-4 h-4 flex-shrink-0',
@@ -270,7 +271,7 @@ export default function Sidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-2 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] px-2 space-y-1">
         {navigation.map((section) => (
           <GlassAccordion
             key={section.id}
@@ -283,7 +284,7 @@ export default function Sidebar({
       </nav>
 
       {/* Footer: User pill */}
-      <div className="mt-auto pt-3 border-t border-white/5 px-2">
+      <div className="mt-auto border-t border-white/5 pt-4 mt-2 px-2">
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/5">
           {/* Avatar */}
           <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
@@ -310,7 +311,7 @@ export default function Sidebar({
   return (
     <>
       {/* ── DESKTOP: Floating Glass Dock ── */}
-      <aside className="hidden md:flex flex-col w-[260px] h-[calc(100vh-2rem)] rounded-[2rem] bg-black/40 backdrop-blur-2xl border border-white/10 shadow-2xl py-6 px-4 flex-shrink-0">
+      <aside className="hidden md:flex flex-col w-[260px] h-[calc(100vh-2rem)] rounded-[2rem] bg-zinc-950/40 backdrop-blur-2xl border border-white/5 shadow-2xl py-6 px-4 flex-shrink-0">
         {dockContent()}
       </aside>
 
@@ -325,7 +326,7 @@ export default function Sidebar({
       <aside
         className={cn(
           'fixed inset-y-4 left-4 z-50 w-[260px] flex flex-col md:hidden',
-          'bg-black/40 backdrop-blur-2xl border border-white/10 shadow-2xl',
+          'bg-zinc-950/40 backdrop-blur-2xl border border-white/5 shadow-2xl',
           'rounded-[2rem] py-6 px-4',
           'transition-transform duration-300 ease-in-out',
           mobileOpen ? 'translate-x-0' : '-translate-x-[calc(100%+2rem)]'
