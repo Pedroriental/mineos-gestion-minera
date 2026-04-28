@@ -5,11 +5,10 @@ import { differenceInDays, parseISO, format, subDays } from 'date-fns';
 
 const DAILY_GOLD_TARGET = 15; // 15g de Au/día según requerimiento de Planta
 
-export default async function ProduccionPage({
-  searchParams,
-}: {
-  searchParams: { desde?: string; hasta?: string };
+export default async function ProduccionPage(props: {
+  searchParams: Promise<{ desde?: string; hasta?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const supabase = await createServerClient();
 
   // 1. Manejo de Fechas (Fallback 30 días si no vienen en la URL)
