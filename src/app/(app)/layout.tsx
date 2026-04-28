@@ -432,29 +432,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-[100dvh] w-full overflow-hidden relative">
       <GoldBackground theme={theme} />
 
-      {/* ── App Shell ── */}
-      <div className="relative z-10 flex w-full h-full" data-app-shell>
+      {/* ── App Shell — Floating Layout ── */}
+      <div className="relative z-10 flex w-full h-full p-4 gap-5" data-app-shell>
 
-        {/* ── Sidebar ── */}
-        <div
-          data-sidebar
-          className="hidden md:block shrink-0 z-20 transition-[width] duration-250 ease-in-out"
-          style={{ width: sidebarExpanded ? 240 : 68 }}
-        >
-          <Sidebar
-            mobileOpen={mobileMenuOpen}
-            onMobileClose={() => setMobileMenuOpen(false)}
-            expanded={sidebarExpanded}
-            onExpandedChange={setSidebarExpanded}
-          />
-        </div>
+        {/* ── Sidebar: Floating Glass Dock ── */}
+        <Sidebar
+          mobileOpen={mobileMenuOpen}
+          onMobileClose={() => setMobileMenuOpen(false)}
+        />
 
-        {/* ── Right column: topbar + content ── */}
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* ── Right column: rounded content card ── */}
+        <div className="flex-1 flex flex-col min-w-0 bg-zinc-900/40 rounded-[2rem] border border-white/5 overflow-hidden">
 
-          {/* ── Guest Observer Toast Banner — minimal & non-intrusive ── */}
+          {/* ── Guest Banner ── */}
           {isGuest && (
-            <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-1.5 bg-amber-950/20 border-b border-amber-800/25 z-40">
+            <div className="shrink-0 flex items-center justify-between gap-3 px-5 py-1.5 bg-amber-950/20 border-b border-amber-800/20 z-40">
               <div className="flex items-center gap-2">
                 <Eye className="w-3 h-3 text-amber-500/70 shrink-0" />
                 <span className="text-amber-400/75 font-medium text-[11px] tracking-wide">
@@ -462,10 +454,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </span>
               </div>
               <button
-                onClick={async () => {
-                  await signOut();
-                  router.push('/');
-                }}
+                onClick={async () => { await signOut(); router.push('/'); }}
                 className="text-[10px] font-bold uppercase tracking-widest text-amber-500/60 hover:text-amber-300 transition-colors"
               >
                 Salir
@@ -476,63 +465,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* ── Topbar ── */}
           <header
             data-topbar
-            className="shrink-0 h-14 flex items-center justify-between px-4 md:px-5 gap-3 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/60"
+            className="shrink-0 h-14 flex items-center justify-between px-5 gap-3 bg-black/20 backdrop-blur-md border-b border-white/5"
           >
-            {/* Left: hamburger (mobile) + brand */}
+            {/* Left: hamburger (mobile) */}
             <div className="flex items-center gap-3 min-w-0">
               <button
                 onClick={() => setMobileMenuOpen(true)}
-                className="md:hidden p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="md:hidden p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
                 aria-label="Abrir menú"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-
-              {/* Brand */}
-              <div className="flex items-center gap-2.5">
-                <div className="hidden md:flex w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M2 18 L7 8 L10 13 L13 8 L18 18 Z" opacity="0.85" />
-                    <circle cx="14" cy="5" r="2.5" opacity="0.7" />
-                  </svg>
-                </div>
-                <div className="hidden sm:flex flex-col leading-tight">
-                  <span className="text-[13px] font-extrabold text-white/90 tracking-tight">La Fe</span>
-                  <span className="text-[9px] text-amber-400/60 font-bold tracking-[0.18em] uppercase">MineOS</span>
-                </div>
-                <div className="hidden sm:block h-5 w-px bg-zinc-800 mx-1" />
-              </div>
             </div>
 
-            {/* Right: search + date + theme + bell + avatar */}
+            {/* Right: search + date + theme + bell */}
             <div className="flex items-center gap-2">
-              {/* Search trigger */}
               <button
                 onClick={() => setSearchOpen(true)}
-                className="hidden lg:flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl px-3 py-2 w-44 transition-colors cursor-pointer group"
+                className="hidden lg:flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl px-3 py-2 w-44 transition-colors cursor-pointer group"
               >
-                <Search className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 transition-colors flex-shrink-0" />
-                <span className="text-[12px] text-zinc-600 group-hover:text-zinc-400 transition-colors font-medium select-none">
-                  Buscar...
-                </span>
+                <Search className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 flex-shrink-0" />
+                <span className="text-[12px] text-zinc-600 group-hover:text-zinc-400 font-medium select-none">Buscar...</span>
               </button>
 
-              <Suspense fallback={<div className="h-8 w-44 bg-zinc-900 animate-pulse rounded-lg hidden sm:block"></div>}>
+              <Suspense fallback={<div className="h-8 w-44 bg-white/5 animate-pulse rounded-lg hidden sm:block" />}>
                 <GlobalDateRangePicker />
               </Suspense>
 
-              {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
                 title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-                className="w-8 h-8 rounded-xl border border-zinc-800 flex items-center justify-center transition-all bg-zinc-900 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 light-topbar-btn"
+                className="w-8 h-8 rounded-xl border border-white/8 flex items-center justify-center transition-all bg-white/5 text-zinc-500 hover:text-zinc-200 hover:bg-white/10"
               >
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
 
-              {/* Bell */}
               <button
                 ref={bellBtnRef}
                 onClick={openBell}
@@ -540,26 +509,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   'w-8 h-8 rounded-xl border flex items-center justify-center transition-all',
                   bellOpen
                     ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                    : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800',
+                    : 'bg-white/5 border-white/8 text-zinc-500 hover:text-zinc-200 hover:bg-white/10',
                 )}
               >
                 <BellRing className="w-4 h-4" />
               </button>
-
-
             </div>
           </header>
 
           {/* ── Main Content ── */}
           {isDashboard ? (
-            <main
-              className="flex-1 overflow-y-auto overflow-x-hidden w-full pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0"
-            >
+            <main className="flex-1 overflow-hidden w-full">
               {children}
             </main>
           ) : (
             <main
-              className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 md:py-6 lg:px-8 pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-6"
+              className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-5 md:py-6 lg:px-8 pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-6"
               data-main-content
             >
               <div className="max-w-[1400px] mx-auto w-full">
