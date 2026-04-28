@@ -70,6 +70,7 @@ export interface ProduccionGerencialData {
   diaria: {
     fecha: string;
     oro: number;
+    oroAcumulado: number;
     metaDiaria: number;
     metaAcumulada: number;
     tenor: number;
@@ -117,8 +118,16 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
   const molinosSug = useMemo(() => Array.from(new Set(initialData.map(d => d.molino).filter(Boolean))), [initialData]);
   const materialesSug = useMemo(() => Array.from(new Set(initialData.map(d => d.material).filter(Boolean))), [initialData]);
 
+  // 1. Filtrado para Vista Diaria (Tabla)
+  const filteredRegistros = useMemo(() => initialData.filter(d => d.fecha === selectedDate), [initialData, selectedDate]);
+
+  // 2. Cálculo de Mini KPIs para el Día Seleccionado
+  const diaOro = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.oro_recuperado_g) || 0), 0);
+  const diaSacos = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.sacos) || 0), 0);
+  const diaToneladas = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.toneladas_procesadas) || 0), 0);
+
   const table = useReactTable({
-    data: initialData,
+    data: filteredRegistros,
     columns: columns(
       (item) => openEdit(item),
       (id) => handleDelete(id)
@@ -369,7 +378,7 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
                   
                   <RechartsTooltip content={<CustomTooltip />} />
                   
-                  <Area yAxisId="left" type="monotone" dataKey="oro" name="Producción Real" fill="url(#goldGradient)" stroke="#DAA520" strokeWidth={2} />
+                  <Area yAxisId="left" type="monotone" dataKey="oroAcumulado" name="Prod. Acumulada" fill="url(#goldGradient)" stroke="#DAA520" strokeWidth={2} />
                   <Line yAxisId="left" type="monotone" dataKey="metaDiaria" name="Meta Diaria" stroke="#DAA520" strokeWidth={1.5} dot={false} activeDot={false} />
                   <Line yAxisId="left" type="monotone" dataKey="metaAcumulada" name="Meta Acumulada" stroke="rgba(255,255,255,0.4)" strokeDasharray="5 5" strokeWidth={2} dot={false} />
                </ComposedChart>
@@ -378,11 +387,57 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
         </div>
       </FadeInSection>
 
+      {/* ── Daily Control (Carousel & Mini KPIs) ── */}
+      <FadeInSection delay={0.45}>
+        <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl overflow-hidden mb-2 p-4 md:p-6">
+          {/* Carousel */}
+          <div className="flex overflow-x-auto gap-2 pb-4 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent snap-x">
+             {data.diaria.map((dia) => {
+               const d = new Date(dia.fecha + 'T12:00:00');
+               const isSelected = selectedDate === dia.fecha;
+               const dRegs = initialData.filter(r => r.fecha === dia.fecha).length;
+               
+               return (
+                 <button 
+                   key={dia.fecha} 
+                   onClick={() => setSelectedDate(dia.fecha)}
+                   className={`snap-center flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] p-2 rounded-lg border transition-all ${isSelected ? 'bg-amber-500/20 border-amber-500 text-amber-500' : 'bg-zinc-950 border-zinc-800/50 text-zinc-400 hover:border-zinc-700 hover:text-white'}`}
+                 >
+                   <span className="text-[10px] font-bold uppercase">{d.toLocaleDateString('es-ES', { weekday: 'short' })}</span>
+                   <span className="text-xl font-black leading-tight">{d.getDate()}</span>
+                   <span className="text-[9px] mt-1 opacity-70">{dRegs} reg</span>
+                 </button>
+               )
+             })}
+          </div>
+
+          {/* Mini KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+               <span className="text-[10px] uppercase font-bold text-zinc-500">Oro Recuperado (Día)</span>
+               <div className="text-xl font-bold text-amber-500 mt-1">{fmtNum(diaOro)}<span className="text-xs text-amber-500/50 ml-1">g</span></div>
+            </div>
+            <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+               <span className="text-[10px] uppercase font-bold text-zinc-500">Sacos Procesados</span>
+               <div className="text-xl font-bold text-white mt-1">{fmtNum(diaSacos)}<span className="text-xs text-white/50 ml-1">s</span></div>
+            </div>
+            <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+               <span className="text-[10px] uppercase font-bold text-zinc-500">Toneladas Procesadas</span>
+               <div className="text-xl font-bold text-white mt-1">{fmtNum(diaToneladas)}<span className="text-xs text-white/50 ml-1">t</span></div>
+            </div>
+            <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+               <span className="text-[10px] uppercase font-bold text-zinc-500">Registros del Día</span>
+               <div className="text-xl font-bold text-white mt-1">{filteredRegistros.length}</div>
+            </div>
+          </div>
+        </div>
+      </FadeInSection>
+
       {/* ── Consolidation Table ── */}
       <FadeInSection delay={0.5}>
          <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl overflow-hidden">
             <div className="p-4 md:p-6 border-b border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-               <h3 className="text-white/80 font-bold text-lg">Detalle de Producción</h3>
+               <h3 className="text-white/80 font-bold text-lg">Detalle Operativo ({selectedDate})</h3>
                <div className="flex items-center gap-3 w-full sm:w-auto">
                   <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 w-full sm:w-64">
                     <Search className="w-4 h-4 text-white/40 mr-2" />

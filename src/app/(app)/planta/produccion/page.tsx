@@ -63,12 +63,15 @@ export default async function ProduccionPage({
   // Construir Serie de Tiempo (Diaria)
   const serieDiaria: ProduccionGerencialData['diaria'] = [];
   let metaAcumulada = 0;
+  let oroAcumulado = 0;
 
   produccionDiariaMap.forEach((vals, fecha) => {
     metaAcumulada += DAILY_GOLD_TARGET;
+    oroAcumulado += vals.oro;
     serieDiaria.push({
        fecha,
        oro: Number(vals.oro.toFixed(2)),
+       oroAcumulado: Number(oroAcumulado.toFixed(2)),
        metaDiaria: DAILY_GOLD_TARGET,
        metaAcumulada: metaAcumulada,
        tenor: vals.ton > 0 ? Number((vals.oro / vals.ton).toFixed(2)) : 0,
