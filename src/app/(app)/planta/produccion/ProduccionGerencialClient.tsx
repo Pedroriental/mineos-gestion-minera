@@ -84,6 +84,7 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
   const [editItem, setEditItem] = useState<ReporteProduccion | null>(null);
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const initialData = data.registros;
 
@@ -246,6 +247,103 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
   const eficienciaNum = Number(data.kpis.eficienciaMolino) || 0;
   const strokeDasharray = 283; // 2 * Math.PI * 45
   const strokeDashoffset = strokeDasharray - (strokeDasharray * eficienciaNum) / 100;
+
+  const handleExportPDF = async () => {
+    try {
+      setIsExporting(true);
+      const { jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+
+      const doc = new jsPDF('landscape');
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Datos visibles
+      const visibleRows = table.getFilteredRowModel().rows.map(row => row.original);
+      if (visibleRows.length === 0) {
+        setIsExporting(false);
+        return;
+      }
+
+      // Rango de fechas de los datos visibles
+      const dates = visibleRows.map(r => new Date(r.fecha + 'T12:00:00').getTime());
+      const minDate = new Date(Math.min(...dates));
+      const maxDate = new Date(Math.max(...dates));
+      const formatD = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+      const dateStr = minDate.getTime() === maxDate.getTime() ? formatD(minDate) : `${formatD(minDate)} - ${formatD(maxDate)}`;
+
+      // 1. Encabezado
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(24, 24, 27); // Zinc-950
+      doc.text('MINEOS - LA FE', 14, 22);
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Reporte Gerencial de Producción Planta', 14, 30);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Período: ${dateStr} | Registros: ${visibleRows.length}`, 14, 36);
+
+      // 2. Bloque de KPIs (Resumen Ejecutivo)
+      doc.setFillColor(244, 244, 245); // Zinc-100 bg
+      doc.roundedRect(14, 42, pageWidth - 28, 24, 3, 3, 'F');
+      
+      doc.setFontSize(9);
+      doc.setTextColor(113, 113, 122); // Zinc-500
+      doc.text('Oro Total Recuperado', 20, 50);
+      doc.text('Toneladas Totales', 80, 50);
+      doc.text('Tenor Promedio', 140, 50);
+      doc.text('Eficiencia Operativa', 200, 50);
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(24, 24, 27);
+      doc.text(`${fmtNum(data.kpis.oroRecuperado)} g`, 20, 58);
+      doc.text(`${fmtNum(data.kpis.toneladas)} T`, 80, 58);
+      doc.text(`${fmtNum(data.kpis.tenorPromedio)} g/T`, 140, 58);
+      doc.text(`${data.kpis.eficienciaMolino.toFixed(1)}%`, 200, 58);
+
+      // 3. Tabla de Datos
+      const tableData = visibleRows.map(row => [
+        new Date(row.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+        row.turno === 'dia' ? 'Día' : row.turno === 'noche' ? 'Noche' : 'Completo',
+        row.molino || '-',
+        row.material || '-',
+        `${row.amalgama_1_g || 0} / ${row.amalgama_2_g || 0}`,
+        Number(row.oro_recuperado_g).toFixed(2),
+        `${row.merma_1_pct || 0}% / ${row.merma_2_pct || 0}%`
+      ]);
+
+      autoTable(doc, {
+        startY: 72,
+        head: [['Fecha', 'Turno', 'Molino', 'Material', 'Amalgamas (1 / 2)', 'Au Recup (g)', 'Mermas (1 / 2)']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [24, 24, 27], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' },
+        bodyStyles: { halign: 'center' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        styles: { fontSize: 8, cellPadding: 3 }
+      });
+
+      // 4. Pie de Página
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 14, doc.internal.pageSize.getHeight() - 10);
+        doc.text(`Página ${i} de ${pageCount}`, pageWidth - 30, doc.internal.pageSize.getHeight() - 10);
+      }
+
+      doc.save(`Produccion_Gerencial_MineOS_${Date.now()}.pdf`);
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      alert('Hubo un error al generar el PDF.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-[1600px] mx-auto h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col overflow-hidden">
@@ -414,9 +512,10 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
                    className="bg-transparent border-none outline-none text-sm text-white/90 placeholder:text-white/30 w-full" />
                </div>
                <div className="flex items-center gap-3 w-full sm:w-auto">
-                 <button onClick={() => downloadProduccionPDF(initialData, selectedDateStr)} disabled={initialData.length === 0}
+                 <button onClick={handleExportPDF} disabled={table.getFilteredRowModel().rows.length === 0 || isExporting}
                    className="btn-secondary h-10 px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap flex-1 sm:flex-none">
-                   <Download className="w-4 h-4" /> <span className="hidden sm:inline">Exportar PDF</span>
+                   {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                   <span className="hidden sm:inline">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
                  </button>
                  {canEdit && (
                     <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setFormError(null); setShowModal(true); }} 
