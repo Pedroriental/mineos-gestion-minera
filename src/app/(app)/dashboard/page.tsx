@@ -4,6 +4,12 @@ import SatelliteCommandClient, { LocationData, GlobalData } from '@/components/d
 export const metadata = { title: 'Command Center - MineOS' };
 export const revalidate = 60;
 
+// Molinos que forman la LÍNEA PRINCIPAL (Plancha 1)
+const LINEA_PRINCIPAL = new Set([
+  'molino 1', 'molino 2', 'molino 3',
+  'molino 1-2', 'molino 1-3', 'molino 2-3', 'molino 1-2-3',
+]);
+
 // ══════════════════════════════════════════════════════════════
 // DICCIONARIO ESTRICTO DE NODOS FÍSICOS DEL COMPLEJO LA FE
 // Coordenadas (x, y) en % — zona segura: X 12-88, Y 22-72
@@ -48,38 +54,17 @@ export default async function DashboardPage() {
   const supabase = await createServerClient();
   const today = new Date().toISOString().split('T')[0];
 
-  // Inicio del mes actual para el balance de Plancha 1
-  const thisMonth = today.slice(0, 7); // "YYYY-MM"
 
   try {
-    const [gastosRes, equiposRes, prodRes, volRes, quemadoRes] = await Promise.all([
+    const [gastosRes, equiposRes, prodRes, volRes] = await Promise.all([
       supabase.from('gastos').select('monto').eq('fecha', today),
       supabase.from('equipos').select('estado').eq('activo', true),
       supabase.from('reportes_produccion').select('*').order('fecha', { ascending: false }).limit(500),
       supabase.from('reportes_voladuras').select('*').order('fecha', { ascending: false }).limit(50),
-      // Quemado: traemos las planchas del mes actual para calcular Balance Plancha 1
-      supabase
-        .from('reportes_quemado')
-        .select('planchas, total_oro_g, fecha')
-        .gte('fecha', `${thisMonth}-01`)
-        .lte('fecha', today)
-        .order('fecha', { ascending: false }),
     ]);
 
-    const reportesProd   = (prodRes?.data   ?? []) as any[];
-    const reportesVol    = (volRes?.data    ?? []) as any[];
-    const reportesQuemado = (quemadoRes?.data ?? []) as any[];
-
-    // ── Balance Plancha 1 ─────────────────────────────────────
-    // "Plancha 1" corresponde al primer elemento del array JSON `planchas`
-    let balancePlancha1 = 0;
-    for (const q of reportesQuemado) {
-      const planchas = q.planchas as Array<{ amalgama_g: number; oro_recuperado_g: number }> | null;
-      if (Array.isArray(planchas) && planchas.length >= 1) {
-        balancePlancha1 += Number(planchas[0].oro_recuperado_g ?? 0);
-      }
-    }
-    balancePlancha1 = Math.round(balancePlancha1 * 100) / 100;
+    const reportesProd = (prodRes?.data ?? []) as any[];
+    const reportesVol  = (volRes?.data  ?? []) as any[];
 
     // ── Global Totals ─────────────────────────────────────────
     const totalGrams    = reportesProd.reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
@@ -87,6 +72,16 @@ export default async function DashboardPage() {
     const notifications = reportesVol.slice(0, 1).map((v) => ({
       id: v.id, title: `Voladura: Mina ${v.mina ?? 'Desconocida'}`,
     }));
+
+    // ── Balance Plancha 1 ─────────────────────────────────────
+    // Suma el oro recuperado ÚNICAMENTE de los molinos de la línea
+    // principal 1-2-3 (y sus combinaciones). Excluye Continuo,
+    // Mantenimiento, Coco, Varios y cualquier otro.
+    const balancePlancha1 = Math.round(
+      reportesProd
+        .filter((r) => LINEA_PRINCIPAL.has(String(r.molino ?? '').trim().toLowerCase()))
+        .reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0) * 100
+    ) / 100;
 
     const globalData: GlobalData = {
       totalGrams,
