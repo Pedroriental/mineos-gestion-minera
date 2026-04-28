@@ -15,6 +15,8 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
 import IdleWarningModal from '@/components/IdleWarningModal';
 import { cn } from '@/lib/utils';
+import { Suspense } from 'react';
+import GlobalDateRangePicker from '@/components/ui/GlobalDateRangePicker';
 
 // ── All navigable routes (for search palette) ────────────────────────────
 const ALL_ROUTES = [
@@ -253,35 +255,6 @@ function UserMenu({
           Cerrar sesión
         </button>
       </div>
-    </div>
-  );
-}
-
-// ── Live Date chip ────────────────────────────────────────────────────────
-function LiveDate() {
-  const [date, setDate] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setDate(new Date()), 60_000);
-    return () => clearInterval(t);
-  }, []);
-  const str = date
-    .toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
-    .toUpperCase();
-  return (
-    <div className="hidden sm:flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5">
-      <svg
-        className="w-3.5 h-3.5 text-zinc-600 flex-shrink-0"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
-      </svg>
-      <span className="text-[11px] font-semibold text-zinc-500 tracking-wide">{str}</span>
     </div>
   );
 }
@@ -546,7 +519,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </span>
               </button>
 
-              <LiveDate />
+              <Suspense fallback={<div className="h-8 w-44 bg-zinc-900 animate-pulse rounded-lg hidden sm:block"></div>}>
+                <GlobalDateRangePicker />
+              </Suspense>
 
               {/* Theme Toggle */}
               <button
