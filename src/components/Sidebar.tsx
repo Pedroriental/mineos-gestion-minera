@@ -153,13 +153,12 @@ function GlassAccordion({
                           key={sub.href}
                           onClick={() => onNav(sub.href)}
                           className={cn(
-                            'w-full flex items-center pl-11 pr-3 py-2 rounded-xl text-[12px] transition-all duration-150 text-left',
+                            'w-full text-left transition-all duration-150',
                             subActive
-                              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520]'
-                              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-colors'
+                              ? 'pl-12 py-2.5 text-[13px] text-amber-500 font-medium block'
+                              : 'pl-12 py-2.5 text-[13px] text-zinc-500 hover:text-zinc-300 transition-colors block'
                           )}
                         >
-                          <span className="w-1 h-1 rounded-full bg-zinc-600 mr-3 flex-shrink-0"></span>
                           {sub.label}
                         </button>
                       );
@@ -175,10 +174,10 @@ function GlassAccordion({
                 key={item.href}
                 onClick={() => onNav(item.href)}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 text-left',
+                  'w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-all duration-150 text-left',
                   active
-                    ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520]'
-                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-colors'
+                    ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520] font-medium rounded-r-xl rounded-l-none'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5 transition-colors rounded-xl'
                 )}
               >
                 <span className={cn('flex-shrink-0', active ? 'text-amber-500' : 'text-zinc-500')}>
@@ -258,10 +257,10 @@ export default function Sidebar({
         <button
           onClick={() => handleNav('/dashboard')}
           className={cn(
-            'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+            'w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-all duration-150 text-left',
             pathname === '/dashboard'
-              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520]'
-              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-colors'
+              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520] font-medium rounded-r-xl rounded-l-none'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5 transition-colors rounded-xl'
           )}
         >
           <LayoutDashboard className={cn('w-4 h-4 flex-shrink-0',
