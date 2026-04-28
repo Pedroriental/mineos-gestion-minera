@@ -6,39 +6,30 @@ export const revalidate = 60;
 
 // ══════════════════════════════════════════════════════════════
 // DICCIONARIO ESTRICTO DE NODOS FÍSICOS DEL COMPLEJO LA FE
-// Sólo los equipos que realmente PROCESAN material van en el mapa.
 // Coordenadas (x, y) en % — zona segura: X 12-88, Y 22-72
-// Los molinos individuales quedan en el cuadrante central-izquierdo
-// y las combinaciones se ubican visualmente entre sus componentes.
 // ══════════════════════════════════════════════════════════════
 const NODE_DICT: Record<string, { x: number; y: number }> = {
-  // Individuales
-  'Molino 1':         { x: 30, y: 36 },
-  'Molino 2':         { x: 38, y: 48 },
-  'Molino 3':         { x: 30, y: 56 },
-  'Molino Continuo':  { x: 47, y: 41 },
-  'Mantenimiento':    { x: 22, y: 44 },
-
-  // Combinaciones (visualmente entre sus componentes)
-  'Molino 1-2':       { x: 34, y: 41 },   // entre M1(30,36) y M2(38,48)
-  'Molino 2-3':       { x: 34, y: 53 },   // entre M2(38,48) y M3(30,56)
-  'Molino 1-3':       { x: 30, y: 46 },   // entre M1(30,36) y M3(30,56)
-  'Molino 1-2-3':     { x: 34, y: 46 },   // centroide de los tres
+  'Molino 1':        { x: 30, y: 36 },
+  'Molino 2':        { x: 38, y: 48 },
+  'Molino 3':        { x: 30, y: 56 },
+  'Molino Continuo': { x: 47, y: 41 },
+  'Mantenimiento':   { x: 22, y: 44 },
+  'Molino 1-2':      { x: 34, y: 41 },
+  'Molino 2-3':      { x: 34, y: 53 },
+  'Molino 1-3':      { x: 30, y: 46 },
+  'Molino 1-2-3':    { x: 34, y: 46 },
 };
 
-// ── Coordenadas seguras para nodos desconocidos ────────────────
 function safeRandom() {
   return { x: Math.floor(55 + Math.random() * 25), y: Math.floor(30 + Math.random() * 35) };
 }
 
-// ── Normaliza el nombre del molino a uno canónico ─────────────
 function normalizeMolinoName(raw: string): string {
   const t = raw.trim();
-  // Acepta "Molino 1-3", "Molino 2-3", "Molino 1-2", "Molino 1-2-3", etc.
   if (/^Molino\s+\d[-\d]+$/i.test(t)) return t.replace(/\s+/, ' ');
   if (/^Molino\s+(continuo|coco|1|2|3)$/i.test(t)) return t.replace(/\s+/, ' ');
   if (/^mantenimiento$/i.test(t)) return 'Mantenimiento';
-  return t; // desconocido: lo dejamos como está
+  return t;
 }
 
 interface Accum {
@@ -57,18 +48,40 @@ export default async function DashboardPage() {
   const supabase = await createServerClient();
   const today = new Date().toISOString().split('T')[0];
 
+  // Inicio del mes actual para el balance de Plancha 1
+  const thisMonth = today.slice(0, 7); // "YYYY-MM"
+
   try {
-    const [gastosRes, equiposRes, prodRes, volRes] = await Promise.all([
+    const [gastosRes, equiposRes, prodRes, volRes, quemadoRes] = await Promise.all([
       supabase.from('gastos').select('monto').eq('fecha', today),
       supabase.from('equipos').select('estado').eq('activo', true),
       supabase.from('reportes_produccion').select('*').order('fecha', { ascending: false }).limit(500),
       supabase.from('reportes_voladuras').select('*').order('fecha', { ascending: false }).limit(50),
+      // Quemado: traemos las planchas del mes actual para calcular Balance Plancha 1
+      supabase
+        .from('reportes_quemado')
+        .select('planchas, total_oro_g, fecha')
+        .gte('fecha', `${thisMonth}-01`)
+        .lte('fecha', today)
+        .order('fecha', { ascending: false }),
     ]);
 
-    const reportesProd = (prodRes?.data ?? []) as any[];
-    const reportesVol  = (volRes?.data  ?? []) as any[];
-    const eqData       = equiposRes.data ?? [];
+    const reportesProd   = (prodRes?.data   ?? []) as any[];
+    const reportesVol    = (volRes?.data    ?? []) as any[];
+    const reportesQuemado = (quemadoRes?.data ?? []) as any[];
 
+    // ── Balance Plancha 1 ─────────────────────────────────────
+    // "Plancha 1" corresponde al primer elemento del array JSON `planchas`
+    let balancePlancha1 = 0;
+    for (const q of reportesQuemado) {
+      const planchas = q.planchas as Array<{ amalgama_g: number; oro_recuperado_g: number }> | null;
+      if (Array.isArray(planchas) && planchas.length >= 1) {
+        balancePlancha1 += Number(planchas[0].oro_recuperado_g ?? 0);
+      }
+    }
+    balancePlancha1 = Math.round(balancePlancha1 * 100) / 100;
+
+    // ── Global Totals ─────────────────────────────────────────
     const totalGrams    = reportesProd.reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
     const todayExpenses = (gastosRes.data ?? []).reduce((s, g) => s + Number(g.monto), 0);
     const notifications = reportesVol.slice(0, 1).map((v) => ({
@@ -76,19 +89,23 @@ export default async function DashboardPage() {
     }));
 
     const globalData: GlobalData = {
-      totalGrams, eqTotal: eqData.length, todayExpenses, notifications,
+      totalGrams,
+      eqTotal: equiposRes.data?.length ?? 0,
+      todayExpenses,
+      notifications,
+      balancePlancha1,
     };
 
     // ══════════════════════════════════════════════════════════
-    // ALGORITMO ENGULLIDOR — Agrupa EXACTAMENTE por nombre
-    // normalizado del molino. NO crea nodos por vertical/disparo.
+    // ALGORITMO ENGULLIDOR — Agrupa por nombre normalizado
+    // del molino. NO crea nodos por vertical/disparo.
     // ══════════════════════════════════════════════════════════
     const accumMap = new Map<string, Accum>();
 
     for (const r of reportesProd) {
       if (!r.molino) continue;
 
-      const key  = normalizeMolinoName(String(r.molino));
+      const key    = normalizeMolinoName(String(r.molino));
       const isMant = /mantenimiento/i.test(key);
       const isCoco = /coco/i.test(key);
 
@@ -104,22 +121,20 @@ export default async function DashboardPage() {
       }
 
       const ent = accumMap.get(key)!;
-      ent.totalOro  += Number(r.oro_recuperado_g ?? 0);
-      ent.sumTenor  += Number(r.tenor_tonelada_gpt ?? 0);
-      ent.sumMerma  += Number(r.merma_1_pct ?? 0);
-      ent.count     += 1;
+      ent.totalOro += Number(r.oro_recuperado_g ?? 0);
+      ent.sumTenor += Number(r.tenor_tonelada_gpt ?? 0);
+      ent.sumMerma += Number(r.merma_1_pct ?? 0);
+      ent.count    += 1;
 
-      // Material (Primario / Repaso / …)
-      const mat = String(r.material ?? '').trim();
+      const mat  = String(r.material ?? '').trim();
       if (mat) ent.materiales.add(mat);
 
-      // Origen: si el campo material_codigo tiene patrón V\dD\d, lo usamos
       const code = String(r.material_codigo ?? r.material ?? '').trim();
-      const vm = code.match(/[Vv](\d+)[Dd](\d+)/);
+      const vm   = code.match(/[Vv](\d+)[Dd](\d+)/);
       if (vm) ent.origenes.add(`V${vm[1]}D${vm[2]}`);
     }
 
-    // ── Incluir Mantenimiento si no apareció en los reportes ──
+    // Nodo Mantenimiento siempre presente
     if (!accumMap.has('Mantenimiento')) {
       accumMap.set('Mantenimiento', {
         name: 'Mantenimiento',
@@ -130,9 +145,7 @@ export default async function DashboardPage() {
       });
     }
 
-    // ── Construir LocationData[] ────────────────────────────
     const locations: LocationData[] = Array.from(accumMap.values())
-      // Solo nodos con producción > 0 o no-Activos (Mant/Inactivo siempre visibles)
       .filter((e) => e.totalOro > 0 || e.status !== 'Activo')
       .map((e) => ({
         id: e.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
