@@ -40,9 +40,9 @@ function generateSparkline(base: number, seed: string) {
 
 // ── STATUS COLOR ─────────────────────────────────────────────
 function statusColor(status: LocationData['status']) {
-  if (status === 'Activo')        return { dot: 'bg-amber-500 shadow-[0_0_8px_#DAA520]', ring: 'border-amber-500/40', line: 'bg-amber-500/50', label: 'text-amber-400' };
-  if (status === 'Mantenimiento') return { dot: 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.8)]', ring: 'border-yellow-400/40', line: 'bg-yellow-400/50', label: 'text-yellow-400' };
-  return { dot: 'bg-zinc-500', ring: 'border-zinc-600/30', line: 'bg-zinc-600/40', label: 'text-zinc-500' };
+  if (status === 'Activo')        return { dot: 'bg-amber-500', ring: 'border-amber-500/40', line: 'bg-amber-500/40', label: 'text-amber-400' };
+  if (status === 'Mantenimiento') return { dot: 'bg-yellow-400', ring: 'border-yellow-400/40', line: 'bg-yellow-400/40', label: 'text-yellow-400' };
+  return { dot: 'bg-zinc-500', ring: 'border-zinc-600/30', line: 'bg-zinc-600/30', label: 'text-zinc-500' };
 }
 
 // ── RADAR MARKER ─────────────────────────────────────────────
@@ -63,38 +63,40 @@ const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
       onClick={() => onClick(loc.id)}
     >
       <div className="relative flex items-center">
-        {/* Radar ping rings */}
-        {loc.status === 'Activo' && (
-          <div className={`absolute inset-0 rounded-full ${c.ring.replace('border-', 'bg-').replace('/40', '/10')} animate-ping scale-[3] pointer-events-none`} />
-        )}
+        {/* Radar pulse ring — thin, slow, NO blur/glow */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {loc.status === 'Activo' && (
+            <div
+              className={`w-5 h-5 rounded-full border ${c.ring} animate-ping absolute`}
+              style={{ animationDuration: '3s' }}
+            />
+          )}
+        </div>
 
-        {/* Outer ring */}
-        <div className={`p-[3px] rounded-full border ${c.ring} ${isSelected ? 'scale-150' : ''} transition-transform duration-200`}>
-          {/* Inner ring */}
-          <div className={`p-[2px] rounded-full border ${c.ring}`}>
-            {/* Core dot */}
-            <div className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-          </div>
+        {/* Outer ring — static */}
+        <div className={`relative p-[3px] rounded-full border ${c.ring} ${isSelected ? 'scale-150' : ''} transition-transform duration-200 flex-shrink-0`}>
+          {/* Core dot — NO shadow */}
+          <div className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
         </div>
 
         {/* Callout line + label */}
         {labelRight ? (
           <>
-            <div className={`w-4 h-[1px] ${c.line} flex-shrink-0`} />
-            <div className="bg-black/65 backdrop-blur-md border border-white/[0.06] px-1.5 py-0.5 flex-shrink-0">
-              <span className={`text-[8px] font-mono uppercase tracking-[0.15em] ${c.label}`}>
+            <div className={`w-4 h-px ${c.line} flex-shrink-0`} />
+            <div className="bg-zinc-950/80 backdrop-blur-md border border-white/10 px-2 py-1 flex-shrink-0">
+              <span className={`text-[9px] font-mono uppercase tracking-wider ${c.label}`}>
                 {loc.name}
               </span>
             </div>
           </>
         ) : (
           <>
-            <div className="bg-black/65 backdrop-blur-md border border-white/[0.06] px-1.5 py-0.5 flex-shrink-0 order-first mr-0">
-              <span className={`text-[8px] font-mono uppercase tracking-[0.15em] ${c.label}`}>
+            <div className="bg-zinc-950/80 backdrop-blur-md border border-white/10 px-2 py-1 flex-shrink-0">
+              <span className={`text-[9px] font-mono uppercase tracking-wider ${c.label}`}>
                 {loc.name}
               </span>
             </div>
-            <div className={`w-4 h-[1px] ${c.line} flex-shrink-0 order-first`} />
+            <div className={`w-4 h-px ${c.line} flex-shrink-0`} />
           </>
         )}
       </div>
@@ -285,16 +287,18 @@ export default function SatelliteCommandClient({
     <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans">
 
       {/* ── PILAR 1: TOPOGRAPHIC LIDAR BACKGROUND ── */}
+      {/* Base oscuro — garantiza que el fondo nunca sea blanco */}
+      <div className="absolute inset-0 bg-zinc-950" />
+      {/* Imagen topográfica con opacidad baja — textura visible sin destruir */}
       <div
-        className="absolute inset-0 bg-cover bg-center grayscale contrast-125 brightness-50 opacity-80"
-        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1685002766624-9b88a9134914?q=80&w=2000&auto=format&fit=crop')" }}
+        className="absolute inset-0 bg-cover bg-center grayscale opacity-35"
+        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2000&auto=format&fit=crop')" }}
       />
-      <div className="absolute inset-0 bg-zinc-950/70 mix-blend-multiply pointer-events-none" />
-      {/* HUD scan-line overlay */}
+      {/* Scan-line overlay sutil */}
       <div className="absolute inset-0 pointer-events-none"
-        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)' }} />
-      {/* Vignette */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_90%_at_50%_50%,transparent_30%,rgba(5,5,8,0.8)_100%)] pointer-events-none" />
+        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px)' }} />
+      {/* Vignette radial en bordes */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_90%_at_50%_50%,transparent_35%,rgba(9,9,11,0.75)_100%)] pointer-events-none" />
 
       {/* Click-outside to close */}
       {selectedId && <div className="absolute inset-0 z-20" onClick={handleClose} />}
