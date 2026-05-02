@@ -12,18 +12,18 @@ const LINEA_PRINCIPAL = new Set([
 
 // ══════════════════════════════════════════════════════════════
 // DICCIONARIO ESTRICTO DE NODOS FÍSICOS DEL COMPLEJO LA FE
-// Coordenadas (x, y) en % — zona segura: X 12-88, Y 22-72
-// ══════════════════════════════════════════════════════════════
+// Coordenadas centradas (x 38-62, y 28-68) — diagrama de flujo planta ├║nica
+// Flujo: Mantenimiento(izq) -> Molinos 1-2-3(centro) -> Continuo(der)
 const NODE_DICT: Record<string, { x: number; y: number }> = {
-  'Molino 1':        { x: 30, y: 36 },
-  'Molino 2':        { x: 38, y: 48 },
-  'Molino 3':        { x: 30, y: 56 },
-  'Molino Continuo': { x: 47, y: 41 },
-  'Mantenimiento':   { x: 22, y: 44 },
-  'Molino 1-2':      { x: 34, y: 41 },
-  'Molino 2-3':      { x: 34, y: 53 },
-  'Molino 1-3':      { x: 30, y: 46 },
-  'Molino 1-2-3':    { x: 34, y: 46 },
+  'Molino 1':        { x: 44, y: 34 },
+  'Molino 2':        { x: 50, y: 46 },
+  'Molino 3':        { x: 44, y: 58 },
+  'Molino Continuo': { x: 60, y: 46 },
+  'Mantenimiento':   { x: 36, y: 46 },
+  'Molino 1-2':      { x: 47, y: 40 },
+  'Molino 2-3':      { x: 47, y: 53 },
+  'Molino 1-3':      { x: 44, y: 46 },
+  'Molino 1-2-3':    { x: 50, y: 46 },
 };
 
 // Los 5 nodos físicos que SIEMPRE deben estar presentes en el mapa

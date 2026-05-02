@@ -83,7 +83,7 @@ const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
         {labelRight ? (
           <>
             <div className={`w-4 h-px ${c.line} flex-shrink-0`} />
-            <div className="bg-zinc-950/80 backdrop-blur-md border border-white/10 px-2 py-1 flex-shrink-0">
+            <div className="bg-zinc-950/60 backdrop-blur-md border border-white/10 px-2 py-1 flex-shrink-0 shadow-lg rounded-sm">
               <span className={`text-[9px] font-mono uppercase tracking-wider ${c.label}`}>
                 {loc.name}
               </span>
@@ -91,7 +91,7 @@ const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
           </>
         ) : (
           <>
-            <div className="bg-zinc-950/80 backdrop-blur-md border border-white/10 px-2 py-1 flex-shrink-0">
+            <div className="bg-zinc-950/60 backdrop-blur-md border border-white/10 px-2 py-1 flex-shrink-0 shadow-lg rounded-sm">
               <span className={`text-[9px] font-mono uppercase tracking-wider ${c.label}`}>
                 {loc.name}
               </span>
@@ -286,19 +286,19 @@ export default function SatelliteCommandClient({
   return (
     <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans">
 
-      {/* ── PILAR 1: TOPOGRAPHIC LIDAR BACKGROUND ── */}
-      {/* Base oscuro — garantiza que el fondo nunca sea blanco */}
+      {/* ── FONDO TOPOGRÁFICO LOCAL (cantera / elevación) ── */}
+      {/* Base zinc-950 garantiza que nunca haya blanco en carga */}
       <div className="absolute inset-0 bg-zinc-950" />
-      {/* Imagen topográfica con opacidad baja — textura visible sin destruir */}
+      {/* Textura de curvas de nivel / cantera minera, muy sutil */}
       <div
-        className="absolute inset-0 bg-cover bg-center grayscale opacity-35"
-        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2000&auto=format&fit=crop')" }}
+        className="absolute inset-0 bg-cover bg-center grayscale opacity-40"
+        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1584285405072-4e6f488667a7?q=80&w=2000&auto=format&fit=crop')" }}
       />
-      {/* Scan-line overlay sutil */}
+      {/* Scan-line overlay CRT */}
       <div className="absolute inset-0 pointer-events-none"
-        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px)' }} />
-      {/* Vignette radial en bordes */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_90%_at_50%_50%,transparent_35%,rgba(9,9,11,0.75)_100%)] pointer-events-none" />
+        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px)' }} />
+      {/* Vignette radial */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_85%_85%_at_50%_50%,transparent_30%,rgba(9,9,11,0.8)_100%)] pointer-events-none" />
 
       {/* Click-outside to close */}
       {selectedId && <div className="absolute inset-0 z-20" onClick={handleClose} />}
