@@ -82,21 +82,21 @@ const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
         {/* Callout line + label */}
         {labelRight ? (
           <>
-            <div className={`w-4 h-px ${c.line} flex-shrink-0`} />
-            <div className="bg-zinc-950/60 backdrop-blur-md border border-white/10 px-2 py-1 flex-shrink-0 shadow-lg rounded-sm">
-              <span className={`text-[9px] font-mono uppercase tracking-wider ${c.label}`}>
+            <div className={`w-4 h-[1px] bg-amber-500/40 flex-shrink-0`} />
+            <div className="bg-zinc-950/50 backdrop-blur-md border border-zinc-700 px-2 py-1 flex-shrink-0 shadow-xl">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-300">
                 {loc.name}
               </span>
             </div>
           </>
         ) : (
           <>
-            <div className="bg-zinc-950/60 backdrop-blur-md border border-white/10 px-2 py-1 flex-shrink-0 shadow-lg rounded-sm">
-              <span className={`text-[9px] font-mono uppercase tracking-wider ${c.label}`}>
+            <div className="bg-zinc-950/50 backdrop-blur-md border border-zinc-700 px-2 py-1 flex-shrink-0 shadow-xl">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-300">
                 {loc.name}
               </span>
             </div>
-            <div className={`w-4 h-px ${c.line} flex-shrink-0`} />
+            <div className={`w-4 h-[1px] bg-amber-500/40 flex-shrink-0`} />
           </>
         )}
       </div>
@@ -286,19 +286,10 @@ export default function SatelliteCommandClient({
   return (
     <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans">
 
-      {/* ── FONDO TOPOGRÁFICO LOCAL (cantera / elevación) ── */}
-      {/* Base zinc-950 garantiza que nunca haya blanco en carga */}
-      <div className="absolute inset-0 bg-zinc-950" />
-      {/* Textura de curvas de nivel / cantera minera, muy sutil */}
-      <div
-        className="absolute inset-0 bg-cover bg-center grayscale opacity-40"
-        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1584285405072-4e6f488667a7?q=80&w=2000&auto=format&fit=crop')" }}
-      />
-      {/* Scan-line overlay CRT */}
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px)' }} />
-      {/* Vignette radial */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_85%_85%_at_50%_50%,transparent_30%,rgba(9,9,11,0.8)_100%)] pointer-events-none" />
+      {/* ── FONDO TÁCTICO CSS PURO (sin URLs externas) ── */}
+      <div className="absolute inset-0 bg-[#050505] bg-[linear-gradient(to_right,#1f1f1f_1px,transparent_1px),linear-gradient(to_bottom,#1f1f1f_1px,transparent_1px)] bg-[size:3rem_3rem]" />
+      {/* Viñeta radial oscura en bordes */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_100%)] pointer-events-none" />
 
       {/* Click-outside to close */}
       {selectedId && <div className="absolute inset-0 z-20" onClick={handleClose} />}

@@ -12,18 +12,17 @@ const LINEA_PRINCIPAL = new Set([
 
 // ══════════════════════════════════════════════════════════════
 // DICCIONARIO ESTRICTO DE NODOS FÍSICOS DEL COMPLEJO LA FE
-// Coordenadas centradas (x 38-62, y 28-68) — diagrama de flujo planta ├║nica
-// Flujo: Mantenimiento(izq) -> Molinos 1-2-3(centro) -> Continuo(der)
+// Coordenadas exactas anti-solapamiento (top%, left%) — mandato hard override
 const NODE_DICT: Record<string, { x: number; y: number }> = {
-  'Molino 1':        { x: 44, y: 34 },
-  'Molino 2':        { x: 50, y: 46 },
-  'Molino 3':        { x: 44, y: 58 },
-  'Molino Continuo': { x: 60, y: 46 },
-  'Mantenimiento':   { x: 36, y: 46 },
-  'Molino 1-2':      { x: 47, y: 40 },
-  'Molino 2-3':      { x: 47, y: 53 },
-  'Molino 1-3':      { x: 44, y: 46 },
-  'Molino 1-2-3':    { x: 50, y: 46 },
+  'Mantenimiento':   { x: 15, y: 50 },
+  'Molino 1':        { x: 35, y: 25 },
+  'Molino 1-2':      { x: 50, y: 35 },
+  'Molino 1-3':      { x: 35, y: 50 },
+  'Molino 2':        { x: 65, y: 25 },
+  'Molino 2-3':      { x: 65, y: 50 },
+  'Molino 3':        { x: 50, y: 75 },
+  'Molino Continuo': { x: 85, y: 40 },
+  'Molino 1-2-3':    { x: 50, y: 50 },
 };
 
 // Los 5 nodos físicos que SIEMPRE deben estar presentes en el mapa
