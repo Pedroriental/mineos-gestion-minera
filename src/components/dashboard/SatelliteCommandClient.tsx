@@ -3,9 +3,9 @@
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, AlertTriangle, ArrowRight, Cog, Wrench,
-  Server, Activity, BatteryCharging, ShieldAlert,
-  CircleDot, Percent, Pickaxe, Layers, Navigation, Flame, X,
+  Search, AlertTriangle, ArrowRight, X,
+  CircleDot, Percent, Pickaxe, Layers, Navigation,
+  Flame, Server, BatteryCharging, ShieldAlert,
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import Link from 'next/link';
@@ -38,42 +38,14 @@ function generateSparkline(base: number, seed: string) {
   }));
 }
 
-// Determines marker icon by node name
-function MarkerIcon({ name, active }: { name: string; active: boolean }) {
-  const isMant  = /mantenimiento/i.test(name);
-  const isFused = /molino\s+\d.*[-]\d/i.test(name);
-  const isCont  = /continuo/i.test(name);
-
-  if (isMant) {
-    return (
-      <div className={`w-8 h-8 flex items-center justify-center rounded-xl border ${active ? 'border-yellow-400/60 bg-yellow-400/10' : 'border-yellow-400/30 bg-yellow-400/5'}`}>
-        <Wrench className={`w-4 h-4 ${active ? 'text-yellow-300' : 'text-yellow-500'}`} />
-      </div>
-    );
-  }
-  if (isFused) {
-    return (
-      <div className={`w-10 h-8 flex items-center justify-center rounded-xl border ${active ? 'border-amber-400/70 bg-amber-400/15' : 'border-amber-500/30 bg-amber-500/5'}`}>
-        <Cog className={`w-3.5 h-3.5 -mr-1 ${active ? 'text-amber-300' : 'text-amber-500'}`} />
-        <Cog className={`w-4 h-4 ${active ? 'text-amber-300' : 'text-amber-500'}`} />
-      </div>
-    );
-  }
-  if (isCont) {
-    return (
-      <div className={`w-8 h-8 flex items-center justify-center rounded-xl border ${active ? 'border-blue-400/60 bg-blue-400/10' : 'border-blue-400/25 bg-blue-400/5'}`}>
-        <Activity className={`w-4 h-4 ${active ? 'text-blue-300' : 'text-blue-500'}`} />
-      </div>
-    );
-  }
-  // Default: individual molino
-  return (
-    <div className={`w-8 h-8 flex items-center justify-center rounded-xl border ${active ? 'border-amber-400/80 bg-amber-400/20 shadow-[0_0_12px_rgba(218,165,32,0.5)]' : 'border-amber-500/30 bg-amber-500/8'}`}>
-      <Cog className={`w-4 h-4 ${active ? 'text-amber-300 animate-spin-slow' : 'text-amber-600'}`} />
-    </div>
-  );
+// ── STATUS COLOR ─────────────────────────────────────────────
+function statusColor(status: LocationData['status']) {
+  if (status === 'Activo')        return { dot: 'bg-amber-500 shadow-[0_0_8px_#DAA520]', ring: 'border-amber-500/40', line: 'bg-amber-500/50', label: 'text-amber-400' };
+  if (status === 'Mantenimiento') return { dot: 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.8)]', ring: 'border-yellow-400/40', line: 'bg-yellow-400/50', label: 'text-yellow-400' };
+  return { dot: 'bg-zinc-500', ring: 'border-zinc-600/30', line: 'bg-zinc-600/40', label: 'text-zinc-500' };
 }
 
+// ── RADAR MARKER ─────────────────────────────────────────────
 interface MarkerProps {
   loc: LocationData;
   isSelected: boolean;
@@ -81,71 +53,77 @@ interface MarkerProps {
 }
 
 const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
-  const statusRing =
-    loc.status === 'Activo'
-      ? 'ring-2 ring-amber-500/30'
-      : loc.status === 'Mantenimiento'
-      ? 'ring-2 ring-yellow-400/30 animate-pulse'
-      : 'ring-1 ring-zinc-600/30';
+  const c = statusColor(loc.status);
+  const labelRight = loc.coordinates.x < 55;
 
   return (
     <div
-      className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer flex flex-col items-center group"
+      className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-crosshair"
       style={{ top: `${loc.coordinates.y}%`, left: `${loc.coordinates.x}%` }}
       onClick={() => onClick(loc.id)}
     >
-      {/* Ping halo for active nodes */}
-      {loc.status === 'Activo' && !isSelected && (
-        <div className="absolute inset-0 rounded-xl bg-amber-500/20 animate-ping pointer-events-none" />
-      )}
+      <div className="relative flex items-center">
+        {/* Radar ping rings */}
+        {loc.status === 'Activo' && (
+          <div className={`absolute inset-0 rounded-full ${c.ring.replace('border-', 'bg-').replace('/40', '/10')} animate-ping scale-[3] pointer-events-none`} />
+        )}
 
-      {/* Icon marker */}
-      <div className={`relative rounded-xl transition-all duration-200 ${statusRing} ${isSelected ? 'scale-125' : 'scale-100 group-hover:scale-110'}`}>
-        <MarkerIcon name={loc.name} active={isSelected || loc.status === 'Activo'} />
-      </div>
+        {/* Outer ring */}
+        <div className={`p-[3px] rounded-full border ${c.ring} ${isSelected ? 'scale-150' : ''} transition-transform duration-200`}>
+          {/* Inner ring */}
+          <div className={`p-[2px] rounded-full border ${c.ring}`}>
+            {/* Core dot */}
+            <div className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+          </div>
+        </div>
 
-      {/* Persistent label — always visible */}
-      <div className="mt-1.5 px-1.5 py-0.5 bg-black/50 backdrop-blur-sm border border-white/8 rounded text-center whitespace-nowrap pointer-events-none">
-        <span className="text-[9px] font-mono font-semibold tracking-wider uppercase text-zinc-400">
-          {loc.name.toUpperCase()}
-        </span>
+        {/* Callout line + label */}
+        {labelRight ? (
+          <>
+            <div className={`w-4 h-[1px] ${c.line} flex-shrink-0`} />
+            <div className="bg-black/65 backdrop-blur-md border border-white/[0.06] px-1.5 py-0.5 flex-shrink-0">
+              <span className={`text-[8px] font-mono uppercase tracking-[0.15em] ${c.label}`}>
+                {loc.name}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-black/65 backdrop-blur-md border border-white/[0.06] px-1.5 py-0.5 flex-shrink-0 order-first mr-0">
+              <span className={`text-[8px] font-mono uppercase tracking-[0.15em] ${c.label}`}>
+                {loc.name}
+              </span>
+            </div>
+            <div className={`w-4 h-[1px] ${c.line} flex-shrink-0 order-first`} />
+          </>
+        )}
       </div>
     </div>
   );
 });
 
-// ─── KPI Block ───────────────────────────────────────────────
-function KpiBlock({ label, value, unit, icon, alert }: {
-  label: string; value: string | number; unit?: string;
-  icon: React.ReactNode; alert?: boolean;
-}) {
+// ── KPI ROW ──────────────────────────────────────────────────
+function KpiRow({ label, value, unit, alert }: { label: string; value: string | number; unit?: string; alert?: boolean }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-[0.15em] text-zinc-500">
-        {icon} {label}
-      </span>
-      <span className={`text-lg font-bold font-sans ${alert ? 'text-red-400' : 'text-white'}`}>
+    <div className="flex items-center justify-between py-2 border-t border-white/[0.04]">
+      <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-zinc-500">{label}</span>
+      <span className={`font-mono text-[13px] ${alert ? 'text-red-400' : 'text-zinc-100'}`}>
         {value}
-        {unit && <span className="text-[10px] font-normal text-zinc-500 ml-0.5">{unit}</span>}
-        {alert && <AlertTriangle className="w-3 h-3 text-red-500 animate-pulse inline ml-1" />}
+        {unit && <span className="text-zinc-600 ml-0.5 text-[9px]">{unit}</span>}
+        {alert && <AlertTriangle className="w-2.5 h-2.5 text-red-500 inline ml-1 animate-pulse" />}
       </span>
     </div>
   );
 }
 
-// ─── Modal Content ───────────────────────────────────────────
-function ModalContent({
-  loc,
-  allLocations,
-  onClose,
-}: {
+// ── MODAL ────────────────────────────────────────────────────
+function TacticalModal({ loc, allLocations, onClose }: {
   loc: LocationData;
   allLocations: LocationData[];
   onClose: () => void;
 }) {
   const chartData = useMemo(() => generateSparkline(loc.kpis.produccion, loc.id), [loc.id]);
 
-  // Check if this is a combined node (e.g. "Molino 1-3")
   const fuseMatch = loc.name.match(/^Molino\s+([\d][-\d]+)$/i);
   const fuseNumbers = fuseMatch ? fuseMatch[1].split('-') : [];
   const fusedBases = fuseNumbers.length >= 2
@@ -154,139 +132,118 @@ function ModalContent({
   const isFused = fusedBases.length >= 2;
 
   return (
-    <div className="bg-black/55 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-[1.8rem] overflow-hidden p-6 flex flex-col gap-4">
+    <div className="bg-[#080808]/80 backdrop-blur-3xl border border-white/[0.04] shadow-2xl w-[20rem] overflow-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-white font-bold text-[15px] leading-tight flex items-center gap-2 font-sans">
-            <Cog className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            <span className="truncate">{loc.name.toUpperCase()}</span>
-            {isFused && (
-              <span className="text-[9px] font-mono text-amber-400/70 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 flex-shrink-0">
-                COMBINADO
-              </span>
-            )}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-zinc-600">Nodo Táctico</p>
+          <h3 className="font-mono text-[13px] text-zinc-100 mt-0.5 flex items-center gap-2">
+            {loc.name.toUpperCase()}
+            {isFused && <span className="text-[8px] font-mono tracking-wider text-amber-500/70 bg-amber-500/8 border border-amber-500/15 px-1.5 py-0.5">FUSIONADO</span>}
           </h3>
-          <p className="text-zinc-500 text-[9px] font-mono tracking-[0.14em] uppercase mt-0.5">
-            Complejo La Fe · Planta de Molienda
-          </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-wider uppercase border
-            ${loc.status === 'Activo' ? 'bg-green-500/15 text-green-400 border-green-500/25'
-              : loc.status === 'Mantenimiento' ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25'
-              : 'bg-red-500/15 text-red-400 border-red-500/25'}`}>
+        <div className="flex items-center gap-2">
+          <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 border
+            ${loc.status === 'Activo' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5'
+            : loc.status === 'Mantenimiento' ? 'text-yellow-400 border-yellow-500/20 bg-yellow-500/5'
+            : 'text-zinc-500 border-zinc-700/30'}`}>
             {loc.status}
-          </div>
-          <button
-            onClick={onClose}
-            className="text-zinc-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5"
-          >
-            <X className="w-4 h-4" />
+          </span>
+          <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 transition-colors">
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* KPIs grid */}
-      {isFused ? (
-        // ── FUSED: total header + per-molino breakdown ──
-        <div className="space-y-3">
-          {/* Total summary */}
-          <div className="grid grid-cols-3 gap-2 bg-amber-500/5 p-3 rounded-2xl border border-amber-500/10">
-            <KpiBlock label="Au Total" value={loc.kpis.produccion.toLocaleString()} unit="g"
-              icon={<CircleDot className="w-3 h-3 text-amber-500" />} />
-            <KpiBlock label="Tenor Prom" value={loc.kpis.tenor} unit="g/t"
-              icon={<Pickaxe className="w-3 h-3 text-blue-400" />} />
-            <KpiBlock label="Merma" value={`${loc.kpis.merma}%`}
-              icon={<Percent className="w-3 h-3 text-emerald-400" />}
-              alert={loc.kpis.merma > 60} />
-          </div>
-          {/* Individual breakdown */}
-          <div className="space-y-2">
+      {/* KPIs */}
+      <div className="px-4">
+        {isFused ? (
+          <>
+            <KpiRow label="Au Total (Combinado)" value={loc.kpis.produccion.toLocaleString()} unit="g" />
+            <KpiRow label="Tenor Promedio" value={loc.kpis.tenor} unit="g/t" />
+            <KpiRow label="Merma" value={`${loc.kpis.merma}%`} alert={loc.kpis.merma > 60} />
             {fusedBases.map((base) => (
-              <div key={base.id} className="bg-white/[0.03] p-3 rounded-xl border border-white/5">
-                <p className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 mb-2">
-                  {base.name.toUpperCase()}
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <KpiBlock label="Au" value={base.kpis.produccion.toLocaleString()} unit="g"
-                    icon={<CircleDot className="w-2.5 h-2.5 text-amber-500" />} />
-                  <KpiBlock label="Tenor" value={base.kpis.tenor} unit="g/t"
-                    icon={<Pickaxe className="w-2.5 h-2.5 text-blue-400" />} />
-                  <KpiBlock label="Merma" value={`${base.kpis.merma}%`}
-                    icon={<Percent className="w-2.5 h-2.5 text-emerald-400" />}
-                    alert={base.kpis.merma > 60} />
-                </div>
+              <div key={base.id} className="border-t border-white/[0.06] mt-1 pt-1">
+                <p className="text-[8px] font-mono uppercase tracking-[0.18em] text-zinc-600 pt-1 pb-0.5">{base.name.toUpperCase()}</p>
+                <KpiRow label="Au" value={base.kpis.produccion.toLocaleString()} unit="g" />
+                <KpiRow label="Tenor" value={base.kpis.tenor} unit="g/t" />
+                <KpiRow label="Merma" value={`${base.kpis.merma}%`} alert={base.kpis.merma > 60} />
               </div>
             ))}
-          </div>
-        </div>
-      ) : (
-        // ── SIMPLE KPIs ──
-        <div className="grid grid-cols-3 gap-2 bg-white/[0.04] p-3 rounded-2xl border border-white/5">
-          <KpiBlock label="Au Total" value={loc.kpis.produccion.toLocaleString()} unit="g"
-            icon={<CircleDot className="w-3 h-3 text-amber-500" />} />
-          <KpiBlock label="Tenor" value={loc.kpis.tenor} unit="g/t"
-            icon={<Pickaxe className="w-3 h-3 text-blue-400" />} />
-          <KpiBlock label="Merma" value={`${loc.kpis.merma}%`}
-            icon={<Percent className="w-3 h-3 text-emerald-400" />}
-            alert={loc.kpis.merma > 60} />
-        </div>
-      )}
+          </>
+        ) : (
+          <>
+            <KpiRow label="Au Total" value={loc.kpis.produccion.toLocaleString()} unit="g" />
+            <KpiRow label="Tenor" value={loc.kpis.tenor} unit="g/t" />
+            <KpiRow label="Merma" value={`${loc.kpis.merma}%`} alert={loc.kpis.merma > 60} />
+          </>
+        )}
+      </div>
 
       {/* Sparkline */}
-      <div className="h-10 w-full">
+      <div className="h-10 px-4 pb-1 mt-1">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
-              <linearGradient id={`sg-${loc.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#DAA520" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#DAA520" stopOpacity={0}   />
+              <linearGradient id={`hud-${loc.id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0}    />
               </linearGradient>
             </defs>
-            <Area type="monotone" dataKey="v" stroke="#DAA520" strokeWidth={1.5}
-              fillOpacity={1} fill={`url(#sg-${loc.id})`} isAnimationActive={false} dot={false} />
+            <Area type="monotone" dataKey="v" stroke="#10b981" strokeWidth={1}
+              fillOpacity={1} fill={`url(#hud-${loc.id})`} isAnimationActive={false} dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
       {/* Materiales / Orígenes */}
       {((loc.materiales?.length ?? 0) > 0 || (loc.origenes?.length ?? 0) > 0) && (
-        <div className="text-xs text-zinc-400 p-3 bg-black/20 rounded-xl border border-white/5 space-y-2">
+        <div className="px-4 pb-3 border-t border-white/[0.04] pt-3 space-y-2">
           {(loc.materiales?.length ?? 0) > 0 && (
-            <div className="flex items-start gap-2">
-              <Layers className="w-3 h-3 text-zinc-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <span className="text-zinc-600 text-[9px] font-mono uppercase tracking-wider block mb-0.5">Materiales</span>
-                <span className="text-zinc-300 font-medium">{loc.materiales!.join(' · ')}</span>
-              </div>
+            <div>
+              <span className="text-[8px] font-semibold uppercase tracking-[0.2em] text-zinc-600 block mb-1">Materiales</span>
+              <span className="font-mono text-[10px] text-zinc-400">{loc.materiales!.join(' · ')}</span>
             </div>
           )}
           {(loc.origenes?.length ?? 0) > 0 && (
-            <div className="flex items-start gap-2">
-              <Navigation className="w-3 h-3 text-zinc-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <span className="text-zinc-600 text-[9px] font-mono uppercase tracking-wider block mb-0.5">Orígenes</span>
-                <span className="text-zinc-300 font-medium">{loc.origenes!.join(' · ')}</span>
-              </div>
+            <div>
+              <span className="text-[8px] font-semibold uppercase tracking-[0.2em] text-zinc-600 block mb-1">Orígenes</span>
+              <span className="font-mono text-[10px] text-zinc-400">{loc.origenes!.join(' · ')}</span>
             </div>
           )}
         </div>
       )}
 
       {/* CTA */}
-      <Link href="/planta/produccion">
-        <button className="w-full bg-white/5 hover:bg-white/10 text-white text-[13px] font-semibold rounded-xl py-2.5 transition-colors flex items-center justify-center gap-2 group border border-white/8">
-          Ver Detalles Técnicos
-          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform text-amber-500" />
-        </button>
-      </Link>
+      <div className="border-t border-white/[0.04] px-4 py-3">
+        <Link href="/planta/produccion">
+          <button className="w-full flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.2em] text-zinc-500 hover:text-amber-400 transition-colors group">
+            <span>Detalles Técnicos</span>
+            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ── BOTTOM KPI CARD ──────────────────────────────────────────
+function HudCard({ label, children, icon }: { label: string; children: React.ReactNode; icon: React.ReactNode }) {
+  return (
+    <div className="bg-[#080808]/70 backdrop-blur-3xl border border-white/[0.04] shadow-2xl p-4 flex items-center justify-between">
+      <div>
+        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-zinc-600 mb-1">{label}</p>
+        {children}
+      </div>
+      <div className="w-8 h-8 border border-white/[0.06] bg-white/[0.02] flex items-center justify-center text-zinc-600">
+        {icon}
+      </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN COMPONENT
+// MAIN
 // ═══════════════════════════════════════════════════════════════
 export default function SatelliteCommandClient({
   locations,
@@ -314,164 +271,110 @@ export default function SatelliteCommandClient({
     [locations, searchQuery]
   );
 
-  // Modal position clamped to viewport edges
-  const modalStyle = useMemo(() => {
+  const modalStyle = useMemo((): React.CSSProperties => {
     if (!selectedLocation) return {};
     const x = selectedLocation.coordinates.x;
     const y = selectedLocation.coordinates.y;
-    const style: React.CSSProperties = {
-      top: `${Math.min(Math.max(y, 10), 52)}%`,
-      marginTop: '-4rem',
-    };
-    if (x > 58) {
-      style.right = `${Math.max(100 - x + 2, 3)}%`;
-    } else {
-      style.left = `${x}%`;
-      style.marginLeft = '2rem';
-    }
+    const style: React.CSSProperties = { top: `${Math.min(Math.max(y, 8), 50)}%`, marginTop: '-3rem' };
+    if (x > 58) { style.right = `${Math.max(100 - x + 2, 3)}%`; }
+    else { style.left = `${x}%`; style.marginLeft = '1.8rem'; }
     return style;
   }, [selectedLocation]);
 
   return (
-    <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none">
+    <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans">
 
-      {/* ── 1. TOPOGRAPHIC BACKGROUND ── */}
+      {/* ── PILAR 1: TOPOGRAPHIC LIDAR BACKGROUND ── */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat grayscale contrast-[1.5] brightness-[0.75]"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2000&auto=format&fit=crop')",
-        }}
+        className="absolute inset-0 bg-cover bg-center grayscale contrast-125 brightness-50 opacity-80"
+        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1685002766624-9b88a9134914?q=80&w=2000&auto=format&fit=crop')" }}
       />
-      {/* Radar overlay */}
-      <div className="absolute inset-0 bg-zinc-950/60 mix-blend-multiply pointer-events-none" />
+      <div className="absolute inset-0 bg-zinc-950/70 mix-blend-multiply pointer-events-none" />
+      {/* HUD scan-line overlay */}
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)' }} />
       {/* Vignette */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_50%,transparent_40%,rgba(9,9,11,0.7)_100%)] pointer-events-none" />
-      {/* Amber center glow for markers */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_35%_at_50%_47%,rgba(218,165,32,0.04),transparent)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_90%_at_50%_50%,transparent_30%,rgba(5,5,8,0.8)_100%)] pointer-events-none" />
 
-      {/* Click-outside backdrop to close modal */}
-      {selectedId && (
-        <div
-          className="absolute inset-0 z-20"
-          onClick={handleClose}
-        />
-      )}
+      {/* Click-outside to close */}
+      {selectedId && <div className="absolute inset-0 z-20" onClick={handleClose} />}
 
-      {/* ── 2. TOP SEARCH BAR ── */}
-      <div className="absolute top-5 left-1/2 -translate-x-1/2 z-30 w-full max-w-md px-4">
-        <div className="bg-black/50 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-full flex items-center px-4 py-2.5 gap-3">
-          <Search className="w-4 h-4 text-amber-500 flex-shrink-0" />
+      {/* ── SEARCH BAR ── */}
+      <div className="absolute top-5 left-1/2 -translate-x-1/2 z-30 w-full max-w-sm px-4">
+        <div className="bg-[#080808]/70 backdrop-blur-3xl border border-white/[0.06] flex items-center px-4 py-2 gap-3">
+          <Search className="w-3 h-3 text-amber-500/70 flex-shrink-0" />
           <input
             type="text"
-            placeholder="Buscar nodo táctico..."
+            placeholder="BUSCAR NODO..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent border-none outline-none text-white placeholder-zinc-600 w-full text-[13px] font-mono"
+            className="bg-transparent border-none outline-none text-zinc-300 placeholder-zinc-700 w-full text-[10px] font-mono uppercase tracking-[0.15em]"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-white text-xs flex-shrink-0">
-              <X className="w-3.5 h-3.5" />
+            <button onClick={() => setSearchQuery('')} className="text-zinc-600 hover:text-zinc-400">
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
       </div>
 
-      {/* ── 3. MARKERS ── */}
+      {/* ── PILAR 3: RADAR MARKERS ── */}
       {filteredLocations.map((loc) => (
-        <Marker
-          key={loc.id}
-          loc={loc}
-          isSelected={selectedId === loc.id}
-          onClick={handleMarkerClick}
-        />
+        <Marker key={loc.id} loc={loc} isSelected={selectedId === loc.id} onClick={handleMarkerClick} />
       ))}
 
-      {/* ── 4. CLICK-LOCKED MODAL ── */}
+      {/* ── CLICK-LOCKED MODAL ── */}
       <AnimatePresence mode="wait">
         {selectedLocation && (
           <motion.div
             key={selectedLocation.id}
-            initial={{ opacity: 0, scale: 0.93, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.93, y: 8 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute z-30 w-[22rem]"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className="absolute z-30"
             style={modalStyle}
             onClick={(e) => e.stopPropagation()}
           >
-            <ModalContent
-              loc={selectedLocation}
-              allLocations={locations}
-              onClose={handleClose}
-            />
+            <TacticalModal loc={selectedLocation} allLocations={locations} onClose={handleClose} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── 5. BOTTOM KPI CARDS ── */}
-      <div className="absolute bottom-6 left-6 right-6 z-10 pointer-events-none">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── PILAR 4: BOTTOM HUD CARDS ── */}
+      <div className="absolute bottom-5 left-5 right-5 z-10 pointer-events-none">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-white/[0.03] border border-white/[0.04]">
 
-          {/* Oro Total */}
-          <div className="bg-black/50 backdrop-blur-2xl border border-white/8 shadow-2xl rounded-[1.5rem] p-4 flex items-center justify-between pointer-events-auto">
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-[0.15em] text-zinc-500 mb-1">Oro Total</p>
-              <p className="text-white font-bold text-xl font-sans">
-                {globalData.totalGrams.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                <span className="text-xs font-normal text-zinc-500 ml-1">g</span>
+          <HudCard label="Oro Total" icon={<Server className="w-3.5 h-3.5" />}>
+            <p className="font-mono text-zinc-100 text-base">
+              {globalData.totalGrams.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              <span className="text-[9px] text-zinc-600 ml-1">g Au</span>
+            </p>
+          </HudCard>
+
+          <HudCard label="Balance Plancha 1" icon={<Flame className="w-3.5 h-3.5" />}>
+            <p className="font-mono text-zinc-100 text-base">
+              {globalData.balancePlancha1.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="text-[9px] text-zinc-600 ml-1">g Au</span>
+            </p>
+          </HudCard>
+
+          <HudCard label="Consumo Diario" icon={<BatteryCharging className="w-3.5 h-3.5" />}>
+            <p className="font-mono text-zinc-100 text-base">
+              <span className="text-[9px] text-zinc-600 mr-0.5">$</span>
+              {globalData.todayExpenses.toLocaleString()}
+            </p>
+          </HudCard>
+
+          <HudCard label="Estado de Sistemas" icon={<ShieldAlert className="w-3.5 h-3.5" />}>
+            {globalData.notifications?.length > 0 ? (
+              <p className="font-mono text-red-400 text-[11px] max-w-[140px] line-clamp-2">
+                {globalData.notifications[0].title}
               </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-              <Server className="w-4.5 h-4.5 text-amber-500" />
-            </div>
-          </div>
-
-          {/* Balance Plancha 1 */}
-          <div className="bg-black/50 backdrop-blur-2xl border border-white/8 shadow-2xl rounded-[1.5rem] p-4 flex items-center justify-between pointer-events-auto">
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-[0.15em] text-zinc-500 mb-1">Balance Plancha 1</p>
-              <p className="text-white font-bold text-xl font-sans">
-                {globalData.balancePlancha1.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                <span className="text-xs font-normal text-zinc-500 ml-1">g Au</span>
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-600/25 flex items-center justify-center">
-              <Flame className="w-4.5 h-4.5 text-amber-500" />
-            </div>
-          </div>
-
-          {/* Consumo Diario */}
-          <div className="bg-black/50 backdrop-blur-2xl border border-white/8 shadow-2xl rounded-[1.5rem] p-4 flex items-center justify-between pointer-events-auto">
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-[0.15em] text-zinc-500 mb-1">Consumo Diario</p>
-              <p className="text-white font-bold text-xl font-sans">
-                <span className="text-xs font-normal text-zinc-500 mr-0.5">$</span>
-                {globalData.todayExpenses.toLocaleString()}
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-              <BatteryCharging className="w-4.5 h-4.5 text-purple-400" />
-            </div>
-          </div>
-
-          {/* Estado Sistemas */}
-          <div className="bg-black/50 backdrop-blur-2xl border border-white/8 shadow-2xl rounded-[1.5rem] p-4 flex items-center justify-between pointer-events-auto">
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-[0.15em] text-zinc-500 mb-1">Estado de Sistemas</p>
-              {globalData.notifications?.length > 0 ? (
-                <p className="text-red-400 font-bold text-xs leading-tight mt-1 max-w-[140px] line-clamp-2">
-                  {globalData.notifications[0].title}
-                </p>
-              ) : (
-                <p className="text-green-400 font-bold text-sm mt-1 font-sans">Operación Normal</p>
-              )}
-            </div>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border
-              ${globalData.notifications?.length > 0 ? 'bg-red-500/10 border-red-500/25' : 'bg-green-500/10 border-green-500/20'}`}>
-              <ShieldAlert className={`w-4.5 h-4.5 ${globalData.notifications?.length > 0 ? 'text-red-400' : 'text-green-400'}`} />
-            </div>
-          </div>
+            ) : (
+              <p className="font-mono text-[11px] text-emerald-400 tracking-wider">NOMINAL</p>
+            )}
+          </HudCard>
 
         </div>
       </div>
