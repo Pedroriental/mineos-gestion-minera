@@ -26,9 +26,10 @@ const NODE_DICT: Record<string, { x: number; y: number }> = {
   'Molino 1-2-3':    { x: 34, y: 46 },
 };
 
-function safeRandom() {
-  return { x: Math.floor(55 + Math.random() * 25), y: Math.floor(30 + Math.random() * 35) };
-}
+// Los 5 nodos físicos que SIEMPRE deben estar presentes en el mapa
+const ALWAYS_PRESENT = [
+  'Molino 1', 'Molino 2', 'Molino 3', 'Molino Continuo', 'Mantenimiento',
+] as const;
 
 function normalizeMolinoName(raw: string): string {
   const t = raw.trim();
@@ -50,10 +51,21 @@ interface Accum {
   origenes: Set<string>;
 }
 
+function makeAccum(name: string): Accum {
+  const isMant = /mantenimiento/i.test(name);
+  return {
+    name,
+    coordinates: NODE_DICT[name] ?? { x: 60, y: 45 },
+    status: isMant ? 'Mantenimiento' : 'Inactivo',
+    totalOro: 0, sumTenor: 0, sumMerma: 0, count: 0,
+    materiales: new Set<string>(),
+    origenes:   new Set<string>(),
+  };
+}
+
 export default async function DashboardPage() {
   const supabase = await createServerClient();
   const today = new Date().toISOString().split('T')[0];
-
 
   try {
     const [gastosRes, equiposRes, prodRes, volRes] = await Promise.all([
@@ -74,9 +86,6 @@ export default async function DashboardPage() {
     }));
 
     // ── Balance Plancha 1 ─────────────────────────────────────
-    // Suma el oro recuperado ÚNICAMENTE de los molinos de la línea
-    // principal 1-2-3 (y sus combinaciones). Excluye Continuo,
-    // Mantenimiento, Coco, Varios y cualquier otro.
     const balancePlancha1 = Math.round(
       reportesProd
         .filter((r) => LINEA_PRINCIPAL.has(String(r.molino ?? '').trim().toLowerCase()))
@@ -92,22 +101,33 @@ export default async function DashboardPage() {
     };
 
     // ══════════════════════════════════════════════════════════
-    // ALGORITMO ENGULLIDOR — Agrupa por nombre normalizado
-    // del molino. NO crea nodos por vertical/disparo.
+    // ALGORITMO ENGULLIDOR
+    // 1. Pre-carga los 5 nodos físicos obligatorios (ALWAYS_PRESENT)
+    //    con produccion=0 e Inactivo (o Mantenimiento para ese nodo).
+    // 2. Luego agrupa todos los reportes, actualizando o creando nodos.
+    // 3. Los combinados (1-2, 1-3, etc.) se agregan si tienen reportes.
     // ══════════════════════════════════════════════════════════
     const accumMap = new Map<string, Accum>();
 
+    // Paso 1 — 5 nodos físicos siempre presentes
+    for (const name of ALWAYS_PRESENT) {
+      accumMap.set(name, makeAccum(name));
+    }
+
+    // Paso 2 — procesar reportes
     for (const r of reportesProd) {
       if (!r.molino) continue;
 
       const key    = normalizeMolinoName(String(r.molino));
       const isMant = /mantenimiento/i.test(key);
       const isCoco = /coco/i.test(key);
+      const isVarios = /varios/i.test(key);
+      if (isVarios) continue; // excluir "varios"
 
       if (!accumMap.has(key)) {
         accumMap.set(key, {
           name: key,
-          coordinates: NODE_DICT[key] ?? safeRandom(),
+          coordinates: NODE_DICT[key] ?? { x: 60, y: 45 },
           status: isMant ? 'Mantenimiento' : isCoco ? 'Inactivo' : 'Activo',
           totalOro: 0, sumTenor: 0, sumMerma: 0, count: 0,
           materiales: new Set<string>(),
@@ -116,12 +136,20 @@ export default async function DashboardPage() {
       }
 
       const ent = accumMap.get(key)!;
-      ent.totalOro += Number(r.oro_recuperado_g ?? 0);
+      const oro = Number(r.oro_recuperado_g ?? 0);
+
+      // Si el nodo tenía datos (se acaba de actualizar desde producción),
+      // cambiar su status a Activo si tiene oro
+      if (oro > 0 && ent.status === 'Inactivo' && !isMant && !isCoco) {
+        ent.status = 'Activo';
+      }
+
+      ent.totalOro += oro;
       ent.sumTenor += Number(r.tenor_tonelada_gpt ?? 0);
       ent.sumMerma += Number(r.merma_1_pct ?? 0);
       ent.count    += 1;
 
-      const mat  = String(r.material ?? '').trim();
+      const mat = String(r.material ?? '').trim();
       if (mat) ent.materiales.add(mat);
 
       const code = String(r.material_codigo ?? r.material ?? '').trim();
@@ -129,19 +157,7 @@ export default async function DashboardPage() {
       if (vm) ent.origenes.add(`V${vm[1]}D${vm[2]}`);
     }
 
-    // Nodo Mantenimiento siempre presente
-    if (!accumMap.has('Mantenimiento')) {
-      accumMap.set('Mantenimiento', {
-        name: 'Mantenimiento',
-        coordinates: NODE_DICT['Mantenimiento'],
-        status: 'Mantenimiento',
-        totalOro: 0, sumTenor: 0, sumMerma: 0, count: 0,
-        materiales: new Set(), origenes: new Set(),
-      });
-    }
-
     const locations: LocationData[] = Array.from(accumMap.values())
-      .filter((e) => e.totalOro > 0 || e.status !== 'Activo')
       .map((e) => ({
         id: e.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         name: e.name,
