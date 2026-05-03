@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, memo } from 'react';
-import dynamic from 'next/dynamic';
+import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { Grid } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, AlertTriangle, ArrowRight, X,
@@ -10,12 +11,6 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import Link from 'next/link';
-
-// ── Dynamic import — NO SSR (Three.js requires browser) ──────
-const TacticalBackground = dynamic(
-  () => import('./TacticalBackground'),
-  { ssr: false, loading: () => <div className="absolute inset-0 bg-[#050505]" /> }
-);
 
 // ── Types ─────────────────────────────────────────────────────
 export interface LocationData {
@@ -330,6 +325,10 @@ export default function SatelliteCommandClient({
 }) {
   const [selectedId,  setSelectedId]  = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMounted,   setIsMounted]   = useState(false);
+
+  // Garantiza que WebGL solo se inicializa en el cliente, post-hidratación
+  useEffect(() => { setIsMounted(true); }, []);
 
   const handleMarkerClick = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
@@ -362,16 +361,30 @@ export default function SatelliteCommandClient({
   return (
     <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans bg-[#050505]">
 
-      {/* ── THREE.JS 3D GRID BACKGROUND ── */}
-      {/* Wrapper con dimensiones explícitas — Canvas NUNCA colapsa a 0px */}
-      <div className="absolute inset-0 w-full h-full z-0 pointer-events-none overflow-hidden bg-[#050505]">
-        <TacticalBackground />
-      </div>
+      {/* ── THREE.JS CANVAS — solo en cliente, post-hidratación ── */}
+      {isMounted && (
+        <div className="absolute inset-0 w-full h-[100vh] z-0 pointer-events-none">
+          <Canvas camera={{ position: [0, 15, 30], fov: 50 }}>
+            <ambientLight intensity={0.5} />
+            <Grid
+              args={[150, 150]}
+              cellSize={1}
+              cellThickness={1}
+              cellColor="#222222"
+              sectionSize={5}
+              sectionThickness={1.5}
+              sectionColor="#DAA520"
+              fadeDistance={60}
+              fadeStrength={1}
+            />
+          </Canvas>
+        </div>
+      )}
 
-      {/* Amber center glow — makes node cluster pop */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_40%_at_50%_50%,rgba(218,165,32,0.04),transparent)] pointer-events-none z-[1]" />
-      {/* Vignette */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,rgba(5,5,5,0.85)_100%)] pointer-events-none z-[1]" />
+      {/* Amber center glow */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_40%_at_50%_50%,rgba(218,165,32,0.05),transparent)] pointer-events-none z-[1]" />
+      {/* Vignette edges */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,rgba(5,5,5,0.80)_100%)] pointer-events-none z-[1]" />
 
       {/* Click-outside to close */}
       {selectedId && (
