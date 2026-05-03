@@ -49,7 +49,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
   ]);
 
   const isProfitable = rent.es_rentable;
-  const activeLabel = desde && hasta ? `${desde} a ${hasta}` : 'Rango Seleccionado';
+  const activeLabel = desde && hasta ? `${desde} a ${hasta}` : 'Histórico General';
 
   // ── SVG chart nativo ─────────────────────────────────────────
   const chartNode = (() => {

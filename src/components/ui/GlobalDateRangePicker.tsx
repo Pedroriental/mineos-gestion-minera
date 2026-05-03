@@ -53,14 +53,16 @@ export default function GlobalDateRangePicker() {
   };
 
   const formatDateLabel = () => {
+    if (!fromParam || !toParam) return 'Histórico General';
+    
     try {
-      const fromD = parseISO(dateRange.from);
-      const toD = parseISO(dateRange.to);
+      const fromD = parseISO(fromParam);
+      const toD = parseISO(toParam);
       if (isValid(fromD) && isValid(toD)) {
         return `${format(fromD, 'dd MMM', { locale: es })} - ${format(toD, 'dd MMM yyyy', { locale: es })}`;
       }
     } catch (e) {}
-    return 'Seleccionar fechas';
+    return 'Histórico General';
   };
 
   return (
@@ -104,19 +106,30 @@ export default function GlobalDateRangePicker() {
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-2">
+            <div className="pt-2 flex items-center justify-between gap-2">
               <button 
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  router.push(pathname, { scroll: false }); // Reset to Histórico
+                }}
                 className="px-3 py-1.5 text-xs font-semibold text-white/50 hover:text-white/80 transition-colors"
               >
-                Cancelar
+                Limpiar
               </button>
-              <button 
-                onClick={handleApply}
-                className="bg-amber-600 hover:bg-amber-500 text-black font-bold text-xs px-4 py-1.5 rounded-md transition-colors"
-              >
-                Aplicar Rango
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-white/50 hover:text-white/80 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleApply}
+                  className="bg-amber-600 hover:bg-amber-500 text-black font-bold text-xs px-4 py-1.5 rounded-md transition-colors"
+                >
+                  Aplicar Rango
+                </button>
+              </div>
             </div>
           </div>
         </div>

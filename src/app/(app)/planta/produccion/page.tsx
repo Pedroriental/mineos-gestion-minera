@@ -11,21 +11,27 @@ export default async function ProduccionPage(props: {
   const searchParams = await props.searchParams;
   const supabase = await createServerClient();
 
-  // 1. Manejo de Fechas (Fallback 30 días si no vienen en la URL)
+  // 1. Manejo de Fechas
+  const hasParams = !!searchParams?.desde && !!searchParams?.hasta;
   const hoy = new Date();
-  const fechaHasta = searchParams?.hasta || format(hoy, 'yyyy-MM-dd');
-  const fechaDesde = searchParams?.desde || format(subDays(hoy, 30), 'yyyy-MM-dd');
 
   // 2. Consulta Única a Supabase
-  const { data } = await supabase
+  let query = supabase
     .from('reportes_produccion')
     .select('*')
-    .gte('fecha', fechaDesde)
-    .lte('fecha', fechaHasta)
-    .order('fecha', { ascending: true }) // Ascendente para procesar la serie de tiempo fácilmente
+    .order('fecha', { ascending: true })
     .order('created_at', { ascending: true });
 
+  if (hasParams) {
+    query = query.gte('fecha', searchParams.desde!).lte('fecha', searchParams.hasta!);
+  }
+
+  const { data } = await query;
   const reportes: ReporteProduccion[] = (data as ReporteProduccion[]) ?? [];
+
+  // 3. Fechas Efectivas para el Gráfico
+  const fechaDesde = hasParams ? searchParams.desde! : (reportes.length > 0 ? reportes[0].fecha : format(hoy, 'yyyy-MM-dd'));
+  const fechaHasta = hasParams ? searchParams.hasta! : (reportes.length > 0 ? reportes[reportes.length - 1].fecha : format(hoy, 'yyyy-MM-dd'));
 
   // 3. Procesamiento en Memoria (Node.js Server-Side)
   let totalOro = 0;

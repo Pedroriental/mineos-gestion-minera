@@ -61,8 +61,8 @@ export async function getRentabilidad(
 ): Promise<RentabilidadResult> {
   const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_rentabilidad', {
-    p_desde: desde || null,
-    p_hasta: hasta || null,
+    p_desde: desde || '1970-01-01',
+    p_hasta: hasta || '2100-01-01',
   });
   if (error) {
     console.error('[RPC] get_rentabilidad:', error.message);
@@ -77,8 +77,8 @@ export async function getProduccionDiaria(
 ): Promise<ProduccionDiariaRow[]> {
   const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_produccion_diaria', {
-    p_desde: desde || null,
-    p_hasta: hasta || null,
+    p_desde: desde || '1970-01-01',
+    p_hasta: hasta || '2100-01-01',
   });
   if (error) {
     console.error('[RPC] get_produccion_diaria:', error.message);
@@ -93,8 +93,8 @@ export async function getGastosPorCategoria(
 ): Promise<GastoCategoriaRow[]> {
   const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_gastos_por_categoria', {
-    p_desde: desde || null,
-    p_hasta: hasta || null,
+    p_desde: desde || '1970-01-01',
+    p_hasta: hasta || '2100-01-01',
   });
   if (error) {
     console.error('[RPC] get_gastos_por_categoria:', error.message);
