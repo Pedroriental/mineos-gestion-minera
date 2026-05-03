@@ -20,18 +20,18 @@ export default function TacticalBackground() {
 
       <ambientLight intensity={0.05} />
 
-      {/* Cuadrícula táctica con secciones ámbar */}
+      {/* Cuadrícula táctica — líneas visibles */}
       <Grid
         args={[100, 100]}
         position={[0, 0, 0]}
         cellSize={1}
-        cellThickness={1}
-        cellColor="#1a1a1a"
+        cellThickness={1.2}
+        cellColor="#303030"
         sectionSize={5}
-        sectionThickness={1.5}
-        sectionColor="#DAA520"
-        fadeDistance={50}
-        fadeStrength={1}
+        sectionThickness={2}
+        sectionColor="#B8860B"
+        fadeDistance={60}
+        fadeStrength={1.5}
         infiniteGrid
       />
     </Canvas>
