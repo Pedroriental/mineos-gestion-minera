@@ -88,8 +88,8 @@ const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
         {/* Label LEFT side (when node is on right half) */}
         {!labelRight && (
           <div className="flex items-center mr-1.5">
-            <div className="bg-black/80 backdrop-blur-md border-l-2 border-amber-500 pl-2 pr-3 py-1 shadow-xl">
-              <span className="font-mono text-[10px] uppercase text-zinc-300 tracking-[0.2em] whitespace-nowrap">
+            <div className="bg-black/40 backdrop-blur-md border border-amber-500/20 text-zinc-300 text-[9px] font-mono px-2 py-1 uppercase tracking-widest">
+              <span>
                 {loc.name}
               </span>
             </div>
@@ -125,8 +125,8 @@ const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
         {labelRight && (
           <div className="flex items-center ml-1.5">
             <div className="w-4 h-[1px] bg-amber-500/40" />
-            <div className="bg-black/80 backdrop-blur-md border-l-2 border-amber-500 pl-2 pr-3 py-1 shadow-xl">
-              <span className="font-mono text-[10px] uppercase text-zinc-300 tracking-[0.2em] whitespace-nowrap">
+            <div className="bg-black/40 backdrop-blur-md border border-amber-500/20 text-zinc-300 text-[9px] font-mono px-2 py-1 uppercase tracking-widest">
+              <span>
                 {loc.name}
               </span>
             </div>
@@ -364,18 +364,18 @@ export default function SatelliteCommandClient({
       {/* ── THREE.JS CANVAS — fixed, z-[-1], fondo absoluto del viewport ── */}
       {isMounted && (
         <div className="fixed top-0 left-0 w-[100vw] h-[100vh] z-[-1] bg-[#050505] pointer-events-none">
-          <Canvas camera={{ position: [0, 15, 30], fov: 50 }}>
+          <Canvas camera={{ position: [0, 40, 25], fov: 45 }}>
             <ambientLight intensity={0.5} />
             <Grid
-              args={[150, 150]}
-              cellSize={1}
-              cellThickness={1}
-              cellColor="#222222"
-              sectionSize={5}
-              sectionThickness={1.5}
-              sectionColor="#DAA520"
-              fadeDistance={60}
-              fadeStrength={1}
+              args={[200, 200]}
+              cellSize={0.5}
+              cellThickness={0.5}
+              cellColor="#1a1a1a"
+              sectionSize={2.5}
+              sectionThickness={1}
+              sectionColor="#DAA52025"
+              fadeDistance={70}
+              fadeStrength={1.5}
             />
           </Canvas>
         </div>
