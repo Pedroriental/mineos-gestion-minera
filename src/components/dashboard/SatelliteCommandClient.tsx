@@ -359,11 +359,11 @@ export default function SatelliteCommandClient({
   }, [selectedLocation]);
 
   return (
-    <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans bg-[#050505]">
+    <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans">
 
-      {/* ── THREE.JS CANVAS — solo en cliente, post-hidratación ── */}
+      {/* ── THREE.JS CANVAS — fixed, z-[-1], fondo absoluto del viewport ── */}
       {isMounted && (
-        <div className="absolute inset-0 w-full h-[100vh] z-0 pointer-events-none">
+        <div className="fixed top-0 left-0 w-[100vw] h-[100vh] z-[-1] bg-[#050505] pointer-events-none">
           <Canvas camera={{ position: [0, 15, 30], fov: 50 }}>
             <ambientLight intensity={0.5} />
             <Grid
@@ -381,10 +381,8 @@ export default function SatelliteCommandClient({
         </div>
       )}
 
-      {/* Amber center glow */}
+      {/* Amber center glow — transparente, no tapa el canvas */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_40%_at_50%_50%,rgba(218,165,32,0.05),transparent)] pointer-events-none z-[1]" />
-      {/* Vignette edges */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,rgba(5,5,5,0.80)_100%)] pointer-events-none z-[1]" />
 
       {/* Click-outside to close */}
       {selectedId && (
