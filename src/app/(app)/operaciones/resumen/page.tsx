@@ -14,9 +14,7 @@ import {
   getRentabilidad,
   getProduccionDiaria,
   getGastosPorCategoria,
-  type PeriodoDias,
 } from '@/lib/rpc/rentabilidad';
-import PeriodSelector from './PeriodSelector';
 import { FadeIn, StaggerGrid, StaggerItem, FadeInSection } from '@/components/ui/motion';
 import {
   FileText, TrendingUp, TrendingDown, Gem, DollarSign,
@@ -36,27 +34,22 @@ function fmtNum(n: number, d = 2) {
 }
 
 // ── Next.js 16 App Router ─────────────────────────────────────
-type SearchParams = Promise<{ period?: string }>;
+type SearchParams = Promise<{ desde?: string; hasta?: string }>;
 interface PageProps { searchParams: SearchParams }
 
 // ─────────────────────────────────────────────────────────────
 export default async function ResumenEjecutivoPage({ searchParams }: PageProps) {
-  const { period: periodParam } = await searchParams;
-  const period = ([7, 15, 30, 90].includes(Number(periodParam))
-    ? Number(periodParam) : 30) as PeriodoDias;
+  const { desde, hasta } = await searchParams;
 
   // 3 RPCs en paralelo — PostgreSQL hace el cálculo pesado
   const [rent, prodDiaria, gastosCat] = await Promise.all([
-    getRentabilidad(period),
-    getProduccionDiaria(period),
-    getGastosPorCategoria(period),
+    getRentabilidad(desde, hasta),
+    getProduccionDiaria(desde, hasta),
+    getGastosPorCategoria(desde, hasta),
   ]);
 
   const isProfitable = rent.es_rentable;
-  const periodLabel: Record<string, string> = {
-    '7': 'Últimos 7 días', '15': 'Últimos 15 días',
-    '30': 'Últimos 30 días', '90': 'Últimos 90 días',
-  };
+  const activeLabel = desde && hasta ? `${desde} a ${hasta}` : 'Rango Seleccionado';
 
   // ── SVG chart nativo ─────────────────────────────────────────
   const chartNode = (() => {
@@ -182,10 +175,9 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           </h1>
           <p className="text-white/40 text-xs sm:text-sm mt-1 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5" />
-            {periodLabel[String(period)]} — {rent.dias_con_produccion} día{rent.dias_con_produccion !== 1 ? 's' : ''} con producción
+            {activeLabel} — {rent.dias_con_produccion} día{rent.dias_con_produccion !== 1 ? 's' : ''} con producción
           </p>
         </div>
-        <PeriodSelector currentPeriod={String(period)} />
       </FadeIn>
 
       {/* ── Gold Banner (FadeIn delay=0.1) ── */}

@@ -56,11 +56,13 @@ const FALLBACK_RENTABILIDAD: RentabilidadResult = {
 // ── Funciones públicas ───────────────────────────────────────
 
 export async function getRentabilidad(
-  dias: PeriodoDias = 30,
+  desde?: string,
+  hasta?: string
 ): Promise<RentabilidadResult> {
   const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_rentabilidad', {
-    periodo_dias: dias,
+    p_desde: desde || null,
+    p_hasta: hasta || null,
   });
   if (error) {
     console.error('[RPC] get_rentabilidad:', error.message);
@@ -70,11 +72,13 @@ export async function getRentabilidad(
 }
 
 export async function getProduccionDiaria(
-  dias: PeriodoDias = 30,
+  desde?: string,
+  hasta?: string
 ): Promise<ProduccionDiariaRow[]> {
   const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_produccion_diaria', {
-    periodo_dias: dias,
+    p_desde: desde || null,
+    p_hasta: hasta || null,
   });
   if (error) {
     console.error('[RPC] get_produccion_diaria:', error.message);
@@ -84,11 +88,13 @@ export async function getProduccionDiaria(
 }
 
 export async function getGastosPorCategoria(
-  dias: PeriodoDias = 30,
+  desde?: string,
+  hasta?: string
 ): Promise<GastoCategoriaRow[]> {
   const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_gastos_por_categoria', {
-    periodo_dias: dias,
+    p_desde: desde || null,
+    p_hasta: hasta || null,
   });
   if (error) {
     console.error('[RPC] get_gastos_por_categoria:', error.message);

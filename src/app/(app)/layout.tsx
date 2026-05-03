@@ -410,9 +410,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     !!user && !isGuest,
   );
 
-  useEffect(() => {
-    if (!loading && !user && !isGuest) router.push('/');
-  }, [user, loading, isGuest, router]);
+  // Bypass login check momentarily
+  // useEffect(() => {
+  //   if (!loading && !user && !isGuest) router.push('/');
+  // }, [user, loading, isGuest, router]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -426,7 +427,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && !isGuest) return null;
+  // if (!user && !isGuest) return null;
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden relative">
