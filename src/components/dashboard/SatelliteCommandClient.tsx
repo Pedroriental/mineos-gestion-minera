@@ -363,7 +363,10 @@ export default function SatelliteCommandClient({
     <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans bg-[#050505]">
 
       {/* ── THREE.JS 3D GRID BACKGROUND ── */}
-      <TacticalBackground />
+      {/* Wrapper con dimensiones explícitas — Canvas NUNCA colapsa a 0px */}
+      <div className="absolute inset-0 w-full h-full z-0 pointer-events-none overflow-hidden bg-[#050505]">
+        <TacticalBackground />
+      </div>
 
       {/* Amber center glow — makes node cluster pop */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_40%_at_50%_50%,rgba(218,165,32,0.04),transparent)] pointer-events-none z-[1]" />
