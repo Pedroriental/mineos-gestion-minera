@@ -7,8 +7,9 @@ import { createQuemado, updateQuemado, deleteQuemado } from '@/lib/actions/quema
 import type { ReporteQuemado, PlanchaItem } from '@/lib/types';
 import {
   Loader2, Flame, Plus, X, Edit2, Trash2, Calculator,
-  ChevronLeft, ChevronRight, CalendarDays, AlertCircle, Gem, Search
+  ChevronLeft, ChevronRight, CalendarDays, AlertCircle, Gem, Search, BookOpen
 } from 'lucide-react';
+import Link from 'next/link';
 import MetricCard from '@/components/MetricCard';
 import EmptyState from '@/components/EmptyState';
 import {
@@ -175,7 +176,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
             <Flame className="w-6 h-6 text-orange-400" /> Quemado de Planchas
@@ -186,10 +187,15 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
             {mermaDay > 0 && <span className="text-white/25"> — Merma: {mermaDay.toFixed(1)}%</span>}
           </p>
         </div>
-        <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setPausas([emptyPlancha()]); setFormError(null); setShowModal(true); }}
-          disabled={!canEdit} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
-          <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuevo Reporte</span>
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <Link href="/operaciones/resumen" className="btn-secondary min-h-[40px] px-4 flex-1 sm:flex-none flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
+            <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Resumen Ejecutivo</span>
+          </Link>
+          <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setPausas([emptyPlancha()]); setFormError(null); setShowModal(true); }}
+            disabled={!canEdit} className="btn-primary min-h-[40px] px-4 flex-1 sm:flex-none disabled:opacity-40 disabled:cursor-not-allowed">
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuevo Reporte</span>
+          </button>
+        </div>
       </div>
 
       <div className="card-glass p-4 flex items-start gap-3 border border-amber-400/20">

@@ -5,7 +5,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { createExtraccion, updateExtraccion, deleteExtraccion } from '@/lib/actions/extraccion';
 import type { ReporteExtraccion, EventoExtraccion } from '@/lib/types';
-import { Loader2, Pickaxe, Plus, X, Download, AlertCircle, Search, Package, Zap, Clock, BarChart3 } from 'lucide-react';
+import { Loader2, Pickaxe, Plus, X, Download, AlertCircle, Search, Package, Zap, Clock, BarChart3, BookOpen } from 'lucide-react';
+import Link from 'next/link';
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -318,6 +319,11 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
           <p className="text-white/40 text-sm mt-1">
             Centro de Mando Operativo y Logística de Mina.
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link href="/operaciones/resumen" className="btn-secondary h-10 px-4 flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
+            <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Resumen Ejecutivo</span>
+          </Link>
         </div>
       </FadeIn>
 

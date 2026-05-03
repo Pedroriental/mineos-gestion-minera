@@ -20,8 +20,9 @@ import PeriodSelector from './PeriodSelector';
 import { FadeIn, StaggerGrid, StaggerItem, FadeInSection } from '@/components/ui/motion';
 import {
   FileText, TrendingUp, TrendingDown, Gem, DollarSign,
-  Factory, Pickaxe, Scale, Target, Calendar,
+  Factory, Pickaxe, Scale, Target, Calendar, ArrowRight,
 } from 'lucide-react';
+import Link from 'next/link';
 
 // ── Helpers de formato ────────────────────────────────────────
 function fmt(n: number) {
@@ -308,6 +309,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           {
             title:  'Producción Planta',
             accent: '#10B981',
+            href:   '/planta/produccion',
             rows: [
               { label: 'Turnos registrados', value: prodDiaria.reduce((s, d) => s + d.turnos, 0) },
               { label: 'Sacos procesados',   value: fmtNum(rent.sacos_total, 0) },
@@ -318,6 +320,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           {
             title:  'Quemada de Plancha',
             accent: '#F59E0B',
+            href:   '/mina/quemado',
             rows: [
               { label: 'Au recuperado (real)', value: `${fmtNum(rent.oro_quemado_g, 4)} g` },
               { label: 'Amalgama total',       value: `${fmtNum(rent.amalgama_total_g, 2)} g` },
@@ -328,6 +331,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           {
             title:  'Análisis de Costos',
             accent: isProfitable ? '#10B981' : '#EF4444',
+            href:   '/admin/gastos',
             rows: [
               { label: 'Gastos totales', value: fmt(rent.gastos_total_usd) },
               { label: 'Costo / gramo',  value: `$${fmtNum(rent.costo_por_gramo, 2)}` },
@@ -338,21 +342,26 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
         ].map((card) => (
           <StaggerItem
             key={card.title}
-            className="card-glass rounded-xl p-5"
+            className="card-glass rounded-xl p-0 overflow-hidden group"
             style={{ borderTop: `2px solid ${card.accent}40` } as React.CSSProperties}
           >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-1 h-4 rounded-full" style={{ background: card.accent }} />
-              <span className="text-[10px] text-white/45 font-bold uppercase tracking-widest">{card.title}</span>
-            </div>
-            <div className="space-y-2.5">
-              {card.rows.map((row) => (
-                <div key={row.label} className="flex items-center justify-between">
-                  <span className="text-xs text-white/40">{row.label}</span>
-                  <span className="text-sm font-bold text-white/80">{String(row.value)}</span>
+            <Link href={card.href} className="block p-5 h-full hover:bg-white/[0.02] transition-colors">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-4 rounded-full" style={{ background: card.accent }} />
+                  <span className="text-[10px] text-white/45 font-bold uppercase tracking-widest group-hover:text-white/70 transition-colors">{card.title}</span>
                 </div>
-              ))}
-            </div>
+                <ArrowRight className="w-3.5 h-3.5 text-white/20 group-hover:text-white/60 transition-colors" />
+              </div>
+              <div className="space-y-2.5">
+                {card.rows.map((row) => (
+                  <div key={row.label} className="flex items-center justify-between">
+                    <span className="text-xs text-white/40">{row.label}</span>
+                    <span className="text-sm font-bold text-white/80">{String(row.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </Link>
           </StaggerItem>
         ))}
       </StaggerGrid>

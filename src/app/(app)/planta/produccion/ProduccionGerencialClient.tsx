@@ -6,7 +6,8 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { createProduccion, updateProduccion, deleteProduccion } from '@/lib/actions/produccion';
 import type { ReporteProduccion } from '@/lib/types';
 import { downloadProduccionPDF } from '@/lib/pdf-reports';
-import { Loader2, Factory, Plus, X, Calculator, AlertTriangle, Download, AlertCircle, Search, Pickaxe, TrendingUp } from 'lucide-react';
+import { Loader2, Factory, Plus, X, Calculator, AlertTriangle, Download, AlertCircle, Search, Pickaxe, TrendingUp, BookOpen } from 'lucide-react';
+import Link from 'next/link';
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -359,6 +360,9 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link href="/operaciones/resumen" className="btn-secondary h-10 px-4 flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
+            <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Resumen Ejecutivo</span>
+          </Link>
            {/* El botón de Nuevo Registro se movió a la Action Bar de la tabla para mejor operatividad */}
         </div>
       </FadeIn>
