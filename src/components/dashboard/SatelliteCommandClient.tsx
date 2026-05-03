@@ -88,7 +88,7 @@ const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
         {/* Label LEFT side (when node is on right half) */}
         {!labelRight && (
           <div className="flex items-center mr-1.5">
-            <div className="bg-black/40 backdrop-blur-md border border-amber-500/20 text-zinc-300 text-[9px] font-mono px-2 py-1 uppercase tracking-widest">
+            <div className="bg-black/40 backdrop-blur-md border border-amber-500/30 text-zinc-300 text-[9px] font-mono px-2 py-1 uppercase tracking-widest">
               <span>
                 {loc.name}
               </span>
@@ -125,7 +125,7 @@ const Marker = memo(function Marker({ loc, isSelected, onClick }: MarkerProps) {
         {labelRight && (
           <div className="flex items-center ml-1.5">
             <div className="w-4 h-[1px] bg-amber-500/40" />
-            <div className="bg-black/40 backdrop-blur-md border border-amber-500/20 text-zinc-300 text-[9px] font-mono px-2 py-1 uppercase tracking-widest">
+            <div className="bg-black/40 backdrop-blur-md border border-amber-500/30 text-zinc-300 text-[9px] font-mono px-2 py-1 uppercase tracking-widest">
               <span>
                 {loc.name}
               </span>
@@ -373,7 +373,7 @@ export default function SatelliteCommandClient({
               cellColor="#1a1a1a"
               sectionSize={2.5}
               sectionThickness={1}
-              sectionColor="#DAA52025"
+              sectionColor="#DAA520"
               fadeDistance={70}
               fadeStrength={1.5}
             />
