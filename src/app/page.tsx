@@ -11,12 +11,22 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    router.push('/dashboard');
-  }, [router]);
+    if (!loading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0B1E27]">
-      <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0B1E27]">
+        <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+      </div>
+    );
+  }
+
+  if (user) {
+    return null;
+  }
+
+  return <LoginPage />;
 }
