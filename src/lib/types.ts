@@ -9,7 +9,11 @@ export interface Personal {
   nombre_completo: string;
   cargo: string;
   area: 'mina' | 'planta' | 'administracion' | 'seguridad' | 'transporte';
+  area_detalle: string;
   salario_base: number;
+  salario_libre: number;
+  bono_transporte: number;
+  estatus: 'ACTIVO' | 'LIQUIDADO' | 'INACTIVO';
   fecha_ingreso: string;
   activo: boolean;
   telefono?: string;
@@ -39,12 +43,58 @@ export interface NominaSemana {
   id: string;
   semana_inicio: string;
   semana_fin: string;
+  area: string;
   total_trabajadores: number;
   total_pagado: number;
   notas?: string;
   registrado_por?: string;
   gasto_id?: string;
   created_at: string;
+}
+
+export interface NominaRegistro {
+  id: string;
+  semana_id: string;
+  personal_id: string;
+  monto_pagado: number;
+  es_semana_libre: boolean;
+  bono_transporte_pagado: number;
+  created_at: string;
+  personal?: Personal;
+}
+
+export interface NominaCierre {
+  id: string;
+  semana_id: string;
+  total_nomina_usd: number;
+  pct_pedro: number;
+  pct_darinel: number;
+  pct_la_fe: number;
+  monto_pedro: number;
+  monto_darinel: number;
+  monto_la_fe: number;
+  created_at: string;
+}
+
+export interface NominaHistoricoRow {
+  semana_id: string;
+  semana_inicio: string;
+  semana_fin: string;
+  area: string;
+  total_trabajadores: number;
+  total_pagado: number;
+  tiene_cierre: boolean;
+  monto_pedro: number;
+  monto_darinel: number;
+  monto_la_fe: number;
+}
+
+// Pre-nómina draft row (client-side only)
+export interface PreNominaRow {
+  personal: Personal;
+  esSemanaLibre: boolean;
+  bonoTransporte: number;
+  total: number;
 }
 
 export interface CategoriaGasto {

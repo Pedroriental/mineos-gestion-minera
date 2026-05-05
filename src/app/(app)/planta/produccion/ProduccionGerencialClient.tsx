@@ -181,8 +181,8 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
     const oroG = parseFloat(form.oro_recuperado_g);
     const sacosN = parseFloat(form.sacos);
     
-    if (isNaN(oroG) || oroG <= 0) { setFormError('El oro recuperado debe ser mayor que 0.'); return; }
-    if (isNaN(sacosN) || sacosN <= 0) { setFormError('Los sacos procesados deben ser mayores que 0.'); return; }
+    if (isNaN(oroG) || oroG < 0) { setFormError('El oro recuperado no puede ser negativo.'); return; }
+    if (isNaN(sacosN) || sacosN < 0) { setFormError('Los sacos procesados no pueden ser negativos.'); return; }
     
     setFormError(null);
     startTransition(async () => {
