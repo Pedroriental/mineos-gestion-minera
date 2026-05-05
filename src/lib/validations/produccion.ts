@@ -18,13 +18,13 @@ export const ProduccionSchema = z.object({
   amalgama_1_g: z.coerce.number().min(0, 'Amalgama 1 no puede ser negativa').optional().nullable(),
   amalgama_2_g: z.coerce.number().min(0, 'Amalgama 2 no puede ser negativa').optional().nullable(),
   
-  oro_recuperado_g: z.coerce.number().positive('El oro recuperado debe ser mayor a 0'),
+  oro_recuperado_g: z.coerce.number().min(0, 'El oro recuperado no puede ser negativo'),
   
   merma_1_pct: z.coerce.number().optional().nullable(),
   merma_2_pct: z.coerce.number().optional().nullable(),
 
-  sacos: z.coerce.number().positive('La cantidad de sacos debe ser mayor a 0'),
-  toneladas_procesadas: z.coerce.number().positive('Las toneladas deben ser mayores a 0'),
+  sacos: z.coerce.number().min(0, 'La cantidad de sacos no puede ser negativa'),
+  toneladas_procesadas: z.coerce.number().min(0, 'Las toneladas no pueden ser negativas').optional().nullable(),
   
   tenor_tonelada_gpt: z.coerce.number().optional().nullable(),
   tenor_saco_gps: z.coerce.number().optional().nullable(),
