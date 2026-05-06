@@ -210,7 +210,7 @@ export function downloadProduccionPDF(data: ReporteProduccion[], dateLabel?: str
   addHeader(doc, 'Reporte de Producción', label);
 
   const totalOro   = data.reduce((s, d) => s + Number(d.oro_recuperado_g   || 0), 0);
-  const totalSacos = data.reduce((s, d) => s + Number(d.sacos              || 0), 0);
+  const totalSacos = Math.round(data.reduce((s, d) => s + Number(d.sacos || 0), 0));
   const totalKg    = totalSacos * 50;
   const totalTon   = data.reduce((s, d) => s + Number(d.toneladas_procesadas || 0), 0);
   const avgTenor   = totalTon > 0 ? (totalOro / totalTon).toFixed(4) : '—';
@@ -220,7 +220,7 @@ export function downloadProduccionPDF(data: ReporteProduccion[], dateLabel?: str
   addSummaryBox(doc, 28, [
     { label: 'Registros',    value: String(data.length)              },
     { label: 'Au Rec. (g)',  value: totalOro.toFixed(4)              },
-    { label: 'Sacos (×50kg)', value: `${totalSacos}  (${totalKg} kg)` },
+    { label: 'Sacos (×50kg)', value: `${totalSacos}  (${totalKg.toLocaleString()} kg)` },
     { label: 'Toneladas',    value: totalTon.toFixed(3)              },
     { label: 'Tenor g/t',   value: avgTenor                         },
     { label: 'Merma 1 prom', value: data.filter(d => d.merma_1_pct).length > 0 ? `${avgMerma1.toFixed(1)}%` : '—' },
@@ -246,7 +246,7 @@ export function downloadProduccionPDF(data: ReporteProduccion[], dateLabel?: str
       Number(d.oro_recuperado_g).toFixed(4),
       d.merma_1_pct != null   ? `${d.merma_1_pct}%` : '—',
       d.merma_2_pct != null   ? `${d.merma_2_pct}%` : '—',
-      d.sacos                 ?? '—',
+      d.sacos != null ? Math.round(Number(d.sacos)) : '—',
       d.toneladas_procesadas  ?? '—',
       d.tenor_tonelada_gpt    ?? '—',
       d.tenor_saco_gps        ?? '—',
@@ -385,7 +385,7 @@ export function downloadBalanceRecuperacionPDF(
       if (regs.length === 0) return null;
 
       const totalOro   = regs.reduce((s, r) => s + (Number(r.oro_recuperado_g)    || 0), 0);
-      const totalSacos = regs.reduce((s, r) => s + (Number(r.sacos)               || 0), 0);
+      const totalSacos = Math.round(regs.reduce((s, r) => s + (Number(r.sacos) || 0), 0));
       const totalTon   = regs.reduce((s, r) => s + (Number(r.toneladas_procesadas) || 0), 0);
       const tenor      = totalTon > 0 ? totalOro / totalTon : 0;
 
@@ -408,7 +408,7 @@ export function downloadBalanceRecuperacionPDF(
     .filter(Boolean) as BalanceOrigen[];
 
   // ── Summary Box Global ────────────────────────────────────
-  const totalSacosGlobal = data.reduce((s, r) => s + (Number(r.sacos) || 0), 0);
+  const totalSacosGlobal = Math.round(data.reduce((s, r) => s + (Number(r.sacos) || 0), 0));
   const totalTonGlobal   = data.reduce((s, r) => s + (Number(r.toneladas_procesadas) || 0), 0);
   const tenorGlobal      = totalTonGlobal > 0 ? totalOroGlobal / totalTonGlobal : 0;
   const origenesActivos  = balances.length;
@@ -534,7 +534,7 @@ export function downloadBalanceRecuperacionPDF(
         r.amalgama_2_g != null ? Number(r.amalgama_2_g).toFixed(2) : '—',
         { content: Number(r.oro_recuperado_g).toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const } },
         r.merma_1_pct != null ? `${Number(r.merma_1_pct).toFixed(1)}%` : '—',
-        r.sacos ?? 0,
+        r.sacos != null ? Math.round(Number(r.sacos)) : 0,
         r.toneladas_procesadas != null ? Number(r.toneladas_procesadas).toFixed(3) : '—',
         r.tenor_tonelada_gpt != null ? Number(r.tenor_tonelada_gpt).toFixed(4) : '—',
       ]),
