@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { createProduccion, updateProduccion, deleteProduccion } from '@/lib/actions/produccion';
 import type { ReporteProduccion } from '@/lib/types';
-import { downloadProduccionPDF } from '@/lib/pdf-reports';
+import { downloadProduccionPDF, downloadBalanceRecuperacionPDF } from '@/lib/pdf-reports';
 import { Loader2, Factory, Plus, X, Calculator, AlertTriangle, Download, AlertCircle, Search, Pickaxe, TrendingUp, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import EmptyState from '@/components/EmptyState';
@@ -86,6 +86,7 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingBalance, setIsExportingBalance] = useState(false);
 
   const initialData = data.registros;
 
@@ -346,6 +347,30 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
     }
   };
 
+  const handleExportBalance = async () => {
+    try {
+      setIsExportingBalance(true);
+      // Usar TODOS los registros del período (no solo el día seleccionado)
+      const todosLosRegistros = initialData;
+      if (todosLosRegistros.length === 0) return;
+
+      const dates = todosLosRegistros.map(r => new Date(r.fecha + 'T12:00:00').getTime());
+      const minDate = new Date(Math.min(...dates));
+      const maxDate = new Date(Math.max(...dates));
+      const fmt = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+      const label = minDate.getTime() === maxDate.getTime()
+        ? fmt(minDate)
+        : `${fmt(minDate)} al ${fmt(maxDate)}`;
+
+      downloadBalanceRecuperacionPDF(todosLosRegistros, label);
+    } catch (err) {
+      console.error('Error al generar Balance PDF:', err);
+      alert('Error al generar el Balance de Recuperación.');
+    } finally {
+      setIsExportingBalance(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-[1600px] mx-auto h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col overflow-hidden">
       
@@ -516,11 +541,20 @@ export default function ProduccionGerencialClient({ data, selectedDateStr }: { d
                    className="bg-transparent border-none outline-none text-sm text-white/90 placeholder:text-white/30 w-full" />
                </div>
                <div className="flex items-center gap-3 w-full sm:w-auto">
-                 <button onClick={handleExportPDF} disabled={table.getFilteredRowModel().rows.length === 0 || isExporting}
-                   className="btn-secondary h-10 px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap flex-1 sm:flex-none">
-                   {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                   <span className="hidden sm:inline">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
-                 </button>
+                  <button onClick={handleExportPDF} disabled={table.getFilteredRowModel().rows.length === 0 || isExporting}
+                    className="btn-secondary h-10 px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap flex-1 sm:flex-none">
+                    {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                    <span className="hidden sm:inline">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
+                  </button>
+                  <button
+                    onClick={handleExportBalance}
+                    disabled={initialData.length === 0 || isExportingBalance}
+                    title="Balance de Recuperación por origen: Vertical 1/2/3, Mantenimiento, Repaso, Molino Continuo"
+                    className="h-10 px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap flex-1 sm:flex-none border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-semibold text-xs rounded-lg transition-colors"
+                  >
+                    {isExportingBalance ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
+                    <span className="hidden sm:inline">{isExportingBalance ? 'Calculando...' : 'Balance Recuperación'}</span>
+                  </button>
                  {canEdit && (
                     <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setFormError(null); setShowModal(true); }} 
                        className="bg-amber-600 hover:bg-amber-500 text-black font-bold h-10 px-4 rounded-lg flex items-center justify-center gap-2 whitespace-nowrap transition-colors flex-1 sm:flex-none shadow-lg shadow-amber-900/20">

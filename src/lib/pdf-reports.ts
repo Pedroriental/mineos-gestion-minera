@@ -276,3 +276,297 @@ export function downloadProduccionPDF(data: ReporteProduccion[], dateLabel?: str
   addFooter(doc);
   doc.save(`produccion-${dateLabel?.replace(/\s/g, '_') || 'reporte'}.pdf`);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  BALANCE DE RECUPERACIÓN POR ORIGEN
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Clasifica un registro por su origen de oro:
+ *  - Vertical 1 / 2 / 3 → detectado por código Vx en material_codigo o molino
+ *  - Mantenimiento
+ *  - Repaso
+ *  - Molino Continuo
+ *  - Otros
+ */
+function clasificarOrigen(r: ReporteProduccion): string {
+  const molino   = (r.molino   || '').toLowerCase().trim();
+  const material = (r.material || '').toLowerCase().trim();
+  const codigo   = (r.material_codigo || '').toUpperCase().trim();
+
+  // Mantenimiento
+  if (molino.includes('mantenimiento') || material.includes('mantenimiento')) {
+    return 'Mantenimiento';
+  }
+
+  // Molino Continuo
+  if (molino.includes('continuo') || material.includes('continuo')) {
+    return 'Molino Continuo';
+  }
+
+  // Repaso
+  if (molino.includes('repaso') || material.includes('repaso')) {
+    return 'Repaso';
+  }
+
+  // Verticales: detectar V1, V2, V3 en el código (ej. V1D26, V2D10, V3)
+  // Buscar en material_codigo primero, luego en molino y material
+  const buscarVertical = (s: string): string | null => {
+    const m = s.match(/V([123])/i);
+    return m ? `Vertical ${m[1]}` : null;
+  };
+
+  const v = buscarVertical(codigo) || buscarVertical(molino) || buscarVertical(material);
+  if (v) return v;
+
+  return 'Otros';
+}
+
+const COLORES_ORIGEN: Record<string, [number, number, number]> = {
+  'Vertical 1':    [218, 165,  32],  // dorado
+  'Vertical 2':    [251, 146,  60],  // naranja
+  'Vertical 3':    [52,  211, 153],  // esmeralda
+  'Mantenimiento': [148, 163, 184],  // gris azulado
+  'Repaso':        [167, 139, 250],  // violeta
+  'Molino Continuo': [56, 189, 248], // celeste
+  'Otros':         [113, 113, 122],  // zinc
+};
+
+const ORDEN_ORIGEN = [
+  'Vertical 1', 'Vertical 2', 'Vertical 3',
+  'Mantenimiento', 'Repaso', 'Molino Continuo', 'Otros',
+];
+
+interface BalanceOrigen {
+  origen: string;
+  registros: ReporteProduccion[];
+  totalOro: number;
+  totalSacos: number;
+  totalTon: number;
+  tenor: number;
+  mermaPromedio: number | null;
+  pctTotal: number; // % del oro total
+}
+
+export function downloadBalanceRecuperacionPDF(
+  data: ReporteProduccion[],
+  dateLabel?: string
+) {
+  if (data.length === 0) return;
+
+  const doc   = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W     = pW(doc);
+  const label = dateLabel || `${data.length} registros`;
+
+  addHeader(doc, 'Balance de Recuperación de Oro por Origen', label);
+
+  // ── Agrupar ──────────────────────────────────────────────
+  const grupos: Record<string, ReporteProduccion[]> = {};
+  ORDEN_ORIGEN.forEach(o => { grupos[o] = []; });
+
+  data.forEach(r => {
+    const origen = clasificarOrigen(r);
+    if (!grupos[origen]) grupos[origen] = [];
+    grupos[origen].push(r);
+  });
+
+  const totalOroGlobal = data.reduce((s, r) => s + (Number(r.oro_recuperado_g) || 0), 0);
+
+  // ── Calcular estadísticas por grupo ──────────────────────
+  const balances: BalanceOrigen[] = ORDEN_ORIGEN
+    .map(origen => {
+      const regs = grupos[origen] || [];
+      if (regs.length === 0) return null;
+
+      const totalOro   = regs.reduce((s, r) => s + (Number(r.oro_recuperado_g)    || 0), 0);
+      const totalSacos = regs.reduce((s, r) => s + (Number(r.sacos)               || 0), 0);
+      const totalTon   = regs.reduce((s, r) => s + (Number(r.toneladas_procesadas) || 0), 0);
+      const tenor      = totalTon > 0 ? totalOro / totalTon : 0;
+
+      const conMerma   = regs.filter(r => r.merma_1_pct != null && Number(r.merma_1_pct) > 0);
+      const mermaPromedio = conMerma.length > 0
+        ? conMerma.reduce((s, r) => s + Number(r.merma_1_pct), 0) / conMerma.length
+        : null;
+
+      return {
+        origen,
+        registros: regs,
+        totalOro,
+        totalSacos,
+        totalTon,
+        tenor,
+        mermaPromedio,
+        pctTotal: totalOroGlobal > 0 ? (totalOro / totalOroGlobal) * 100 : 0,
+      };
+    })
+    .filter(Boolean) as BalanceOrigen[];
+
+  // ── Summary Box Global ────────────────────────────────────
+  const totalSacosGlobal = data.reduce((s, r) => s + (Number(r.sacos) || 0), 0);
+  const totalTonGlobal   = data.reduce((s, r) => s + (Number(r.toneladas_procesadas) || 0), 0);
+  const tenorGlobal      = totalTonGlobal > 0 ? totalOroGlobal / totalTonGlobal : 0;
+  const origenesActivos  = balances.length;
+
+  addSummaryBox(doc, 28, [
+    { label: 'Au Total (g)',     value: totalOroGlobal.toFixed(4)   },
+    { label: 'Sacos Totales',    value: String(totalSacosGlobal)    },
+    { label: 'Toneladas',        value: totalTonGlobal.toFixed(3)   },
+    { label: 'Tenor Global g/t', value: tenorGlobal.toFixed(4)      },
+    { label: 'Orígenes',         value: String(origenesActivos)      },
+    { label: 'Registros',        value: String(data.length)          },
+  ]);
+
+  // ── TABLA RESUMEN CONSOLIDADO ─────────────────────────────
+  let curY = 46;
+
+  // Título sección
+  doc.setFillColor(10, 22, 35);
+  doc.rect(14, curY, W - 28, 6.5, 'F');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...AMBER);
+  doc.setFont('helvetica', 'bold');
+  doc.text('// RESUMEN CONSOLIDADO POR ORIGEN', 17, curY + 4.5);
+  curY += 8;
+
+  autoTable(doc, {
+    startY: curY,
+    margin: { left: 14, right: 14 },
+    head: [[
+      'ORIGEN / MÉTODO',
+      'REGISTROS',
+      'Au RECUPERADO (g)',
+      '% DEL TOTAL',
+      'SACOS',
+      'TONELADAS',
+      'TENOR (g/t)',
+      'MERMA PROM.',
+    ]],
+    body: balances.map(b => {
+      const color = COLORES_ORIGEN[b.origen] || COLORES_ORIGEN['Otros'];
+      return [
+        { content: b.origen, styles: { textColor: color as [number, number, number], fontStyle: 'bold' as const } },
+        { content: String(b.registros.length), styles: { halign: 'center' as const } },
+        { content: b.totalOro.toFixed(4),  styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
+        { content: `${b.pctTotal.toFixed(1)}%`, styles: { halign: 'center' as const } },
+        { content: String(b.totalSacos),   styles: { halign: 'center' as const } },
+        { content: b.totalTon.toFixed(3),  styles: { halign: 'right' as const  } },
+        { content: b.tenor.toFixed(4),     styles: { halign: 'right' as const  } },
+        { content: b.mermaPromedio != null ? `${b.mermaPromedio.toFixed(1)}%` : '—', styles: { halign: 'center' as const } },
+      ];
+    }),
+    foot: [[
+      { content: 'TOTAL GENERAL', styles: { fontStyle: 'bold' as const, textColor: AMBER as [number, number, number] } },
+      { content: String(data.length), styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
+      { content: totalOroGlobal.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
+      { content: '100.0%', styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
+      { content: String(totalSacosGlobal), styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
+      { content: totalTonGlobal.toFixed(3), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: tenorGlobal.toFixed(4), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: '—', styles: { halign: 'center' as const } },
+    ]],
+    ...tableStyles,
+    footStyles: {
+      fillColor: DARKER,
+      textColor: TXT,
+      fontStyle: 'bold',
+      fontSize: 7.5,
+    },
+    columnStyles: {
+      0: { cellWidth: 40 },
+      1: { cellWidth: 22, halign: 'center' },
+      2: { cellWidth: 38, halign: 'right' },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 20, halign: 'center' },
+      5: { cellWidth: 25, halign: 'right' },
+      6: { cellWidth: 25, halign: 'right' },
+      7: { cellWidth: 22, halign: 'center' },
+    },
+  });
+
+  curY = (doc as any).lastAutoTable.finalY + 8;
+
+  // ── TABLAS DETALLE POR ORIGEN ─────────────────────────────
+  for (const bal of balances) {
+    // Si no cabe el encabezado de sección, nueva página
+    if (curY > pH(doc) - 50) {
+      doc.addPage();
+      curY = 14;
+    }
+
+    const color = COLORES_ORIGEN[bal.origen] || COLORES_ORIGEN['Otros'];
+
+    // Encabezado sección
+    doc.setFillColor(...DARK);
+    doc.rect(14, curY, W - 28, 7, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...color);
+    doc.text(`// ${bal.origen.toUpperCase()}`, 17, curY + 4.8);
+    doc.setTextColor(180, 180, 180);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `Au: ${bal.totalOro.toFixed(4)} g  |  ${bal.pctTotal.toFixed(1)}% del total  |  ${bal.registros.length} registros`,
+      W - 16, curY + 4.8, { align: 'right' }
+    );
+    curY += 9;
+
+    // Subtabla del origen
+    autoTable(doc, {
+      startY: curY,
+      margin: { left: 14, right: 14 },
+      head: [[
+        'Fecha', 'Turno', 'Molino / Código', 'Material',
+        'Amalg.1 (g)', 'Amalg.2 (g)', 'Au Rec. (g)',
+        'Merma 1%', 'Sacos', 'Ton.', 'Tenor g/t',
+      ]],
+      body: bal.registros.map(r => [
+        r.fecha,
+        r.turno === 'dia' ? 'Día' : r.turno === 'noche' ? 'Noche' : 'Comp.',
+        [r.molino, r.material_codigo].filter(Boolean).join(' / ') || r.molino || '—',
+        r.material || '—',
+        r.amalgama_1_g != null ? Number(r.amalgama_1_g).toFixed(2) : '—',
+        r.amalgama_2_g != null ? Number(r.amalgama_2_g).toFixed(2) : '—',
+        { content: Number(r.oro_recuperado_g).toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const } },
+        r.merma_1_pct != null ? `${Number(r.merma_1_pct).toFixed(1)}%` : '—',
+        r.sacos ?? 0,
+        r.toneladas_procesadas != null ? Number(r.toneladas_procesadas).toFixed(3) : '—',
+        r.tenor_tonelada_gpt != null ? Number(r.tenor_tonelada_gpt).toFixed(4) : '—',
+      ]),
+      foot: [[
+        { content: 'SUBTOTAL', colSpan: 6, styles: { fontStyle: 'bold' as const, textColor: color as [number, number, number] } },
+        { content: bal.totalOro.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const } },
+        { content: bal.mermaPromedio != null ? `${bal.mermaPromedio.toFixed(1)}%` : '—' },
+        { content: String(bal.totalSacos) },
+        { content: bal.totalTon.toFixed(3) },
+        { content: bal.tenor.toFixed(4) },
+      ]],
+      ...tableStyles,
+      footStyles: {
+        fillColor: DARK,
+        textColor: TXT,
+        fontStyle: 'bold',
+        fontSize: 7,
+      },
+      columnStyles: {
+        0:  { cellWidth: 20 },
+        1:  { cellWidth: 14 },
+        2:  { cellWidth: 32 },
+        3:  { cellWidth: 28 },
+        4:  { cellWidth: 18, halign: 'right' },
+        5:  { cellWidth: 18, halign: 'right' },
+        6:  { cellWidth: 22, halign: 'right' },
+        7:  { cellWidth: 16, halign: 'center' },
+        8:  { cellWidth: 14, halign: 'center' },
+        9:  { cellWidth: 18, halign: 'right' },
+        10: { cellWidth: 20, halign: 'right' },
+      },
+    });
+
+    curY = (doc as any).lastAutoTable.finalY + 6;
+  }
+
+  addFooter(doc);
+  const fileName = `Balance_Recuperacion_${dateLabel?.replace(/[\s\/]/g, '_') || 'reporte'}.pdf`;
+  doc.save(fileName);
+}
+
