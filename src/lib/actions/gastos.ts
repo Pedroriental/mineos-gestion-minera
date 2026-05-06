@@ -145,3 +145,45 @@ export async function deleteGasto(id: string): Promise<ActionResult> {
     return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// GET OR CREATE CATEGORIA — Permite categorías de texto libre
+// ─────────────────────────────────────────────────────────────
+export async function getOrCreateCategoria(
+  nombre: string
+): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  try {
+    const nombreClean = nombre.trim();
+    if (!nombreClean) return { ok: false, message: 'Nombre de categoría vacío' };
+
+    const supabase = await createServerClient();
+
+    // 1) Buscar por nombre (insensible a mayúsculas)
+    const { data: existing } = await supabase
+      .from('categorias_gasto')
+      .select('id')
+      .ilike('nombre', nombreClean)
+      .limit(1)
+      .single();
+
+    if (existing?.id) return { ok: true, id: existing.id };
+
+    // 2) No existe → crear
+    const { data: created, error } = await supabase
+      .from('categorias_gasto')
+      .insert({ nombre: nombreClean, tipo: 'operativo', activo: true })
+      .select('id')
+      .single();
+
+    if (error || !created?.id) {
+      console.error('[Action] getOrCreateCategoria:', error?.message);
+      return { ok: false, message: 'No se pudo crear la categoría' };
+    }
+
+    revalidateAll();
+    return { ok: true, id: created.id };
+  } catch (err) {
+    console.error('[Action] getOrCreateCategoria Exception:', err);
+    return { ok: false, message: 'Error interno del servidor' };
+  }
+}

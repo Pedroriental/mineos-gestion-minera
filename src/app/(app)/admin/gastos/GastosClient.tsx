@@ -20,7 +20,7 @@ import type { Gasto, CategoriaGasto } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { createGasto, updateGasto, deleteGasto } from '@/lib/actions/gastos';
+import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria } from '@/lib/actions/gastos';
 import { getGastoColumns, gastoGlobalFilter } from './columns';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -31,7 +31,7 @@ interface GastosClientProps {
 
 const EMPTY_FORM = {
   fecha:              new Date().toISOString().split('T')[0],
-  categoria_id:       '',
+  categoria_nombre:   '',
   descripcion:        '',
   monto:              '',
   proveedor:          '',
@@ -169,7 +169,7 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
     setEditItem(item);
     setForm({
       fecha:              item.fecha,
-      categoria_id:       item.categoria_id,
+      categoria_nombre:   item.categorias_gasto?.nombre || '',
       descripcion:        item.descripcion,
       monto:              String(item.monto),
       proveedor:          item.proveedor          || '',
@@ -184,18 +184,22 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
   function handleSave() {
     setFormError(null);
     const montoNum = parseFloat(form.monto);
-    if (!form.categoria_id)                                  { setFormError('Selecciona una categoría.'); return; }
+    if (!form.categoria_nombre.trim())                       { setFormError('Escribe una categoría.'); return; }
     if (!form.descripcion.trim())                            { setFormError('La descripción es obligatoria.'); return; }
     if (!form.monto || isNaN(montoNum) || montoNum <= 0)     { setFormError('El monto debe ser mayor que cero.'); return; }
 
-    const payload = {
-      fecha: form.fecha, categoria_id: form.categoria_id, descripcion: form.descripcion,
-      monto: montoNum, proveedor: form.proveedor || null,
-      factura_referencia: form.factura_referencia || null, notas: form.notas || null,
-      registrado_por: user?.id || null,
-      ...(editItem ? { id: editItem.id } : {}),
-    };
     startTransition(async () => {
+      // Resolver (o crear) la categoría por nombre
+      const catResult = await getOrCreateCategoria(form.categoria_nombre);
+      if (!catResult.ok) { setFormError(catResult.message); return; }
+
+      const payload = {
+        fecha: form.fecha, categoria_id: catResult.id, descripcion: form.descripcion,
+        monto: montoNum, proveedor: form.proveedor || null,
+        factura_referencia: form.factura_referencia || null, notas: form.notas || null,
+        registrado_por: user?.id || null,
+        ...(editItem ? { id: editItem.id } : {}),
+      };
       const result = editItem ? await updateGasto(payload) : await createGasto(payload);
       if (result.ok) { toast.success(result.message); closeModal(); }
       else           { setFormError(result.message); toast.error(result.message); }
@@ -466,14 +470,20 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
               </div>
               <div>
                 <label className="input-label">Categoría *</label>
-                <select value={form.categoria_id}
-                  onChange={e => { setForm({ ...form, categoria_id: e.target.value }); setFormError(null); }}
-                  className="input-field">
-                  <option value="">Seleccionar...</option>
+                {/* Combobox: texto libre con sugerencias de categorías existentes */}
+                <input
+                  list="cats-datalist"
+                  value={form.categoria_nombre}
+                  onChange={e => { setForm({ ...form, categoria_nombre: e.target.value }); setFormError(null); }}
+                  className="input-field"
+                  placeholder="Escribe o selecciona una categoría..."
+                  autoComplete="off"
+                />
+                <datalist id="cats-datalist">
                   {categorias.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                    <option key={c.id} value={c.nombre} />
                   ))}
-                </select>
+                </datalist>
               </div>
               <div className="md:col-span-2">
                 <label className="input-label">Descripción *</label>
