@@ -171,7 +171,7 @@ export async function getOrCreateCategoria(
     // 2) No existe → crear
     const { data: created, error } = await supabase
       .from('categorias_gasto')
-      .insert({ nombre: nombreClean, tipo: 'operativo', activo: true })
+      .insert({ nombre: nombreClean, tipo: 'general', activo: true })
       .select('id')
       .single();
 
