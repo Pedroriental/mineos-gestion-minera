@@ -357,7 +357,8 @@ interface BalanceOrigen {
 export function downloadBalanceRecuperacionPDF(
   data: ReporteProduccion[],
   dateLabel?: string,
-  oroQuemadoPlanchas: number = 0
+  oroQuemadoPlanchas: number = 0,
+  countQuemado: number = 0
 ) {
   if (data.length === 0) return;
 
@@ -475,16 +476,16 @@ export function downloadBalanceRecuperacionPDF(
         { content: tenorGlobal.toFixed(4), styles: { halign: 'right' as const } },
         { content: '—', styles: { halign: 'center' as const } },
       ],
-      // Fila: Quemado de Planchas (sólo si hay valor)
+      // Fila: Quemado de Planchas (solo si hay valor)
       ...(oroQuemadoPlanchas > 0 ? [[
         { content: 'QUEMADO DE PLANCHAS', styles: { fontStyle: 'bold' as const, textColor: [250, 204, 21] as [number, number, number] } },
-        { content: '—', styles: { halign: 'center' as const } },
+        { content: countQuemado > 0 ? String(countQuemado) : '-', styles: { halign: 'center' as const } },
         { content: oroQuemadoPlanchas.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
-        { content: oroGranTotal > 0 ? `${((oroQuemadoPlanchas / oroGranTotal) * 100).toFixed(1)}%` : '—', styles: { halign: 'center' as const } },
-        { content: '—', styles: { halign: 'center' as const } },
-        { content: '—', styles: { halign: 'right' as const } },
-        { content: '—', styles: { halign: 'right' as const } },
-        { content: '—', styles: { halign: 'center' as const } },
+        { content: oroGranTotal > 0 ? `${((oroQuemadoPlanchas / oroGranTotal) * 100).toFixed(1)}%` : '-', styles: { halign: 'center' as const } },
+        { content: '-', styles: { halign: 'center' as const } },
+        { content: '-', styles: { halign: 'right' as const } },
+        { content: '-', styles: { halign: 'right' as const } },
+        { content: '-', styles: { halign: 'center' as const } },
       ]] : []),
       // Fila: Gran Total
       [

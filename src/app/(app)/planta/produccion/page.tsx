@@ -37,7 +37,8 @@ export default async function ProduccionPage(props: {
     quemadoQuery = quemadoQuery.gte('fecha', searchParams.desde!).lte('fecha', searchParams.hasta!);
   }
   const { data: quemadoData } = await quemadoQuery;
-  const totalOroQuemado = (quemadoData ?? []).reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
+  const totalOroQuemado  = (quemadoData ?? []).reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
+  const countQuemado     = (quemadoData ?? []).length;
 
   // 3. Fechas Efectivas para el Gráfico
   const fechaDesde = hasParams ? searchParams.desde! : (reportes.length > 0 ? reportes[0].fecha : format(hoy, 'yyyy-MM-dd'));
@@ -123,5 +124,5 @@ export default async function ProduccionPage(props: {
      registros: reportes.reverse() // Revertir para que la tabla muestre lo más reciente primero
   };
 
-  return <ProduccionGerencialClient data={processedData} selectedDateStr={fechaHasta} totalOroQuemado={totalOroQuemado} />;
+  return <ProduccionGerencialClient data={processedData} selectedDateStr={fechaHasta} totalOroQuemado={totalOroQuemado} countQuemado={countQuemado} />;
 }

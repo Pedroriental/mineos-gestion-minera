@@ -76,10 +76,12 @@ export default function ProduccionGerencialClient({
   data,
   selectedDateStr,
   totalOroQuemado = 0,
+  countQuemado = 0,
 }: {
   data: ProduccionGerencialData;
   selectedDateStr: string;
   totalOroQuemado?: number;
+  countQuemado?: number;
 }) {
   const { user } = useAuth();
   const canEdit = useCanEdit();
@@ -370,7 +372,7 @@ export default function ProduccionGerencialClient({
         ? fmt(minDate)
         : `${fmt(minDate)} al ${fmt(maxDate)}`;
 
-      downloadBalanceRecuperacionPDF(todosLosRegistros, label, totalOroQuemado);
+      downloadBalanceRecuperacionPDF(todosLosRegistros, label, totalOroQuemado, countQuemado);
     } catch (err) {
       console.error('Error al generar Balance PDF:', err);
       alert('Error al generar el Balance de Recuperación.');
