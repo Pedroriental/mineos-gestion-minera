@@ -356,7 +356,8 @@ interface BalanceOrigen {
 
 export function downloadBalanceRecuperacionPDF(
   data: ReporteProduccion[],
-  dateLabel?: string
+  dateLabel?: string,
+  oroQuemadoPlanchas: number = 0
 ) {
   if (data.length === 0) return;
 
@@ -408,18 +409,20 @@ export function downloadBalanceRecuperacionPDF(
     .filter(Boolean) as BalanceOrigen[];
 
   // ── Summary Box Global ────────────────────────────────────
-  const totalSacosGlobal = Math.round(data.reduce((s, r) => s + (Number(r.sacos) || 0), 0));
-  const totalTonGlobal   = data.reduce((s, r) => s + (Number(r.toneladas_procesadas) || 0), 0);
-  const tenorGlobal      = totalTonGlobal > 0 ? totalOroGlobal / totalTonGlobal : 0;
-  const origenesActivos  = balances.length;
+  const totalSacosGlobal  = Math.round(data.reduce((s, r) => s + (Number(r.sacos) || 0), 0));
+  const totalTonGlobal    = data.reduce((s, r) => s + (Number(r.toneladas_procesadas) || 0), 0);
+  const oroSoloMolinos    = totalOroGlobal;  // Au sólo de registros de producción
+  const oroGranTotal      = oroSoloMolinos + oroQuemadoPlanchas; // AU TOTAL REAL
+  const tenorGlobal       = totalTonGlobal > 0 ? oroSoloMolinos / totalTonGlobal : 0;
+  const origenesActivos   = balances.length;
 
   addSummaryBox(doc, 28, [
-    { label: 'Au Total (g)',     value: totalOroGlobal.toFixed(4)   },
-    { label: 'Sacos Totales',    value: String(totalSacosGlobal)    },
-    { label: 'Toneladas',        value: totalTonGlobal.toFixed(3)   },
-    { label: 'Tenor Global g/t', value: tenorGlobal.toFixed(4)      },
-    { label: 'Orígenes',         value: String(origenesActivos)      },
-    { label: 'Registros',        value: String(data.length)          },
+    { label: 'Au Molinos (g)',       value: oroSoloMolinos.toFixed(4)             },
+    { label: 'Quemado Planchas (g)', value: oroQuemadoPlanchas > 0 ? oroQuemadoPlanchas.toFixed(4) : '—' },
+    { label: 'AU GRAN TOTAL (g)',    value: oroGranTotal.toFixed(4)               },
+    { label: 'Sacos Totales',        value: String(totalSacosGlobal)              },
+    { label: 'Toneladas',            value: totalTonGlobal.toFixed(3)             },
+    { label: 'Tenor Global g/t',     value: tenorGlobal.toFixed(4)               },
   ]);
 
   // ── TABLA RESUMEN CONSOLIDADO ─────────────────────────────
@@ -460,16 +463,41 @@ export function downloadBalanceRecuperacionPDF(
         { content: b.mermaPromedio != null ? `${b.mermaPromedio.toFixed(1)}%` : '—', styles: { halign: 'center' as const } },
       ];
     }),
-    foot: [[
-      { content: 'TOTAL GENERAL', styles: { fontStyle: 'bold' as const, textColor: AMBER as [number, number, number] } },
-      { content: String(data.length), styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
-      { content: totalOroGlobal.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
-      { content: '100.0%', styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
-      { content: String(totalSacosGlobal), styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
-      { content: totalTonGlobal.toFixed(3), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
-      { content: tenorGlobal.toFixed(4), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
-      { content: '—', styles: { halign: 'center' as const } },
-    ]],
+    foot: [
+      // Fila: Subtotal Molinos
+      [
+        { content: 'SUBTOTAL MOLINOS', styles: { fontStyle: 'bold' as const, textColor: [180, 180, 180] as [number, number, number] } },
+        { content: String(data.length), styles: { halign: 'center' as const } },
+        { content: oroSoloMolinos.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
+        { content: oroGranTotal > 0 ? `${((oroSoloMolinos / oroGranTotal) * 100).toFixed(1)}%` : '100.0%', styles: { halign: 'center' as const } },
+        { content: String(totalSacosGlobal), styles: { halign: 'center' as const } },
+        { content: totalTonGlobal.toFixed(3), styles: { halign: 'right' as const } },
+        { content: tenorGlobal.toFixed(4), styles: { halign: 'right' as const } },
+        { content: '—', styles: { halign: 'center' as const } },
+      ],
+      // Fila: Quemado de Planchas (sólo si hay valor)
+      ...(oroQuemadoPlanchas > 0 ? [[
+        { content: 'QUEMADO DE PLANCHAS', styles: { fontStyle: 'bold' as const, textColor: [250, 204, 21] as [number, number, number] } },
+        { content: '—', styles: { halign: 'center' as const } },
+        { content: oroQuemadoPlanchas.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
+        { content: oroGranTotal > 0 ? `${((oroQuemadoPlanchas / oroGranTotal) * 100).toFixed(1)}%` : '—', styles: { halign: 'center' as const } },
+        { content: '—', styles: { halign: 'center' as const } },
+        { content: '—', styles: { halign: 'right' as const } },
+        { content: '—', styles: { halign: 'right' as const } },
+        { content: '—', styles: { halign: 'center' as const } },
+      ]] : []),
+      // Fila: Gran Total
+      [
+        { content: '★ GRAN TOTAL AU', styles: { fontStyle: 'bold' as const, textColor: AMBER as [number, number, number] } },
+        { content: String(data.length), styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
+        { content: oroGranTotal.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
+        { content: '100.0%', styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
+        { content: String(totalSacosGlobal), styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
+        { content: totalTonGlobal.toFixed(3), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+        { content: tenorGlobal.toFixed(4), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+        { content: '—', styles: { halign: 'center' as const } },
+      ],
+    ],
     ...tableStyles,
     footStyles: {
       fillColor: DARKER,
