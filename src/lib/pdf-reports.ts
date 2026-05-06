@@ -488,7 +488,7 @@ export function downloadBalanceRecuperacionPDF(
       ]] : []),
       // Fila: Gran Total
       [
-        { content: '★ GRAN TOTAL AU', styles: { fontStyle: 'bold' as const, textColor: AMBER as [number, number, number] } },
+        { content: 'GRAN TOTAL AU', styles: { fontStyle: 'bold' as const, textColor: AMBER as [number, number, number] } },
         { content: String(data.length), styles: { halign: 'center' as const, fontStyle: 'bold' as const } },
         { content: oroGranTotal.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
         { content: '100.0%', styles: { halign: 'center' as const, fontStyle: 'bold' as const } },

@@ -1,7 +1,7 @@
 import { createServerClient } from '@/lib/supabase-server';
 import ProduccionGerencialClient, { ProduccionGerencialData } from './ProduccionGerencialClient';
 import type { ReporteProduccion } from '@/lib/types';
-import { differenceInDays, parseISO, format, subDays } from 'date-fns';
+import { differenceInDays, parseISO, format } from 'date-fns';
 
 const DAILY_GOLD_TARGET = 15; // 15g de Au/día según requerimiento de Planta
 
@@ -28,6 +28,16 @@ export default async function ProduccionPage(props: {
 
   const { data } = await query;
   const reportes: ReporteProduccion[] = (data as ReporteProduccion[]) ?? [];
+
+  // 2b. Cargar total oro quemado del mismo período
+  let quemadoQuery = supabase
+    .from('reportes_quemado')
+    .select('total_oro_g');
+  if (hasParams) {
+    quemadoQuery = quemadoQuery.gte('fecha', searchParams.desde!).lte('fecha', searchParams.hasta!);
+  }
+  const { data: quemadoData } = await quemadoQuery;
+  const totalOroQuemado = (quemadoData ?? []).reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
 
   // 3. Fechas Efectivas para el Gráfico
   const fechaDesde = hasParams ? searchParams.desde! : (reportes.length > 0 ? reportes[0].fecha : format(hoy, 'yyyy-MM-dd'));
@@ -113,5 +123,5 @@ export default async function ProduccionPage(props: {
      registros: reportes.reverse() // Revertir para que la tabla muestre lo más reciente primero
   };
 
-  return <ProduccionGerencialClient data={processedData} selectedDateStr={fechaHasta} />;
+  return <ProduccionGerencialClient data={processedData} selectedDateStr={fechaHasta} totalOroQuemado={totalOroQuemado} />;
 }
