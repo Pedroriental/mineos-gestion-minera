@@ -309,6 +309,11 @@ function clasificarOrigen(r: ReporteProduccion): string {
     return 'Repaso';
   }
 
+  // Caratal
+  if (molino.includes('caratal') || material.includes('caratal')) {
+    return 'Caratal';
+  }
+
   // Verticales: detectar V1, V2, V3 en el código (ej. V1D26, V2D10, V3)
   // Buscar en material_codigo primero, luego en molino y material
   const buscarVertical = (s: string): string | null => {
@@ -328,13 +333,14 @@ const COLORES_ORIGEN: Record<string, [number, number, number]> = {
   'Vertical 3':    [52,  211, 153],  // esmeralda
   'Mantenimiento': [148, 163, 184],  // gris azulado
   'Repaso':        [167, 139, 250],  // violeta
+  'Caratal':       [248, 113, 113],  // rojo coral
   'Molino Continuo': [56, 189, 248], // celeste
   'Otros':         [113, 113, 122],  // zinc
 };
 
 const ORDEN_ORIGEN = [
   'Vertical 1', 'Vertical 2', 'Vertical 3',
-  'Mantenimiento', 'Repaso', 'Molino Continuo', 'Otros',
+  'Mantenimiento', 'Repaso', 'Caratal', 'Molino Continuo', 'Otros',
 ];
 
 interface BalanceOrigen {
