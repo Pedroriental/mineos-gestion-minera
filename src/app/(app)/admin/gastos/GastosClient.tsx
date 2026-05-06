@@ -13,7 +13,7 @@ import {
 import {
   DollarSign, Plus, Search, X, Loader2, AlertCircle,
   Download, TrendingDown, Tag, FileText, ChevronLeft, ChevronRight,
-  Receipt, Wallet, BarChart3, FileDown,
+  Receipt, Wallet, BarChart3, FileDown, Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Gasto, CategoriaGasto } from '@/lib/types';
@@ -65,6 +65,19 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [sorting,   setSorting]   = useState<SortingState>([{ id: 'fecha', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(''); // '' = todos
+
+  // ── Meses disponibles ─────────────────────────────────────
+  const meses = useMemo(() => {
+    const set = new Set<string>();
+    data.forEach(g => set.add(g.fecha.slice(0, 7))); // 'YYYY-MM'
+    return Array.from(set).sort().reverse(); // más reciente primero
+  }, [data]);
+
+  // ── Datos filtrados por mes ────────────────────────────────
+  const filteredData = useMemo(() =>
+    selectedMonth ? data.filter(g => g.fecha.startsWith(selectedMonth)) : data,
+  [data, selectedMonth]);
 
   const columns = useMemo(
     () => getGastoColumns({ onEdit: openEdit, onDelete: handleDelete, canEdit, isPending }),
@@ -73,7 +86,7 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
   );
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state:               { sorting, globalFilter },
     filterFns:           { gastoFilter: gastoGlobalFilter },
@@ -87,25 +100,25 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
     initialState: { pagination: { pageSize: 20, pageIndex: 0 } },
   });
 
-  // ── KPIs ──────────────────────────────────────────────────
-  const totalGastos  = data.reduce((s, g) => s + Number(g.monto), 0);
-  const numRegistros = data.length;
+  // ── KPIs (sobre datos del mes seleccionado) ──────────────
+  const totalGastos  = filteredData.reduce((s, g) => s + Number(g.monto), 0);
+  const numRegistros = filteredData.length;
 
   // Gasto más alto
-  const maxGasto = data.reduce((max, g) => Number(g.monto) > Number(max.monto) ? g : max, data[0] ?? { monto: 0, descripcion: '-' });
+  const maxGasto = filteredData.reduce((max, g) => Number(g.monto) > Number(max.monto) ? g : max, filteredData[0] ?? { monto: 0, descripcion: '-' });
 
   // Agrupación por categoría para el gráfico
   const porCategoria = useMemo(() => {
     const map: Record<string, { nombre: string; total: number }> = {};
-    data.forEach(g => {
+    filteredData.forEach(g => {
       const nombre = g.categorias_gasto?.nombre || 'Sin categoría';
       if (!map[nombre]) map[nombre] = { nombre, total: 0 };
       map[nombre].total += Number(g.monto);
     });
     return Object.values(map)
       .sort((a, b) => b.total - a.total)
-      .slice(0, 8); // top 8
-  }, [data]);
+      .slice(0, 8);
+  }, [filteredData]);
 
   const maxCatTotal = porCategoria[0]?.total || 1;
 
@@ -306,6 +319,42 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
 
         {/* PANEL DERECHO — Tabla */}
         <div className="lg:col-span-8 flex flex-col min-h-0 bg-zinc-900/50 border border-zinc-800 rounded-xl overflow-hidden">
+
+          {/* Filtro por Mes — pills horizontales */}
+          {meses.length > 0 && (
+            <div className="flex-shrink-0 flex items-center gap-2 px-3 pt-3 pb-0 overflow-x-auto custom-scrollbar">
+              <div className="flex items-center gap-1.5 mr-1 flex-shrink-0">
+                <Calendar className="w-3.5 h-3.5 text-white/30" />
+              </div>
+              <button
+                onClick={() => setSelectedMonth('')}
+                className={`flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${
+                  selectedMonth === ''
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'text-white/40 hover:text-white/70 hover:bg-white/[0.05] border border-transparent'
+                }`}
+              >
+                Todos
+              </button>
+              {meses.map(mes => {
+                const [year, month] = mes.split('-');
+                const label = new Date(Number(year), Number(month) - 1).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
+                return (
+                  <button
+                    key={mes}
+                    onClick={() => setSelectedMonth(mes === selectedMonth ? '' : mes)}
+                    className={`flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap capitalize ${
+                      selectedMonth === mes
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'text-white/40 hover:text-white/70 hover:bg-white/[0.05] border border-transparent'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Action Bar */}
           <div className="flex-shrink-0 flex flex-col sm:flex-row items-center gap-3 p-3 border-b border-zinc-800">
