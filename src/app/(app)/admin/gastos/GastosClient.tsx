@@ -71,19 +71,34 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [sorting,   setSorting]   = useState<SortingState>([{ id: 'fecha', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(''); // '' = todos
+  const [selectedMonth, setSelectedMonth] = useState(''); 
+  const [selectedCategory, setSelectedCategory] = useState('');
 
-  // ── Meses disponibles ─────────────────────────────────────
+  // ── Meses disponibles (sobre TODOS los datos) ─────────────
   const meses = useMemo(() => {
     const set = new Set<string>();
-    data.forEach(g => set.add(g.fecha.slice(0, 7))); // 'YYYY-MM'
-    return Array.from(set).sort().reverse(); // más reciente primero
+    data.forEach(g => set.add(g.fecha.slice(0, 7)));
+    return Array.from(set).sort().reverse();
   }, [data]);
 
-  // ── Datos filtrados por mes ────────────────────────────────
+  // ── Filtro 1: por mes ──────────────────────────────────
   const filteredData = useMemo(() =>
     selectedMonth ? data.filter(g => g.fecha.startsWith(selectedMonth)) : data,
   [data, selectedMonth]);
+
+  // ── Categorías disponibles (sobre datos ya filtrados por mes) ─
+  const categoriasDisponibles = useMemo(() => {
+    const set = new Set<string>();
+    filteredData.forEach(g => set.add(g.categorias_gasto?.nombre || 'Sin categoría'));
+    return Array.from(set).sort();
+  }, [filteredData]);
+
+  // ── Filtro 2: por categoría ───────────────────────────
+  const finalData = useMemo(() =>
+    selectedCategory
+      ? filteredData.filter(g => (g.categorias_gasto?.nombre || 'Sin categoría') === selectedCategory)
+      : filteredData,
+  [filteredData, selectedCategory]);
 
   const columns = useMemo(
     () => getGastoColumns({ onEdit: openEdit, onDelete: handleDelete, canEdit, isPending }),
@@ -92,7 +107,7 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
   );
 
   const table = useReactTable({
-    data: filteredData,
+    data: finalData,
     columns,
     state:               { sorting, globalFilter },
     filterFns:           { gastoFilter: gastoGlobalFilter },
@@ -106,14 +121,14 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
     initialState: { pagination: { pageSize: 20, pageIndex: 0 } },
   });
 
-  // ── KPIs (sobre datos del mes seleccionado) ──────────────
-  const totalGastos  = filteredData.reduce((s, g) => s + Number(g.monto), 0);
-  const numRegistros = filteredData.length;
+  // ── KPIs (sobre datos filtrados por mes + categoría) ────────
+  const totalGastos  = finalData.reduce((s, g) => s + Number(g.monto), 0);
+  const numRegistros = finalData.length;
 
   // Gasto más alto
-  const maxGasto = filteredData.reduce((max, g) => Number(g.monto) > Number(max.monto) ? g : max, filteredData[0] ?? { monto: 0, descripcion: '-' });
+  const maxGasto = finalData.reduce((max, g) => Number(g.monto) > Number(max.monto) ? g : max, finalData[0] ?? { monto: 0, descripcion: '-' });
 
-  // Agrupación por categoría para el gráfico
+  // Agrupación por categoría para el gráfico (sobre datos del mes, SIN filtro categoría para ver el contexto completo)
   const porCategoria = useMemo(() => {
     const map: Record<string, { nombre: string; total: number }> = {};
     filteredData.forEach(g => {
@@ -166,6 +181,8 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
       const raw = new Date(Number(y), Number(m) - 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
       periodoLabel = raw.charAt(0).toUpperCase() + raw.slice(1);
     }
+    const categoryLabel = selectedCategory || 'Todas las categorías';
+    const fullPeriodo   = selectedCategory ? `${periodoLabel}  ·  ${categoryLabel}` : periodoLabel;
 
     // KPIs
     const totalAmount   = gastos.reduce((s, g) => s + Number(g.monto), 0);
@@ -201,7 +218,7 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
     doc.setTextColor(160, 160, 170);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Periodo: ${periodoLabel}`, W - 10, 12, { align: 'right' });
+    doc.text(`Periodo: ${fullPeriodo}`, W - 10, 12, { align: 'right' });
     doc.text(`Generado: ${dateStr}  ${timeStr}`, W - 10, 20, { align: 'right' });
 
     // ── KPI BOXES ──────────────────────────────────────────
@@ -322,14 +339,15 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
         doc.setTextColor(80, 80, 95);
         doc.setFontSize(6);
         doc.setFont('helvetica', 'normal');
-        doc.text(`MineOS  |  Gastos Operativos  |  ${periodoLabel}`, 10, 208);
+        doc.text(`MineOS  |  Gastos Operativos  |  ${fullPeriodo}`, 10, 208);
         doc.text(`Pagina ${d.pageNumber} de ${total}`, W - 10, 208, { align: 'right' });
       },
     });
 
+    const catSlug = selectedCategory ? `_${selectedCategory.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}` : '';
     const filename = selectedMonth
-      ? `gastos_${selectedMonth}.pdf`
-      : `gastos_completo_${now.toISOString().split('T')[0]}.pdf`;
+      ? `gastos_${selectedMonth}${catSlug}.pdf`
+      : `gastos_completo${catSlug}_${now.toISOString().split('T')[0]}.pdf`;
     doc.save(filename);
   }
 
@@ -454,9 +472,17 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
             ) : (
               <div className="space-y-2.5 overflow-y-auto max-h-[calc(100%-40px)] pr-1 custom-scrollbar">
                 {porCategoria.map((cat, i) => (
-                  <div key={cat.nombre}>
+                  <div
+                    key={cat.nombre}
+                    onClick={() => setSelectedCategory(cat.nombre === selectedCategory ? '' : cat.nombre)}
+                    className={`cursor-pointer rounded-lg px-2 py-1 -mx-2 transition-colors ${
+                      selectedCategory === cat.nombre ? 'bg-red-500/10' : 'hover:bg-white/[0.03]'
+                    }`}
+                  >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-white/60 truncate max-w-[60%]">{cat.nombre}</span>
+                      <span className={`text-[10px] truncate max-w-[60%] ${
+                        selectedCategory === cat.nombre ? 'text-red-400 font-bold' : 'text-white/60'
+                      }`}>{cat.nombre}</span>
                       <span className="text-[10px] font-bold text-white/70 font-mono">{fmtShort(cat.total)}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
@@ -464,7 +490,7 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
                         className="h-full rounded-full transition-all duration-700"
                         style={{
                           width: `${(cat.total / maxCatTotal) * 100}%`,
-                          backgroundColor: CAT_COLORS[i % CAT_COLORS.length],
+                          backgroundColor: selectedCategory === cat.nombre ? '#ef4444' : CAT_COLORS[i % CAT_COLORS.length],
                         }}
                       />
                     </div>
@@ -485,7 +511,7 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
                 <Calendar className="w-3.5 h-3.5 text-white/30" />
               </div>
               <button
-                onClick={() => setSelectedMonth('')}
+                onClick={() => { setSelectedMonth(''); setSelectedCategory(''); }}
                 className={`flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${
                   selectedMonth === ''
                     ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
@@ -500,7 +526,7 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
                 return (
                   <button
                     key={mes}
-                    onClick={() => setSelectedMonth(mes === selectedMonth ? '' : mes)}
+                    onClick={() => { setSelectedMonth(mes === selectedMonth ? '' : mes); setSelectedCategory(''); }}
                     className={`flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap capitalize ${
                       selectedMonth === mes
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
@@ -511,6 +537,38 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
                   </button>
                 );
               })}
+            </div>
+          )}
+
+          {/* Filtro por Categoría — pills horizontales */}
+          {categoriasDisponibles.length > 1 && (
+            <div className="flex-shrink-0 flex items-center gap-2 px-3 pt-2 pb-0 overflow-x-auto custom-scrollbar">
+              <div className="flex items-center gap-1.5 mr-1 flex-shrink-0">
+                <Tag className="w-3.5 h-3.5 text-white/30" />
+              </div>
+              <button
+                onClick={() => setSelectedCategory('')}
+                className={`flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${
+                  selectedCategory === ''
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    : 'text-white/40 hover:text-white/70 hover:bg-white/[0.05] border border-transparent'
+                }`}
+              >
+                Todas
+              </button>
+              {categoriasDisponibles.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat === selectedCategory ? '' : cat)}
+                  className={`flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${
+                    selectedCategory === cat
+                      ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      : 'text-white/40 hover:text-white/70 hover:bg-white/[0.05] border border-transparent'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
           )}
 
