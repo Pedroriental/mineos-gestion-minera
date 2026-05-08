@@ -53,6 +53,12 @@ const CAT_COLORS = [
   '#F472B6', '#FBBF24', '#4ADE80', '#38BDF8', '#E879F9',
 ];
 
+// Helper: hex a RGB para jsPDF
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r ? { r: parseInt(r[1], 16), g: parseInt(r[2], 16), b: parseInt(r[3], 16) } : null;
+}
+
 // ─────────────────────────────────────────────────────────────
 export default function GastosClient({ data, categorias }: GastosClientProps) {
   const { user }  = useAuth();
@@ -139,40 +145,192 @@ export default function GastosClient({ data, categorias }: GastosClientProps) {
     URL.revokeObjectURL(url);
   }
 
-  // ── Exportación PDF ───────────────────────────────────────
+  // ── Exportación PDF (premium) ───────────────────────────────
   async function exportToPDF() {
     const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
       import('jspdf'), import('jspdf-autotable'),
     ]);
-    const doc  = new (jsPDF as any)({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const rows = table.getFilteredRowModel().rows;
-    const date = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
+    const doc   = new (jsPDF as any)({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const W     = 297;
+    const rows  = table.getFilteredRowModel().rows;
+    const gastos = rows.map(r => r.original);
+    const now   = new Date();
+    const dateStr = now.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+    // Período legible
+    let periodoLabel = 'Todos los registros';
+    if (selectedMonth) {
+      const [y, m] = selectedMonth.split('-');
+      const raw = new Date(Number(y), Number(m) - 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+      periodoLabel = raw.charAt(0).toUpperCase() + raw.slice(1);
+    }
+
+    // KPIs
+    const totalAmount   = gastos.reduce((s, g) => s + Number(g.monto), 0);
+    const maxItem       = gastos.length > 0 ? gastos.reduce((mx, g) => Number(g.monto) > Number(mx.monto) ? g : mx) : null;
+    const avgAmount     = gastos.length > 0 ? totalAmount / gastos.length : 0;
+
+    // Categorías para el gráfico
+    const catMap: Record<string, number> = {};
+    gastos.forEach(g => {
+      const cat = g.categorias_gasto?.nombre || 'Sin categoria';
+      catMap[cat] = (catMap[cat] || 0) + Number(g.monto);
+    });
+    const cats    = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 7);
+    const maxCat  = cats[0]?.[1] || 1;
+
+    // ── HEADER ─────────────────────────────────────────────
     doc.setFillColor(9, 9, 11);
-    doc.rect(0, 0, 297, 22, 'F');
+    doc.rect(0, 0, W, 28, 'F');
+    // Barra de acento dorada
+    doc.setFillColor(218, 165, 32);
+    doc.rect(0, 0, 4, 28, 'F');
+
     doc.setTextColor(218, 165, 32);
-    doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-    doc.text('MineOS', 10, 10);
-    doc.setTextColor(200, 200, 200);
-    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-    doc.text('Reporte de Gastos Operativos', 10, 17);
-    doc.text(date, 287, 17, { align: 'right' });
+    doc.setFontSize(17);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MineOS', 12, 12);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text('Reporte de Gastos Operativos', 12, 21);
+
+    // Derecha: período y fecha
+    doc.setTextColor(160, 160, 170);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Periodo: ${periodoLabel}`, W - 10, 12, { align: 'right' });
+    doc.text(`Generado: ${dateStr}  ${timeStr}`, W - 10, 20, { align: 'right' });
+
+    // ── KPI BOXES ──────────────────────────────────────────
+    const kpiY = 33;
+    const kpiH = 20;
+    const kpiW = (W - 20 - 9) / 4; // 4 cajas con 3 gaps de 3mm
+    const kpis = [
+      { label: 'TOTAL GASTADO',  value: fmt(totalAmount),                       accent: [220, 38, 38]   as [number, number, number] },
+      { label: 'REGISTROS',      value: String(gastos.length),                   accent: [148, 163, 184] as [number, number, number] },
+      { label: 'MAYOR GASTO',    value: fmt(Number(maxItem?.monto ?? 0)),        accent: [218, 165, 32]  as [number, number, number] },
+      { label: 'PROMEDIO',       value: fmt(avgAmount),                          accent: [52, 211, 153]  as [number, number, number] },
+    ];
+    kpis.forEach((kpi, i) => {
+      const x = 10 + i * (kpiW + 3);
+      doc.setFillColor(18, 18, 22);
+      doc.roundedRect(x, kpiY, kpiW, kpiH, 2, 2, 'F');
+      // Borde izquierdo de acento
+      doc.setFillColor(...kpi.accent);
+      doc.rect(x, kpiY, 2.5, kpiH, 'F');
+      // Label
+      doc.setTextColor(100, 100, 115);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      doc.text(kpi.label, x + 5.5, kpiY + 7);
+      // Value
+      doc.setTextColor(...kpi.accent);
+      doc.setFontSize(11);
+      doc.text(kpi.value, x + 5.5, kpiY + 16);
+    });
+
+    let curY = kpiY + kpiH + 6; // ~59
+
+    // ── GRAFICO DE CATEGORIAS ──────────────────────────────
+    if (cats.length > 0) {
+      // Titulo de sección
+      doc.setFillColor(14, 14, 18);
+      doc.rect(0, curY, W, 7, 'F');
+      doc.setTextColor(100, 100, 115);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('// DISTRIBUCION POR CATEGORIA', 10, curY + 4.5);
+      curY += 9;
+
+      const labelW = 58;
+      const valueW = 26;
+      const barAreaX = 10 + labelW + 2;
+      const barW     = W - 20 - labelW - valueW - 4;
+      const barH     = 4.5;
+      const rowGap   = 7.5;
+
+      cats.forEach(([catName, catTotal], i) => {
+        const y   = curY + i * rowGap;
+        const pct = catTotal / maxCat;
+        const rgb = hexToRgb(CAT_COLORS[i % CAT_COLORS.length]);
+        const truncated = catName.length > 24 ? catName.slice(0, 24) + '...' : catName;
+
+        // Nombre categoría
+        doc.setTextColor(170, 170, 185);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(truncated, 10, y + barH - 0.5);
+
+        // Fondo barra
+        doc.setFillColor(28, 28, 34);
+        doc.roundedRect(barAreaX, y, barW, barH, 1, 1, 'F');
+
+        // Barra activa
+        if (rgb) doc.setFillColor(rgb.r, rgb.g, rgb.b);
+        const fillW = Math.max(2, barW * pct);
+        doc.roundedRect(barAreaX, y, fillW, barH, 1, 1, 'F');
+
+        // Valor + porcentaje
+        const pctStr = `${((catTotal / totalAmount) * 100).toFixed(1)}%`;
+        doc.setTextColor(190, 190, 205);
+        doc.setFontSize(6);
+        doc.text(`${fmt(catTotal)}  ${pctStr}`, barAreaX + barW + 2, y + barH - 0.5);
+      });
+
+      curY += cats.length * rowGap + 5;
+    }
+
+    // ── DETALLE DE TRANSACCIONES ────────────────────────────
+    doc.setFillColor(14, 14, 18);
+    doc.rect(0, curY, W, 7, 'F');
+    doc.setTextColor(100, 100, 115);
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('// DETALLE DE TRANSACCIONES', 10, curY + 4.5);
+    curY += 9;
 
     autoTable(doc, {
-      startY: 26,
-      head:   [['Fecha', 'Descripcion', 'Categoria', 'Proveedor', 'Monto USD']],
-      body:   rows.map(row => {
-        const g = row.original;
-        return [g.fecha, g.descripcion, g.categorias_gasto?.nombre || '-', g.proveedor || '-', fmt(g.monto)];
-      }),
-      foot: [['', '', '', 'TOTAL', fmt(rows.reduce((s, r) => s + Number(r.original.monto), 0))]],
-      styles:             { fontSize: 8, cellPadding: 3, textColor: [210, 210, 210] },
-      headStyles:         { fillColor: [24, 24, 27], textColor: [218, 165, 32], fontStyle: 'bold' },
-      footStyles:         { fillColor: [24, 24, 27], textColor: [218, 165, 32], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [20, 20, 24] },
-      bodyStyles:         { fillColor: [13, 13, 16] },
+      startY: curY,
+      head: [['FECHA', 'DESCRIPCION', 'CATEGORIA', 'PROVEEDOR', 'MONTO USD']],
+      body: gastos.map(g => [
+        g.fecha,
+        g.descripcion,
+        g.categorias_gasto?.nombre || '-',
+        g.proveedor || '-',
+        fmt(Number(g.monto)),
+      ]),
+      foot: [['', '', '', 'TOTAL PERIODO', fmt(totalAmount)]],
+      styles:             { fontSize: 7.5, cellPadding: 2.5, textColor: [200, 200, 215] as [number,number,number] },
+      headStyles:         { fillColor: [18, 18, 22] as [number,number,number], textColor: [218, 165, 32] as [number,number,number], fontStyle: 'bold' as const, fontSize: 7, cellPadding: 3 },
+      footStyles:         { fillColor: [18, 18, 22] as [number,number,number], textColor: [218, 165, 32] as [number,number,number], fontStyle: 'bold' as const, fontSize: 8 },
+      alternateRowStyles: { fillColor: [20, 20, 26] as [number,number,number] },
+      bodyStyles:         { fillColor: [12, 12, 15] as [number,number,number] },
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 42 },
+        3: { cellWidth: 38 },
+        4: { cellWidth: 28, halign: 'right' as const },
+      },
+      didDrawPage: (d: any) => {
+        const total = (doc as any).internal.getNumberOfPages();
+        doc.setFillColor(9, 9, 11);
+        doc.rect(0, 204, W, 6, 'F');
+        doc.setTextColor(80, 80, 95);
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`MineOS  |  Gastos Operativos  |  ${periodoLabel}`, 10, 208);
+        doc.text(`Pagina ${d.pageNumber} de ${total}`, W - 10, 208, { align: 'right' });
+      },
     });
-    doc.save(`gastos_${new Date().toISOString().split('T')[0]}.pdf`);
+
+    const filename = selectedMonth
+      ? `gastos_${selectedMonth}.pdf`
+      : `gastos_completo_${now.toISOString().split('T')[0]}.pdf`;
+    doc.save(filename);
   }
 
   // ── Modal helpers ─────────────────────────────────────────
