@@ -166,12 +166,42 @@ export function inferArea(
 ): EmpleadoParseado['area'] {
   const lower = sectionName.toLowerCase();
   
-  if (lower.includes('molino') || lower.includes('planta')) {
+  // 1. Transporte
+  if (lower.includes('transporte') || lower.includes('chofer') || lower.includes('volque')) {
+    return 'transporte';
+  }
+
+  // 2. Seguridad
+  if (lower.includes('seguridad') || lower.includes('vigilancia') || lower.includes('sereno')) {
+    return 'seguridad';
+  }
+
+  // 3. Planta / Molino (Molino La Fé)
+  if (
+    lower.includes('molino') || 
+    lower.includes('planta') || 
+    lower.includes('grupo') || 
+    lower.includes('mixto') || 
+    lower.includes('la fe') || 
+    lower.includes('la fé')
+  ) {
     return 'planta';
   }
 
+  // 4. Mina (explicit check)
+  if (lower.includes('mina') || lower.includes('vertical') || lower.includes('belen') || lower.includes('belén')) {
+    return 'mina';
+  }
+
+  // 5. Administración (generic fallback for administrative sections)
+  if (lower.includes('administra')) {
+    return 'administracion';
+  }
+
+  // Default fallback
   return 'mina';
 }
+
 
 // ── Limpia el nombre de sección para usarlo como "cargo" ─────────────────────
 export function cleanSectionName(section: string): string {
