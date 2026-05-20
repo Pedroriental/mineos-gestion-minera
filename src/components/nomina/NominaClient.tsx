@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useTransition, useMemo, useEffect } from 'react';
+import { useState, useTransition, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { 
   Pickaxe, Upload, RefreshCw, Plus, Trash2, Loader2, Calendar, 
   Clock, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, 
   Search, Factory, Shield, Truck, Briefcase, Edit2, Receipt, 
-  Printer, X, Users, Wallet
+  Printer, X, Users, Wallet, ChevronRight, FileText, Download,
+  DollarSign, TrendingUp, ArrowRight, RotateCcw
 } from 'lucide-react';
 
-import type { Personal, NominaSemana } from '@/lib/types';
+import type { Personal, NominaSemana, NominaVale } from '@/lib/types';
 import type { EmpleadoParseado } from '@/lib/parse-nomina-file';
 
 import { 
@@ -19,10 +20,16 @@ import {
 } from '@/lib/actions/nomina';
 
 import {
-  upsertPersonalV2Action,
-  procesarCierreNominaV2Action,
   updatePersonalEstatusAction
 } from '@/lib/actions/nomina-v2';
+
+import {
+  upsertPersonalV3Action,
+  procesarCierreNominaV3Action,
+  getValesPendientesBulkAction,
+  crearValeAction,
+  eliminarValeAction,
+} from '@/lib/actions/nomina-v3';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function getWeekStart(d = new Date()): string {
@@ -49,6 +56,44 @@ function fmtMoney(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 }
 
+// ── Rotation Prediction Engine ─────────────────────────────────────────────
+function calculateExpectedAttendance(
+  esquema: string,
+  rotacionInicio: string | undefined | null,
+  weekStartStr: string
+): 'trabajada' | 'libre' {
+  if (!rotacionInicio || esquema === 'FIJO_SEMANAL' || esquema === 'MOLINO_FIJO') {
+    return 'trabajada';
+  }
+
+  const startDate = new Date(rotacionInicio);
+  const weekStart = new Date(weekStartStr);
+  const diffMs = weekStart.getTime() - startDate.getTime();
+  const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+
+  if (esquema === 'MINA_2X1') {
+    // Cycle: work 2 weeks, rest 1 week (mod 3)
+    const position = ((diffWeeks % 3) + 3) % 3;
+    return position === 2 ? 'libre' : 'trabajada';
+  }
+
+  if (esquema === 'MOLINO_ROTATIVO') {
+    // Cycle: work 1 week, rest 1 week (mod 2)
+    const position = ((diffWeeks % 2) + 2) % 2;
+    return position === 1 ? 'libre' : 'trabajada';
+  }
+
+  return 'trabajada';
+}
+
+const ESQUEMA_LABELS: Record<string, string> = {
+  'FIJO_SEMANAL': 'Fijo Semanal',
+  'MINA_2X1': 'Mina 2×1 (2 labor, 1 libre)',
+  'MOLINO_FIJO': 'Molino Fijo (trabaja siempre)',
+  'MOLINO_ROTATIVO': 'Molino Rotativo (1×1)',
+};
+
+// ── Types ────────────────────────────────────────────────────────────────────
 interface NominaClientProps {
   data: Personal[];
   semanas: NominaSemana[];
@@ -63,6 +108,8 @@ interface PreNominaRowState {
   deducciones: number;
   total: number;
   estadoAsistencia: 'trabajada' | 'libre' | 'no_laborado';
+  valesPendientes: NominaVale[];
+  totalVales: number;
 }
 
 const ICONS = {
@@ -81,7 +128,6 @@ const TITLES = {
   transporte: 'Nómina Transporte',
 };
 
-// Asignación de colores temáticos limpios y planos para cargos (sin neones exagerados)
 function getCargoTheme(cargo: string): { bg: string; text: string; border: string } {
   const l = cargo.toLowerCase();
   if (l.includes('administrativo')) {
@@ -96,10 +142,13 @@ function getCargoTheme(cargo: string): { bg: string; text: string; border: strin
     return { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20' };
   } else if (l.includes('grupo') || l.includes('mixto') || l.includes('molino')) {
     return { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' };
+  } else if (l.includes('transporte') || l.includes('fecha')) {
+    return { bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/20' };
   }
   return { bg: 'bg-zinc-800/10', text: 'text-zinc-400', border: 'border-zinc-700/20' };
 }
 
+// ── Main Component ─────────────────────────────────────────────────────────
 export default function NominaClient({ data, semanas, area }: NominaClientProps) {
   const { user } = useAuth();
   const canEdit = useCanEdit();
@@ -116,6 +165,13 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   const [showBorrarModal, setShowBorrarModal] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<PreNominaRowState | null>(null);
+
+  // Slide-over Drawer
+  const [drawerPersonalId, setDrawerPersonalId] = useState<string | null>(null);
+  const [drawerVales, setDrawerVales] = useState<NominaVale[]>([]);
+  const [loadingVales, setLoadingVales] = useState(false);
+  const [newValeMonto, setNewValeMonto] = useState('');
+  const [newValeMotivo, setNewValeMotivo] = useState('');
 
   // Pre-Nómina Interactive State
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
@@ -134,7 +190,9 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
     bono_transporte: '',
     telefono: '',
     notas: '',
-    fecha_ingreso: new Date().toISOString().split('T')[0]
+    fecha_ingreso: new Date().toISOString().split('T')[0],
+    esquema_rotacion: 'FIJO_SEMANAL',
+    rotacion_inicio_fecha: '',
   });
 
   // Week config
@@ -143,11 +201,18 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   // Processing messages
   const [procesadoOk, setProcesadoOk] = useState<string | null>(null);
 
-  // Partner splits (Default 33.3% / 33.3% / 33.4% to Pedro, Darinel, La Fé)
+  // Partner splits
   const [partnerSplits, setPartnerSplits] = useState({
     pctPedro: 33.33,
     pctDarinel: 33.33,
     pctLaFe: 33.34
+  });
+
+  // Partner direct expenses (V3)
+  const [partnerGastos, setPartnerGastos] = useState({
+    gastoPedro: 0,
+    gastoDarinel: 0,
+    gastoLaFe: 0,
   });
 
   // Import State
@@ -157,22 +222,62 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   const [importResult, setImportResult] = useState<{ nuevos: number; actualizados: number } | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
 
-  // ── Sync Live State with DB personal data ───────────────────────────────
+  // ── Initialize rows with rotation predictions and vales ─────────────────
   useEffect(() => {
-    if (data) {
+    if (!data) return;
+    
+    const initRows = async () => {
+      // Fetch vales for all workers at once
+      const personalIds = data.map(p => p.id);
+      let valesMap: Record<string, NominaVale[]> = {};
+      
+      try {
+        const res = await getValesPendientesBulkAction(personalIds);
+        if (res.ok && res.data) {
+          res.data.forEach(v => {
+            if (!valesMap[v.personal_id]) valesMap[v.personal_id] = [];
+            valesMap[v.personal_id].push(v);
+          });
+        }
+      } catch { /* silent */ }
+
+      const currentWeekStart = getWeekStart();
       const rows = data.map((p) => {
+        const predicted = calculateExpectedAttendance(
+          p.esquema_rotacion,
+          p.rotacion_inicio_fecha,
+          currentWeekStart
+        );
+
+        const workerVales = valesMap[p.id] || [];
+        const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
+
+        let baseSal = Number(p.salario_base);
+        let transport = 0;
+
+        if (predicted === 'libre') {
+          baseSal = Number(p.salario_libre) || 100;
+          transport = Number(p.bono_transporte) || 30;
+        }
+
+        const total = baseSal + transport - totalVales;
+
         return {
           personal: p,
-          esSemanaLibre: false,
-          bonoTransporte: 0, 
+          esSemanaLibre: predicted === 'libre',
+          bonoTransporte: transport,
           bonificaciones: 0,
-          deducciones: 0,
-          total: Number(p.salario_base),
-          estadoAsistencia: 'trabajada' as const,
+          deducciones: totalVales,
+          total,
+          estadoAsistencia: predicted,
+          valesPendientes: workerVales,
+          totalVales,
         };
       });
       setPreNominaRows(rows);
-    }
+    };
+
+    initRows();
   }, [data]);
 
   // ── Live Calculation Engine ──────────────────────────────────────────────
@@ -182,29 +287,30 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         if (row.personal.id !== personalId) return row;
         const nextRow = { ...row, ...fields };
 
-        // 1. Determinar Salario Base según asistencia
         let baseSal = Number(nextRow.personal.salario_base);
         if (nextRow.estadoAsistencia === 'libre') {
-          baseSal = Number(nextRow.personal.salario_libre) || 100; // default semana libre a $100 si no se guardó
+          baseSal = Number(nextRow.personal.salario_libre) || 100;
         } else if (nextRow.estadoAsistencia === 'no_laborado') {
           baseSal = 0;
         }
 
-        // 2. Determinar Bono de Transporte (Se activa por defecto si sale Libre, configurable)
         let transport = nextRow.bonoTransporte;
         if (fields.estadoAsistencia === 'libre') {
-          transport = Number(nextRow.personal.bono_transporte) || 30; // default a $30
+          transport = Number(nextRow.personal.bono_transporte) || 30;
         } else if (fields.estadoAsistencia === 'trabajada') {
+          transport = 0;
+        } else if (fields.estadoAsistencia === 'no_laborado') {
           transport = 0;
         }
 
-        // 3. Sumar y restar componentes en tiempo real
-        const total = baseSal + transport + nextRow.bonificaciones - nextRow.deducciones;
+        const totalVales = nextRow.totalVales;
+        const total = baseSal + transport + nextRow.bonificaciones - totalVales;
 
         return {
           ...nextRow,
           bonoTransporte: transport,
           esSemanaLibre: nextRow.estadoAsistencia === 'libre',
+          deducciones: totalVales,
           total
         };
       })
@@ -221,7 +327,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   const IconComponent = ICONS[area];
   const pageTitle = TITLES[area];
 
-  // ── Filter and Group Rows by Cargo (Excel Essence) ──────────────────────
+  // ── Filter and Group Rows by Cargo ──────────────────────────────────────
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase().trim();
     if (!q) return preNominaRows;
@@ -242,6 +348,117 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
     return groups;
   }, [filteredRows]);
 
+  // ── CSV Export ──────────────────────────────────────────────────────────
+  const handleExportCSV = useCallback(() => {
+    const headers = ['Nombre', 'Cédula', 'Cargo', 'Estado', 'Sueldo Base', 'Bono Trans.', 'Bonos', 'Vales/Adelantos', 'Total Neto'];
+    const csvRows = [headers.join(',')];
+    
+    preNominaRows.forEach(row => {
+      const p = row.personal;
+      const baseSal = row.estadoAsistencia === 'trabajada' ? Number(p.salario_base)
+        : row.estadoAsistencia === 'libre' ? (Number(p.salario_libre) || 100) : 0;
+      csvRows.push([
+        `"${p.nombre_completo}"`,
+        p.cedula,
+        `"${p.cargo}"`,
+        row.estadoAsistencia,
+        baseSal.toFixed(2),
+        row.bonoTransporte.toFixed(2),
+        row.bonificaciones.toFixed(2),
+        row.totalVales.toFixed(2),
+        row.total.toFixed(2),
+      ].join(','));
+    });
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nomina_${area}_${getWeekStart()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [preNominaRows, area]);
+
+  // ── Drawer: Load vales for a worker ─────────────────────────────────────
+  const openDrawer = useCallback(async (personalId: string) => {
+    setDrawerPersonalId(personalId);
+    setLoadingVales(true);
+    setNewValeMonto('');
+    setNewValeMotivo('');
+    try {
+      const res = await getValesPendientesBulkAction([personalId]);
+      setDrawerVales(res.ok && res.data ? res.data : []);
+    } catch { setDrawerVales([]); }
+    setLoadingVales(false);
+  }, []);
+
+  const handleAddVale = useCallback(async () => {
+    if (!drawerPersonalId || !newValeMonto) return;
+    startTransition(async () => {
+      const res = await crearValeAction(
+        drawerPersonalId,
+        Number(newValeMonto),
+        newValeMotivo || 'Adelanto'
+      );
+      if (res.ok) {
+        // Refresh vales
+        const vRes = await getValesPendientesBulkAction([drawerPersonalId]);
+        const newVales = vRes.ok && vRes.data ? vRes.data : [];
+        setDrawerVales(newVales);
+        setNewValeMonto('');
+        setNewValeMotivo('');
+        // Update row
+        const totalVales = newVales.reduce((s, v) => s + Number(v.monto), 0);
+        setPreNominaRows(prev => prev.map(row => {
+          if (row.personal.id !== drawerPersonalId) return row;
+          const baseSal = row.estadoAsistencia === 'trabajada'
+            ? Number(row.personal.salario_base)
+            : row.estadoAsistencia === 'libre'
+              ? (Number(row.personal.salario_libre) || 100)
+              : 0;
+          return {
+            ...row,
+            valesPendientes: newVales,
+            totalVales,
+            deducciones: totalVales,
+            total: baseSal + row.bonoTransporte + row.bonificaciones - totalVales,
+          };
+        }));
+      }
+    });
+  }, [drawerPersonalId, newValeMonto, newValeMotivo, startTransition]);
+
+  const handleDeleteVale = useCallback(async (valeId: string) => {
+    if (!drawerPersonalId) return;
+    startTransition(async () => {
+      await eliminarValeAction(valeId);
+      const vRes = await getValesPendientesBulkAction([drawerPersonalId]);
+      const newVales = vRes.ok && vRes.data ? vRes.data : [];
+      setDrawerVales(newVales);
+      const totalVales = newVales.reduce((s, v) => s + Number(v.monto), 0);
+      setPreNominaRows(prev => prev.map(row => {
+        if (row.personal.id !== drawerPersonalId) return row;
+        const baseSal = row.estadoAsistencia === 'trabajada'
+          ? Number(row.personal.salario_base)
+          : row.estadoAsistencia === 'libre'
+            ? (Number(row.personal.salario_libre) || 100)
+            : 0;
+        return {
+          ...row,
+          valesPendientes: newVales,
+          totalVales,
+          deducciones: totalVales,
+          total: baseSal + row.bonoTransporte + row.bonificaciones - totalVales,
+        };
+      }));
+    });
+  }, [drawerPersonalId, startTransition]);
+
+  const drawerRow = useMemo(() => {
+    if (!drawerPersonalId) return null;
+    return preNominaRows.find(r => r.personal.id === drawerPersonalId) || null;
+  }, [drawerPersonalId, preNominaRows]);
+
   // ── Actions Handlers ───────────────────────────────────────────────────
   function openEdit(item: Personal) {
     setEditItem(item);
@@ -256,7 +473,9 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       bono_transporte: String(item.bono_transporte || ''),
       telefono: item.telefono || '',
       notas: item.notas || '',
-      fecha_ingreso: item.fecha_ingreso || new Date().toISOString().split('T')[0]
+      fecha_ingreso: item.fecha_ingreso || new Date().toISOString().split('T')[0],
+      esquema_rotacion: item.esquema_rotacion || 'FIJO_SEMANAL',
+      rotacion_inicio_fecha: item.rotacion_inicio_fecha || '',
     });
     setActiveTab('primario');
     setShowModal(true);
@@ -267,7 +486,9 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
     setForm({
       cedula: '', nombre_completo: '', cargo: '', area, area_detalle: '',
       salario_base: '', salario_libre: '', bono_transporte: '', telefono: '', notas: '',
-      fecha_ingreso: new Date().toISOString().split('T')[0]
+      fecha_ingreso: new Date().toISOString().split('T')[0],
+      esquema_rotacion: 'FIJO_SEMANAL',
+      rotacion_inicio_fecha: '',
     });
     setActiveTab('primario');
     setFormError(null);
@@ -276,7 +497,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   function handleSave() {
     setFormError(null);
     startTransition(async () => {
-      const payload = {
+      const res = await upsertPersonalV3Action({
         id: editItem?.id,
         cedula: form.cedula,
         nombre_completo: form.nombre_completo,
@@ -288,10 +509,10 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         bono_transporte: Number(form.bono_transporte) || 0,
         telefono: form.telefono,
         notas: form.notas,
-        fecha_ingreso: form.fecha_ingreso
-      };
-      
-      const res = await upsertPersonalV2Action(payload);
+        fecha_ingreso: form.fecha_ingreso,
+        esquema_rotacion: form.esquema_rotacion,
+        rotacion_inicio_fecha: form.rotacion_inicio_fecha,
+      });
       if (res.ok) {
         setShowModal(false);
         resetForm();
@@ -321,7 +542,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         total: r.total
       }));
 
-      const res = await procesarCierreNominaV2Action({
+      const res = await procesarCierreNominaV3Action({
         userId: user?.id || '',
         area,
         inicio: weekRange.inicio,
@@ -329,7 +550,10 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         rows: formattedRows,
         pctPedro: partnerSplits.pctPedro,
         pctDarinel: partnerSplits.pctDarinel,
-        pctLaFe: partnerSplits.pctLaFe
+        pctLaFe: partnerSplits.pctLaFe,
+        gastoPedro: partnerGastos.gastoPedro,
+        gastoDarinel: partnerGastos.gastoDarinel,
+        gastoLaFe: partnerGastos.gastoLaFe,
       });
 
       if (res.ok) {
@@ -357,7 +581,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
     });
   }
 
-  // ── Import Logic (Visual Diff preview included) ───────────────────────
+  // ── Import Logic ──────────────────────────────────────────────────────
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -408,7 +632,6 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
     }
   }
 
-  // Compara la importación contra la base de datos para mostrar el Diff
   const importDiffs = useMemo(() => {
     return parsedEmps.map(parsed => {
       const match = data.find(p => p.cedula === parsed.cedula);
@@ -453,6 +676,13 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="btn-secondary h-10 px-4 text-xs flex items-center gap-2"
+          >
+            <Download className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Exportar CSV</span>
+          </button>
           <button
             onClick={() => setShowImport(true)}
             disabled={!canEdit}
@@ -502,13 +732,24 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
               <p className="text-xs text-white/30 mt-2">Trabajadores registrados</p>
             </div>
 
-            {/* Promedio por Minero */}
+            {/* Promedio por Trabajador */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 relative overflow-hidden">
               <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Promedio por Trabajador</p>
               <p className="text-3xl font-black text-white/80 leading-none">
                 {data.length > 0 ? fmtMoney(totalSemana / data.length) : '$0.00'}
               </p>
               <p className="text-xs text-white/30 mt-2">Por trabajador activo</p>
+            </div>
+
+            {/* Vales Pendientes KPI */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 relative overflow-hidden">
+              <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Vales Pendientes</p>
+              <p className="text-3xl font-black text-red-400 leading-none">
+                {fmtMoney(preNominaRows.reduce((s, r) => s + r.totalVales, 0))}
+              </p>
+              <p className="text-xs text-white/30 mt-2">
+                {preNominaRows.filter(r => r.totalVales > 0).length} trabajadores con adelantos
+              </p>
             </div>
           </div>
 
@@ -609,7 +850,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
             />
           </div>
 
-          {/* Lista de Tablas Agrupadas por Cargo (Esencia de las Hojas de Proceso) */}
+          {/* Lista de Tablas Agrupadas por Cargo */}
           <div className="flex flex-col gap-6 pb-8">
             {Object.keys(groupedRows).length === 0 ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center shadow-sm">
@@ -622,7 +863,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
                 return (
                   <div key={cargoName} className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-xl overflow-hidden shadow-sm flex flex-col">
                     
-                    {/* Encabezado del Grupo (Cargos del Excel) */}
+                    {/* Encabezado del Grupo */}
                     <div className="px-5 py-3.5 bg-zinc-900/80 border-b border-zinc-800 flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-3">
                         <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${theme.bg} ${theme.text} border ${theme.border}`}>
@@ -653,26 +894,35 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
                         <tbody className="divide-y divide-zinc-850/40">
                           {rows.map((row) => {
                             const p = row.personal;
+                            const rotLabel = ESQUEMA_LABELS[p.esquema_rotacion] || p.esquema_rotacion;
                             return (
                               <tr key={p.id} className="border-b border-zinc-850/20 hover:bg-zinc-800/20 transition-colors">
                                 
                                 {/* Nombre e Info */}
                                 <td className="px-5 py-3.5">
-                                  <div className="font-semibold text-white/90 text-sm leading-snug">{p.nombre_completo}</div>
-                                  <div className="text-[10px] text-white/40 mt-1 flex items-center gap-2 flex-wrap">
-                                    <span>C.I. {p.cedula}</span>
-                                    <span>·</span>
-                                    <span>Ingreso: {fmtDate(p.fecha_ingreso)}</span>
-                                    {p.telefono && (
-                                      <>
-                                        <span>·</span>
-                                        <span>Telf: {p.telefono}</span>
-                                      </>
-                                    )}
-                                  </div>
+                                  <button 
+                                    onClick={() => openDrawer(p.id)}
+                                    className="text-left group"
+                                  >
+                                    <div className="font-semibold text-white/90 text-sm leading-snug group-hover:text-amber-400 transition-colors flex items-center gap-1.5">
+                                      {p.nombre_completo}
+                                      <ChevronRight className="w-3 h-3 text-white/20 group-hover:text-amber-400 transition-colors" />
+                                    </div>
+                                    <div className="text-[10px] text-white/40 mt-1 flex items-center gap-2 flex-wrap">
+                                      <span>C.I. {p.cedula}</span>
+                                      <span>·</span>
+                                      <span>Ingreso: {fmtDate(p.fecha_ingreso)}</span>
+                                      {p.esquema_rotacion !== 'FIJO_SEMANAL' && (
+                                        <>
+                                          <span>·</span>
+                                          <span className="text-cyan-400/70">{rotLabel}</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </button>
                                 </td>
 
-                                {/* Toggles Asistencia (Labor vs Libre vs Absent) */}
+                                {/* Toggles Asistencia */}
                                 <td className="px-5 py-3.5 text-center">
                                   <div className="inline-flex p-1 rounded-xl bg-zinc-950/60 border border-zinc-800/50">
                                     <button
@@ -739,13 +989,17 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
 
                                 {/* Deducciones / Vales */}
                                 <td className="px-5 py-3.5 text-right">
-                                  <input
-                                    type="number"
-                                    value={row.deducciones || ''}
-                                    onChange={e => handleUpdateRow(p.id, { deducciones: Number(e.target.value) || 0 })}
-                                    placeholder="0.00"
-                                    className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-red-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-red-500/50"
-                                  />
+                                  <button
+                                    onClick={() => openDrawer(p.id)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                                      row.totalVales > 0
+                                        ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                                        : 'bg-zinc-950/40 border-zinc-800 text-white/50 hover:border-zinc-700 hover:text-white/70'
+                                    }`}
+                                  >
+                                    <FileText className="w-3 h-3" />
+                                    {row.totalVales > 0 ? fmtMoney(row.totalVales) : '0.00'}
+                                  </button>
                                 </td>
 
                                 {/* Total Neto */}
@@ -801,7 +1055,169 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
 
       </div>
 
-      {/* ── MODALS (Responsive centered layout with backdrop-blur) ── */}
+      {/* ── SLIDE-OVER DRAWER: Worker Profile & Vales Ledger ── */}
+      {drawerPersonalId && drawerRow && (
+        <div 
+          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm"
+          onClick={() => setDrawerPersonalId(null)}
+        >
+          <div 
+            className="w-full max-w-md bg-zinc-950 border-l border-zinc-800 shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-zinc-800 flex-shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-white/95">{drawerRow.personal.nombre_completo}</h3>
+                <p className="text-xs text-white/40 mt-0.5">C.I. {drawerRow.personal.cedula} · {drawerRow.personal.cargo}</p>
+              </div>
+              <button onClick={() => setDrawerPersonalId(null)} className="p-2 rounded-lg hover:bg-white/[0.05] text-white/40 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+              
+              {/* Worker Info Card */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+                <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Perfil del Trabajador</h4>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-white/40">Salario Labor</span>
+                    <p className="text-white/90 font-semibold tabular-nums">{fmtMoney(Number(drawerRow.personal.salario_base))}</p>
+                  </div>
+                  <div>
+                    <span className="text-white/40">Salario Libre</span>
+                    <p className="text-white/90 font-semibold tabular-nums">{fmtMoney(Number(drawerRow.personal.salario_libre) || 100)}</p>
+                  </div>
+                  <div>
+                    <span className="text-white/40">Bono Transporte</span>
+                    <p className="text-white/90 font-semibold tabular-nums">{fmtMoney(Number(drawerRow.personal.bono_transporte))}</p>
+                  </div>
+                  <div>
+                    <span className="text-white/40">Fecha Ingreso</span>
+                    <p className="text-white/90 font-semibold">{fmtDate(drawerRow.personal.fecha_ingreso)}</p>
+                  </div>
+                </div>
+
+                {/* Rotation Scheme */}
+                <div className="pt-3 border-t border-zinc-800">
+                  <div className="flex items-center gap-2 mb-1">
+                    <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Esquema de Rotación</span>
+                  </div>
+                  <p className="text-xs text-cyan-400 font-semibold">
+                    {ESQUEMA_LABELS[drawerRow.personal.esquema_rotacion] || drawerRow.personal.esquema_rotacion}
+                  </p>
+                  {drawerRow.personal.rotacion_inicio_fecha && (
+                    <p className="text-[10px] text-white/30 mt-0.5">
+                      Inicio del ciclo: {fmtDate(drawerRow.personal.rotacion_inicio_fecha)}
+                    </p>
+                  )}
+                  <p className="text-[10px] mt-1.5 font-semibold uppercase tracking-wider">
+                    {drawerRow.estadoAsistencia === 'trabajada' && <span className="text-amber-400">→ Esta semana: LABOR</span>}
+                    {drawerRow.estadoAsistencia === 'libre' && <span className="text-cyan-400">→ Esta semana: LIBRE (predicción)</span>}
+                    {drawerRow.estadoAsistencia === 'no_laborado' && <span className="text-red-400">→ Esta semana: FALTA</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Vales / Adelantos Ledger */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest flex items-center gap-2">
+                    <DollarSign className="w-3.5 h-3.5 text-red-400" />
+                    Libro de Vales / Adelantos
+                  </h4>
+                  <span className="text-xs font-bold text-red-400 tabular-nums">
+                    Total: {fmtMoney(drawerVales.reduce((s, v) => s + Number(v.monto), 0))}
+                  </span>
+                </div>
+
+                {/* List of vales */}
+                {loadingVales ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+                  </div>
+                ) : drawerVales.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                    {drawerVales.map(v => (
+                      <div key={v.id} className="flex items-center justify-between gap-3 bg-zinc-950/50 border border-zinc-800/50 rounded-lg px-3 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white/80 font-medium truncate">{v.motivo || 'Adelanto'}</p>
+                          <p className="text-[10px] text-white/30">{fmtDate(v.fecha)}</p>
+                        </div>
+                        <p className="text-xs font-bold text-red-400 tabular-nums shrink-0">{fmtMoney(Number(v.monto))}</p>
+                        {canEdit && (
+                          <button 
+                            onClick={() => handleDeleteVale(v.id)} 
+                            disabled={isPending}
+                            className="p-1 rounded hover:bg-red-500/10 text-white/30 hover:text-red-400 transition-colors shrink-0"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-white/30 text-center py-4">No hay vales pendientes</p>
+                )}
+
+                {/* Add new vale */}
+                {canEdit && (
+                  <div className="pt-3 border-t border-zinc-800 space-y-2.5">
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Registrar nuevo vale</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="$ Monto"
+                        value={newValeMonto}
+                        onChange={e => setNewValeMonto(e.target.value)}
+                        className="w-24 bg-zinc-950/40 border border-zinc-800 focus:border-amber-500 text-white rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-amber-500/50"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Motivo (ej: Pasaje)"
+                        value={newValeMotivo}
+                        onChange={e => setNewValeMotivo(e.target.value)}
+                        className="flex-1 bg-zinc-950/40 border border-zinc-800 focus:border-amber-500 text-white rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-amber-500/50"
+                      />
+                    </div>
+                    <button 
+                      onClick={handleAddVale}
+                      disabled={isPending || !newValeMonto}
+                      className="w-full bg-amber-600 hover:bg-amber-500 text-black font-bold h-9 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-40 text-xs"
+                    >
+                      {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                      Registrar Vale
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Actions */}
+              <div className="space-y-2">
+                <button 
+                  onClick={() => { openEdit(drawerRow.personal); setDrawerPersonalId(null); }}
+                  className="w-full btn-secondary h-10 flex items-center justify-center gap-2 text-xs"
+                >
+                  <Edit2 className="w-3.5 h-3.5" /> Editar Perfil Completo
+                </button>
+                <button 
+                  onClick={() => { setSelectedReceipt(drawerRow); setDrawerPersonalId(null); }}
+                  className="w-full btn-secondary h-10 flex items-center justify-center gap-2 text-xs"
+                >
+                  <Receipt className="w-3.5 h-3.5" /> Ver Ficha de Pago
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODALS ── */}
 
       {/* 1. Modal: Agregar/Editar Trabajador */}
       {showModal && (
@@ -836,7 +1252,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
                   activeTab === 'esquema' ? 'border-amber-500 text-amber-500' : 'border-transparent text-white/45'
                 }`}
               >
-                2. Esquema Laboral & Notas
+                2. Esquema & Rotación
               </button>
             </div>
 
@@ -884,6 +1300,37 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
                       <input type="date" value={form.fecha_ingreso} onChange={e => setForm({...form, fecha_ingreso: e.target.value})} className="input-field" />
                     </div>
                   </div>
+
+                  {/* Rotation Config */}
+                  <div className="pt-3 border-t border-zinc-800 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                      <label className="input-label !mb-0">Esquema de Rotación</label>
+                    </div>
+                    <select 
+                      value={form.esquema_rotacion} 
+                      onChange={e => setForm({...form, esquema_rotacion: e.target.value})} 
+                      className="input-field"
+                    >
+                      <option value="FIJO_SEMANAL">Fijo Semanal (trabaja siempre)</option>
+                      <option value="MINA_2X1">Mina 2×1 (2 semanas labor, 1 libre)</option>
+                      <option value="MOLINO_FIJO">Molino Fijo (trabaja siempre)</option>
+                      <option value="MOLINO_ROTATIVO">Molino Rotativo (1 labor, 1 libre)</option>
+                    </select>
+                    {(form.esquema_rotacion === 'MINA_2X1' || form.esquema_rotacion === 'MOLINO_ROTATIVO') && (
+                      <div className="space-y-1">
+                        <label className="input-label">Fecha Inicio del Ciclo</label>
+                        <input 
+                          type="date" 
+                          value={form.rotacion_inicio_fecha} 
+                          onChange={e => setForm({...form, rotacion_inicio_fecha: e.target.value})} 
+                          className="input-field" 
+                        />
+                        <p className="text-[10px] text-white/30">La fecha de la primera semana laboral del trabajador para calcular su rotación automáticamente.</p>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-1">
                     <label className="input-label">Notas / Observación</label>
                     <textarea placeholder="Ej: Trabaja como martillero..." value={form.notas} onChange={e => setForm({...form, notas: e.target.value})} className="input-field h-20 resize-none text-xs" />
@@ -900,14 +1347,14 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         </div>
       )}
 
-      {/* 2. Modal: Cierre Financiero (Pedro, Darinel, La Fé) */}
+      {/* 2. Modal: Cierre Financiero V3 (con ajustes de socios) */}
       {showProcesarModal && (
         <div 
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm"
           onClick={() => setShowProcesarModal(false)}
         >
           <div 
-            className="relative w-full sm:max-w-md bg-zinc-950 border border-zinc-800 sm:rounded-2xl rounded-t-2xl shadow-2xl p-6 sm:p-8 max-h-[92dvh] overflow-y-auto text-white"
+            className="relative w-full sm:max-w-lg bg-zinc-950 border border-zinc-800 sm:rounded-2xl rounded-t-2xl shadow-2xl p-6 sm:p-8 max-h-[92dvh] overflow-y-auto text-white"
             onClick={e => e.stopPropagation()}
           >
             <button onClick={() => setShowProcesarModal(false)} className="absolute top-6 right-6 text-white/40 hover:text-white transition-colors">
@@ -934,7 +1381,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
             <div className="p-5 rounded-xl bg-amber-500/5 border border-amber-500/20 mb-6">
               <p className="text-xs text-amber-200 tracking-wider">TOTAL NETO DE NÓMINA A PAGAR</p>
               <p className="text-3xl font-black text-amber-500 mt-1 leading-none">{fmtMoney(totalSemana)}</p>
-              <p className="text-[10px] text-amber-500/60 mt-2 uppercase">{preNominaRows.length} trabajadores registrados</p>
+              <p className="text-[10px] text-amber-500/60 mt-2 uppercase">{preNominaRows.length} trabajadores · {preNominaRows.filter(r => r.totalVales > 0).length} con vales pendientes</p>
             </div>
 
             {/* Aportes de Socios */}
@@ -942,47 +1389,119 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
               <h4 className="text-[10px] text-white/40 tracking-wider uppercase border-b border-zinc-800 pb-2">Distribución de Caja por Socios (1/3 c/u)</h4>
               
               {/* Pedro */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-1.5 h-6 bg-cyan-500 rounded-full" />
-                  <div>
-                    <p className="text-xs font-semibold text-white/95">Pedro Guajiro (Socio)</p>
-                    <p className="text-[10px] text-white/40 mt-0.5">Porcentaje: {partnerSplits.pctPedro}%</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-1.5 h-6 bg-cyan-500 rounded-full" />
+                    <div>
+                      <p className="text-xs font-semibold text-white/95">Pedro Guajiro (Socio)</p>
+                      <p className="text-[10px] text-white/40 mt-0.5">Porcentaje: {partnerSplits.pctPedro}%</p>
+                    </div>
                   </div>
+                  <p className="text-base font-semibold text-cyan-400 tabular-nums">
+                    {fmtMoney((partnerSplits.pctPedro / 100) * totalSemana)}
+                  </p>
                 </div>
-                <p className="text-base font-semibold text-cyan-400 tabular-nums">
-                  {fmtMoney((partnerSplits.pctPedro / 100) * totalSemana)}
-                </p>
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-[10px] text-white/30 shrink-0">Pagos directos esta semana:</span>
+                  <input
+                    type="number"
+                    value={partnerGastos.gastoPedro || ''}
+                    onChange={e => setPartnerGastos({...partnerGastos, gastoPedro: Number(e.target.value) || 0})}
+                    placeholder="0.00"
+                    className="w-24 bg-zinc-950/40 border border-zinc-800 focus:border-cyan-500 text-white rounded-lg px-2.5 py-1 text-right text-xs outline-none transition-colors focus:ring-1 focus:ring-cyan-500/50"
+                  />
+                  {partnerGastos.gastoPedro > 0 && (
+                    <span className="text-[10px] text-cyan-400 font-bold">
+                      Neto: {fmtMoney((partnerSplits.pctPedro / 100) * totalSemana - partnerGastos.gastoPedro)}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Darinel */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-1.5 h-6 bg-yellow-500 rounded-full" />
-                  <div>
-                    <p className="text-xs font-semibold text-white/95">Darinel Riasco (Socio)</p>
-                    <p className="text-[10px] text-white/40 mt-0.5">Porcentaje: {partnerSplits.pctDarinel}%</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-1.5 h-6 bg-yellow-500 rounded-full" />
+                    <div>
+                      <p className="text-xs font-semibold text-white/95">Darinel Riasco (Socio)</p>
+                      <p className="text-[10px] text-white/40 mt-0.5">Porcentaje: {partnerSplits.pctDarinel}%</p>
+                    </div>
                   </div>
+                  <p className="text-base font-semibold text-yellow-500 tabular-nums">
+                    {fmtMoney((partnerSplits.pctDarinel / 100) * totalSemana)}
+                  </p>
                 </div>
-                <p className="text-base font-semibold text-yellow-500 tabular-nums">
-                  {fmtMoney((partnerSplits.pctDarinel / 100) * totalSemana)}
-                </p>
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-[10px] text-white/30 shrink-0">Pagos directos esta semana:</span>
+                  <input
+                    type="number"
+                    value={partnerGastos.gastoDarinel || ''}
+                    onChange={e => setPartnerGastos({...partnerGastos, gastoDarinel: Number(e.target.value) || 0})}
+                    placeholder="0.00"
+                    className="w-24 bg-zinc-950/40 border border-zinc-800 focus:border-yellow-500 text-white rounded-lg px-2.5 py-1 text-right text-xs outline-none transition-colors focus:ring-1 focus:ring-yellow-500/50"
+                  />
+                  {partnerGastos.gastoDarinel > 0 && (
+                    <span className="text-[10px] text-yellow-400 font-bold">
+                      Neto: {fmtMoney((partnerSplits.pctDarinel / 100) * totalSemana - partnerGastos.gastoDarinel)}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* La Fé */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
-                  <div>
-                    <p className="text-xs font-semibold text-white/95">Molinos La Fé (Caja)</p>
-                    <p className="text-[10px] text-white/40 mt-0.5">Porcentaje: {partnerSplits.pctLaFe}%</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
+                    <div>
+                      <p className="text-xs font-semibold text-white/95">Molinos La Fé (Caja)</p>
+                      <p className="text-[10px] text-white/40 mt-0.5">Porcentaje: {partnerSplits.pctLaFe}%</p>
+                    </div>
                   </div>
+                  <p className="text-base font-semibold text-emerald-500 tabular-nums">
+                    {fmtMoney((partnerSplits.pctLaFe / 100) * totalSemana)}
+                  </p>
                 </div>
-                <p className="text-base font-semibold text-emerald-500 tabular-nums">
-                  {fmtMoney((partnerSplits.pctLaFe / 100) * totalSemana)}
-                </p>
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-[10px] text-white/30 shrink-0">Pagos directos esta semana:</span>
+                  <input
+                    type="number"
+                    value={partnerGastos.gastoLaFe || ''}
+                    onChange={e => setPartnerGastos({...partnerGastos, gastoLaFe: Number(e.target.value) || 0})}
+                    placeholder="0.00"
+                    className="w-24 bg-zinc-950/40 border border-zinc-800 focus:border-emerald-500 text-white rounded-lg px-2.5 py-1 text-right text-xs outline-none transition-colors focus:ring-1 focus:ring-emerald-500/50"
+                  />
+                  {partnerGastos.gastoLaFe > 0 && (
+                    <span className="text-[10px] text-emerald-400 font-bold">
+                      Neto: {fmtMoney((partnerSplits.pctLaFe / 100) * totalSemana - partnerGastos.gastoLaFe)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Summary Balance */}
+            {(partnerGastos.gastoPedro > 0 || partnerGastos.gastoDarinel > 0 || partnerGastos.gastoLaFe > 0) && (
+              <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 mb-6 space-y-2">
+                <h4 className="text-[10px] text-white/40 uppercase tracking-widest font-bold flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> Resumen de Liquidación Neta
+                </h4>
+                <div className="flex justify-between text-xs">
+                  <span className="text-white/50">Pedro debe aportar:</span>
+                  <span className="text-cyan-400 font-bold tabular-nums">{fmtMoney(Math.max(0, (partnerSplits.pctPedro / 100) * totalSemana - partnerGastos.gastoPedro))}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-white/50">Darinel debe aportar:</span>
+                  <span className="text-yellow-400 font-bold tabular-nums">{fmtMoney(Math.max(0, (partnerSplits.pctDarinel / 100) * totalSemana - partnerGastos.gastoDarinel))}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-white/50">La Fé debe aportar:</span>
+                  <span className="text-emerald-400 font-bold tabular-nums">{fmtMoney(Math.max(0, (partnerSplits.pctLaFe / 100) * totalSemana - partnerGastos.gastoLaFe))}</span>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-zinc-800">
               <button onClick={() => setShowProcesarModal(false)} className="btn-secondary">Cancelar</button>
@@ -1204,7 +1723,17 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
               </div>
               <div className="flex justify-between"><span className="text-white/40">Bono Transporte:</span><span className="text-emerald-400 font-semibold tabular-nums">+{fmtMoney(selectedReceipt.bonoTransporte)}</span></div>
               <div className="flex justify-between"><span className="text-white/40">Incentivos / Bonos Extras:</span><span className="text-emerald-400 font-semibold tabular-nums">+{fmtMoney(selectedReceipt.bonificaciones)}</span></div>
-              <div className="flex justify-between"><span className="text-white/40">Adelantos / Vales Semanal:</span><span className="text-red-400 font-semibold tabular-nums">-{fmtMoney(selectedReceipt.deducciones)}</span></div>
+              <div className="flex justify-between"><span className="text-white/40">Adelantos / Vales Semanal:</span><span className="text-red-400 font-semibold tabular-nums">-{fmtMoney(selectedReceipt.totalVales)}</span></div>
+              {selectedReceipt.valesPendientes.length > 0 && (
+                <div className="pl-4 space-y-1 pt-1">
+                  {selectedReceipt.valesPendientes.map(v => (
+                    <div key={v.id} className="flex justify-between text-[10px] text-white/30">
+                      <span>→ {v.motivo || 'Adelanto'} ({fmtDate(v.fecha)})</span>
+                      <span className="tabular-nums">-{fmtMoney(Number(v.monto))}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Total Neto */}

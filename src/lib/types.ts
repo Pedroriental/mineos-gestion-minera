@@ -18,6 +18,8 @@ export interface Personal {
   activo: boolean;
   telefono?: string;
   notas?: string;
+  esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO';
+  rotacion_inicio_fecha?: string;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +75,16 @@ export interface NominaCierre {
   monto_pedro: number;
   monto_darinel: number;
   monto_la_fe: number;
+  created_at: string;
+}
+
+export interface NominaVale {
+  id: string;
+  personal_id: string;
+  monto: number;
+  fecha: string;
+  motivo: string;
+  estado: 'PENDIENTE' | 'COBRADO';
   created_at: string;
 }
 
