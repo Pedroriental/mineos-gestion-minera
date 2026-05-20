@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import type { PreNominaRow } from '@/lib/types';
+import { registrarAuditAction } from './nomina-v3';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
@@ -176,6 +177,15 @@ export async function procesarCierreNominaV2Action(payload: {
         registrado_por: userId || null,
       });
     }
+
+    // Registrar auditoría de cierre V2
+    await registrarAuditAction(
+      'CIERRE_NOMINA_V2',
+      'nomina_semanas',
+      semanaId,
+      `Cierre Nómina V2 de ${area.toUpperCase()} del ${inicio} al ${fin}. Total: $${totalNomina.toFixed(2)} for ${rows.length} trabajadores.`,
+      userId
+    );
 
     revalidateAll();
     return {

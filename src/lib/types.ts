@@ -88,6 +88,34 @@ export interface NominaVale {
   created_at: string;
 }
 
+export interface NominaAuditLog {
+  id: string;
+  accion: string;
+  entidad: string;
+  entidad_id?: string;
+  detalle?: string;
+  usuario_id?: string;
+  usuario_nombre?: string;
+  created_at: string;
+}
+
+export interface HistorialPagoRow {
+  semana_id: string;
+  semana_inicio: string;
+  semana_fin: string;
+  area: string;
+  monto_pagado: number;
+  es_semana_libre: boolean;
+  bono_transporte_pagado: number;
+  created_at: string;
+}
+
+export interface TendenciaSemanalRow {
+  semana_inicio: string;
+  total_pagado: number;
+  total_trabajadores: number;
+}
+
 export interface NominaHistoricoRow {
   semana_id: string;
   semana_inicio: string;

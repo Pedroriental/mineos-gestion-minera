@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
-import type { NominaVale, PreNominaRow } from '@/lib/types';
+import type { NominaVale, PreNominaRow, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
@@ -271,6 +271,15 @@ export async function procesarCierreNominaV3Action(payload: {
       });
     }
 
+    // Registrar auditoría de cierre
+    await registrarAuditAction(
+      'CIERRE_NOMINA_V3',
+      'nomina_semanas',
+      semanaId,
+      `Cierre Nómina V3 de ${area.toUpperCase()} del ${inicio} al ${fin}. Total: $${totalNomina.toFixed(2)} for ${rows.length} trabajadores.`,
+      userId
+    );
+
     revalidateAll();
     return {
       ok: true,
@@ -280,5 +289,92 @@ export async function procesarCierreNominaV3Action(payload: {
   } catch (err) {
     console.error('[Action] procesarCierreNominaV3:', err);
     return { ok: false, message: 'Error interno del servidor.' };
+  }
+}
+
+// ── HISTORIAL DE PAGOS POR TRABAJADOR ────────────────────────
+export async function getHistorialPagosAction(personalId: string, limit = 10): Promise<{
+  ok: boolean;
+  data?: HistorialPagoRow[];
+  message?: string;
+}> {
+  try {
+    const supabase = await createServerClient();
+    // Direct query (works without RPC)
+    const { data: rawData, error } = await supabase
+      .from('nomina_registros')
+      .select(`
+        semana_id,
+        monto_pagado,
+        es_semana_libre,
+        bono_transporte_pagado,
+        created_at,
+        nomina_semanas!inner (id, semana_inicio, semana_fin, area)
+      `)
+      .eq('personal_id', personalId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) return { ok: false, message: error.message };
+    const rows: HistorialPagoRow[] = (rawData ?? []).map((r: any) => ({
+      semana_id: r.semana_id,
+      semana_inicio: r.nomina_semanas?.semana_inicio || '',
+      semana_fin: r.nomina_semanas?.semana_fin || '',
+      area: r.nomina_semanas?.area || '',
+      monto_pagado: r.monto_pagado,
+      es_semana_libre: r.es_semana_libre,
+      bono_transporte_pagado: r.bono_transporte_pagado,
+      created_at: r.created_at,
+    }));
+    return { ok: true, data: rows };
+  } catch {
+    return { ok: false, message: 'Error interno.' };
+  }
+}
+
+// ── TENDENCIA SEMANAL (para sparklines) ──────────────────────
+export async function getTendenciaSemanalAction(area: string, limit = 8): Promise<{
+  ok: boolean;
+  data?: TendenciaSemanalRow[];
+  message?: string;
+}> {
+  try {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase
+      .from('nomina_semanas')
+      .select('semana_inicio, total_pagado, total_trabajadores')
+      .eq('area', area)
+      .order('semana_inicio', { ascending: false })
+      .limit(limit);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, data: (data ?? []) as TendenciaSemanalRow[] };
+  } catch {
+    return { ok: false, message: 'Error interno.' };
+  }
+}
+
+// ── AUDIT LOG ────────────────────────────────────────────────
+export async function registrarAuditAction(
+  accion: string,
+  entidad: string,
+  entidadId: string,
+  detalle: string,
+  userId?: string,
+  userName?: string
+): Promise<void> {
+  try {
+    const supabase = await createServerClient();
+    await supabase.from('nomina_audit_log').insert({
+      accion,
+      entidad,
+      entidad_id: entidadId,
+      detalle,
+      usuario_id: userId || null,
+      usuario_nombre: userName || null,
+    });
+  } catch {
+    // Silent — audit logging should never break the app
+    console.error('[Audit] Failed to log:', accion, entidad);
   }
 }

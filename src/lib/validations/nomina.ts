@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const AreaSchema = z.enum(['administracion', 'mina', 'planta', 'seguridad', 'transporte'], {
-  errorMap: () => ({ message: 'Área inválida' }),
+  message: 'Área inválida',
 });
 
 export const PersonalSchema = z.object({

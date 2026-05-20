@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { PersonalSchema, PersonalUpdateSchema, ImportarPersonalSchema, EmpleadoParseadoType } from '@/lib/validations/nomina';
 import { z } from 'zod';
+import { registrarAuditAction } from './nomina-v3';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
@@ -242,6 +243,23 @@ export async function procesarNominaSemanaAction(
 
     if (semanaError) return { ok: false, message: `Error al registrar la semana: ${semanaError.message}` };
 
+    const { data: semData } = await supabase
+      .from('nomina_semanas')
+      .select('id')
+      .eq('semana_inicio', inicio)
+      .eq('area', area)
+      .maybeSingle();
+    const semanaId = semData?.id || '';
+
+    // Registrar auditoría de procesamiento de nómina
+    await registrarAuditAction(
+      'PROCESAR_NOMINA',
+      'nomina_semanas',
+      semanaId,
+      `Nómina simple procesada para ${area.toUpperCase()} del ${inicio} al ${fin}. Total: $${totalNomina.toFixed(2)} (${trabajadores.length} trabajadores).`,
+      userId
+    );
+
     revalidateAll();
     return { ok: true, message: `Nómina procesada: ${trabajadores.length} trabajadores.`, data: { total: totalNomina, count: trabajadores.length } };
   } catch (err) {
@@ -265,6 +283,15 @@ export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
       console.error('[Action] revertirSemanaAction Supabase error:', error.message);
       return { ok: false, message: `Error al revertir: ${error.message}` };
     }
+
+    // Registrar auditoría de reversión
+    await registrarAuditAction(
+      'REVERTIR_NOMINA',
+      'nomina_semanas',
+      semana.id,
+      `Nómina revertida para ${semana.area?.toUpperCase()} de la semana ${semana.semana_inicio}. Monto que se eliminó: $${Number(semana.total_pagado || 0).toFixed(2)}.`,
+      undefined
+    );
 
     revalidateAll();
     return { ok: true, message: 'Nómina revertida exitosamente.' };

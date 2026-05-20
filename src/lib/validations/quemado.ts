@@ -15,7 +15,7 @@ export const QuemadoSchema = z.object({
     .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida'),
 
   turno: z.enum(['dia', 'noche', 'completo'], {
-    errorMap: () => ({ message: 'Turno inválido' }),
+    message: 'Turno inválido',
   }),
 
   numero_quemada: z

@@ -7,7 +7,7 @@ export const ProduccionSchema = z.object({
     .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida'),
 
   turno: z.enum(['dia', 'noche', 'completo'], {
-    errorMap: () => ({ message: 'Turno inválido' }),
+    message: 'Turno inválido',
   }),
 
   molino: z.string().min(1, 'El molino es obligatorio').max(100),
