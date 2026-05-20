@@ -439,7 +439,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="w-full max-w-[1600px] mx-auto h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col overflow-hidden">
+    <div className="w-full max-w-[1750px] mx-auto h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col overflow-hidden">
       
       {/* Encabezado Principal */}
       <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
@@ -484,7 +484,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
         
         {/* PANEL IZQUIERDO: KPIs + Historial */}
-        <div className="lg:col-span-4 flex flex-col gap-4 overflow-y-auto lg:overflow-hidden pr-1 custom-scrollbar">
+        <div className="lg:col-span-3 flex flex-col gap-4 overflow-y-auto lg:overflow-hidden pr-1 custom-scrollbar">
           
           {/* KPI Cards */}
           <div className="grid grid-cols-1 gap-3 flex-shrink-0">
@@ -548,7 +548,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         </div>
 
         {/* PANEL DERECHO: Tabla Grupal e Inputs */}
-        <div className="lg:col-span-8 flex flex-col gap-5 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+        <div className="lg:col-span-9 flex flex-col gap-5 overflow-y-auto pr-1 custom-scrollbar min-h-0">
           
           {/* Banner de Estado Nómina */}
           {semanaActualProcesada ? (
