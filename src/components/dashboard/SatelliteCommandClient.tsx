@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { Grid } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, AlertTriangle, ArrowRight, X,
@@ -11,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import Link from 'next/link';
+import TacticalBackground from './TacticalBackground';
 
 // ── Types ─────────────────────────────────────────────────────
 export interface LocationData {
@@ -361,25 +360,8 @@ export default function SatelliteCommandClient({
   return (
     <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden select-none font-sans">
 
-      {/* ── THREE.JS CANVAS — fixed, z-[-1], fondo absoluto del viewport ── */}
-      {isMounted && (
-        <div className="fixed top-0 left-0 w-[100vw] h-[100vh] z-[-1] bg-[#050505] pointer-events-none">
-          <Canvas camera={{ position: [0, 40, 25], fov: 45 }}>
-            <ambientLight intensity={0.5} />
-            <Grid
-              args={[200, 200]}
-              cellSize={0.5}
-              cellThickness={0.5}
-              cellColor="#1a1a1a"
-              sectionSize={2.5}
-              sectionThickness={1}
-              sectionColor="#DAA520"
-              fadeDistance={70}
-              fadeStrength={1.5}
-            />
-          </Canvas>
-        </div>
-      )}
+      {/* ── TACTICAL BACKGROUND (SATELLITE MAP OF BOLÍVAR STATE) ── */}
+      <TacticalBackground />
 
       {/* Amber center glow — transparente, no tapa el canvas */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_40%_at_50%_50%,rgba(218,165,32,0.05),transparent)] pointer-events-none z-[1]" />
