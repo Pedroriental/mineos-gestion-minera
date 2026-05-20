@@ -9,7 +9,7 @@ import {
   Search, Factory, Shield, Truck, Briefcase, Edit2, Receipt, 
   Printer, X, Users, Wallet, ChevronRight, FileText, Download,
   DollarSign, TrendingUp, TrendingDown, RotateCcw, Clipboard,
-  Hammer, Umbrella, XCircle, History, Copy, Check
+  Hammer, Umbrella, XCircle, History, Copy, Check, Lock
 } from 'lucide-react';
 
 import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
@@ -21,7 +21,8 @@ import {
 } from '@/lib/actions/nomina';
 
 import {
-  updatePersonalEstatusAction
+  updatePersonalEstatusAction,
+  getSemanaRegistrosAction
 } from '@/lib/actions/nomina-v2';
 
 import {
@@ -233,9 +234,9 @@ function getMolino15x15State(rotacionInicio: string | undefined | null, weekStar
   const diffMs = weekStart.getTime() - startDate.getTime();
   const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
   const position = ((diffWeeks % 4) + 4) % 4;
-  if (position === 0) return 'Labor (Vuelta - Paga Doble)';
-  if (position === 1) return 'Labor (Salida + Bono)';
-  if (position === 2) return 'Libre Pagada (Diferida)';
+  if (position === 0) return 'Labor (Vuelta)';
+  if (position === 1) return 'Labor (Salida)';
+  if (position === 2) return 'Libre Pagada';
   return 'Libre No Pagada';
 }
 
@@ -255,11 +256,18 @@ function calculateDefaultBaseSal(
     const position = ((diffWeeks % 4) + 4) % 4;
 
     if (estadoAsistencia === 'trabajada') {
-      return position === 0 ? Number(p.salario_base) * 2 : Number(p.salario_base);
+      return Number(p.salario_base);
+    }
+    if (estadoAsistencia === 'libre') {
+      const libreSal = Number(p.salario_libre) || Number(p.salario_base);
+      return position === 2 ? libreSal : 0;
     }
     return 0;
   }
   if (estadoAsistencia === 'no_laborado') return 0;
+  if (estadoAsistencia === 'libre') {
+    return Number(p.salario_libre) || Number(p.salario_base);
+  }
   return Number(p.salario_base);
 }
 
@@ -332,6 +340,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   const [drawerVales, setDrawerVales] = useState<NominaVale[]>([]);
   const [drawerHistorial, setDrawerHistorial] = useState<HistorialPagoRow[]>([]);
   const [loadingDrawer, setLoadingDrawer] = useState(false);
+  const [isHistoricalLoading, setIsHistoricalLoading] = useState(false);
   const [newValeMonto, setNewValeMonto] = useState('');
   const [newValeMotivo, setNewValeMotivo] = useState('');
   const [drawerTab, setDrawerTab] = useState<'vales' | 'historial' | 'rotacion'>('vales');
@@ -378,7 +387,64 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   useEffect(() => {
     if (!data) return;
     const initRows = async () => {
-      const personalIds = data.map(p => p.id);
+      const currentWeekStart = weekRange.inicio;
+      const currentWeekEnd = weekRange.fin;
+
+      // 1. Check if this is a closed week
+      const closedWeek = semanas.find(s => s.semana_inicio === currentWeekStart);
+      if (closedWeek) {
+        setIsHistoricalLoading(true);
+        try {
+          const res = await getSemanaRegistrosAction(closedWeek.id);
+          if (res.ok && res.data) {
+            const rows = res.data.map((reg: any) => {
+              const p = reg.personal || {
+                id: reg.personal_id,
+                nombre_completo: 'Trabajador no encontrado',
+                cedula: 'SC-N/A',
+                cargo: 'General',
+                area,
+                salario_base: reg.monto_pagado - (reg.bono_transporte_pagado || 0),
+                esquema_rotacion: 'FIJO_SEMANAL',
+                activo: false,
+              };
+              return {
+                personal: p,
+                esSemanaLibre: reg.es_semana_libre,
+                bonoTransporte: Number(reg.bono_transporte_pagado || 0),
+                bonificaciones: 0,
+                deducciones: 0,
+                total: Number(reg.monto_pagado),
+                estadoAsistencia: reg.es_semana_libre ? 'libre' as const : 'trabajada' as const,
+                valesPendientes: [],
+                totalVales: 0,
+              };
+            });
+            setPreNominaRows(rows);
+            setIsHistoricalLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error('[initRows] Error loading historical:', err);
+        }
+        setIsHistoricalLoading(false);
+      }
+
+      // 2. Active week (not closed) -> load roster and filter
+      const activeWorkers = data.filter(p => {
+        // Filter out future hires
+        if (p.fecha_ingreso && currentWeekEnd && p.fecha_ingreso > currentWeekEnd) return false;
+        // Filter out inactive/liquidated
+        if (p.estatus && p.estatus !== 'ACTIVO') return false;
+        return true;
+      });
+
+      if (activeWorkers.length === 0) {
+        setPreNominaRows([]);
+        return;
+      }
+
+      const personalIds = activeWorkers.map(p => p.id);
       let valesMap: Record<string, NominaVale[]> = {};
       try {
         const res = await getValesPendientesBulkAction(personalIds);
@@ -390,18 +456,13 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         }
       } catch { /* silent */ }
 
-      const currentWeekStart = weekRange.inicio;
-      const rows = data.map((p) => {
+      const rows = activeWorkers.map((p) => {
         const predicted = calculateExpectedAttendance(p.esquema_rotacion, p.rotacion_inicio_fecha, currentWeekStart);
         const workerVales = valesMap[p.id] || [];
         const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
         
         const baseSal = calculateDefaultBaseSal(p, predicted, currentWeekStart);
 
-        // Bono de transporte:
-        // Si es Molino 15x15 y está en la semana de salida a libre (posición 1):
-        // Se le asigna el bonoTransporte configurado de forma automática.
-        // En cualquier otro caso, se asigna 0 por defecto.
         let transport = 0;
         if (p.esquema_rotacion === 'MOLINO_15X15' && p.rotacion_inicio_fecha) {
           const startDate = new Date(p.rotacion_inicio_fecha);
@@ -429,7 +490,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       setPreNominaRows(rows);
     };
     initRows();
-  }, [data, weekRange.inicio]);
+  }, [data, weekRange.inicio, weekRange.fin, semanas]);
 
   // ── Live Calculation Engine ──────────────────────────────────────────────
   const handleUpdateRow = (personalId: string, fields: Partial<PreNominaRowState>) => {
@@ -455,11 +516,11 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   };
 
   const totalSemana = useMemo(() => preNominaRows.reduce((s, r) => s + r.total, 0), [preNominaRows]);
-  const semanaActual = semanas.find((r) => r.semana_inicio === getWeekStart());
+  const semanaActual = semanas.find((r) => r.semana_inicio === weekRange.inicio);
   const semanaActualProcesada = !!semanaActual;
 
   // Week-over-week comparison
-  const prevSemana = semanas.length >= 2 ? semanas.find(s => s.semana_inicio !== getWeekStart()) : null;
+  const prevSemana = semanas.length >= 2 ? semanas.find(s => s.semana_inicio < weekRange.inicio) : null;
   const weekDelta = prevSemana ? totalSemana - Number(prevSemana.total_pagado) : 0;
   const weekDeltaPct = prevSemana && Number(prevSemana.total_pagado) > 0
     ? ((weekDelta / Number(prevSemana.total_pagado)) * 100)
@@ -876,8 +937,45 @@ ${rows.map((r, i) => {
             <div className="flex items-center gap-4 rounded-xl border border-emerald-500/10 bg-emerald-500/5 px-5 py-4 flex-shrink-0">
               <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0"><CheckCircle2 className="w-5 h-5 text-emerald-400" /></div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-emerald-400">Nómina Cerrada y Registrada</p>
-                <p className="text-xs text-white/50 mt-1">Periodo: {fmtDate(semanaActual.semana_inicio)} al {fmtDate(semanaActual.semana_fin)}  ·  {semanaActual.total_trabajadores} trabajadores  ·  {fmtMoney(Number(semanaActual.total_pagado))}</p>
+                <p className="text-sm font-semibold text-emerald-400 flex items-center gap-2">
+                  <span>Nómina Cerrada y Registrada</span>
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-black text-emerald-400 uppercase tracking-widest">
+                    <Lock className="w-2.5 h-2.5" /> Frozen
+                  </span>
+                </p>
+                <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-1">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[9px] font-bold text-white/40 uppercase mr-1">Desde:</span>
+                    <input 
+                      type="date" 
+                      value={weekRange.inicio} 
+                      onChange={e => {
+                        const newInicio = e.target.value;
+                        const d = new Date(newInicio);
+                        d.setDate(d.getDate() + 6);
+                        const newFin = d.toISOString().split('T')[0];
+                        setWeekRange({ inicio: newInicio, fin: newFin });
+                      }}
+                      className="bg-transparent border-0 text-xs text-white/90 outline-none focus:ring-0 cursor-pointer p-0 w-24"
+                    />
+                  </div>
+                  <span className="text-white/30 text-xs">al</span>
+                  <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-1">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[9px] font-bold text-white/40 uppercase mr-1">Hasta:</span>
+                    <input 
+                      type="date" 
+                      value={weekRange.fin} 
+                      onChange={e => {
+                        setWeekRange(prev => ({ ...prev, fin: e.target.value }));
+                      }}
+                      className="bg-transparent border-0 text-xs text-white/90 outline-none focus:ring-0 cursor-pointer p-0 w-24"
+                    />
+                  </div>
+                  <span className="text-white/20 text-xs">·</span>
+                  <span className="text-xs text-white/50">{semanaActual.total_trabajadores} trabajadores  ·  <span className="font-bold text-emerald-400">{fmtMoney(Number(semanaActual.total_pagado))}</span></span>
+                </div>
               </div>
               <button onClick={() => handleRevertirSemana(semanaActual)} disabled={!canEdit || isPending} className="h-9 px-4 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold flex items-center gap-2 transition-colors disabled:opacity-40">
                 {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
@@ -890,10 +988,42 @@ ${rows.map((r, i) => {
                   <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0"><AlertTriangle className="w-5 h-5 text-amber-500 animate-pulse" /></div>
                   <div>
                     <p className="text-sm font-semibold text-amber-500">Nómina Pendiente</p>
-                    <p className="text-xs text-white/50 mt-1">{fmtDate(getWeekStart())} al {fmtDate(getWeekEnd())} · {data.length} activos · <span className="font-bold text-amber-400">{fmtMoney(totalSemana)}</span></p>
+                    <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+                      <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-1">
+                        <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-[9px] font-bold text-white/40 uppercase mr-1">Desde:</span>
+                        <input 
+                          type="date" 
+                          value={weekRange.inicio} 
+                          onChange={e => {
+                            const newInicio = e.target.value;
+                            const d = new Date(newInicio);
+                            d.setDate(d.getDate() + 6);
+                            const newFin = d.toISOString().split('T')[0];
+                            setWeekRange({ inicio: newInicio, fin: newFin });
+                          }}
+                          className="bg-transparent border-0 text-xs text-white/90 outline-none focus:ring-0 cursor-pointer p-0 w-24"
+                        />
+                      </div>
+                      <span className="text-white/30 text-xs">al</span>
+                      <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-1">
+                        <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-[9px] font-bold text-white/40 uppercase mr-1">Hasta:</span>
+                        <input 
+                          type="date" 
+                          value={weekRange.fin} 
+                          onChange={e => {
+                            setWeekRange(prev => ({ ...prev, fin: e.target.value }));
+                          }}
+                          className="bg-transparent border-0 text-xs text-white/90 outline-none focus:ring-0 cursor-pointer p-0 w-24"
+                        />
+                      </div>
+                      <span className="text-white/20 text-xs">·</span>
+                      <span className="text-xs text-white/50">{preNominaRows.length} activos · <span className="font-bold text-amber-400">{fmtMoney(totalSemana)}</span></span>
+                    </div>
                   </div>
                 </div>
-                <button onClick={() => { setWeekRange({ inicio: getWeekStart(), fin: getWeekEnd() }); setShowProcesarModal(true); }} disabled={!canEdit || data.length === 0} className="bg-amber-600 hover:bg-amber-500 text-black font-bold h-10 px-5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-amber-900/20 disabled:opacity-40 shrink-0 text-xs">
+                <button onClick={() => { setShowProcesarModal(true); }} disabled={!canEdit || preNominaRows.length === 0} className="bg-amber-600 hover:bg-amber-500 text-black font-bold h-10 px-5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-amber-900/20 disabled:opacity-40 shrink-0 text-xs">
                   <Wallet className="w-4 h-4" /> Cerrar y Distribuir
                 </button>
               </div>
@@ -964,7 +1094,12 @@ ${rows.map((r, i) => {
 
           {/* Grouped Worker Tables */}
           <div className="flex flex-col gap-6 pb-8">
-            {Object.keys(groupedRows).length === 0 ? (
+            {isHistoricalLoading ? (
+              <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800 rounded-xl p-20 text-center flex flex-col items-center justify-center gap-4">
+                <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
+                <p className="text-sm text-white/50 font-medium">Cargando registros históricos de nómina...</p>
+              </div>
+            ) : Object.keys(groupedRows).length === 0 ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center"><Users className="w-12 h-12 text-white/20 mx-auto mb-3" /><p className="text-sm text-white/40">No hay trabajadores registrados o coincidentes.</p></div>
             ) : (
               Object.entries(groupedRows).map(([cargoName, rows]) => {
@@ -983,6 +1118,11 @@ ${rows.map((r, i) => {
                       <div className="flex items-center gap-3">
                         <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${theme.bg} ${theme.text} border ${theme.border}`}>{cargoName}</div>
                         <span className="text-[10px] text-white/40 font-bold uppercase tracking-wider">{rows.length} Trabajadores</span>
+                        {semanaActualProcesada && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/25 text-[8px] font-bold uppercase tracking-wider">
+                            <Lock className="w-2.5 h-2.5" /> Bloqueado (Historial)
+                          </span>
+                        )}
                       </div>
                       <span className="text-sm font-semibold text-amber-500">Subtotal: {fmtMoney(groupTotal)}</span>
                     </div>
@@ -1046,16 +1186,16 @@ ${rows.map((r, i) => {
                                 {/* Attendance Toggles - Turno/Libre/Falta */}
                                 <td className={`px-3 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/5 border-x border-amber-500/10' : ''}`}>
                                   <div className="inline-flex p-1 rounded-xl bg-zinc-950/60 border border-zinc-800/50">
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'trabajada' })} title="Semana Turno Laboral"
-                                      className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 ${row.estadoAsistencia === 'trabajada' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 shadow-md shadow-amber-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'trabajada' })} title="Semana Turno Laboral" disabled={semanaActualProcesada}
+                                      className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'trabajada' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 shadow-md shadow-amber-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <Hammer className="w-3.5 h-3.5" /> Turno
                                     </button>
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'libre' })} title="Semana Libre"
-                                      className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 ${row.estadoAsistencia === 'libre' ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30 shadow-md shadow-cyan-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'libre' })} title="Semana Libre" disabled={semanaActualProcesada}
+                                      className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'libre' ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30 shadow-md shadow-cyan-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <Umbrella className="w-3.5 h-3.5" /> Libre
                                     </button>
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'no_laborado' })} title="No laboró"
-                                      className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 ${row.estadoAsistencia === 'no_laborado' ? 'bg-red-500/15 text-red-400 border-red-500/30 shadow-md shadow-red-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'no_laborado' })} title="No laboró" disabled={semanaActualProcesada}
+                                      className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'no_laborado' ? 'bg-red-500/15 text-red-400 border-red-500/30 shadow-md shadow-red-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <XCircle className="w-3.5 h-3.5" /> Falta
                                     </button>
                                   </div>
@@ -1066,11 +1206,11 @@ ${rows.map((r, i) => {
                                 </td>
                                 {/* Bono */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5 border-l border-amber-500/10' : ''}`}>
-                                  <input type="number" value={row.bonoTransporte || ''} onChange={e => handleUpdateRow(p.id, { bonoTransporte: Number(e.target.value) || 0 })} placeholder="0.00" className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50" />
+                                  <input type="number" value={row.bonoTransporte || ''} onChange={e => handleUpdateRow(p.id, { bonoTransporte: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
                                 </td>
                                 {/* Bonificaciones */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5' : ''}`}>
-                                  <input type="number" value={row.bonificaciones || ''} onChange={e => handleUpdateRow(p.id, { bonificaciones: Number(e.target.value) || 0 })} placeholder="0.00" className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50" />
+                                  <input type="number" value={row.bonificaciones || ''} onChange={e => handleUpdateRow(p.id, { bonificaciones: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
                                 </td>
                                 {/* Vales Badge */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5 border-r border-amber-500/10' : ''}`}>
@@ -1087,7 +1227,7 @@ ${rows.map((r, i) => {
                                 <td className="px-5 py-3 text-center">
                                   <div className="flex items-center justify-center gap-1">
                                     <button onClick={() => setSelectedReceipt(row)} title="Ficha" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-white transition-colors"><Receipt className="w-4 h-4" /></button>
-                                    {canEdit && (
+                                    {canEdit && !semanaActualProcesada && (
                                       <>
                                         <button onClick={() => openEdit(p)} title="Editar" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-amber-500 transition-colors"><Edit2 className="w-4 h-4" /></button>
                                         <button onClick={() => handleDelete(p.id)} title="Baja" className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
@@ -1170,12 +1310,12 @@ ${rows.map((r, i) => {
                         <div key={v.id} className="flex items-center justify-between gap-3 bg-zinc-950/50 border border-zinc-800/50 rounded-lg px-3 py-2.5">
                           <div className="flex-1 min-w-0"><p className="text-xs text-white/80 font-medium truncate">{v.motivo || 'Adelanto'}</p><p className="text-[10px] text-white/30">{fmtDate(v.fecha)}</p></div>
                           <p className="text-xs font-bold text-red-400 tabular-nums shrink-0">{fmtMoney(Number(v.monto))}</p>
-                          {canEdit && <button onClick={() => handleDeleteVale(v.id)} disabled={isPending} className="p-1 rounded hover:bg-red-500/10 text-white/30 hover:text-red-400 transition-colors shrink-0"><Trash2 className="w-3 h-3" /></button>}
+                          {canEdit && !semanaActualProcesada && <button onClick={() => handleDeleteVale(v.id)} disabled={isPending} className="p-1 rounded hover:bg-red-500/10 text-white/30 hover:text-red-400 transition-colors shrink-0"><Trash2 className="w-3 h-3" /></button>}
                         </div>
                       ))}
                     </div>
                   ) : <p className="text-xs text-white/30 text-center py-4">No hay vales pendientes</p>}
-                  {canEdit && (
+                  {canEdit && !semanaActualProcesada && (
                     <div className="pt-3 border-t border-zinc-800 space-y-2.5">
                       <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Registrar vale</p>
                       <div className="flex gap-2">
