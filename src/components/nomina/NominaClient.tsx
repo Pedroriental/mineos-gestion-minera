@@ -161,7 +161,7 @@ function calculateExpectedAttendance(
   const startDate = new Date(rotacionInicio);
   const weekStart = new Date(weekStartStr);
   const diffMs = weekStart.getTime() - startDate.getTime();
-  const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
 
   if (esquema === 'MINA_2X1') {
     const position = ((diffWeeks % 3) + 3) % 3;
@@ -219,7 +219,7 @@ function getMina3GState(rotacionInicio: string | undefined | null, weekStartStr:
   const startDate = new Date(rotacionInicio);
   const weekStart = new Date(weekStartStr);
   const diffMs = weekStart.getTime() - startDate.getTime();
-  const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
   const position = ((diffWeeks % 3) + 3) % 3;
   if (position === 0) return 'Noche';
   if (position === 1) return 'Día';
@@ -231,11 +231,36 @@ function getMolino15x15State(rotacionInicio: string | undefined | null, weekStar
   const startDate = new Date(rotacionInicio);
   const weekStart = new Date(weekStartStr);
   const diffMs = weekStart.getTime() - startDate.getTime();
-  const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
   const position = ((diffWeeks % 4) + 4) % 4;
-  if (position === 0 || position === 1) return 'Labor (15x15)';
-  if (position === 2) return 'Libre Pagada';
+  if (position === 0) return 'Labor (Vuelta - Paga Doble)';
+  if (position === 1) return 'Labor (Salida + Bono)';
+  if (position === 2) return 'Libre Pagada (Diferida)';
   return 'Libre No Pagada';
+}
+
+function calculateDefaultBaseSal(
+  p: Personal,
+  estadoAsistencia: string,
+  weekStartStr: string
+): number {
+  if (p.esquema_rotacion === 'MOLINO_15X15') {
+    if (!p.rotacion_inicio_fecha) {
+      return estadoAsistencia === 'no_laborado' ? 0 : Number(p.salario_base);
+    }
+    const startDate = new Date(p.rotacion_inicio_fecha);
+    const weekStart = new Date(weekStartStr);
+    const diffMs = weekStart.getTime() - startDate.getTime();
+    const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+    const position = ((diffWeeks % 4) + 4) % 4;
+
+    if (estadoAsistencia === 'trabajada') {
+      return position === 0 ? Number(p.salario_base) * 2 : Number(p.salario_base);
+    }
+    return 0;
+  }
+  if (estadoAsistencia === 'no_laborado') return 0;
+  return Number(p.salario_base);
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -365,19 +390,29 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         }
       } catch { /* silent */ }
 
-      const currentWeekStart = getWeekStart();
+      const currentWeekStart = weekRange.inicio;
       const rows = data.map((p) => {
         const predicted = calculateExpectedAttendance(p.esquema_rotacion, p.rotacion_inicio_fecha, currentWeekStart);
         const workerVales = valesMap[p.id] || [];
         const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
         
-        let baseSal = Number(p.salario_base);
-        if (predicted === 'no_laborado') {
-          baseSal = 0;
-        }
+        const baseSal = calculateDefaultBaseSal(p, predicted, currentWeekStart);
 
-        // El bono de transporte es 100% manual, empieza en 0 para nuevas semanas
-        const transport = 0;
+        // Bono de transporte:
+        // Si es Molino 15x15 y está en la semana de salida a libre (posición 1):
+        // Se le asigna el bonoTransporte configurado de forma automática.
+        // En cualquier otro caso, se asigna 0 por defecto.
+        let transport = 0;
+        if (p.esquema_rotacion === 'MOLINO_15X15' && p.rotacion_inicio_fecha) {
+          const startDate = new Date(p.rotacion_inicio_fecha);
+          const weekStart = new Date(currentWeekStart);
+          const diffMs = weekStart.getTime() - startDate.getTime();
+          const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+          const position = ((diffWeeks % 4) + 4) % 4;
+          if (position === 1 && predicted === 'trabajada') {
+            transport = Number(p.bono_transporte) || 0;
+          }
+        }
 
         return {
           personal: p,
@@ -394,7 +429,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       setPreNominaRows(rows);
     };
     initRows();
-  }, [data]);
+  }, [data, weekRange.inicio]);
 
   // ── Live Calculation Engine ──────────────────────────────────────────────
   const handleUpdateRow = (personalId: string, fields: Partial<PreNominaRowState>) => {
@@ -403,12 +438,8 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
         if (row.personal.id !== personalId) return row;
         const nextRow = { ...row, ...fields };
         
-        let baseSal = Number(nextRow.personal.salario_base);
-        if (nextRow.estadoAsistencia === 'no_laborado') {
-          baseSal = 0;
-        }
+        const baseSal = calculateDefaultBaseSal(nextRow.personal, nextRow.estadoAsistencia, weekRange.inicio);
 
-        // El bono de transporte es 100% manual (no se autocompleta ni se modifica al cambiar asistencia)
         const transport = nextRow.bonoTransporte;
 
         const total = baseSal + transport + nextRow.bonificaciones - nextRow.totalVales;
@@ -460,20 +491,20 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
     const csvRows = [headers.join(',')];
     preNominaRows.forEach(row => {
       const p = row.personal;
-      const baseSal = row.estadoAsistencia === 'no_laborado' ? 0 : Number(p.salario_base);
+      const baseSal = calculateDefaultBaseSal(p, row.estadoAsistencia, weekRange.inicio);
       csvRows.push([`"${p.nombre_completo}"`, p.cedula, `"${p.cargo}"`, row.estadoAsistencia, baseSal.toFixed(2), row.bonoTransporte.toFixed(2), row.bonificaciones.toFixed(2), row.totalVales.toFixed(2), row.total.toFixed(2)].join(','));
     });
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `nomina_${area}_${getWeekStart()}.csv`; a.click();
+    a.href = url; a.download = `nomina_${area}_${weekRange.inicio}.csv`; a.click();
     URL.revokeObjectURL(url);
-  }, [preNominaRows, area]);
+  }, [preNominaRows, area, weekRange.inicio]);
 
   // ── WhatsApp receipt copy ──────────────────────────────────────────────
   const copyReceiptToClipboard = useCallback((row: PreNominaRowState) => {
-    const p = row.personal;
-    const baseSal = row.estadoAsistencia === 'no_laborado' ? 0 : Number(p.salario_base);
+      const p = row.personal;
+      const baseSal = calculateDefaultBaseSal(p, row.estadoAsistencia, weekRange.inicio);
     const text = [
       `📋 *COMPROBANTE DE PAGO*`,
       `━━━━━━━━━━━━━━━━━━`,
@@ -526,11 +557,11 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       const totalVales = newVales.reduce((s, v) => s + Number(v.monto), 0);
       setPreNominaRows(prev => prev.map(row => {
         if (row.personal.id !== drawerPersonalId) return row;
-        const baseSal = row.estadoAsistencia === 'no_laborado' ? 0 : Number(row.personal.salario_base);
+        const baseSal = calculateDefaultBaseSal(row.personal, row.estadoAsistencia, weekRange.inicio);
         return { ...row, valesPendientes: newVales, totalVales, deducciones: totalVales, total: baseSal + row.bonoTransporte + row.bonificaciones - totalVales };
       }));
     });
-  }, [drawerPersonalId, newValeMonto, newValeMotivo, startTransition, user]);
+  }, [drawerPersonalId, newValeMonto, newValeMotivo, startTransition, user, weekRange.inicio]);
 
   const handleDeleteVale = useCallback(async (valeId: string) => {
     if (!drawerPersonalId) return;
@@ -543,11 +574,11 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
       const totalVales = newVales.reduce((s, v) => s + Number(v.monto), 0);
       setPreNominaRows(prev => prev.map(row => {
         if (row.personal.id !== drawerPersonalId) return row;
-        const baseSal = row.estadoAsistencia === 'no_laborado' ? 0 : Number(row.personal.salario_base);
+        const baseSal = calculateDefaultBaseSal(row.personal, row.estadoAsistencia, weekRange.inicio);
         return { ...row, valesPendientes: newVales, totalVales, deducciones: totalVales, total: baseSal + row.bonoTransporte + row.bonificaciones - totalVales };
       }));
     });
-  }, [drawerPersonalId, startTransition, user]);
+  }, [drawerPersonalId, startTransition, user, weekRange.inicio]);
 
   const drawerRow = useMemo(() => {
     if (!drawerPersonalId) return null;
@@ -724,7 +755,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
 <thead><tr><th>#</th><th>Nombre</th><th>C.I.</th><th>Cargo</th><th>Estado</th><th class="text-right">Sueldo</th><th class="text-right">Bono Trans.</th><th class="text-right">Bonos</th><th class="text-right">Vales</th><th class="text-right">TOTAL</th></tr></thead>
 <tbody>
 ${rows.map((r, i) => {
-  const baseSal = r.estadoAsistencia === 'no_laborado' ? 0 : Number(r.personal.salario_base);
+  const baseSal = calculateDefaultBaseSal(r.personal, r.estadoAsistencia, weekRange.inicio);
   return `<tr><td>${i+1}</td><td><strong>${r.personal.nombre_completo}</strong></td><td>${r.personal.cedula}</td><td>${r.personal.cargo}</td><td>${r.estadoAsistencia}</td><td class="text-right">$${baseSal.toFixed(2)}</td><td class="text-right">$${r.bonoTransporte.toFixed(2)}</td><td class="text-right">$${r.bonificaciones.toFixed(2)}</td><td class="text-right">$${r.totalVales.toFixed(2)}</td><td class="text-right"><strong>$${r.total.toFixed(2)}</strong></td></tr>`;
 }).join('')}
 <tr class="total-row"><td colspan="9">TOTAL GENERAL</td><td class="text-right"><strong>$${totalSemana.toFixed(2)}</strong></td></tr>
@@ -940,8 +971,7 @@ ${rows.map((r, i) => {
                 const theme = getCargoTheme(cargoName);
                 const groupTotal = rows.reduce((s, r) => s + r.total, 0);
                 const groupSueldo = rows.reduce((s, r) => {
-                  if (r.estadoAsistencia === 'no_laborado') return s;
-                  return s + Number(r.personal.salario_base);
+                  return s + calculateDefaultBaseSal(r.personal, r.estadoAsistencia, weekRange.inicio);
                 }, 0);
                 const groupBono = rows.reduce((s, r) => s + r.bonoTransporte, 0);
                 const groupBonif = rows.reduce((s, r) => s + r.bonificaciones, 0);
@@ -992,16 +1022,17 @@ ${rows.map((r, i) => {
                                         {isPredicted && (
                                           (() => {
                                             if (p.esquema_rotacion === 'MINA_ROTATIVA_3G') {
-                                              const state = getMina3GState(p.rotacion_inicio_fecha, getWeekStart());
+                                              const state = getMina3GState(p.rotacion_inicio_fecha, weekRange.inicio);
                                               if (state === 'Noche') return <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[8px] font-bold uppercase">🔄 Noche (pred.)</span>;
                                               if (state === 'Día') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Día (pred.)</span>;
                                               return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre (pred.)</span>;
                                             }
                                             if (p.esquema_rotacion === 'MOLINO_15X15') {
-                                              const state = getMolino15x15State(p.rotacion_inicio_fecha, getWeekStart());
-                                              if (state === 'Labor (15x15)') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Labor 15x15 (pred.)</span>;
-                                              if (state === 'Libre Pagada') return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre Pág. (pred.)</span>;
-                                              return <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[8px] font-bold uppercase">🔄 Libre No-Pág. (pred.)</span>;
+                                              const state = getMolino15x15State(p.rotacion_inicio_fecha, weekRange.inicio);
+                                              if (state === 'Labor (Vuelta - Paga Doble)') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Vuelta (Paga Doble)</span>;
+                                              if (state === 'Labor (Salida + Bono)') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Salida + Bono</span>;
+                                              if (state === 'Libre Pagada (Diferida)') return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre Pág. (Diferida)</span>;
+                                              return <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[8px] font-bold uppercase">🔄 Libre No-Pág.</span>;
                                             }
                                             // Fallback for MINA_2X1 or MOLINO_ROTATIVO
                                             if (row.estadoAsistencia === 'libre') return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre (pred.)</span>;
@@ -1031,7 +1062,7 @@ ${rows.map((r, i) => {
                                 </td>
                                 {/* Sueldo */}
                                 <td className="px-5 py-3 text-right font-sans tabular-nums text-xs text-white/80">
-                                  {row.estadoAsistencia === 'no_laborado' ? fmtMoney(0) : fmtMoney(Number(p.salario_base))}
+                                  {fmtMoney(calculateDefaultBaseSal(p, row.estadoAsistencia, weekRange.inicio))}
                                 </td>
                                 {/* Bono */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5 border-l border-amber-500/10' : ''}`}>
@@ -1204,8 +1235,8 @@ ${rows.map((r, i) => {
                   <div className="pt-3 border-t border-zinc-800">
                     <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Calendario Próximas 6 Semanas</p>
                     <div className="space-y-1.5">
-                      {predictRotationCalendar(drawerRow.personal.esquema_rotacion, drawerRow.personal.rotacion_inicio_fecha, getWeekStart(), 6).map((week, i) => {
-                        const isCurrentWeek = week.weekStart === getWeekStart();
+                      {predictRotationCalendar(drawerRow.personal.esquema_rotacion, drawerRow.personal.rotacion_inicio_fecha, weekRange.inicio, 6).map((week, i) => {
+                        const isCurrentWeek = week.weekStart === weekRange.inicio;
                         const endDate = new Date(week.weekStart);
                         endDate.setDate(endDate.getDate() + 6);
                         return (
@@ -1217,7 +1248,7 @@ ${rows.map((r, i) => {
                             <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${week.status === 'trabajada' ? 'bg-amber-500/15 text-amber-400' : week.status === 'libre' ? 'bg-cyan-500/15 text-cyan-400' : 'bg-red-500/15 text-red-400'}`}>
                               {week.status === 'trabajada' ? '🔨 LABOR' : week.status === 'libre' ? '☀️ LIBRE' : '❌ FALTA'}
                             </span>
-                            {isCurrentWeek && <span className="text-[8px] text-amber-500 font-bold">← HOY</span>}
+                            {isCurrentWeek && <span className="text-[8px] text-amber-500 font-bold">← SELEC.</span>}
                           </div>
                         );
                       })}
@@ -1426,7 +1457,7 @@ ${rows.map((r, i) => {
               <div className="flex justify-between"><span className="text-white/40">Asistencia:</span><span className="font-bold text-amber-500 uppercase">{selectedReceipt.estadoAsistencia}</span></div>
             </div>
             <div className="py-4 space-y-2 border-b border-dashed border-white/10 text-xs">
-              <div className="flex justify-between"><span className="text-white/40">Sueldo:</span><span className="text-white/95 font-semibold tabular-nums">{selectedReceipt.estadoAsistencia === 'no_laborado' ? fmtMoney(0) : fmtMoney(Number(selectedReceipt.personal.salario_base))}</span></div>
+              <div className="flex justify-between"><span className="text-white/40">Sueldo:</span><span className="text-white/95 font-semibold tabular-nums">{fmtMoney(calculateDefaultBaseSal(selectedReceipt.personal, selectedReceipt.estadoAsistencia, weekRange.inicio))}</span></div>
               <div className="flex justify-between"><span className="text-white/40">Bono Transporte:</span><span className="text-emerald-400 font-semibold tabular-nums">+{fmtMoney(selectedReceipt.bonoTransporte)}</span></div>
               <div className="flex justify-between"><span className="text-white/40">Bonificaciones:</span><span className="text-emerald-400 font-semibold tabular-nums">+{fmtMoney(selectedReceipt.bonificaciones)}</span></div>
               <div className="flex justify-between"><span className="text-white/40">Vales/Adelantos:</span><span className="text-red-400 font-semibold tabular-nums">-{fmtMoney(selectedReceipt.totalVales)}</span></div>
