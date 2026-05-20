@@ -18,7 +18,7 @@ export interface Personal {
   activo: boolean;
   telefono?: string;
   notas?: string;
-  esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO';
+  esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15';
   rotacion_inicio_fecha?: string;
   created_at: string;
   updated_at: string;

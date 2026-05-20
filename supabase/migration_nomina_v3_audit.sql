@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS nomina_audit_log (
 
 ALTER TABLE nomina_audit_log ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "auth_full_access_audit" ON nomina_audit_log
+DROP POLICY IF EXISTS "auth_full_access_audit" ON nomina_audit_log;
+CREATE POLICY "auth_full_access_audit" ON nomina_audit_log
   FOR ALL USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
 
