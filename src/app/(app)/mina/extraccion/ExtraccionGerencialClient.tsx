@@ -361,14 +361,14 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
       const payload = {
         ...form,
         sacos_extraidos: sacosNum,
-        eventos: eventos.length > 0 ? eventos : null,
-        vertical: form.vertical || null,
-        mina: form.mina || null,
-        responsable: form.responsable || null,
-        hora_inicio: form.hora_inicio || null,
-        hora_fin: form.hora_fin || null,
-        numero_disparo: form.numero_disparo || null,
-        observaciones: form.observaciones || null,
+        eventos: eventos.length > 0 ? eventos : undefined,
+        vertical: form.vertical || undefined,
+        mina: form.mina || undefined,
+        responsable: form.responsable || undefined,
+        hora_inicio: form.hora_inicio || undefined,
+        hora_fin: form.hora_fin || undefined,
+        numero_disparo: form.numero_disparo || undefined,
+        observaciones: form.observaciones || undefined,
         registrado_por: user?.id,
       };
 

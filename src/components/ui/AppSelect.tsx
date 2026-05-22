@@ -6,14 +6,14 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type AppSelectOption = {
-  value: string;
-  label: string;
+  readonly value: string;
+  readonly label: string;
 };
 
 type AppSelectProps = {
   value: string;
   onChange: (value: string) => void;
-  options: AppSelectOption[];
+  options: readonly AppSelectOption[];
   placeholder?: string;
   className?: string;
   disabled?: boolean;

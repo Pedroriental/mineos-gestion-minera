@@ -82,6 +82,7 @@ export interface ProduccionGerencialData {
     metaDiaria: number;
     metaAcumulada: number;
     tenor: number;
+    toneladas: number;
   }[];
   eficienciaData: { name: string; value: number }[];
   registros: ReporteProduccion[];
