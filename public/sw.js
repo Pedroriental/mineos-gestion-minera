@@ -1,83 +1,71 @@
-// MineOS Service Worker — v3
-// Strategy:
-//   • Supabase API calls → always network (never cache auth/data)
-//   • Next.js static assets (_next/) → cache-first
-//   • App pages → network-first with offline fallback
+// MineOS Service Worker — v5
+// Solo assets estáticos en caché; páginas y RSC siempre por red (evita dashboard viejo al F5).
 
-const STATIC_CACHE  = 'mineos-static-v3';
-const DYNAMIC_CACHE = 'mineos-pages-v3';
-const ALL_CACHES    = [STATIC_CACHE, DYNAMIC_CACHE];
+const STATIC_CACHE = 'mineos-static-v5';
 
-// URLs to pre-cache at install
-const PRECACHE = ['/', '/dashboard'];
+function isLocalDevHost(hostname) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
 
-// Hostnames to NEVER cache (Supabase + any external APIs)
+const PRECACHE = ['/'];
+
 const BYPASS_HOSTS = ['supabase.co', 'supabase.io', 'googleapis.com', 'gstatic.com'];
 
-// ── Install ────────────────────────────────────────────────────────────────
+function isAppDocumentRequest(request, url) {
+  if (request.mode === 'navigate') return true;
+  if (url.search.includes('_rsc')) return true;
+  if (request.headers.get('Accept')?.includes('text/html')) return true;
+  return false;
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then(c => c.addAll(PRECACHE))
-      .catch(() => {}) // fail silently if offline at install
+    caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE)).catch(() => {}),
   );
   self.skipWaiting();
 });
 
-// ── Activate — clean old caches ────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
-        keys
-          .filter(k => !ALL_CACHES.includes(k))
-          .map(k => caches.delete(k))
-      ))
-      .then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
   );
 });
 
-// ── Fetch ──────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 
-  // 1. Never cache Supabase / external API calls
-  if (BYPASS_HOSTS.some(h => url.hostname.includes(h))) return;
+  // En desarrollo local no interceptar (evita "Failed to fetch" con next dev / HMR)
+  if (isLocalDevHost(url.hostname)) return;
 
-  // 2. Only handle same-origin
+  if (BYPASS_HOSTS.some((h) => url.hostname.includes(h))) return;
   if (url.origin !== location.origin) return;
 
-  // 3. Next.js build assets → Cache-first (they're content-hashed, safe)
-  if (url.pathname.startsWith('/_next/static/')) {
+  // Páginas / RSC: siempre red (no servir HTML/RSC cacheado en recarga normal)
+  if (isAppDocumentRequest(event.request, url)) {
     event.respondWith(
-      caches.open(STATIC_CACHE).then(cache =>
-        cache.match(event.request).then(cached => {
-          if (cached) return cached;
-          return fetch(event.request).then(res => {
-            cache.put(event.request, res.clone());
-            return res;
-          });
-        })
-      )
+      fetch(event.request).catch(() =>
+        Response.error(),
+      ),
     );
     return;
   }
 
-  // 4. App pages → Network-first, fall back to cache, then offline page
-  event.respondWith(
-    fetch(event.request)
-      .then(res => {
-        if (res.ok) {
-          caches.open(DYNAMIC_CACHE).then(c => c.put(event.request, res.clone()));
-        }
-        return res;
-      })
-      .catch(() =>
-        caches.match(event.request).then(cached =>
-          cached || caches.match('/') // last resort: dashboard shell
-        )
-      )
-  );
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then((cache) =>
+        cache.match(event.request).then((cached) => {
+          if (cached) return cached;
+          return fetch(event.request).then((res) => {
+            cache.put(event.request, res.clone());
+            return res;
+          });
+        }),
+      ),
+    );
+  }
 });

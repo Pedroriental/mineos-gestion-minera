@@ -6,7 +6,8 @@ import { Edit2, Trash2 } from 'lucide-react';
 
 export const columns = (
   openEdit: (item: ReporteVoladura) => void,
-  handleDelete: (id: string) => void
+  handleDelete: (id: string) => void,
+  canEdit: boolean,
 ): ColumnDef<ReporteVoladura>[] => [
   {
     accessorKey: 'turno',
@@ -106,21 +107,28 @@ export const columns = (
   {
     id: 'acciones',
     header: 'Acciones',
-    cell: ({ row }) => (
-      <div className="flex gap-1 justify-end">
-        <button
-          onClick={() => openEdit(row.original)}
-          className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors"
-        >
-          <Edit2 className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => handleDelete(row.original.id)}
-          className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    ),
+    cell: ({ row }) => {
+      if (!canEdit) return null;
+      return (
+        <div className="flex gap-1 justify-end">
+          <button
+            type="button"
+            onClick={() => openEdit(row.original)}
+            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-amber-400"
+            title="Editar"
+          >
+            <Edit2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDelete(row.original.id)}
+            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            title="Eliminar"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      );
+    },
   },
 ];

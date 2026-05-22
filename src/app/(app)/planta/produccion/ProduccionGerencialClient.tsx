@@ -1,13 +1,23 @@
 'use client';
 
-import { useState, useTransition, useMemo, useEffect } from 'react';
+import { useState, useTransition, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { createProduccion, updateProduccion, deleteProduccion } from '@/lib/actions/produccion';
 import type { ReporteProduccion } from '@/lib/types';
 import { downloadProduccionPDF, downloadBalanceRecuperacionPDF } from '@/lib/pdf-reports';
-import { Loader2, Factory, Plus, X, Calculator, AlertTriangle, Download, AlertCircle, Search, Pickaxe, TrendingUp, BookOpen } from 'lucide-react';
-import Link from 'next/link';
+import {
+  Loader2, Plus, X, Calculator, Download, AlertCircle, Search, TrendingUp, Factory,
+  ChevronLeft, ChevronRight,
+} from 'lucide-react';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+
+const TURNO_OPTIONS = [
+  { value: 'dia', label: '☀ Día' },
+  { value: 'noche', label: '🌙 Noche' },
+  { value: 'completo', label: '🔄 Completo' },
+];
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -27,13 +37,18 @@ import {
 const PESO_SACO_KG = 50;
 const fmtNum = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(n);
 
+const PRODUCCION_PAGE_MAX = 12;
+const PRODUCCION_PAGE_BUTTONS_MAX = 5;
+const PRODUCCION_ROW_MIN_PX = 40;
+const PRODUCCION_HEAD_FALLBACK_PX = 40;
+
 // ═══════════════════════════════════════════════════════════
 // CUSTOM TOOLTIP FOR RECHARTS
 // ═══════════════════════════════════════════════════════════
 function CustomTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-zinc-950/95 border border-zinc-800 p-2 rounded-lg shadow-xl backdrop-blur-md">
+      <div className="app-chart-tooltip p-2 rounded-lg shadow-xl backdrop-blur-md">
         <p className="text-white/60 text-[10px] font-mono mb-1">{label}</p>
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex items-center gap-2 mb-0.5">
@@ -90,7 +105,9 @@ export default function ProduccionGerencialClient({
   const [selectedDate, setSelectedDate] = useState(selectedDateStr);
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
-  
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: PRODUCCION_PAGE_MAX });
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<ReporteProduccion | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -125,15 +142,15 @@ export default function ProduccionGerencialClient({
 
   // 1. Selector Inteligente: Días con Registros
   const diasConRegistros = useMemo(() => {
-     return data.diaria.filter(dia => {
-        return initialData.some(r => r.fecha === dia.fecha);
-     });
+     return data.diaria
+       .filter((dia) => initialData.some((r) => r.fecha === dia.fecha))
+       .sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [data.diaria, initialData]);
 
-  // Si selectedDateStr no tiene registros, forzamos a seleccionar el último día con registros
+  // Si el día seleccionado no tiene registros, usar el más reciente
   useEffect(() => {
-     if (diasConRegistros.length > 0 && !initialData.some(r => r.fecha === selectedDate)) {
-        setSelectedDate(diasConRegistros[diasConRegistros.length - 1].fecha);
+     if (diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+        setSelectedDate(diasConRegistros[0].fecha);
      }
   }, [diasConRegistros, initialData, selectedDate]);
 
@@ -144,22 +161,6 @@ export default function ProduccionGerencialClient({
   const diaOro = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.oro_recuperado_g) || 0), 0);
   const diaSacos = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.sacos) || 0), 0);
   const diaToneladas = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.toneladas_procesadas) || 0), 0);
-
-  const table = useReactTable({
-    data: filteredRegistros,
-    columns: columns(
-      (item) => openEdit(item),
-      (id) => handleDelete(id)
-    ),
-    state: { sorting, globalFilter },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 50 } }, // Mostrar más filas sin paginación ya que tenemos scroll vertical
-  });
 
   const updateCalcs = (updated: typeof form) => {
     const amalg1 = parseFloat(updated.amalgama_1_g) || 0;
@@ -255,7 +256,79 @@ export default function ProduccionGerencialClient({
     setShowModal(true);
   };
 
-  // Corrección: Gráfico Circular Nativo (SVG) para evitar fallos de Tremor
+  const table = useReactTable({
+    data: filteredRegistros,
+    columns: columns((item) => openEdit(item), (id) => handleDelete(id)),
+    state: { sorting, globalFilter, pagination },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  const syncTableLayout = useCallback(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const headH = el.querySelector('thead')?.getBoundingClientRect().height ?? PRODUCCION_HEAD_FALLBACK_PX;
+    const bodyAvailable = el.clientHeight - headH;
+    const pageRows = Math.min(
+      PRODUCCION_PAGE_MAX,
+      Math.max(1, Math.floor(bodyAvailable / PRODUCCION_ROW_MIN_PX)),
+    );
+    setPagination((prev) => (prev.pageSize === pageRows ? prev : { ...prev, pageSize: pageRows }));
+  }, []);
+
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const pageCount = table.getPageCount();
+  const displayPageCount = Math.max(1, pageCount);
+  const pageIndex = Math.min(pagination.pageIndex, Math.max(0, displayPageCount - 1));
+  const activePageIndex = filteredCount === 0 ? 0 : pageIndex;
+  const pageWindowStart =
+    Math.floor(activePageIndex / PRODUCCION_PAGE_BUTTONS_MAX) * PRODUCCION_PAGE_BUTTONS_MAX;
+  const pageNumbers = useMemo(() => {
+    const len = Math.min(PRODUCCION_PAGE_BUTTONS_MAX, Math.max(0, displayPageCount - pageWindowStart));
+    if (len === 0) return [0];
+    return Array.from({ length: len }, (_, i) => pageWindowStart + i);
+  }, [displayPageCount, pageWindowStart]);
+
+  const tableSummary = useMemo(() => {
+    const rows = table.getFilteredRowModel().rows;
+    return {
+      oro: rows.reduce((s, r) => s + (Number(r.original.oro_recuperado_g) || 0), 0),
+      sacos: rows.reduce((s, r) => s + (Number(r.original.sacos) || 0), 0),
+      ton: rows.reduce((s, r) => s + (Number(r.original.toneladas_procesadas) || 0), 0),
+      count: rows.length,
+    };
+  }, [filteredCount, globalFilter, filteredRegistros, sorting, pagination.pageIndex]);
+
+  const pageRows = table.getPaginationRowModel().rows;
+  const emptyRowSlots = Math.max(0, pagination.pageSize - pageRows.length);
+  const colCount = table.getAllLeafColumns().length;
+
+  useEffect(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const run = () => syncTableLayout();
+    run();
+    const ro = new ResizeObserver(run);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncTableLayout, filteredRegistros.length]);
+
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [selectedDate, globalFilter]);
+
+  useEffect(() => {
+    const maxIndex = Math.max(0, displayPageCount - 1);
+    if (pagination.pageIndex > maxIndex) {
+      setPagination((p) => ({ ...p, pageIndex: maxIndex }));
+    }
+  }, [displayPageCount, pagination.pageIndex]);
+
   const eficienciaNum = Number(data.kpis.eficienciaMolino) || 0;
   const strokeDasharray = 283; // 2 * Math.PI * 45
   const strokeDashoffset = strokeDasharray - (strokeDasharray * eficienciaNum) / 100;
@@ -382,90 +455,135 @@ export default function ProduccionGerencialClient({
   };
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col overflow-hidden">
-      
-      {/* ── Header Fijo ── */}
-      <FadeIn className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Factory className="w-6 h-6 text-amber-500" /> Producción Gerencial
-          </h1>
-          <p className="text-white/40 text-sm mt-1">
-            Centro de Mando Operativo y Business Intelligence.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/operaciones/resumen" className="btn-secondary h-10 px-4 flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
-            <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Resumen Ejecutivo</span>
-          </Link>
-           {/* El botón de Nuevo Registro se movió a la Action Bar de la tabla para mejor operatividad */}
+    <div className="produccion-page flex min-h-0 w-full max-w-[1600px] mx-auto flex-1 flex-col overflow-hidden">
+
+      <FadeIn className="produccion-page__toolbar shrink-0">
+        <div className="produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+          <div className="produccion-page__toolbar-search min-w-0 lg:col-span-5">
+            <div className="produccion-page__search produccion-surface produccion-surface--input flex w-full min-w-0 items-center rounded-lg px-3 py-2">
+              <Search className="produccion-icon-muted mr-2 h-4 w-4 shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar reporte por molino o material..."
+                value={globalFilter ?? ''}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="produccion-search-input w-full min-w-0 border-none bg-transparent text-sm outline-none"
+              />
+            </div>
+          </div>
+          <div className="produccion-page__toolbar-actions flex min-w-0 flex-wrap items-stretch gap-2 sm:flex-nowrap lg:col-span-7">
+            <button
+              onClick={handleExportPDF}
+              disabled={table.getFilteredRowModel().rows.length === 0 || isExporting}
+              className="produccion-page__toolbar-btn btn-secondary flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-xs disabled:opacity-40"
+              title="Exportar PDF"
+            >
+              {isExporting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Download className="h-3.5 w-3.5 shrink-0" />}
+              <span className="truncate">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
+            </button>
+            <button
+              onClick={handleExportBalance}
+              disabled={initialData.length === 0 || isExportingBalance}
+              title="Balance de recuperación por origen: Vertical 1/2/3, Mantenimiento, Repaso, Molino Continuo"
+              className="produccion-page__toolbar-btn produccion-page__balance-btn flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-40"
+            >
+              {isExportingBalance ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Calculator className="h-4 w-4 shrink-0" />}
+              <span className="truncate">{isExportingBalance ? 'Calculando...' : 'Balance de recuperación'}</span>
+            </button>
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setEditItem(null);
+                  setForm({ ...emptyForm, fecha: selectedDate });
+                  setFormError(null);
+                  setShowModal(true);
+                }}
+                className="produccion-page__toolbar-btn flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-amber-600 px-3 font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="truncate">Nuevo Registro</span>
+              </button>
+            )}
+          </div>
         </div>
       </FadeIn>
 
       {/* ── Split Screen Layout (Grid 12) ── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+      <div className="produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-4">
          
          {/* PANEL IZQUIERDO (BI y KPIs) */}
-         <div className="lg:col-span-5 flex flex-col gap-4 overflow-y-auto lg:overflow-hidden pr-1">
+         <div className="produccion-page__aside flex min-h-0 flex-col gap-3 overflow-y-auto lg:col-span-5 lg:h-full lg:overflow-hidden">
             
             {/* KPI Grid 2x2 */}
-            <div className="grid grid-cols-2 gap-3 flex-shrink-0">
-               {/* KPI 1: Oro Recuperado */}
-               <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 relative overflow-hidden">
-                  <div className="flex items-center gap-2 mb-2">
-                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Oro Total</span>
+            <div className="grid grid-cols-2 gap-3.5 flex-shrink-0">
+               <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--amber" aria-hidden />
+                  <div className="relative mb-2 flex items-center gap-2">
+                     <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Oro Total</span>
                   </div>
-                  <div className="flex items-baseline gap-1">
-                     <span className="text-2xl font-black text-white">{fmtNum(data.kpis.oroRecuperado)}</span>
-                     <span className="text-[10px] text-white/40 font-mono">g</span>
+                  <div className="relative flex items-baseline gap-1">
+                     <span className="gerencial-kpi-value gerencial-kpi-value--amber text-2xl font-black">{fmtNum(data.kpis.oroRecuperado)}</span>
+                     <span className="produccion-kpi-unit text-[10px] font-mono text-amber-500/80">g</span>
                   </div>
-                  <div className="mt-1 text-[10px] font-semibold text-amber-400">
+                  <div className="relative mt-1 text-[10px] font-semibold text-amber-500/90">
                      {data.kpis.cumplimientoOro >= 0 ? '+' : ''}{data.kpis.cumplimientoOro.toFixed(1)}% vs Meta
                   </div>
                </div>
 
-               {/* KPI 2: Toneladas Molidas */}
-               <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 relative overflow-hidden">
-                  <div className="flex items-center gap-2 mb-2">
-                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Ton. Molidas</span>
+               <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--blue" aria-hidden />
+                  <div className="relative mb-2 flex items-center gap-2">
+                     <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Ton. Molidas</span>
                   </div>
-                  <div className="flex items-baseline gap-1">
-                     <span className="text-2xl font-black text-white">{fmtNum(data.kpis.toneladas)}</span>
-                     <span className="text-[10px] text-white/40 font-mono">T</span>
-                  </div>
-               </div>
-
-               {/* KPI 3: Tenor Promedio */}
-               <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 relative overflow-hidden">
-                  <div className="flex items-center gap-2 mb-2">
-                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Tenor Prom.</span>
-                  </div>
-                  <div className="flex items-baseline gap-1">
-                     <span className="text-2xl font-black text-white">{fmtNum(data.kpis.tenorPromedio)}</span>
-                     <span className="text-[10px] text-white/40 font-mono">g/T</span>
+                  <div className="relative flex items-baseline gap-1">
+                     <span className="gerencial-kpi-value gerencial-kpi-value--blue text-2xl font-black">{fmtNum(data.kpis.toneladas)}</span>
+                     <span className="produccion-kpi-unit text-[10px] font-mono text-blue-400/80">T</span>
                   </div>
                </div>
 
-               {/* KPI 4: Eficiencia Molino */}
-               <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 relative overflow-hidden flex items-center justify-between">
-                  <div>
-                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider block mb-2">Eficiencia</span>
-                     <span className="text-2xl font-black text-white">{data.kpis.eficienciaMolino.toFixed(1)}%</span>
+               <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--cyan" aria-hidden />
+                  <div className="relative mb-2 flex items-center gap-2">
+                     <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Tenor Prom.</span>
                   </div>
-                  <div className="w-16 h-16 relative">
-                     <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90 drop-shadow-md">
-                        <circle cx="50" cy="50" r="45" fill="none" stroke="#27272a" strokeWidth="10" />
-                        <circle cx="50" cy="50" r="45" fill="none" stroke="#f59e0b" strokeWidth="10" strokeLinecap="round"
-                           strokeDasharray={strokeDasharray} strokeDashoffset={strokeDashoffset} 
-                           className="transition-all duration-1000 ease-out" />
+                  <div className="relative flex items-baseline gap-1">
+                     <span className="gerencial-kpi-value gerencial-kpi-value--cyan text-2xl font-black">{fmtNum(data.kpis.tenorPromedio)}</span>
+                     <span className="produccion-kpi-unit text-[10px] font-mono text-cyan-400/80">g/T</span>
+                  </div>
+               </div>
+
+               <div className="produccion-surface gerencial-kpi-card relative flex items-center justify-between overflow-hidden rounded-xl p-4">
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--amber" aria-hidden />
+                  <div className="relative">
+                     <span className="produccion-kpi-label mb-2 block text-[10px] font-bold uppercase tracking-wider">Eficiencia</span>
+                     <span className="gerencial-kpi-value gerencial-kpi-value--amber text-2xl font-black">{data.kpis.eficienciaMolino.toFixed(1)}%</span>
+                  </div>
+                  <div
+                    className="produccion-efficiency-ring relative h-16 w-16"
+                    title={`Días con producción en el período: ${eficienciaNum.toFixed(1)}%`}
+                    aria-label={`Eficiencia operativa ${eficienciaNum.toFixed(1)} por ciento`}
+                  >
+                     <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" role="img">
+                        <circle cx="50" cy="50" r="45" fill="none" className="produccion-efficiency-ring__track" strokeWidth="10" />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="45"
+                          fill="none"
+                          className="produccion-efficiency-ring__progress transition-all duration-700 ease-out"
+                          strokeWidth="10"
+                          strokeLinecap="butt"
+                          strokeDasharray={strokeDasharray}
+                          strokeDashoffset={strokeDashoffset}
+                        />
                      </svg>
                   </div>
                </div>
             </div>
 
             {/* Gráfico de Área Compacto */}
-            <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 flex-1 flex flex-col min-h-[220px]">
-               <h2 className="text-white/80 font-bold text-sm mb-4 flex items-center gap-2">
+            <div className="produccion-page__chart produccion-surface flex min-h-0 flex-1 flex-col rounded-xl p-4">
+               <h2 className="produccion-section-title font-bold text-sm mb-4 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-amber-500" /> Producción Real vs. Meta
                </h2>
                <div className="flex-1 w-full relative">
@@ -498,12 +616,12 @@ export default function ProduccionGerencialClient({
          </div>
 
          {/* PANEL DERECHO (Operativo / Tabla) */}
-         <div className="lg:col-span-7 flex flex-col overflow-hidden bg-zinc-900/60 rounded-xl border border-zinc-800/80 p-4">
+         <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-7 lg:h-full lg:pl-5">
             
-            {/* 1. Selector de Días Inteligente (Solo días con data) */}
-            <div className="flex-shrink-0 flex items-center gap-2 overflow-x-auto pb-3 scrollbar-hide snap-x w-full">
+            {/* 1. Selector de Días (más reciente → más antiguo) */}
+            <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 scrollbar-hide snap-x w-full">
                {diasConRegistros.length === 0 && (
-                  <div className="text-xs text-white/40 italic">No hay registros en este período.</div>
+                  <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
                )}
                {diasConRegistros.map((dia) => {
                  const d = new Date(dia.fecha + 'T12:00:00');
@@ -514,165 +632,224 @@ export default function ProduccionGerencialClient({
                    <button 
                      key={dia.fecha} 
                      onClick={() => setSelectedDate(dia.fecha)}
-                     className={`snap-center flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs transition-all ${isSelected ? 'bg-amber-500 border-amber-500 text-black font-bold' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'}`}
+                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
                    >
                      <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
-                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : 'bg-zinc-800 text-white/60'}`}>{dRegs}</span>
+                     <span className={`produccion-day-pill__badge px-1.5 py-0.5 rounded-full text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>{dRegs}</span>
                    </button>
                  )
                })}
             </div>
 
-            {/* 2. Mini KPIs Diarios */}
-            <div className="flex-shrink-0 grid grid-cols-4 gap-2 mb-4">
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5">
-                 <span className="text-[9px] uppercase font-bold text-zinc-500 block leading-tight">Oro Día</span>
-                 <span className="text-lg font-bold text-amber-500 leading-tight">{fmtNum(diaOro)}</span>
+            {/* 2. Mini KPIs del día */}
+            <div className="produccion-page__day-kpis mb-4 grid shrink-0 grid-cols-4 gap-3">
+              <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Oro Día</span>
+                 <span className="text-sm font-bold leading-tight text-amber-500">{fmtNum(diaOro)}</span>
               </div>
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5">
-                 <span className="text-[9px] uppercase font-bold text-zinc-500 block leading-tight">Sacos Día</span>
-                 <span className="text-lg font-bold text-white leading-tight">{fmtNum(diaSacos)}</span>
+              <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Sacos Día</span>
+                 <span className="produccion-kpi-value text-sm font-bold leading-tight">{fmtNum(diaSacos)}</span>
               </div>
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5">
-                 <span className="text-[9px] uppercase font-bold text-zinc-500 block leading-tight">Ton. Día</span>
-                 <span className="text-lg font-bold text-white leading-tight">{fmtNum(diaToneladas)}</span>
+              <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Ton. Día</span>
+                 <span className="produccion-kpi-value text-sm font-bold leading-tight">{fmtNum(diaToneladas)}</span>
               </div>
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5">
-                 <span className="text-[9px] uppercase font-bold text-zinc-500 block leading-tight">Registros</span>
-                 <span className="text-lg font-bold text-white leading-tight">{filteredRegistros.length}</span>
+              <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Registros</span>
+                 <span className="produccion-kpi-value text-sm font-bold leading-tight">{filteredRegistros.length}</span>
               </div>
             </div>
 
-            {/* 3. Header de la Tabla (Action Bar Rediseñada) */}
-            <div className="flex-shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 mb-3">
-               <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 w-full flex-1">
-                 <Search className="w-4 h-4 text-white/40 mr-2" />
-                 <input type="text" placeholder="Buscar reporte por molino o material..." value={globalFilter ?? ''} onChange={(e) => setGlobalFilter(e.target.value)}
-                   className="bg-transparent border-none outline-none text-sm text-white/90 placeholder:text-white/30 w-full" />
-               </div>
-               <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <button onClick={handleExportPDF} disabled={table.getFilteredRowModel().rows.length === 0 || isExporting}
-                    className="btn-secondary h-10 px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap flex-1 sm:flex-none">
-                    {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                    <span className="hidden sm:inline">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
-                  </button>
-                  <button
-                     onClick={handleExportBalance}
-                     disabled={initialData.length === 0 || isExportingBalance}
-                     title="Balance de Recuperación por origen: Vertical 1/2/3, Mantenimiento, Repaso, Molino Continuo"
-                     className="h-10 px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap flex-1 sm:flex-none border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-semibold text-xs rounded-lg transition-colors"
-                   >
-                     {isExportingBalance ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
-                     <span className="hidden sm:inline">{isExportingBalance ? 'Calculando...' : 'Balance Recuperación'}</span>
-                   </button>
-                 {canEdit && (
-                    <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setFormError(null); setShowModal(true); }} 
-                       className="bg-amber-600 hover:bg-amber-500 text-black font-bold h-10 px-4 rounded-lg flex items-center justify-center gap-2 whitespace-nowrap transition-colors flex-1 sm:flex-none shadow-lg shadow-amber-900/20">
-                       <Plus className="w-5 h-5" /> Nuevo Registro
-                    </button>
-                 )}
-               </div>
-            </div>
-
-            {/* 4. Tabla Interna con Scroll Independiente */}
-            <div className="flex-1 overflow-y-auto border border-zinc-800/60 rounded-lg bg-zinc-950/30 custom-scrollbar">
-               <table className="w-full text-left border-collapse relative">
-                  <thead className="sticky top-0 bg-zinc-900 border-b border-zinc-800 z-10 shadow-sm">
-                     {table.getHeaderGroups().map(hg => (
-                        <tr key={hg.id}>
-                           {hg.headers.map(header => (
-                              <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={`px-4 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider whitespace-nowrap ${header.column.getCanSort() ? 'cursor-pointer select-none hover:text-white/80' : ''}`}>
-                                 {flexRender(header.column.columnDef.header, header.getContext())}
-                              </th>
-                           ))}
-                        </tr>
-                     ))}
+            {/* Tabla + resumen + paginación */}
+            <div className="produccion-page__table-stack min-h-0 flex-1">
+              <div
+                ref={tableBodyRef}
+                className="produccion-page__table-body min-h-0 flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar"
+              >
+                <table className="w-full border-collapse text-left">
+                  <thead className="produccion-page__table-head sticky top-0 z-10 shadow-sm">
+                    {table.getHeaderGroups().map((hg) => (
+                      <tr key={hg.id}>
+                        {hg.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            onClick={header.column.getToggleSortingHandler()}
+                            className={`produccion-table-th whitespace-nowrap px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${header.column.getCanSort() ? 'cursor-pointer select-none' : ''}`}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
                   </thead>
                   <tbody>
-                     {table.getRowModel().rows.map(row => (
-                        <tr key={row.id} className="border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors">
-                           {row.getVisibleCells().map(cell => (
-                              <td key={cell.id} className="px-4 py-2.5 text-xs text-white/80 whitespace-nowrap">
-                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    {pageRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={colCount} className="py-12">
+                          <EmptyState
+                            icon={<Factory className="h-6 w-6" />}
+                            title="Día sin Producción"
+                            description="No hay reportes de amalgama ingresados para este día."
+                          />
+                        </td>
+                      </tr>
+                    ) : (
+                      <>
+                        {pageRows.map((row) => (
+                          <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                            {row.getVisibleCells().map((cell) => (
+                              <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </td>
-                           ))}
-                        </tr>
-                     ))}
-                     {table.getRowModel().rows.length === 0 && (
-                        <tr>
-                           <td colSpan={12} className="py-12">
-                              <EmptyState icon={<Factory className="w-6 h-6" />} title="Día sin Producción" description="No hay reportes de amalgama ingresados para este día." />
-                           </td>
-                        </tr>
-                     )}
+                            ))}
+                          </tr>
+                        ))}
+                        {Array.from({ length: emptyRowSlots }, (_, i) => (
+                          <tr key={`pad-${i}`} className="produccion-table-row produccion-table-row--pad border-b" aria-hidden>
+                            <td colSpan={colCount} className="px-4 py-2.5" />
+                          </tr>
+                        ))}
+                      </>
+                    )}
                   </tbody>
-               </table>
+                </table>
+              </div>
+
+              <div className="produccion-page__table-footer gastos-footer-bar flex shrink-0 items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
+                  <span className="gastos-footer-label text-[8px] uppercase tracking-wider">Resumen</span>
+                  <span className="produccion-page__footer-amount--oro text-[11px] font-bold tabular-nums">
+                    {fmtNum(tableSummary.oro)} g Au
+                  </span>
+                  <span className="gastos-footer-label text-[9px]">·</span>
+                  <span className="gastos-footer-label text-[9px] tabular-nums">
+                    {fmtNum(tableSummary.sacos)} sacos
+                  </span>
+                  <span className="gastos-footer-label text-[9px]">·</span>
+                  <span className="gastos-footer-label text-[9px] tabular-nums">
+                    {fmtNum(tableSummary.ton)} T
+                  </span>
+                  <span className="gastos-footer-label text-[9px]">· {tableSummary.count} reg.</span>
+                </div>
+                {filteredCount > 0 && (
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                      className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    {pageNumbers.map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => table.setPageIndex(page)}
+                        aria-label={`Página ${page + 1}`}
+                        aria-current={page === activePageIndex ? 'page' : undefined}
+                        className={`gastos-page-btn min-w-[1.35rem] rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
+                          page === activePageIndex ? 'gastos-page-btn--active' : ''
+                        }`}
+                      >
+                        {page + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                      className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                      aria-label="Página siguiente"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="gastos-footer-label ml-1 hidden text-[10px] tabular-nums sm:inline">
+                      {activePageIndex + 1} / {displayPageCount}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
          </div>
       </div>
 
-      {/* CRUD Modal Preserved */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm" onClick={() => { setShowModal(false); setFormError(null); }}>
-          <div className="relative w-full sm:max-w-3xl bg-zinc-950 border border-zinc-800 sm:rounded-2xl rounded-t-2xl shadow-2xl p-6 sm:p-8 max-h-[85vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
-            <div className="sm:hidden flex justify-center mb-4 -mt-1"><div className="w-8 h-1 rounded-full bg-zinc-700" /></div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-white/90">{editItem ? 'Editar Registro' : 'Nuevo Reporte de Producción'}</h2>
-              <button onClick={() => { setShowModal(false); setFormError(null); }} className="p-2 rounded-lg hover:bg-white/[0.06] text-white/40 min-h-[44px] min-w-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
+      <PageFormModal
+        open={showModal}
+        onClose={() => { setShowModal(false); setFormError(null); }}
+        panelClassName="produccion-page__modal sm:max-w-[72rem] sm:p-5"
+      >
+            <div className="mb-3 flex justify-center sm:hidden"><div className="h-1 w-8 rounded-full bg-[var(--dashboard-border)]" /></div>
+            <div className="mb-3 flex items-center justify-between sm:mb-3">
+              <h2 className="page-form-modal-title text-lg font-semibold">{editItem ? 'Editar Registro' : 'Nuevo Reporte de Producción'}</h2>
+              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="h-5 w-5" /></button>
             </div>
 
             {formError && (
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 mb-4 animate-in slide-in-from-top-2">
-                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" /><span className="text-sm text-red-400">{formError}</span>
+              <div className="mb-3 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 animate-in slide-in-from-top-2">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-400" /><span className="text-sm text-red-400">{formError}</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => handleFieldChange('fecha', e.target.value)} className="input-field min-h-[44px]" /></div>
-              <div><label className="input-label">Turno *</label>
-                <select value={form.turno} onChange={e => handleFieldChange('turno', e.target.value)} className="input-field min-h-[44px]">
-                  <option value="dia">☀ Día</option><option value="noche">🌙 Noche</option><option value="completo">🔄 Completo</option>
-                </select>
-              </div>
-              <div><label className="input-label">Molino *</label><input list="molinos-list" value={form.molino} onChange={e => handleFieldChange('molino', e.target.value)} className="input-field min-h-[44px]" placeholder="Escribir molino..." /><datalist id="molinos-list">{molinosSug.map(m => <option key={m} value={m} />)}</datalist></div>
+            <div className="produccion-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+              {/* Columna 1 — Datos del reporte */}
+              <section className="produccion-page__modal-col produccion-page__modal-col--datos flex flex-col gap-2.5">
+                <h3 className="produccion-page__modal-col-title produccion-modal-title text-sm font-semibold">Datos del reporte</h3>
+                <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => handleFieldChange('fecha', e.target.value)} className="input-field" /></div>
+                <div><label className="input-label">Turno *</label>
+                  <AppSelect value={form.turno} onChange={(v) => handleFieldChange('turno', v)} options={TURNO_OPTIONS} />
+                </div>
+                <div><label className="input-label">Molino *</label><input list="molinos-list" value={form.molino} onChange={e => handleFieldChange('molino', e.target.value)} className="input-field" placeholder="Escribir molino..." /><datalist id="molinos-list">{molinosSug.map(m => <option key={m} value={m} />)}</datalist></div>
+                <div><label className="input-label">Material / Mina de Origen *</label><input list="materiales-list" value={form.material} onChange={e => handleFieldChange('material', e.target.value)} className="input-field" placeholder="Escribir material o mina..." /><datalist id="materiales-list">{materialesSug.map(m => <option key={m} value={m} />)}</datalist></div>
+                <div><label className="input-label">Código Lote/Veta</label><input value={form.material_codigo} onChange={e => handleFieldChange('material_codigo', e.target.value)} className="input-field" placeholder="V-2D19" /></div>
+              </section>
 
-              <div className="md:col-span-2"><label className="input-label">Material / Mina de Origen *</label><input list="materiales-list" value={form.material} onChange={e => handleFieldChange('material', e.target.value)} className="input-field min-h-[44px]" placeholder="Escribir material o mina..." /><datalist id="materiales-list">{materialesSug.map(m => <option key={m} value={m} />)}</datalist></div>
-              <div><label className="input-label">Código Lote/Veta</label><input value={form.material_codigo} onChange={e => handleFieldChange('material_codigo', e.target.value)} className="input-field min-h-[44px]" placeholder="V-2D19" /></div>
+              {/* Columna 2 — Amalgamación */}
+              <section className="produccion-page__modal-col produccion-page__modal-col--amalg flex flex-col gap-2.5">
+                <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-amber-400">
+                  <span>⚗️ Amalgamación</span>
+                  <span className="h-px flex-1 bg-amber-400/20" />
+                </h3>
+                <div><label className="input-label">Amalgama 1 (g)</label><input type="number" step="0.01" value={form.amalgama_1_g} onChange={e => handleFieldChange('amalgama_1_g', e.target.value)} className="input-field" placeholder="23.00" /></div>
+                <div><label className="input-label">Amalgama 2 (g)</label><input type="number" step="0.01" value={form.amalgama_2_g} onChange={e => handleFieldChange('amalgama_2_g', e.target.value)} className="input-field" placeholder="22.90" /></div>
+                <div><label className="input-label">Oro Recuperado (g Au) *</label><input type="number" step="0.0001" value={form.oro_recuperado_g} onChange={e => handleFieldChange('oro_recuperado_g', e.target.value)} className="input-field" placeholder="10.90" required /></div>
+              <div><label className="input-label flex items-center gap-1"><Calculator className="h-3.5 w-3.5" /> Merma 1 (%)</label><input type="text" value={form.merma_1_pct ? `${form.merma_1_pct}%` : '—'} readOnly className="input-field produccion-field-readonly cursor-not-allowed" /></div>
+              <div><label className="input-label flex items-center gap-1"><Calculator className="h-3.5 w-3.5" /> Merma 2 (%)</label><input type="text" value={form.merma_2_pct ? `${form.merma_2_pct}%` : '—'} readOnly className="input-field produccion-field-readonly cursor-not-allowed" /></div>
+              </section>
 
-              <div className="md:col-span-3 mt-2"><div className="flex items-center gap-2 mb-1"><span className="text-sm font-semibold text-amber-400">⚗️ Amalgamación</span><div className="flex-1 h-px bg-amber-400/20" /></div></div>
-
-              <div><label className="input-label">Amalgama 1 (g)</label><input type="number" step="0.01" value={form.amalgama_1_g} onChange={e => handleFieldChange('amalgama_1_g', e.target.value)} className="input-field min-h-[44px]" placeholder="23.00" /></div>
-              <div><label className="input-label">Amalgama 2 (g)</label><input type="number" step="0.01" value={form.amalgama_2_g} onChange={e => handleFieldChange('amalgama_2_g', e.target.value)} className="input-field min-h-[44px]" placeholder="22.90" /></div>
-              <div className="bg-amber-500/[0.07] rounded-xl p-3 border border-amber-400/20"><label className="input-label !text-amber-400 !font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Oro Recuperado (g Au) *</label><input type="number" step="0.0001" value={form.oro_recuperado_g} onChange={e => handleFieldChange('oro_recuperado_g', e.target.value)} className="input-field text-lg font-bold min-h-[44px]" style={{ borderColor: 'rgba(217, 119, 6, 0.4)' }} placeholder="10.90" required /></div>
-
-              <div><label className="input-label flex items-center gap-1"><Calculator className="w-3.5 h-3.5" /> Merma 1 (%)</label><input type="text" value={form.merma_1_pct ? `${form.merma_1_pct}%` : '—'} readOnly className="input-field bg-slate-50 text-slate-500 cursor-not-allowed min-h-[44px]" /></div>
-              <div><label className="input-label flex items-center gap-1"><Calculator className="w-3.5 h-3.5" /> Merma 2 (%)</label><input type="text" value={form.merma_2_pct ? `${form.merma_2_pct}%` : '—'} readOnly className="input-field bg-slate-50 text-slate-500 cursor-not-allowed min-h-[44px]" /></div>
-              <div />
-
-              <div className="md:col-span-3 mt-2"><div className="flex items-center gap-2 mb-1"><span className="text-sm font-semibold text-blue-400">📦 Producción</span><div className="flex-1 h-px bg-blue-400/20" /></div></div>
-
-              <div><label className="input-label">Sacos * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label><input type="number" inputMode="decimal" value={form.sacos} onChange={e => handleFieldChange('sacos', e.target.value)} className="input-field min-h-[44px]" placeholder="39" />{parseFloat(form.sacos) > 0 && <p className="text-xs text-white/35 mt-1">{parseFloat(form.sacos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{(parseFloat(form.sacos) * PESO_SACO_KG).toFixed(1)} kg</span></p>}</div>
-              <div><label className="input-label">Ton. Procesadas <span className="text-white/30 font-normal">(auto)</span></label><input type="number" step="0.001" value={form.toneladas_procesadas} onChange={e => handleFieldChange('toneladas_procesadas', e.target.value)} className="input-field min-h-[44px]" placeholder="1.950" /></div>
-              <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => handleFieldChange('responsable', e.target.value)} className="input-field min-h-[44px]" /></div>
-
-              <div><label className="input-label flex items-center gap-1"><Calculator className="w-3.5 h-3.5" /> Tenor (g/t)</label><input type="text" value={form.tenor_tonelada_gpt || '—'} readOnly className="input-field bg-blue-500/10 border-blue-500/20 text-blue-400 font-semibold cursor-not-allowed min-h-[44px]" /></div>
-              <div><label className="input-label flex items-center gap-1"><Calculator className="w-3.5 h-3.5" /> Tenor (g/s)</label><input type="text" value={form.tenor_saco_gps || '—'} readOnly className="input-field bg-slate-50 text-blue-700 font-semibold cursor-not-allowed min-h-[44px]" /></div>
-              <div />
-
-              <div className="md:col-span-3"><label className="input-label">Observaciones</label><textarea value={form.observaciones} onChange={e => handleFieldChange('observaciones', e.target.value)} className="input-field min-h-[44px]" rows={2} /></div>
+              {/* Columna 3 — Producción */}
+              <section className="produccion-page__modal-col produccion-page__modal-col--prod flex flex-col gap-2.5">
+                <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-blue-400">
+                  <span>📦 Producción</span>
+                  <span className="h-px flex-1 bg-blue-400/20" />
+                </h3>
+                <div>
+                  <label className="input-label">Sacos * <span className="font-normal text-amber-400/70">(50 kg)</span></label>
+                  <input type="number" inputMode="decimal" value={form.sacos} onChange={e => handleFieldChange('sacos', e.target.value)} className="input-field" placeholder="39" />
+                  {parseFloat(form.sacos) > 0 && (
+                    <p className="produccion-page__sacos-hint produccion-muted mt-0.5 text-[11px]">
+                      {parseFloat(form.sacos)} sacos × 50 kg = <span className="font-semibold text-amber-400/60">{(parseFloat(form.sacos) * PESO_SACO_KG).toFixed(1)} kg</span>
+                    </p>
+                  )}
+                </div>
+                <div><label className="input-label">Ton. Procesadas <span className="produccion-muted font-normal">(auto)</span></label><input type="number" step="0.001" value={form.toneladas_procesadas} onChange={e => handleFieldChange('toneladas_procesadas', e.target.value)} className="input-field" placeholder="1.950" /></div>
+                <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => handleFieldChange('responsable', e.target.value)} className="input-field" /></div>
+                <div><label className="input-label flex items-center gap-1"><Calculator className="h-3.5 w-3.5" /> Tenor (g/t)</label><input type="text" value={form.tenor_tonelada_gpt || '—'} readOnly className="input-field produccion-field-readonly produccion-field-readonly--tenor cursor-not-allowed font-semibold" /></div>
+                <div><label className="input-label flex items-center gap-1"><Calculator className="h-3.5 w-3.5" /> Tenor (g/s)</label><input type="text" value={form.tenor_saco_gps || '—'} readOnly className="input-field produccion-field-readonly produccion-field-readonly--accent cursor-not-allowed font-semibold" /></div>
+              </section>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-6 pt-4 border-t border-zinc-800">
-              <button onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">Cancelar</button>
-              <button onClick={handleSave} disabled={isPending || !form.molino || !form.material || !form.oro_recuperado_g} className="btn-primary min-h-[48px] sm:min-h-[40px]">
+            <PageFormModalFooter className="produccion-page__modal-footer flex-col-reverse sm:flex-row">
+              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={isPending || !form.molino || !form.material || !form.oro_recuperado_g} className="btn-primary min-h-[48px] sm:min-h-[40px]">
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 {editItem ? 'Actualizar' : 'Registrar Producción'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </PageFormModalFooter>
+      </PageFormModal>
 
     </div>
   );

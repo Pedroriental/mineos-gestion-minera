@@ -1,12 +1,28 @@
 'use client';
 
-import { useState, useTransition, useMemo, useEffect } from 'react';
+import { useState, useTransition, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { createExtraccion, updateExtraccion, deleteExtraccion } from '@/lib/actions/extraccion';
 import type { ReporteExtraccion, EventoExtraccion } from '@/lib/types';
-import { Loader2, Pickaxe, Plus, X, Download, AlertCircle, Search, Package, Zap, Clock, BarChart3, BookOpen } from 'lucide-react';
-import Link from 'next/link';
+import {
+  Loader2, Pickaxe, Plus, X, Download, AlertCircle, Search, Package, Zap, Clock, BarChart3,
+  ChevronLeft, ChevronRight,
+} from 'lucide-react';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+
+const TURNO_OPTIONS = [
+  { value: 'dia', label: '☀ Día' },
+  { value: 'noche', label: '🌙 Noche' },
+  { value: 'completo', label: '🔄 Completo' },
+];
+const VERTICAL_OPTIONS = [
+  { value: '', label: '— Sin especificar —' },
+  { value: 'Vertical 1', label: 'Vertical 1' },
+  { value: 'Vertical 2', label: 'Vertical 2' },
+  { value: 'Vertical 3', label: 'Vertical 3' },
+];
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -17,11 +33,18 @@ import {
   flexRender,
   SortingState,
 } from '@tanstack/react-table';
-import { columns } from './columns';
+import { columns, bitacoraColumns, type BitacoraEntry } from './columns';
 import { FadeIn } from '@/components/ui/motion';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
+
+const fmtNum = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
+
+const EXTRACCION_PAGE_MAX = 12;
+const EXTRACCION_PAGE_BUTTONS_MAX = 5;
+const EXTRACCION_ROW_MIN_PX = 40;
+const EXTRACCION_HEAD_FALLBACK_PX = 40;
 
 // ═══════════════════════════════════════════════════════════
 // CUSTOM TOOLTIP FOR RECHARTS
@@ -29,7 +52,7 @@ import {
 function CustomTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-zinc-950/95 border border-zinc-800 p-2 rounded-lg shadow-xl backdrop-blur-md">
+      <div className="app-chart-tooltip p-2 rounded-lg shadow-xl backdrop-blur-md">
         <p className="text-white/60 text-[10px] font-mono mb-1">{label}</p>
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex items-center gap-2 mb-0.5">
@@ -69,8 +92,13 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   const [selectedDate, setSelectedDate] = useState(selectedDateStr);
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
-  
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: EXTRACCION_PAGE_MAX });
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+
   const [showModal, setShowModal] = useState(false);
+  const [showBitacoraModal, setShowBitacoraModal] = useState(false);
+  const [bitacoraPagination, setBitacoraPagination] = useState({ pageIndex: 0, pageSize: EXTRACCION_PAGE_MAX });
+  const bitacoraTableBodyRef = useRef<HTMLDivElement>(null);
   const [editItem, setEditItem] = useState<ReporteExtraccion | null>(null);
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
@@ -93,18 +121,17 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   const [form, setForm] = useState(emptyForm);
   const [eventos, setEventos] = useState<EventoExtraccion[]>([]);
 
-  // 1. Selector Inteligente: Días con Registros
+  // 1. Días con registros (más reciente → más antiguo)
   const diasConRegistros = useMemo(() => {
-     return data.diaria.filter(dia => {
-        return initialData.some(r => r.fecha === dia.fecha);
-     });
+    return data.diaria
+      .filter((dia) => initialData.some((r) => r.fecha === dia.fecha))
+      .sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [data.diaria, initialData]);
 
-  // Si selectedDateStr no tiene registros, forzamos a seleccionar el último día con registros
   useEffect(() => {
-     if (diasConRegistros.length > 0 && !initialData.some(r => r.fecha === selectedDate)) {
-        setSelectedDate(diasConRegistros[diasConRegistros.length - 1].fecha);
-     }
+    if (diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+      setSelectedDate(diasConRegistros[0].fecha);
+    }
   }, [diasConRegistros, initialData, selectedDate]);
 
   // 2. Filtrado para Vista Diaria (Tabla)
@@ -121,15 +148,172 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
       (id) => handleDelete(id),
       canEdit
     ),
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, pagination },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 50 } },
   });
+
+  const syncTableLayout = useCallback(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const headH = el.querySelector('thead')?.getBoundingClientRect().height ?? EXTRACCION_HEAD_FALLBACK_PX;
+    const bodyAvailable = el.clientHeight - headH;
+    const pageRows = Math.min(
+      EXTRACCION_PAGE_MAX,
+      Math.max(1, Math.floor(bodyAvailable / EXTRACCION_ROW_MIN_PX)),
+    );
+    setPagination((prev) => (prev.pageSize === pageRows ? prev : { ...prev, pageSize: pageRows }));
+  }, []);
+
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const pageCount = table.getPageCount();
+  const displayPageCount = Math.max(1, pageCount);
+  const pageIndex = Math.min(pagination.pageIndex, Math.max(0, displayPageCount - 1));
+  const activePageIndex = filteredCount === 0 ? 0 : pageIndex;
+  const pageWindowStart =
+    Math.floor(activePageIndex / EXTRACCION_PAGE_BUTTONS_MAX) * EXTRACCION_PAGE_BUTTONS_MAX;
+  const pageNumbers = useMemo(() => {
+    const len = Math.min(EXTRACCION_PAGE_BUTTONS_MAX, Math.max(0, displayPageCount - pageWindowStart));
+    if (len === 0) return [0];
+    return Array.from({ length: len }, (_, i) => pageWindowStart + i);
+  }, [displayPageCount, pageWindowStart]);
+
+  const tableSummary = useMemo(() => {
+    const rows = table.getFilteredRowModel().rows;
+    return {
+      sacos: rows.reduce((s, r) => s + (Number(r.original.sacos_extraidos) || 0), 0),
+      disparos: rows.filter((r) => r.original.numero_disparo).length,
+      eventos: rows.reduce((s, r) => s + (r.original.eventos?.length || 0), 0),
+      count: rows.length,
+    };
+  }, [filteredCount, globalFilter, filteredRegistros, sorting, pagination.pageIndex]);
+
+  const pageRows = table.getPaginationRowModel().rows;
+  const colCount = table.getAllLeafColumns().length;
+
+  const bitacoraEntries = useMemo(() => {
+    const turnoLabel = (t: string) =>
+      t === 'dia' ? 'Día' : t === 'noche' ? 'Noche' : 'Completo';
+    const entries: BitacoraEntry[] = [];
+
+    for (const reporte of initialData) {
+      for (const [idx, ev] of (reporte.eventos ?? []).entries()) {
+        if (!ev.hora?.trim() && !ev.descripcion?.trim()) continue;
+        entries.push({
+          id: `${reporte.id}-${idx}`,
+          reporteId: reporte.id,
+          fecha: reporte.fecha,
+          turno: turnoLabel(reporte.turno),
+          vertical: reporte.vertical || '—',
+          mina: reporte.mina || '—',
+          hora: ev.hora || '—',
+          descripcion: ev.descripcion?.trim() || '—',
+        });
+      }
+    }
+
+    return entries.sort((a, b) => {
+      const byDate = b.fecha.localeCompare(a.fecha);
+      if (byDate !== 0) return byDate;
+      return b.hora.localeCompare(a.hora);
+    });
+  }, [initialData]);
+
+  const bitacoraTable = useReactTable({
+    data: bitacoraEntries,
+    columns: bitacoraColumns,
+    state: { pagination: bitacoraPagination },
+    onPaginationChange: setBitacoraPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  const syncBitacoraLayout = useCallback(() => {
+    const el = bitacoraTableBodyRef.current;
+    if (!el) return;
+    const headH = el.querySelector('thead')?.getBoundingClientRect().height ?? EXTRACCION_HEAD_FALLBACK_PX;
+    const bodyAvailable = el.clientHeight - headH;
+    const pageRows = Math.min(
+      EXTRACCION_PAGE_MAX,
+      Math.max(1, Math.floor(bodyAvailable / EXTRACCION_ROW_MIN_PX)),
+    );
+    setBitacoraPagination((prev) => (prev.pageSize === pageRows ? prev : { ...prev, pageSize: pageRows }));
+  }, []);
+
+  const bitacoraCount = bitacoraEntries.length;
+  const bitacoraPageCount = bitacoraTable.getPageCount();
+  const bitacoraDisplayPageCount = Math.max(1, bitacoraPageCount);
+  const bitacoraPageIndex = Math.min(bitacoraPagination.pageIndex, Math.max(0, bitacoraDisplayPageCount - 1));
+  const bitacoraActivePageIndex = bitacoraCount === 0 ? 0 : bitacoraPageIndex;
+  const bitacoraPageWindowStart =
+    Math.floor(bitacoraActivePageIndex / EXTRACCION_PAGE_BUTTONS_MAX) * EXTRACCION_PAGE_BUTTONS_MAX;
+  const bitacoraPageNumbers = useMemo(() => {
+    const len = Math.min(EXTRACCION_PAGE_BUTTONS_MAX, Math.max(0, bitacoraDisplayPageCount - bitacoraPageWindowStart));
+    if (len === 0) return [0];
+    return Array.from({ length: len }, (_, i) => bitacoraPageWindowStart + i);
+  }, [bitacoraDisplayPageCount, bitacoraPageWindowStart]);
+
+  const bitacoraSummary = useMemo(() => {
+    const fechas = new Set(bitacoraEntries.map((e) => e.fecha));
+    return {
+      total: bitacoraEntries.length,
+      fechas: fechas.size,
+      dia: bitacoraEntries.filter((e) => e.turno === 'Día').length,
+      noche: bitacoraEntries.filter((e) => e.turno === 'Noche').length,
+      reportes: new Set(bitacoraEntries.map((e) => e.reporteId)).size,
+    };
+  }, [bitacoraEntries]);
+
+  const bitacoraPageRows = bitacoraTable.getPaginationRowModel().rows;
+
+  useEffect(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const run = () => syncTableLayout();
+    run();
+    const ro = new ResizeObserver(run);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncTableLayout, filteredRegistros.length]);
+
+  useEffect(() => {
+    if (!showBitacoraModal) return;
+    setBitacoraPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [showBitacoraModal]);
+
+  useEffect(() => {
+    if (!showBitacoraModal) return;
+    const el = bitacoraTableBodyRef.current;
+    if (!el) return;
+    const run = () => syncBitacoraLayout();
+    run();
+    const ro = new ResizeObserver(run);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showBitacoraModal, syncBitacoraLayout, bitacoraEntries.length]);
+
+  useEffect(() => {
+    const maxIndex = Math.max(0, bitacoraDisplayPageCount - 1);
+    if (bitacoraPagination.pageIndex > maxIndex) {
+      setBitacoraPagination((p) => ({ ...p, pageIndex: maxIndex }));
+    }
+  }, [bitacoraDisplayPageCount, bitacoraPagination.pageIndex]);
+
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [selectedDate, globalFilter]);
+
+  useEffect(() => {
+    const maxIndex = Math.max(0, displayPageCount - 1);
+    if (pagination.pageIndex > maxIndex) {
+      setPagination((p) => ({ ...p, pageIndex: maxIndex }));
+    }
+  }, [displayPageCount, pagination.pageIndex]);
 
   // Manejo de Modal y Eventos
   const addEvento = () => setEventos(e => [...e, { hora: '', descripcion: '' }]);
@@ -308,68 +492,96 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   };
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col overflow-hidden">
-      
-      {/* ── Header Fijo ── */}
-      <FadeIn className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Pickaxe className="w-6 h-6 text-amber-500" /> Extracción Gerencial
-          </h1>
-          <p className="text-white/40 text-sm mt-1">
-            Centro de Mando Operativo y Logística de Mina.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/operaciones/resumen" className="btn-secondary h-10 px-4 flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
-            <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Resumen Ejecutivo</span>
-          </Link>
+    <div className="extraccion-page produccion-page flex min-h-0 w-full max-w-[1600px] mx-auto flex-1 flex-col overflow-hidden">
+
+      <FadeIn className="produccion-page__toolbar shrink-0">
+        <div className="produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+          <div className="produccion-page__toolbar-search min-w-0 lg:col-span-5">
+            <div className="produccion-page__search produccion-surface produccion-surface--input flex w-full min-w-0 items-center rounded-lg px-3 py-2">
+              <Search className="produccion-icon-muted mr-2 h-4 w-4 shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar por vertical, mina o disparo..."
+                value={globalFilter ?? ''}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="produccion-search-input w-full min-w-0 border-none bg-transparent text-sm outline-none"
+              />
+            </div>
+          </div>
+          <div className="produccion-page__toolbar-actions flex min-w-0 flex-wrap items-stretch gap-2 sm:flex-nowrap lg:col-span-7">
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              disabled={filteredCount === 0 || isExporting}
+              className="produccion-page__toolbar-btn btn-secondary flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-xs disabled:opacity-40"
+              title="Exportar PDF"
+            >
+              {isExporting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Download className="h-3.5 w-3.5 shrink-0" />}
+              <span className="truncate">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
+            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={openNew}
+                className="produccion-page__toolbar-btn flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-amber-600 px-3 font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="truncate">Nuevo Registro</span>
+              </button>
+            )}
+          </div>
         </div>
       </FadeIn>
 
-      {/* ── Split Screen Layout (Grid 12) ── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-         
-         {/* PANEL IZQUIERDO (BI y KPIs) */}
-         <div className="lg:col-span-4 flex flex-col gap-4 overflow-y-auto lg:overflow-hidden pr-1">
-            
-            {/* KPI Grid 2x2 */}
-            <div className="grid grid-cols-2 gap-3 flex-shrink-0">
-               <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 relative overflow-hidden flex flex-col justify-between">
-                  <div className="flex items-center justify-between mb-2">
-                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Sacos Totales</span>
-                     <Package className="w-4 h-4 text-amber-500/50" />
-                  </div>
-                  <span className="text-3xl font-black text-amber-500">{data.kpis.totalSacos.toLocaleString()}</span>
-               </div>
-               
-               <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 relative overflow-hidden flex flex-col justify-between">
-                  <div className="flex items-center justify-between mb-2">
-                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Disparos</span>
-                     <Zap className="w-4 h-4 text-blue-500/50" />
-                  </div>
-                  <span className="text-3xl font-black text-blue-400">{data.kpis.totalDisparos.toLocaleString()}</span>
-               </div>
+      <div className="produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-4">
 
-               <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 relative overflow-hidden flex flex-col justify-between col-span-2">
-                  <div className="flex items-center justify-between mb-2">
-                     <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Eventos en Bitácora</span>
-                     <Clock className="w-4 h-4 text-emerald-500/50" />
+         <div className="produccion-page__aside flex min-h-0 flex-col gap-3 overflow-y-auto lg:col-span-5 lg:h-full lg:overflow-hidden">
+
+            <div className="grid flex-shrink-0 grid-cols-2 gap-3.5">
+               <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--amber" aria-hidden />
+                  <div className="relative mb-2 flex items-center justify-between">
+                     <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Sacos Totales</span>
+                     <Package className="h-4 w-4 text-amber-500/50" />
                   </div>
-                  <span className="text-3xl font-black text-emerald-400">{data.kpis.totalEventos.toLocaleString()}</span>
+                  <span className="gerencial-kpi-value gerencial-kpi-value--amber relative text-2xl font-black">{fmtNum(data.kpis.totalSacos)}</span>
+               </div>
+               <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--blue" aria-hidden />
+                  <div className="relative mb-2 flex items-center justify-between">
+                     <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Disparos</span>
+                     <Zap className="h-4 w-4 text-blue-500/50" />
+                  </div>
+                  <span className="gerencial-kpi-value gerencial-kpi-value--blue relative text-2xl font-black">{fmtNum(data.kpis.totalDisparos)}</span>
+               </div>
+               <div className="produccion-surface gerencial-kpi-card col-span-2 flex flex-col gap-3 rounded-xl p-4">
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--emerald" aria-hidden />
+                  <div className="relative flex items-start justify-between gap-2">
+                     <div>
+                        <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Eventos en Bitácora</span>
+                        <span className="gerencial-kpi-value gerencial-kpi-value--emerald mt-1 block text-2xl font-black">{fmtNum(data.kpis.totalEventos)}</span>
+                     </div>
+                     <Clock className="h-4 w-4 shrink-0 text-emerald-500/50" />
+                  </div>
+                  <button
+                     type="button"
+                     onClick={() => setShowBitacoraModal(true)}
+                     className="btn-secondary h-8 w-full text-xs"
+                  >
+                     Ver Bitácora
+                  </button>
                </div>
             </div>
 
-            {/* Gráfico de Barras */}
-            <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-4 flex-1 flex flex-col min-h-[220px]">
-               <h2 className="text-white/80 font-bold text-sm mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-amber-500" /> Sacos Extraídos por Día
+            <div className="produccion-page__chart produccion-surface flex min-h-0 flex-1 flex-col rounded-xl p-4">
+               <h2 className="produccion-section-title mb-4 flex items-center gap-2 text-sm font-bold">
+                  <BarChart3 className="h-4 w-4 text-amber-500" /> Sacos Extraídos por Día
                </h2>
-               <div className="flex-1 w-full relative">
+               <div className="relative w-full flex-1">
                   <ResponsiveContainer width="100%" height="100%" className="absolute inset-0">
                      <BarChart data={data.diaria} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                        <XAxis dataKey="fecha" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} 
+                        <XAxis dataKey="fecha" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false}
                                tickFormatter={(val) => {
                                   const d = new Date(val + 'T12:00:00');
                                   return `${d.getDate()}`;
@@ -384,114 +596,273 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
          </div>
 
-         {/* PANEL DERECHO (Operativo / Tabla) */}
-         <div className="lg:col-span-8 flex flex-col overflow-hidden bg-zinc-900/60 rounded-xl border border-zinc-800/80 p-4">
-            
-            {/* 1. Selector de Días Inteligente */}
-            <div className="flex-shrink-0 flex items-center gap-2 overflow-x-auto pb-3 scrollbar-hide snap-x w-full">
+         <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-7 lg:h-full lg:pl-5">
+
+            <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 scrollbar-hide snap-x w-full">
                {diasConRegistros.length === 0 && (
-                  <div className="text-xs text-white/40 italic">No hay registros en este período.</div>
+                  <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
                )}
                {diasConRegistros.map((dia) => {
                  const d = new Date(dia.fecha + 'T12:00:00');
                  const isSelected = selectedDate === dia.fecha;
                  const dRegs = initialData.filter(r => r.fecha === dia.fecha).length;
-                 
                  return (
-                   <button 
-                     key={dia.fecha} 
+                   <button
+                     key={dia.fecha}
+                     type="button"
                      onClick={() => setSelectedDate(dia.fecha)}
-                     className={`snap-center flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs transition-all ${isSelected ? 'bg-amber-500 border-amber-500 text-black font-bold' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'}`}
+                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
                    >
                      <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
-                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : 'bg-zinc-800 text-white/60'}`}>{dRegs}</span>
+                     <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>{dRegs}</span>
                    </button>
-                 )
+                 );
                })}
             </div>
 
-            {/* 2. Mini KPIs Diarios */}
-            <div className="flex-shrink-0 grid grid-cols-3 gap-2 mb-4">
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5">
-                 <span className="text-[9px] uppercase font-bold text-zinc-500 block leading-tight">Sacos Día</span>
-                 <span className="text-lg font-bold text-amber-500 leading-tight">{diaSacos.toLocaleString()}</span>
+            <div className="produccion-page__day-kpis mb-4 grid shrink-0 grid-cols-3 gap-3">
+              <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Sacos Día</span>
+                 <span className="text-sm font-bold leading-tight text-amber-500">{fmtNum(diaSacos)}</span>
               </div>
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5">
-                 <span className="text-[9px] uppercase font-bold text-zinc-500 block leading-tight">Disparos Día</span>
-                 <span className="text-lg font-bold text-blue-400 leading-tight">{diaDisparos}</span>
+              <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Disparos Día</span>
+                 <span className="text-sm font-bold leading-tight text-blue-400">{diaDisparos}</span>
               </div>
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5">
-                 <span className="text-[9px] uppercase font-bold text-zinc-500 block leading-tight">Registros</span>
-                 <span className="text-lg font-bold text-white leading-tight">{filteredRegistros.length}</span>
+              <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Registros</span>
+                 <span className="produccion-kpi-value text-sm font-bold leading-tight">{filteredRegistros.length}</span>
               </div>
             </div>
 
-            {/* 3. Header de la Tabla (Action Bar) */}
-            <div className="flex-shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 mb-3">
-               <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 w-full flex-1">
-                 <Search className="w-4 h-4 text-white/40 mr-2" />
-                 <input type="text" placeholder="Buscar por vertical o mina..." value={globalFilter ?? ''} onChange={(e) => setGlobalFilter(e.target.value)}
-                   className="bg-transparent border-none outline-none text-sm text-white/90 placeholder:text-white/30 w-full" />
-               </div>
-               <div className="flex items-center gap-3 w-full sm:w-auto">
-                 <button onClick={handleExportPDF} disabled={table.getFilteredRowModel().rows.length === 0 || isExporting}
-                   className="btn-secondary h-10 px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap flex-1 sm:flex-none">
-                   {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                   <span className="hidden sm:inline">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
-                 </button>
-                 {canEdit && (
-                    <button onClick={openNew} 
-                       className="bg-amber-600 hover:bg-amber-500 text-black font-bold h-10 px-4 rounded-lg flex items-center justify-center gap-2 whitespace-nowrap transition-colors flex-1 sm:flex-none shadow-lg shadow-amber-900/20">
-                       <Plus className="w-5 h-5" /> Nuevo Registro
-                    </button>
-                 )}
-               </div>
-            </div>
-
-            {/* 4. Tabla Interna con Scroll Independiente */}
-            <div className="flex-1 overflow-y-auto border border-zinc-800/60 rounded-lg bg-zinc-950/30 custom-scrollbar">
-               <table className="w-full text-left border-collapse relative">
-                  <thead className="sticky top-0 bg-zinc-900 border-b border-zinc-800 z-10 shadow-sm">
-                     {table.getHeaderGroups().map(hg => (
-                        <tr key={hg.id}>
-                           {hg.headers.map(header => (
-                              <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={`px-4 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider whitespace-nowrap ${header.column.getCanSort() ? 'cursor-pointer select-none hover:text-white/80' : ''}`}>
-                                 {flexRender(header.column.columnDef.header, header.getContext())}
-                              </th>
-                           ))}
-                        </tr>
-                     ))}
+            <div className="produccion-page__table-stack min-h-0 flex-1">
+              <div
+                ref={tableBodyRef}
+                className="produccion-page__table-body min-h-0 flex-1 overflow-x-auto overflow-y-auto custom-scrollbar"
+              >
+                <table className="w-full border-collapse text-left">
+                  <thead className="produccion-page__table-head sticky top-0 z-10 shadow-sm">
+                    {table.getHeaderGroups().map((hg) => (
+                      <tr key={hg.id}>
+                        {hg.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            onClick={header.column.getToggleSortingHandler()}
+                            className={`produccion-table-th whitespace-nowrap px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${header.column.getCanSort() ? 'cursor-pointer select-none' : ''}`}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
                   </thead>
                   <tbody>
-                     {table.getRowModel().rows.map(row => (
-                        <tr key={row.id} className="border-b border-zinc-800/30 hover:bg-zinc-800/40 transition-colors">
-                           {row.getVisibleCells().map(cell => (
-                              <td key={cell.id} className="px-4 py-2.5 text-xs text-white/80 whitespace-nowrap">
-                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                              </td>
-                           ))}
+                    {pageRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={colCount} className="py-12">
+                          <EmptyState
+                            icon={<Pickaxe className="h-6 w-6" />}
+                            title="Día sin Extracción"
+                            description="No hay reportes de extracción ingresados para este día."
+                          />
+                        </td>
+                      </tr>
+                    ) : (
+                      pageRows.map((row) => (
+                        <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                          {row.getVisibleCells().map((cell) => (
+                            <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
                         </tr>
-                     ))}
-                     {table.getRowModel().rows.length === 0 && (
-                        <tr>
-                           <td colSpan={10} className="py-12">
-                              <EmptyState icon={<Pickaxe className="w-6 h-6" />} title="Día sin Extracción" description="No hay reportes de extracción ingresados para este día." />
-                           </td>
-                        </tr>
-                     )}
+                      ))
+                    )}
                   </tbody>
-               </table>
+                </table>
+              </div>
+
+              <div className="produccion-page__table-footer gastos-footer-bar flex shrink-0 items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
+                  <span className="gastos-footer-label text-[8px] uppercase tracking-wider">Resumen</span>
+                  <span className="produccion-page__footer-amount text-[11px] font-bold tabular-nums">
+                    {fmtNum(tableSummary.sacos)} sacos
+                  </span>
+                  <span className="gastos-footer-label text-[9px]">·</span>
+                  <span className="gastos-footer-label text-[9px] tabular-nums">{tableSummary.disparos} disparos</span>
+                  <span className="gastos-footer-label text-[9px]">·</span>
+                  <span className="gastos-footer-label text-[9px] tabular-nums">{tableSummary.eventos} eventos</span>
+                  <span className="gastos-footer-label text-[9px]">· {tableSummary.count} reg.</span>
+                </div>
+                {filteredCount > 0 && (
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                      className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    {pageNumbers.map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => table.setPageIndex(page)}
+                        aria-label={`Página ${page + 1}`}
+                        aria-current={page === activePageIndex ? 'page' : undefined}
+                        className={`gastos-page-btn min-w-[1.35rem] rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
+                          page === activePageIndex ? 'gastos-page-btn--active' : ''
+                        }`}
+                      >
+                        {page + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                      className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                      aria-label="Página siguiente"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="gastos-footer-label ml-1 hidden text-[10px] tabular-nums sm:inline">
+                      {activePageIndex + 1} / {displayPageCount}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
          </div>
       </div>
 
-      {/* CRUD Modal Preserved */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
-          <div className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+      <PageFormModal open={showBitacoraModal} onClose={() => setShowBitacoraModal(false)} panelClassName="sm:max-w-4xl">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="page-form-modal-title text-lg font-semibold">Bitácora de Eventos</h2>
+          <button
+            type="button"
+            onClick={() => setShowBitacoraModal(false)}
+            className="rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"
+            aria-label="Cerrar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {bitacoraCount === 0 ? (
+          <EmptyState
+            icon={<Clock className="h-6 w-6" />}
+            title="Sin eventos en bitácora"
+            description="Los eventos se registran al crear o editar un reporte de extracción con Nuevo Registro."
+          />
+        ) : (
+          <div
+            className="produccion-page__table-stack mb-4 flex min-h-0 flex-col overflow-hidden"
+            style={{ height: 'min(55vh, 26rem)' }}
+          >
+            <div
+              ref={bitacoraTableBodyRef}
+              className="produccion-page__table-body min-h-0 flex-1 overflow-x-auto overflow-y-auto custom-scrollbar"
+            >
+              <table className="w-full border-collapse text-left">
+                <thead className="produccion-page__table-head sticky top-0 z-10 shadow-sm">
+                  {bitacoraTable.getHeaderGroups().map((hg) => (
+                    <tr key={hg.id}>
+                      {hg.headers.map((header) => (
+                        <th
+                          key={header.id}
+                          className="produccion-table-th whitespace-nowrap px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {bitacoraPageRows.map((row) => (
+                    <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="produccion-page__table-footer gastos-footer-bar flex shrink-0 items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
+                <span className="gastos-footer-label text-[8px] uppercase tracking-wider">Resumen</span>
+                <span className="produccion-page__footer-amount text-[11px] font-bold tabular-nums">
+                  {fmtNum(bitacoraSummary.total)} eventos
+                </span>
+                <span className="gastos-footer-label text-[9px]">·</span>
+                <span className="gastos-footer-label text-[9px] tabular-nums">{bitacoraSummary.fechas} fechas</span>
+                <span className="gastos-footer-label text-[9px]">·</span>
+                <span className="gastos-footer-label text-[9px] tabular-nums">{bitacoraSummary.dia} día</span>
+                <span className="gastos-footer-label text-[9px]">·</span>
+                <span className="gastos-footer-label text-[9px] tabular-nums">{bitacoraSummary.noche} noche</span>
+                <span className="gastos-footer-label text-[9px]">· {bitacoraSummary.reportes} reg.</span>
+              </div>
+              {bitacoraCount > 0 && (
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => bitacoraTable.previousPage()}
+                    disabled={!bitacoraTable.getCanPreviousPage()}
+                    className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                    aria-label="Página anterior"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  {bitacoraPageNumbers.map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => bitacoraTable.setPageIndex(page)}
+                      aria-label={`Página ${page + 1}`}
+                      aria-current={page === bitacoraActivePageIndex ? 'page' : undefined}
+                      className={`gastos-page-btn min-w-[1.35rem] rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
+                        page === bitacoraActivePageIndex ? 'gastos-page-btn--active' : ''
+                      }`}
+                    >
+                      {page + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => bitacoraTable.nextPage()}
+                    disabled={!bitacoraTable.getCanNextPage()}
+                    className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                    aria-label="Página siguiente"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="gastos-footer-label ml-1 hidden text-[10px] tabular-nums sm:inline">
+                    {bitacoraActivePageIndex + 1} / {bitacoraDisplayPageCount}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <PageFormModalFooter>
+          <button type="button" onClick={() => setShowBitacoraModal(false)} className="btn-secondary">
+            Cerrar
+          </button>
+        </PageFormModalFooter>
+      </PageFormModal>
+
+      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="extraccion-page__modal sm:max-w-[72rem] sm:p-5">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-white/90">{editItem ? 'Editar Reporte' : 'Nuevo Reporte de Extracción'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title text-lg font-semibold">{editItem ? 'Editar Reporte' : 'Nuevo Reporte de Extracción'}</h2>
+              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg p-1.5 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
 
             {formError && (
@@ -500,105 +871,85 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
               </div>
             )}
 
-            <div className="space-y-6">
-              {/* Identificación */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-semibold text-amber-400">📍 Identificación</span>
-                  <div className="flex-1 h-px bg-amber-400/20" />
+            <div className="extraccion-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+              <section className="extraccion-page__modal-col flex flex-col gap-2.5">
+                <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-amber-400">
+                  <span>📍 Identificación</span>
+                  <span className="h-px flex-1 bg-amber-400/20" />
+                </h3>
+                <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => setFormField('fecha', e.target.value)} className="input-field" /></div>
+                <div><label className="input-label">Turno *</label>
+                  <AppSelect value={form.turno} onChange={(v) => setFormField('turno', v)} options={TURNO_OPTIONS} />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => setFormField('fecha', e.target.value)} className="input-field" /></div>
-                  <div><label className="input-label">Turno *</label>
-                    <select value={form.turno} onChange={e => setFormField('turno', e.target.value)} className="input-field">
-                      <option value="dia">☀ Día</option>
-                      <option value="noche">🌙 Noche</option>
-                      <option value="completo">🔄 Completo</option>
-                    </select>
-                  </div>
-                  <div><label className="input-label">Vertical</label>
-                    <select value={form.vertical} onChange={e => setFormField('vertical', e.target.value)} className="input-field">
-                      <option value="">— Sin especificar —</option>
-                      <option value="Vertical 1">Vertical 1</option>
-                      <option value="Vertical 2">Vertical 2</option>
-                      <option value="Vertical 3">Vertical 3</option>
-                    </select>
-                  </div>
-                  <div><label className="input-label">Mina</label><input value={form.mina} onChange={e => setFormField('mina', e.target.value)} placeholder="Ej: Belén 2" className="input-field" /></div>
+                <div><label className="input-label">Vertical</label>
+                  <AppSelect value={form.vertical} onChange={(v) => setFormField('vertical', v)} options={VERTICAL_OPTIONS} placeholder="— Sin especificar —" />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                  <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => setFormField('responsable', e.target.value)} className="input-field" /></div>
-                  <div><label className="input-label">Hora Inicio</label><input type="time" value={form.hora_inicio} onChange={e => setFormField('hora_inicio', e.target.value)} className="input-field" /></div>
-                  <div><label className="input-label">Hora Culmina</label><input type="time" value={form.hora_fin} onChange={e => setFormField('hora_fin', e.target.value)} className="input-field" /></div>
-                </div>
-              </div>
+                <div><label className="input-label">Mina</label><input value={form.mina} onChange={e => setFormField('mina', e.target.value)} placeholder="Ej: Belén 2" className="input-field" /></div>
+                <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => setFormField('responsable', e.target.value)} className="input-field" /></div>
+                <div><label className="input-label">Hora Inicio</label><input type="time" value={form.hora_inicio} onChange={e => setFormField('hora_inicio', e.target.value)} className="input-field" /></div>
+                <div><label className="input-label">Hora Culmina</label><input type="time" value={form.hora_fin} onChange={e => setFormField('hora_fin', e.target.value)} className="input-field" /></div>
+              </section>
 
-              {/* Eventos */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-semibold text-blue-400">📋 Bitácora de Eventos</span>
-                  <div className="flex-1 h-px bg-blue-400/20" />
-                  <button type="button" onClick={addEvento} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors border border-blue-400/20">
-                    <Plus className="w-3.5 h-3.5" /> Agregar evento
+              <section className="extraccion-page__modal-col flex flex-col gap-2.5">
+                <div className="flex items-center gap-2">
+                  <h3 className="produccion-page__modal-col-title flex flex-1 items-center gap-2 text-sm font-semibold text-blue-400">
+                    <span>📋 Eventos</span>
+                    <span className="h-px flex-1 bg-blue-400/20" />
+                  </h3>
+                  <button type="button" onClick={addEvento} className="flex shrink-0 items-center gap-1 rounded-lg border border-blue-400/20 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-400 transition-colors hover:bg-blue-500/20">
+                    <Plus className="h-3.5 w-3.5" /> Agregar
                   </button>
                 </div>
-                {eventos.length === 0 && <p className="text-xs text-white/25 italic">Sin eventos. Agrega los hitos del turno.</p>}
-                <div className="space-y-2">
-                  {eventos.map((ev, i) => (
-                    <div key={i} className="grid grid-cols-[120px_1fr_auto] gap-2 items-start p-3 bg-blue-500/[0.05] rounded-xl border border-blue-400/15">
-                      <div>
-                        <label className="input-label !text-blue-400/70 !text-[10px]">Hora</label>
-                        <input type="time" value={ev.hora} onChange={e => updateEvento(i, 'hora', e.target.value)} className="input-field !py-1.5" />
+                {eventos.length === 0 ? (
+                  <p className="produccion-muted text-xs italic">Sin eventos. Agrega los hitos del turno.</p>
+                ) : (
+                  <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5">
+                    {eventos.map((ev, i) => (
+                      <div key={i} className="grid grid-cols-[minmax(0,5.5rem)_1fr_auto] gap-2 rounded-xl border border-blue-400/15 bg-blue-500/[0.05] p-3">
+                        <div>
+                          <label className="input-label !text-[10px] !text-blue-400/70">Hora</label>
+                          <input type="time" value={ev.hora} onChange={e => updateEvento(i, 'hora', e.target.value)} className="input-field !py-1.5" />
+                        </div>
+                        <div>
+                          <label className="input-label !text-[10px] !text-blue-400/70">Descripción</label>
+                          <input value={ev.descripcion} onChange={e => updateEvento(i, 'descripcion', e.target.value)}
+                            placeholder="Ej: SE EMPIEZA SACAR MATERIAL A SACOS" className="input-field !py-1.5" />
+                        </div>
+                        <button type="button" onClick={() => removeEvento(i)} className="mt-5 rounded-lg p-1.5 text-[var(--dashboard-text-muted)] transition-colors hover:bg-red-500/15 hover:text-red-400">
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
-                      <div>
-                        <label className="input-label !text-blue-400/70 !text-[10px]">Descripción</label>
-                        <input value={ev.descripcion} onChange={e => updateEvento(i, 'descripcion', e.target.value)}
-                          placeholder="Ej: SE EMPIEZA SACAR MATERIAL A SACOS" className="input-field !py-1.5" />
-                      </div>
-                      <button type="button" onClick={() => removeEvento(i)} className="mt-5 p-1.5 rounded-lg hover:bg-red-500/15 text-white/30 hover:text-red-400 transition-colors">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Producción */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-semibold text-emerald-400">📦 Producción del Turno</span>
-                  <div className="flex-1 h-px bg-emerald-400/20" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-amber-500/[0.07] rounded-xl p-3 border border-amber-400/20">
-                    <label className="input-label !text-amber-400 !font-semibold">Sacos Extraídos *</label>
-                    <input type="number" value={form.sacos_extraidos} onChange={e => setFormField('sacos_extraidos', e.target.value)} className="input-field font-bold text-lg" placeholder="133" />
+                    ))}
                   </div>
-                  <div>
-                    <label className="input-label">N° Disparo</label>
-                    <input value={form.numero_disparo} onChange={e => setFormField('numero_disparo', e.target.value)} placeholder="Ej: 27" className="input-field" />
-                  </div>
-                </div>
-              </div>
+                )}
+              </section>
 
-              {/* Observaciones */}
-              <div>
-                <label className="input-label">Observaciones del Turno</label>
-                <textarea value={form.observaciones} onChange={e => setFormField('observaciones', e.target.value)} className="input-field" rows={3}
-                  placeholder="Ej: El turno nocturno inició 8:42 PM por la espera de camión..." />
-              </div>
+              <section className="extraccion-page__modal-col flex flex-col gap-2.5">
+                <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-emerald-400">
+                  <span>📦 Producción del Turno</span>
+                  <span className="h-px flex-1 bg-emerald-400/20" />
+                </h3>
+                <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
+                  <label className="input-label !font-semibold !text-amber-400">Sacos Extraídos *</label>
+                  <input type="number" value={form.sacos_extraidos} onChange={e => setFormField('sacos_extraidos', e.target.value)} className="input-field text-lg font-bold" placeholder="133" />
+                </div>
+                <div><label className="input-label">N° Disparo</label><input value={form.numero_disparo} onChange={e => setFormField('numero_disparo', e.target.value)} placeholder="Ej: 27" className="input-field" /></div>
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <label className="input-label">Observaciones del Turno</label>
+                  <textarea value={form.observaciones} onChange={e => setFormField('observaciones', e.target.value)} className="input-field min-h-[7rem] flex-1 resize-y" rows={4}
+                    placeholder="Ej: El turno nocturno inició 8:42 PM por la espera de camión..." />
+                </div>
+              </section>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-zinc-800">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} disabled={isPending || !form.sacos_extraidos} className="btn-primary disabled:opacity-40">
+            <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={isPending || !form.sacos_extraidos} className="btn-primary disabled:opacity-40">
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {editItem ? 'Actualizar' : 'Registrar Turno'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

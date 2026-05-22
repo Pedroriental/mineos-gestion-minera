@@ -4,8 +4,29 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { Wrench, Plus, X, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { Plus, X, Loader2, Edit2, Trash2 } from 'lucide-react';
 import type { Equipo } from '@/lib/types';
+import { AppPageToolbar } from '@/components/app/AppPageToolbar';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+
+const TIPO_OPTIONS = [
+  { value: 'compresor', label: 'Compresor' },
+  { value: 'perforadora', label: 'Perforadora' },
+  { value: 'volqueta', label: 'Volqueta' },
+  { value: 'bomba', label: 'Bomba' },
+  { value: 'generador', label: 'Generador' },
+  { value: 'ventilador', label: 'Ventilador' },
+  { value: 'otro', label: 'Otro' },
+];
+const ESTADO_OPTIONS = [
+  { value: 'operativo', label: 'Operativo' },
+  { value: 'en_mantenimiento', label: 'Mantenimiento' },
+  { value: 'fuera_servicio', label: 'Fuera Servicio' },
+  { value: 'en_reparacion', label: 'En Reparación' },
+];
 
 export default function EquiposPage() {
   const { user } = useAuth();
@@ -19,11 +40,16 @@ export default function EquiposPage() {
   const emptyForm = { codigo: '', nombre: '', tipo: 'compresor' as Equipo['tipo'], ubicacion: '', estado: 'operativo' as Equipo['estado'], horas_operacion: '', observaciones: '' };
   const [form, setForm] = useState(emptyForm);
 
+  const { begin, isStale } = useAsyncGuard();
+
   const loadData = useCallback(async () => {
+    const gen = begin();
+    setLoading(true);
     const { data } = await supabase.from('equipos').select('*').eq('activo', true).order('nombre');
+    if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, []);
+  }, [begin, isStale]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -57,22 +83,21 @@ export default function EquiposPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Wrench className="w-6 h-6 text-orange-400" /> Equipos
-          </h1>
-          <p className="text-white/40 text-sm mt-1">{data.filter(e => e.estado === 'operativo').length} operativos de {data.length}</p>
-        </div>
+      <AppPageToolbar
+        lead={
+          <p className="text-white/40 text-sm">
+            {data.filter(e => e.estado === 'operativo').length} operativos de {data.length}
+          </p>
+        }
+      >
         <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} disabled={!canEdit} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed" title={!canEdit ? 'Modo observador: solo lectura' : undefined}>
           <Plus className="w-4 h-4" /> Nuevo Equipo
         </button>
-      </div>
+      </AppPageToolbar>
 
       {/* Cards Grid */}
       {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>
+        <CrudPageSkeleton rows={6} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
           {data.map(eq => (
@@ -104,40 +129,39 @@ export default function EquiposPage() {
         </div>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
-          <div className="relative w-full max-w-2xl bg-[#091820]/98 border border-white/[0.10] rounded-2xl shadow-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold tracking-tight text-white/90">{editItem ? 'Editar Equipo' : 'Nuevo Equipo'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 transition-colors"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title text-xl font-bold tracking-tight">{editItem ? 'Editar Equipo' : 'Nuevo Equipo'}</h2>
+              <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div><label className="input-label">Código *</label><input value={form.codigo} onChange={e => setForm({ ...form, codigo: e.target.value })} className="input-field" placeholder="Ej: COMP-01" /></div>
               <div>
                 <label className="input-label">Tipo *</label>
-                <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value as Equipo['tipo'] })} className="input-field">
-                  {Object.entries(tipoLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
+                <AppSelect
+                  value={form.tipo}
+                  onChange={(v) => setForm({ ...form, tipo: v as Equipo['tipo'] })}
+                  options={TIPO_OPTIONS}
+                />
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} className="input-field" placeholder="Sullair 185" /></div>
               <div>
                 <label className="input-label">Estado</label>
-                <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value as Equipo['estado'] })} className="input-field">
-                  {Object.entries(estadoLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
+                <AppSelect
+                  value={form.estado}
+                  onChange={(v) => setForm({ ...form, estado: v as Equipo['estado'] })}
+                  options={ESTADO_OPTIONS}
+                />
               </div>
               <div><label className="input-label">Horas Operación</label><input type="number" step="0.1" value={form.horas_operacion} onChange={e => setForm({ ...form, horas_operacion: e.target.value })} className="input-field font-semibold text-amber-700" /></div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Ubicación</label><input value={form.ubicacion} onChange={e => setForm({ ...form, ubicacion: e.target.value })} className="input-field" placeholder="Zona, Veta o Área" /></div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Observaciones</label><textarea value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} className="input-field" rows={2} /></div>
             </div>
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-white/[0.07]">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} disabled={saving || !form.codigo || !form.nombre} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Equipo' : 'Registrar Equipo'}</button>
-            </div>
-          </div>
-        </div>
-      )}
+            <PageFormModalFooter>
+              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={saving || !form.codigo || !form.nombre} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Equipo' : 'Registrar Equipo'}</button>
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

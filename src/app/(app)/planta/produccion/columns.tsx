@@ -44,8 +44,8 @@ export const columns = (
       const cod = row.original.material_codigo;
       return (
         <div>
-          <span className="font-medium text-white/75 block leading-snug">{mat || '—'}</span>
-          {cod && <span className="text-xs text-white/35 mt-0.5 block">{cod}</span>}
+          <span className="block font-medium leading-snug text-white/75">{mat || '—'}</span>
+          {cod && <span className="mt-0.5 block text-xs text-white/35">{cod}</span>}
         </div>
       );
     },

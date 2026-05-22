@@ -1,12 +1,21 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { createVoladura, updateVoladura, deleteVoladura } from '@/lib/actions/voladuras';
 import type { ReporteVoladura, PausaBarrenado } from '@/lib/types';
 import { downloadVoladurasPDF } from '@/lib/pdf-reports';
-import { Loader2, Zap, Plus, X, Edit2, Trash2, ChevronLeft, ChevronRight, CalendarDays, Flame, Target, Package, AlertTriangle, Download, Search } from 'lucide-react';
+import {
+  Loader2, Plus, X, ChevronLeft, ChevronRight, Flame, Target, Package, AlertTriangle, Download, Search, Zap, LineChart, Scale,
+} from 'lucide-react';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
+} from 'recharts';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import EmptyState from '@/components/EmptyState';
+import { FadeIn } from '@/components/ui/motion';
 import {
   useReactTable,
   getCoreRowModel,
@@ -18,6 +27,50 @@ import {
 } from '@tanstack/react-table';
 import { columns } from './columns';
 
+const TURNO_OPTIONS = [
+  { value: 'dia', label: '☀ Día' },
+  { value: 'noche', label: '🌙 Noche' },
+  { value: 'completo', label: '🔄 Completo' },
+];
+const VERTICAL_DISPARO_OPTIONS = [
+  { value: '', label: '— Sin especificar —' },
+  { value: 'Vertical 1', label: 'Vertical 1' },
+  { value: 'Vertical 2', label: 'Vertical 2' },
+  { value: 'Vertical 3', label: 'Vertical 3' },
+];
+
+const VOLADURAS_PAGE_MAX = 12;
+const VOLADURAS_PAGE_BUTTONS_MAX = 5;
+const VOLADURAS_ROW_MIN_PX = 40;
+const VOLADURAS_HEAD_FALLBACK_PX = 40;
+
+const fmtNum = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
+
+const CHART_DAYS_MAX = 14;
+
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  const d = label ? new Date(label + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '';
+  return (
+    <div className="app-chart-tooltip rounded-lg p-2 shadow-xl backdrop-blur-md">
+      <p className="mb-1 font-mono text-[10px] text-white/60">{d}</p>
+      {payload.map((entry, i) => (
+        <div key={i} className="mb-0.5 flex items-center gap-2">
+          <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: entry.color }} />
+          <span className="text-[10px] text-white/80">{entry.name}:</span>
+          <span className="text-xs font-bold text-white">
+            {entry.name.includes('kg')
+              ? `${Number(entry.value).toFixed(1)} kg`
+              : entry.name.includes('Disparo')
+                ? Number(entry.value).toFixed(1)
+                : fmtNum(Number(entry.value))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface VoladurasClientProps {
   data: ReporteVoladura[];
 }
@@ -25,11 +78,18 @@ interface VoladurasClientProps {
 export default function VoladurasClient({ data: initialData }: VoladurasClientProps) {
   const { user } = useAuth();
   const canEdit = useCanEdit();
-  
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const defaultDate = useMemo(() => {
+    const dates = Array.from(new Set(initialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
+    return dates[0] ?? new Date().toISOString().split('T')[0];
+  }, [initialData]);
+
+  const [selectedDate, setSelectedDate] = useState(defaultDate);
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
-  
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: VOLADURAS_PAGE_MAX });
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<ReporteVoladura | null>(null);
   const [pausas, setPausas] = useState<PausaBarrenado[]>([]);
@@ -47,69 +107,168 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
     observaciones_disparo: '', observaciones: '',
   };
   const [form, setForm] = useState(emptyForm);
-  const set = (field: string, value: unknown) => setForm(f => ({ ...f, [field]: value }));
+  const set = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }));
 
-  // Filtrar data por el día seleccionado antes de pasarla a la tabla
+  const diasConRegistros = useMemo(() => {
+    const dates = Array.from(new Set(initialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
+    return dates.map((fecha) => ({
+      fecha,
+      count: initialData.filter((r) => r.fecha === fecha).length,
+    }));
+  }, [initialData]);
+
+  useEffect(() => {
+    if (diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+      setSelectedDate(diasConRegistros[0].fecha);
+    }
+  }, [diasConRegistros, initialData, selectedDate]);
+
   const dataForSelectedDate = useMemo(
-    () => initialData.filter(d => d.fecha === selectedDate),
-    [initialData, selectedDate]
+    () => initialData.filter((d) => d.fecha === selectedDate),
+    [initialData, selectedDate],
   );
-  
-  const availableDates = useMemo(() => Array.from(new Set(initialData.map(d => d.fecha))).sort(), [initialData]);
-
-  const navigateDay = (dir: 'prev' | 'next') => {
-    const d = new Date(selectedDate + 'T12:00:00');
-    d.setDate(d.getDate() + (dir === 'next' ? 1 : -1));
-    setSelectedDate(d.toISOString().split('T')[0]);
-  };
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
 
   const table = useReactTable({
     data: dataForSelectedDate,
     columns: columns(
       (item) => openEdit(item),
-      (id) => handleDelete(id)
+      (id) => handleDelete(id),
+      canEdit,
     ),
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, pagination },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 15 } },
   });
 
-  const addPausa    = () => setPausas(p => [...p, { hora_inicio: '', hora_fin: '', motivo: '' }]);
-  const removePausa  = (i: number) => setPausas(p => p.filter((_, idx) => idx !== i));
-  const updatePausa  = (i: number, key: keyof PausaBarrenado, val: string) =>
-    setPausas(p => p.map((x, idx) => idx === i ? { ...x, [key]: val } : x));
+  const syncTableLayout = useCallback(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const headH = el.querySelector('thead')?.getBoundingClientRect().height ?? VOLADURAS_HEAD_FALLBACK_PX;
+    const bodyAvailable = el.clientHeight - headH;
+    const pageRows = Math.min(
+      VOLADURAS_PAGE_MAX,
+      Math.max(1, Math.floor(bodyAvailable / VOLADURAS_ROW_MIN_PX)),
+    );
+    setPagination((prev) => (prev.pageSize === pageRows ? prev : { ...prev, pageSize: pageRows }));
+  }, []);
 
-  const handleSave = () => {
-    startTransition(async () => {
-      const payload = {
-        ...form,
-        pausas_barrenado: pausas.length > 0 ? pausas : null,
-        registrado_por: user?.id,
-      };
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const pageCount = table.getPageCount();
+  const displayPageCount = Math.max(1, pageCount);
+  const pageIndex = Math.min(pagination.pageIndex, Math.max(0, displayPageCount - 1));
+  const activePageIndex = filteredCount === 0 ? 0 : pageIndex;
+  const pageWindowStart =
+    Math.floor(activePageIndex / VOLADURAS_PAGE_BUTTONS_MAX) * VOLADURAS_PAGE_BUTTONS_MAX;
+  const pageNumbers = useMemo(() => {
+    const len = Math.min(VOLADURAS_PAGE_BUTTONS_MAX, Math.max(0, displayPageCount - pageWindowStart));
+    if (len === 0) return [0];
+    return Array.from({ length: len }, (_, i) => pageWindowStart + i);
+  }, [displayPageCount, pageWindowStart]);
 
-      if (editItem) {
-        await updateVoladura({ ...payload, id: editItem.id });
-      } else {
-        await createVoladura(payload);
-      }
-      setShowModal(false);
-      setEditItem(null);
-      setForm({ ...emptyForm, fecha: selectedDate });
-      setPausas([]);
-    });
-  };
+  const tableSummary = useMemo(() => {
+    const rows = table.getFilteredRowModel().rows;
+    return {
+      huecos: rows.reduce((s, r) => s + (Number(r.original.huecos_cantidad) || 0), 0),
+      chupis: rows.reduce((s, r) => s + (Number(r.original.chupis_cantidad) || 0), 0),
+      arroz: rows.reduce((s, r) => s + (Number(r.original.arroz_kg) || 0), 0),
+      fosforos: rows.reduce((s, r) => s + (Number(r.original.fosforos_lp) || 0), 0),
+      disparos: rows.filter((r) => r.original.numero_disparo).length,
+      count: rows.length,
+    };
+  }, [filteredCount, globalFilter, dataForSelectedDate, sorting, pagination.pageIndex]);
 
-  const handleDelete = (id: string) => {
-    if (!confirm('¿Eliminar este reporte de voladura?')) return;
-    startTransition(async () => {
-      await deleteVoladura(id);
-    });
+  const pageRows = table.getPaginationRowModel().rows;
+  const colCount = table.getAllLeafColumns().length;
+
+  const kpiRows = useMemo(() => [
+    { label: 'Huecos', value: fmtNum(tableSummary.huecos), glow: 'blue' as const, icon: <Target className="h-5 w-5 text-blue-400" />, bg: 'bg-blue-500/10' },
+    { label: 'Chupis', value: fmtNum(tableSummary.chupis), glow: 'amber' as const, icon: <Flame className="h-5 w-5 text-amber-400" />, bg: 'bg-amber-500/10' },
+    { label: 'Arroz (ANFO)', value: `${tableSummary.arroz.toFixed(1)} kg`, glow: 'red' as const, icon: <Package className="h-5 w-5 text-red-400" />, bg: 'bg-red-500/10' },
+    { label: 'Fósforos LP', value: fmtNum(tableSummary.fosforos), glow: 'purple' as const, icon: <Zap className="h-5 w-5 text-purple-400" />, bg: 'bg-purple-500/10' },
+    { label: 'Disparos', value: fmtNum(tableSummary.disparos), glow: 'emerald' as const, icon: <AlertTriangle className="h-5 w-5 text-emerald-400" />, bg: 'bg-emerald-500/10' },
+  ], [tableSummary]);
+
+  const diariaChart = useMemo(() => {
+    const byDate = new Map<string, { fecha: string; huecos: number; disparos: number; registros: number }>();
+    for (const r of initialData) {
+      const cur = byDate.get(r.fecha) ?? { fecha: r.fecha, huecos: 0, disparos: 0, registros: 0 };
+      cur.huecos += Number(r.huecos_cantidad) || 0;
+      cur.registros += 1;
+      if (r.numero_disparo) cur.disparos += 1;
+      byDate.set(r.fecha, cur);
+    }
+    return Array.from(byDate.values())
+      .map((d) => {
+        const divisor = d.disparos > 0 ? d.disparos : d.registros;
+        return {
+          fecha: d.fecha,
+          huecos: d.huecos,
+          disparos: d.disparos,
+          huecosPorDisparo: divisor > 0 ? d.huecos / divisor : 0,
+        };
+      })
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+      .slice(-CHART_DAYS_MAX);
+  }, [initialData]);
+
+  const dayBalance = useMemo(() => {
+    const { huecos, chupis, arroz, count } = tableSummary;
+    const sinNovedad = dataForSelectedDate.filter((r) => r.sin_novedad).length;
+    const conNovedad = count - sinNovedad;
+    const ratioHC = chupis > 0 ? huecos / chupis : null;
+    const kgPorHueco = huecos > 0 ? arroz / huecos : null;
+    const piesHueco =
+      huecos > 0
+        ? dataForSelectedDate.reduce((s, r) => s + (Number(r.huecos_pies) || 0) * (Number(r.huecos_cantidad) || 0), 0) / huecos
+        : null;
+    const balanceLabel =
+      ratioHC == null
+        ? '—'
+        : Math.abs(ratioHC - 1) <= 0.1
+          ? 'Equilibrado'
+          : ratioHC > 1
+            ? 'Más huecos'
+            : 'Más chupis';
+
+    return { huecos, chupis, arroz, count, sinNovedad, conNovedad, ratioHC, kgPorHueco, piesHueco, balanceLabel };
+  }, [tableSummary, dataForSelectedDate]);
+
+  useEffect(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const run = () => syncTableLayout();
+    run();
+    const ro = new ResizeObserver(run);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncTableLayout, dataForSelectedDate.length]);
+
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [selectedDate, globalFilter]);
+
+  useEffect(() => {
+    const maxIndex = Math.max(0, displayPageCount - 1);
+    if (pagination.pageIndex > maxIndex) {
+      setPagination((p) => ({ ...p, pageIndex: maxIndex }));
+    }
+  }, [displayPageCount, pagination.pageIndex]);
+
+  const addPausa = () => setPausas((p) => [...p, { hora_inicio: '', hora_fin: '', motivo: '' }]);
+  const removePausa = (i: number) => setPausas((p) => p.filter((_, idx) => idx !== i));
+  const updatePausa = (i: number, key: keyof PausaBarrenado, val: string) =>
+    setPausas((p) => p.map((x, idx) => (idx === i ? { ...x, [key]: val } : x)));
+
+  const openNew = () => {
+    setEditItem(null);
+    setForm({ ...emptyForm, fecha: selectedDate });
+    setPausas([]);
+    setShowModal(true);
   };
 
   const openEdit = (item: ReporteVoladura) => {
@@ -139,360 +298,518 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
     setShowModal(true);
   };
 
-  const fmtTime = (t?: string | null) => t ? t.slice(0, 5) : null;
-  const fmtDate = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const getCount = (d: string) => initialData.filter(x => x.fecha === d).length;
+  const handleSave = () => {
+    startTransition(async () => {
+      const payload = {
+        ...form,
+        pausas_barrenado: pausas.length > 0 ? pausas : null,
+        registrado_por: user?.id,
+      };
 
-  const totalHuecos = dataForSelectedDate.reduce((s, d) => s + d.huecos_cantidad, 0);
-  const totalChupis = dataForSelectedDate.reduce((s, d) => s + d.chupis_cantidad, 0);
-  const totalArroz = dataForSelectedDate.reduce((s, d) => s + Number(d.arroz_kg), 0);
-  const totalFosforos = dataForSelectedDate.reduce((s, d) => s + d.fosforos_lp, 0);
-  const disparosCount = dataForSelectedDate.filter(d => d.numero_disparo).length;
+      if (editItem) {
+        await updateVoladura({ ...payload, id: editItem.id });
+      } else {
+        await createVoladura(payload);
+      }
+      setShowModal(false);
+      setEditItem(null);
+      setForm({ ...emptyForm, fecha: selectedDate });
+      setPausas([]);
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    if (!confirm('¿Eliminar este reporte de voladura?')) return;
+    startTransition(async () => {
+      await deleteVoladura(id);
+    });
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Zap className="w-6 h-6 text-amber-400" /> Reportes de Voladura
-          </h1>
-          <p className="text-white/40 text-sm mt-1">
-            <span className="text-blue-400 font-semibold">{totalHuecos} huecos</span>
-            {' '}— <span className="text-amber-400 font-semibold">{totalChupis} chupis</span>
-            {' '}— <span className="text-red-400 font-semibold">{totalArroz.toFixed(1)} kg arroz</span>
-            {' '}en el día seleccionado
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => downloadVoladurasPDF(dataForSelectedDate, selectedDate)}
-            disabled={dataForSelectedDate.length === 0}
-            className="btn-secondary disabled:opacity-40 flex items-center gap-1.5">
-            <Download className="w-4 h-4" /> <span className="hidden sm:inline">PDF {selectedDate}</span>
-          </button>
-          <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setShowModal(true); }}
-            disabled={!canEdit} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
-            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuevo Reporte</span>
-          </button>
-        </div>
-      </div>
+    <div className="voladuras-page produccion-page flex min-h-0 w-full max-w-[1600px] mx-auto flex-1 flex-col overflow-hidden">
 
-      {/* Day Selector */}
-      <div className="card-glass p-4">
-        <div className="flex items-center justify-between">
-          <button onClick={() => navigateDay('prev')} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 hover:text-white/75 transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 text-amber-400" />
-              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                className="input-field !py-1.5 !px-3 !text-base font-semibold !w-auto !border-amber-400/30" />
+      <FadeIn className="produccion-page__toolbar shrink-0">
+        <div className="voladuras-page__toolbar-grid produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+          <div className="voladuras-page__toolbar-search min-w-0 lg:col-span-4">
+            <div className="produccion-page__search produccion-surface produccion-surface--input flex h-9 w-full min-w-0 items-center rounded-lg px-3 py-2">
+              <Search className="produccion-icon-muted mr-2 h-4 w-4 shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar por mina, frente o disparo..."
+                value={globalFilter ?? ''}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="produccion-search-input w-full min-w-0 border-none bg-transparent text-sm outline-none"
+              />
             </div>
-            <div className="text-sm text-white/40 capitalize hidden sm:block">{fmtDate(selectedDate)}</div>
-            {isToday && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-400/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Hoy
-              </span>
+          </div>
+          <div className="voladuras-page__toolbar-actions flex min-w-0 w-full flex-wrap items-center gap-2 sm:flex-nowrap lg:col-span-8 lg:justify-between">
+            <button
+              type="button"
+              onClick={() => downloadVoladurasPDF(dataForSelectedDate, selectedDate)}
+              disabled={dataForSelectedDate.length === 0}
+              className="voladuras-page__toolbar-btn produccion-page__toolbar-btn btn-secondary flex h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs disabled:opacity-40"
+              title="Exportar PDF del día"
+            >
+              <Download className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Exportar PDF</span>
+            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={openNew}
+                className="voladuras-page__toolbar-btn produccion-page__toolbar-btn flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="truncate">Nuevo Reporte</span>
+              </button>
             )}
           </div>
-          <button onClick={() => navigateDay('next')} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 hover:text-white/75 transition-colors">
-            <ChevronRight className="w-5 h-5" />
-          </button>
         </div>
-        {availableDates.length > 0 && (
-          <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-            {[...availableDates].reverse().map(date => {
-              const d = new Date(date + 'T12:00:00');
-              const isSel = date === selectedDate;
+      </FadeIn>
+
+      <div className="voladuras-page__grid produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-4">
+
+        <div className="produccion-page__aside flex min-h-0 flex-col gap-2 overflow-y-auto lg:col-span-4 lg:h-full lg:overflow-hidden">
+          {kpiRows.map((k) => (
+            <div
+              key={k.label}
+              className="produccion-surface gerencial-kpi-card flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5"
+            >
+              <div className={`gerencial-kpi-glow gerencial-kpi-glow--${k.glow}`} aria-hidden />
+              <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${k.bg}`}>
+                {k.icon}
+              </div>
+              <div className="relative min-w-0 flex-1">
+                <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight tracking-wider">
+                  {k.label}
+                </span>
+                <span className={`gerencial-kpi-value gerencial-kpi-value--${k.glow} text-lg font-bold leading-tight tabular-nums`}>
+                  {k.value}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          <div className="produccion-page__chart produccion-surface flex min-h-[11rem] flex-1 flex-col rounded-xl p-3 lg:min-h-0">
+            <h2 className="produccion-section-title mb-2 flex shrink-0 items-center gap-2 text-xs font-bold">
+              <LineChart className="h-4 w-4 text-amber-400" />
+              Huecos por Disparo
+            </h2>
+            <div className="relative min-h-[7rem] w-full flex-1">
+              {diariaChart.length === 0 ? (
+                <p className="produccion-muted flex h-full items-center justify-center text-center text-xs italic">
+                  Sin datos para graficar
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%" className="absolute inset-0">
+                  <AreaChart data={diariaChart} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="voladurasHuecosGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.5} />
+                        <stop offset="55%" stopColor="#d97706" stopOpacity={0.15} />
+                        <stop offset="100%" stopColor="#b45309" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                    <XAxis
+                      dataKey="fecha"
+                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 9 }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(val) => {
+                        const d = new Date(val + 'T12:00:00');
+                        return `${d.getDate()}/${d.getMonth() + 1}`;
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 9 }}
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals
+                      domain={['auto', 'auto']}
+                    />
+                    <RechartsTooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(245,158,11,0.45)', strokeWidth: 1 }} />
+                    {diariaChart.some((d) => d.fecha === selectedDate) && (
+                      <ReferenceLine
+                        x={selectedDate}
+                        stroke="#f59e0b"
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        label={{ value: 'Día', position: 'top', fill: '#f59e0b', fontSize: 9 }}
+                      />
+                    )}
+                    <Area
+                      type="monotone"
+                      dataKey="huecosPorDisparo"
+                      name="Huecos / Disparo"
+                      stroke="#fbbf24"
+                      strokeWidth={2.5}
+                      fill="url(#voladurasHuecosGradient)"
+                      dot={(props) => {
+                        const { cx, cy, payload } = props;
+                        if (cx == null || cy == null) return null;
+                        const active = payload?.fecha === selectedDate;
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={active ? 5 : 3.5}
+                            fill={active ? '#fcd34d' : '#d97706'}
+                            stroke={active ? '#fff' : 'transparent'}
+                            strokeWidth={active ? 1.5 : 0}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 6, fill: '#f59e0b', stroke: '#fffbeb', strokeWidth: 2 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="mt-3 shrink-0 border-t border-[var(--prod-border)] pt-3">
+              <h3 className="produccion-section-title mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+                <Scale className="h-3.5 w-3.5 text-amber-500/80" />
+                Balance del día
+              </h3>
+              {dayBalance.count === 0 ? (
+                <p className="produccion-muted text-xs italic">Selecciona un día con registros</p>
+              ) : (
+                <dl className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10px]">
+                  <dt className="produccion-muted">Huecos / Chupis</dt>
+                  <dd className="text-right font-semibold tabular-nums text-blue-300">
+                    {dayBalance.huecos} : {dayBalance.chupis}
+                    <span className="ml-1 text-[9px] font-normal text-amber-400/90">({dayBalance.balanceLabel})</span>
+                  </dd>
+                  <dt className="produccion-muted">kg ANFO / hueco</dt>
+                  <dd className="text-right font-semibold tabular-nums text-red-400">
+                    {dayBalance.kgPorHueco != null ? `${dayBalance.kgPorHueco.toFixed(2)} kg` : '—'}
+                  </dd>
+                  <dt className="produccion-muted">Prom. pies / hueco</dt>
+                  <dd className="text-right font-semibold tabular-nums text-white/75">
+                    {dayBalance.piesHueco != null ? dayBalance.piesHueco.toFixed(1) : '—'}
+                  </dd>
+                  <dt className="produccion-muted">Sin novedad</dt>
+                  <dd className="text-right font-semibold tabular-nums text-emerald-400">
+                    {dayBalance.sinNovedad} / {dayBalance.count}
+                  </dd>
+                </dl>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-8 lg:h-full">
+
+          <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 scrollbar-hide snap-x w-full">
+            {diasConRegistros.length === 0 && (
+              <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
+            )}
+            {diasConRegistros.map((dia) => {
+              const d = new Date(dia.fecha + 'T12:00:00');
+              const isSelected = selectedDate === dia.fecha;
               return (
-                <button key={date} onClick={() => setSelectedDate(date)}
-                  className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isSel ? 'bg-amber-500/15 text-amber-300 border border-amber-400/30'
-                    : 'bg-white/[0.04] text-white/40 border border-transparent hover:bg-white/[0.08] hover:text-white/65'
-                  }`}>
-                  <span className="uppercase">{d.toLocaleDateString('es-ES', { weekday: 'short' })}</span>
-                  <span className="text-sm font-bold">{d.getDate()}</span>
-                  <span className={`text-[10px] ${isSel ? 'text-amber-400' : 'text-white/30'}`}>{getCount(date)} reg</span>
+                <button
+                  key={dia.fecha}
+                  type="button"
+                  onClick={() => setSelectedDate(dia.fecha)}
+                  className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
+                >
+                  <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+                  <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>
+                    {dia.count}
+                  </span>
                 </button>
               );
             })}
           </div>
-        )}
-      </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        {[
-          { label: 'Huecos', value: totalHuecos, color: '#2563EB', text: 'text-blue-400', icon: <Target className="w-5 h-5 text-blue-400" />, bg: 'bg-blue-500/10' },
-          { label: 'Chupis', value: totalChupis, color: '#D97706', text: 'text-amber-400', icon: <Flame className="w-5 h-5 text-amber-400" />, bg: 'bg-amber-500/10' },
-          { label: 'Arroz (ANFO)', value: `${totalArroz.toFixed(1)} kg`, color: '#DC2626', text: 'text-red-400', icon: <Package className="w-5 h-5 text-red-400" />, bg: 'bg-red-500/10' },
-          { label: 'Fósforos LP', value: totalFosforos, color: '#7C3AED', text: 'text-purple-400', icon: <Zap className="w-5 h-5 text-purple-400" />, bg: 'bg-purple-500/10' },
-          { label: 'Disparos', value: disparosCount, color: '#059669', text: 'text-emerald-400', icon: <AlertTriangle className="w-5 h-5 text-emerald-400" />, bg: 'bg-emerald-500/10' },
-        ].map((k, i) => (
-          <div key={i} className="card-glass p-4 flex items-center gap-3" style={{ borderTop: `3px solid ${k.color}` }}>
-            <div className={`w-9 h-9 rounded-lg ${k.bg} flex items-center justify-center flex-shrink-0`}>{k.icon}</div>
-            <div>
-              <p className="text-xs text-white/40">{k.label}</p>
-              <p className={`text-xl font-bold ${k.text}`}>{k.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center bg-zinc-900/50 border border-white/5 rounded-xl px-3 py-2 w-full max-w-sm">
-        <Search className="w-4 h-4 text-white/40 mr-2" />
-        <input
-          type="text"
-          placeholder="Buscar voladura..."
-          value={globalFilter ?? ''}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          className="bg-transparent border-none outline-none text-sm text-white/90 placeholder:text-white/30 w-full"
-        />
-      </div>
-
-      {/* Mobile Cards (Renderizado dinámico de TanStack Table) */}
-      <div className="grid grid-cols-1 space-y-3 md:hidden">
-        {table.getRowModel().rows.map(row => {
-          const d = row.original;
-          return (
-            <div key={d.id} className="card-glass p-4">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/45 bg-white/[0.07] px-2 py-0.5 rounded-sm">
-                      {d.turno === 'dia' ? '☀ Día' : d.turno === 'noche' ? '🌙 Noche' : '🔄 Comp.'}
-                    </span>
-                    {d.frente && <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-sm">{d.frente}</span>}
-                  </div>
-                  <h3 className="font-bold text-white/85 mt-2 text-base">{d.mina || 'Sin mina'}</h3>
-                  {d.numero_disparo && (
-                    <p className="text-sm text-white/40 mt-0.5">
-                      Disparo N°{d.numero_disparo}{fmtTime(d.hora_disparo) ? ` — ${fmtTime(d.hora_disparo)}` : ''}
-                      {d.vertical_disparo && <span className="ml-1 text-purple-400/70 font-semibold">[{d.vertical_disparo}]</span>}
-                    </p>
-                  )}
-                  {d.pausas_barrenado && d.pausas_barrenado.length > 0 && (
-                    <div className="mt-1.5 space-y-0.5">
-                      {d.pausas_barrenado.map((p, i) => (
-                        <p key={i} className="text-[11px] text-orange-400/70">
-                          ⏸ {p.hora_inicio}–{p.hora_fin} <span className="text-white/35">{p.motivo}</span>
-                        </p>
+          <div className="produccion-page__table-stack min-h-0 flex-1">
+            <div
+              ref={tableBodyRef}
+              className="produccion-page__table-body min-h-0 flex-1 overflow-x-auto overflow-y-auto custom-scrollbar"
+            >
+              <table className="w-full border-collapse text-left">
+                <thead className="produccion-page__table-head sticky top-0 z-10 shadow-sm">
+                  {table.getHeaderGroups().map((hg) => (
+                    <tr key={hg.id}>
+                      {hg.headers.map((header) => (
+                        <th
+                          key={header.id}
+                          onClick={header.column.getToggleSortingHandler()}
+                          className={`produccion-table-th whitespace-nowrap px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${header.column.getCanSort() ? 'cursor-pointer select-none' : ''}`}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
                       ))}
-                    </div>
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {pageRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={colCount} className="py-12">
+                        <EmptyState
+                          icon={<Zap className="h-6 w-6" />}
+                          title="Día sin voladuras"
+                          description="No hay reportes de voladura ingresados para este día."
+                        />
+                      </td>
+                    </tr>
+                  ) : (
+                    pageRows.map((row) => (
+                      <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
                   )}
-                </div>
-                <span className={`text-xs font-bold px-2 py-1 rounded-full border flex-shrink-0 ${d.sin_novedad ? 'text-emerald-400 bg-emerald-500/10 border-emerald-400/20' : 'text-red-400 bg-red-500/10 border-red-400/20'}`}>
-                  {d.sin_novedad ? '✓ Sin novedad' : '⚠ Novedad'}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="produccion-page__table-footer gastos-footer-bar flex shrink-0 items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
+                <span className="gastos-footer-label text-[8px] uppercase tracking-wider">Resumen</span>
+                <span className="produccion-page__footer-amount text-[11px] font-bold tabular-nums">
+                  {fmtNum(tableSummary.huecos)} huecos
                 </span>
+                <span className="gastos-footer-label text-[9px]">·</span>
+                <span className="gastos-footer-label text-[9px] tabular-nums">{tableSummary.chupis} chupis</span>
+                <span className="gastos-footer-label text-[9px]">·</span>
+                <span className="gastos-footer-label text-[9px] tabular-nums">{tableSummary.arroz.toFixed(1)} kg arroz</span>
+                <span className="gastos-footer-label text-[9px]">·</span>
+                <span className="gastos-footer-label text-[9px] tabular-nums">{tableSummary.disparos} disparos</span>
+                <span className="gastos-footer-label text-[9px]">· {tableSummary.count} reg.</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 p-3 bg-white/[0.05] rounded-lg border border-white/[0.07] mb-3">
-                <div><span className="text-white/35 text-[10px] uppercase font-bold block mb-1">Huecos</span>
-                  <span className="font-bold text-blue-400">{d.huecos_cantidad} × {d.huecos_pies} pies</span></div>
-                <div><span className="text-white/35 text-[10px] uppercase font-bold block mb-1">Chupis</span>
-                  <span className="font-bold text-amber-400">{d.chupis_cantidad} × {d.chupis_pies} pies</span></div>
-                <div><span className="text-white/35 text-[10px] uppercase font-bold block mb-1">Arroz (ANFO)</span>
-                  <span className="font-bold text-red-400">{d.arroz_kg} kg</span></div>
-                <div><span className="text-white/35 text-[10px] uppercase font-bold block mb-1">Fósforos LP</span>
-                  <span className="font-bold text-purple-400">{d.fosforos_lp}</span></div>
-              </div>
-              {d.observaciones_disparo && (
-                <p className="text-xs text-white/35 italic mb-3 leading-relaxed border-l-2 border-white/10 pl-2">{d.observaciones_disparo}</p>
+              {filteredCount > 0 && (
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                    className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                    aria-label="Página anterior"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  {pageNumbers.map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => table.setPageIndex(page)}
+                      aria-label={`Página ${page + 1}`}
+                      aria-current={page === activePageIndex ? 'page' : undefined}
+                      className={`gastos-page-btn min-w-[1.35rem] rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
+                        page === activePageIndex ? 'gastos-page-btn--active' : ''
+                      }`}
+                    >
+                      {page + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                    className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                    aria-label="Página siguiente"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="gastos-footer-label ml-1 hidden text-[10px] tabular-nums sm:inline">
+                    {activePageIndex + 1} / {displayPageCount}
+                  </span>
+                </div>
               )}
-              <div className="flex gap-2 justify-end pt-3 border-t border-white/[0.07]">
-                <button onClick={() => openEdit(d)} className="btn-secondary flex-1 min-h-[48px] !text-sm"><Edit2 className="w-4 h-4 mr-2" /> Editar</button>
-                <button onClick={() => handleDelete(d.id)} className="btn-danger flex-1 min-h-[48px] !text-sm"><Trash2 className="w-4 h-4 mr-2" /> Borrar</button>
-              </div>
-            </div>
-          );
-        })}
-        {table.getRowModel().rows.length === 0 && <div className="text-center py-12 text-white/40 card-glass">Sin reportes para {fmtDate(selectedDate)}</div>}
-      </div>
-
-      {/* Desktop Table (TanStack) */}
-      <div className="table-container hidden md:block">
-        <table className="data-table">
-          <thead>
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map(row => (
-              <tr key={row.id}>
-                {row.getVisibleCells().map(cell => (
-                  <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                ))}
-              </tr>
-            ))}
-            {table.getRowModel().rows.length === 0 && (
-              <tr><td colSpan={12} className="text-center py-12 text-white/40">Sin reportes encontrados</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination Controls */}
-      {table.getPageCount() > 1 && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-xs text-white/40">
-            Mostrando {table.getRowModel().rows.length} de {table.getFilteredRowModel().rows.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}
-              className="p-2 rounded-lg bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 min-w-[44px] min-h-[44px] flex items-center justify-center">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span className="text-sm font-medium text-white/60">
-              Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
-            </span>
-            <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}
-              className="p-2 rounded-lg bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 min-w-[44px] min-h-[44px] flex items-center justify-center">
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Bottom-Sheet/Centered */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowModal(false)}>
-          <div className="relative w-full sm:max-w-4xl bg-zinc-950 border border-zinc-800 sm:rounded-2xl rounded-t-2xl shadow-2xl p-6 sm:p-8 max-h-[92dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            {/* Drag handle */}
-            <div className="sm:hidden flex justify-center mb-4 -mt-1">
-              <div className="w-8 h-1 rounded-full bg-zinc-700" />
-            </div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-white/90">{editItem ? 'Editar Reporte' : 'Nuevo Reporte de Voladura'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-lg hover:bg-white/[0.06] text-white/40 min-h-[44px] min-w-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Identificación */}
-              <div>
-                <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-amber-400">📍 Identificación</span><div className="flex-1 h-px bg-amber-400/20" /></div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} className="input-field min-h-[44px]" /></div>
-                  <div><label className="input-label">Turno *</label>
-                    <select value={form.turno} onChange={e => set('turno', e.target.value)} className="input-field min-h-[44px]">
-                      <option value="dia">☀ Día</option><option value="noche">🌙 Noche</option><option value="completo">🔄 Completo</option>
-                    </select></div>
-                  <div><label className="input-label">Mina</label><input value={form.mina} onChange={e => set('mina', e.target.value)} placeholder="Ej: Belén 2" className="input-field min-h-[44px]" /></div>
-                  <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => set('responsable', e.target.value)} className="input-field min-h-[44px]" /></div>
-                </div>
-              </div>
-
-              {/* Barrenado */}
-              <div>
-                <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-blue-400">⛏ Proceso de Barrenado</span><div className="flex-1 h-px bg-blue-400/20" /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="input-label">Hora Inicio</label><input type="time" value={form.hora_inicio_barrenado} onChange={e => set('hora_inicio_barrenado', e.target.value)} className="input-field min-h-[44px]" /></div>
-                  <div><label className="input-label">Hora Culmina</label><input type="time" value={form.hora_fin_barrenado} onChange={e => set('hora_fin_barrenado', e.target.value)} className="input-field min-h-[44px]" /></div>
-                </div>
-                {/* Pausas */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-orange-400/80 uppercase tracking-wider">⏸ Pausas</span>
-                    <button type="button" onClick={addPausa} className="btn-secondary !py-1 !px-2.5 !text-xs min-h-[36px]"><Plus className="w-3.5 h-3.5 mr-1" /> Agregar</button>
-                  </div>
-                  <div className="space-y-2">
-                    {pausas.map((p, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_1fr_2fr_auto] gap-2 items-start p-3 bg-orange-500/[0.06] rounded-xl border border-orange-400/15">
-                        <div><input type="time" value={p.hora_inicio} onChange={e => updatePausa(i, 'hora_inicio', e.target.value)} className="input-field min-h-[44px]" /></div>
-                        <div><input type="time" value={p.hora_fin} onChange={e => updatePausa(i, 'hora_fin', e.target.value)} className="input-field min-h-[44px]" /></div>
-                        <div><input value={p.motivo} onChange={e => updatePausa(i, 'motivo', e.target.value)} placeholder="Motivo" className="input-field min-h-[44px]" /></div>
-                        <button type="button" onClick={() => removePausa(i)} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-red-500/15 text-white/30 hover:text-red-400"><X className="w-4 h-4" /></button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Disparo */}
-              <div>
-                <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-red-400">💥 Disparo</span><div className="flex-1 h-px bg-red-400/20" /></div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
-                  <div><label className="input-label">N° Disparo</label><input value={form.numero_disparo} onChange={e => set('numero_disparo', e.target.value)} className="input-field min-h-[44px]" /></div>
-                  <div><label className="input-label">Hora</label><input type="time" value={form.hora_disparo} onChange={e => set('hora_disparo', e.target.value)} className="input-field min-h-[44px]" /></div>
-                  <div><label className="input-label">Vertical</label>
-                    <select value={form.vertical_disparo} onChange={e => set('vertical_disparo', e.target.value)} className="input-field min-h-[44px]">
-                      <option value="">— Sin especificar —</option>
-                      <option value="Vertical 1">Vertical 1</option><option value="Vertical 2">Vertical 2</option><option value="Vertical 3">Vertical 3</option>
-                    </select></div>
-                  <div className="flex items-end pb-1">
-                    <label className="flex items-center gap-3 cursor-pointer min-h-[44px]" onClick={() => set('sin_novedad', !form.sin_novedad)}>
-                      <div className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${form.sin_novedad ? 'bg-emerald-500' : 'bg-red-500/70'}`}>
-                        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow ${form.sin_novedad ? 'left-5' : 'left-0.5'}`} />
-                      </div>
-                      <span className={`text-sm font-semibold ${form.sin_novedad ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {form.sin_novedad ? '✓ Sin novedad' : '⚠ Novedad'}
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Huecos & Chupis */}
-              <div>
-                <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-purple-400">🕳 Huecos & Chupis</span><div className="flex-1 h-px bg-purple-400/20" /></div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-blue-500/[0.07] rounded-xl p-3 border border-blue-400/20">
-                    <label className="input-label !text-blue-400">Huecos cantidad</label>
-                    <input type="number" value={form.huecos_cantidad} onChange={e => set('huecos_cantidad', e.target.value)} className="input-field font-bold text-lg min-h-[44px]" />
-                  </div>
-                  <div className="bg-blue-500/[0.07] rounded-xl p-3 border border-blue-400/20">
-                    <label className="input-label !text-blue-400">Pies / Hueco</label>
-                    <input type="number" value={form.huecos_pies} onChange={e => set('huecos_pies', e.target.value)} className="input-field min-h-[44px]" />
-                  </div>
-                  <div className="bg-amber-500/[0.07] rounded-xl p-3 border border-amber-400/20">
-                    <label className="input-label !text-amber-400">Chupis cantidad</label>
-                    <input type="number" value={form.chupis_cantidad} onChange={e => set('chupis_cantidad', e.target.value)} className="input-field font-bold text-lg min-h-[44px]" />
-                  </div>
-                  <div className="bg-amber-500/[0.07] rounded-xl p-3 border border-amber-400/20">
-                    <label className="input-label !text-amber-400">Pies / Chupi</label>
-                    <input type="number" value={form.chupis_pies} onChange={e => set('chupis_pies', e.target.value)} className="input-field min-h-[44px]" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Condimentos */}
-              <div>
-                <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-orange-400">🧪 Condimentos</span><div className="flex-1 h-px bg-orange-400/20" /></div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div><label className="input-label">Fósforos LP</label><input type="number" value={form.fosforos_lp} onChange={e => set('fosforos_lp', e.target.value)} className="input-field min-h-[44px]" /></div>
-                  <div><label className="input-label">Espaguetis</label><input type="number" value={form.espaguetis} onChange={e => set('espaguetis', e.target.value)} className="input-field min-h-[44px]" /></div>
-                  <div><label className="input-label">Vitamina E</label><input type="number" value={form.vitamina_e} onChange={e => set('vitamina_e', e.target.value)} className="input-field min-h-[44px]" /></div>
-                  <div><label className="input-label">Trenza (m)</label><input type="number" step="0.5" value={form.trenza_metros} onChange={e => set('trenza_metros', e.target.value)} className="input-field min-h-[44px]" /></div>
-                  <div className="bg-red-500/[0.07] rounded-xl p-3 border border-red-400/20">
-                    <label className="input-label !text-red-400 !font-semibold">Arroz (kg)</label>
-                    <input type="number" step="0.5" value={form.arroz_kg} onChange={e => set('arroz_kg', e.target.value)} className="input-field font-bold min-h-[44px]" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Observaciones */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="input-label">Observaciones Disparo</label><textarea value={form.observaciones_disparo} onChange={e => set('observaciones_disparo', e.target.value)} className="input-field" rows={2} /></div>
-                <div><label className="input-label">Observaciones Turno</label><textarea value={form.observaciones} onChange={e => set('observaciones', e.target.value)} className="input-field" rows={2} /></div>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-6 pt-4 border-t border-white/[0.07]">
-              <button onClick={() => setShowModal(false)} className="btn-secondary min-h-[48px] sm:min-h-[40px]">Cancelar</button>
-              <button onClick={handleSave} disabled={isPending || !form.huecos_cantidad} className="btn-primary min-h-[48px] sm:min-h-[40px]">
-                {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {editItem ? 'Actualizar' : 'Registrar Voladura'}
-              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="voladuras-page__modal sm:max-w-[72rem] sm:p-5">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="page-form-modal-title text-lg font-semibold">
+            {editItem ? 'Editar Reporte' : 'Nuevo Reporte de Voladura'}
+          </h2>
+          <button
+            type="button"
+            onClick={() => setShowModal(false)}
+            className="rounded-lg p-1.5 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="voladuras-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+          <section className="voladuras-page__modal-col flex flex-col gap-4">
+            <div className="flex flex-col gap-2.5">
+              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-amber-400">
+                <span>📍 Identificación</span>
+                <span className="h-px flex-1 bg-amber-400/20" />
+              </h3>
+              <div>
+                <label className="input-label">Fecha *</label>
+                <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Turno *</label>
+                <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={TURNO_OPTIONS} />
+              </div>
+              <div>
+                <label className="input-label">Mina</label>
+                <input value={form.mina} onChange={(e) => set('mina', e.target.value)} placeholder="Ej: Belén 2" className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Responsable</label>
+                <input value={form.responsable} onChange={(e) => set('responsable', e.target.value)} className="input-field" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-blue-400">
+                <span>⛏ Proceso de Barrenado</span>
+                <span className="h-px flex-1 bg-blue-400/20" />
+              </h3>
+              <div>
+                <label className="input-label">Hora Inicio</label>
+                <input type="time" value={form.hora_inicio_barrenado} onChange={(e) => set('hora_inicio_barrenado', e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Hora Culmina</label>
+                <input type="time" value={form.hora_fin_barrenado} onChange={(e) => set('hora_fin_barrenado', e.target.value)} className="input-field" />
+              </div>
+              <div className="mt-1">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-orange-400/80">⏸ Pausas</span>
+                  <button type="button" onClick={addPausa} className="btn-secondary !py-1 !px-2.5 !text-xs">
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Agregar
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {pausas.map((p, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_2fr_auto] items-start gap-2 rounded-xl border border-orange-400/15 bg-orange-500/[0.06] p-3">
+                      <input type="time" value={p.hora_inicio} onChange={(e) => updatePausa(i, 'hora_inicio', e.target.value)} className="input-field" />
+                      <input type="time" value={p.hora_fin} onChange={(e) => updatePausa(i, 'hora_fin', e.target.value)} className="input-field" />
+                      <input value={p.motivo} onChange={(e) => updatePausa(i, 'motivo', e.target.value)} placeholder="Motivo" className="input-field" />
+                      <button type="button" onClick={() => removePausa(i)} className="rounded-lg p-2 text-white/30 transition-colors hover:bg-red-500/15 hover:text-red-400">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="voladuras-page__modal-col flex flex-col gap-4">
+            <div className="flex flex-col gap-2.5">
+              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-orange-400">
+                <span>🧪 Condimentos</span>
+                <span className="h-px flex-1 bg-orange-400/20" />
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="input-label">Fósforos LP</label>
+                  <input type="number" value={form.fosforos_lp} onChange={(e) => set('fosforos_lp', e.target.value)} className="input-field" />
+                </div>
+                <div>
+                  <label className="input-label">Espaguetis</label>
+                  <input type="number" value={form.espaguetis} onChange={(e) => set('espaguetis', e.target.value)} className="input-field" />
+                </div>
+                <div>
+                  <label className="input-label">Vitamina E</label>
+                  <input type="number" value={form.vitamina_e} onChange={(e) => set('vitamina_e', e.target.value)} className="input-field" />
+                </div>
+                <div>
+                  <label className="input-label">Trenza (m)</label>
+                  <input type="number" step="0.5" value={form.trenza_metros} onChange={(e) => set('trenza_metros', e.target.value)} className="input-field" />
+                </div>
+                <div className="col-span-2 rounded-xl border border-red-400/20 bg-red-500/[0.07] p-3">
+                  <label className="input-label !font-semibold !text-red-400">Arroz (kg)</label>
+                  <input type="number" step="0.5" value={form.arroz_kg} onChange={(e) => set('arroz_kg', e.target.value)} className="input-field font-bold" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-purple-400">
+                <span>🕳 Huecos & Chupis</span>
+                <span className="h-px flex-1 bg-purple-400/20" />
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-blue-400/20 bg-blue-500/[0.07] p-3">
+                  <label className="input-label !text-blue-400">Huecos cantidad</label>
+                  <input type="number" value={form.huecos_cantidad} onChange={(e) => set('huecos_cantidad', e.target.value)} className="input-field font-bold text-lg" />
+                </div>
+                <div className="rounded-xl border border-blue-400/20 bg-blue-500/[0.07] p-3">
+                  <label className="input-label !text-blue-400">Pies / Hueco</label>
+                  <input type="number" value={form.huecos_pies} onChange={(e) => set('huecos_pies', e.target.value)} className="input-field" />
+                </div>
+                <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
+                  <label className="input-label !text-amber-400">Chupis cantidad</label>
+                  <input type="number" value={form.chupis_cantidad} onChange={(e) => set('chupis_cantidad', e.target.value)} className="input-field font-bold text-lg" />
+                </div>
+                <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
+                  <label className="input-label !text-amber-400">Pies / Chupi</label>
+                  <input type="number" value={form.chupis_pies} onChange={(e) => set('chupis_pies', e.target.value)} className="input-field" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="voladuras-page__modal-col flex flex-col gap-2.5">
+            <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-red-400">
+              <span>💥 Disparo</span>
+              <span className="h-px flex-1 bg-red-400/20" />
+            </h3>
+            <div>
+              <label className="input-label">N° Disparo</label>
+              <input value={form.numero_disparo} onChange={(e) => set('numero_disparo', e.target.value)} className="input-field" />
+            </div>
+            <div>
+              <label className="input-label">Hora</label>
+              <input type="time" value={form.hora_disparo} onChange={(e) => set('hora_disparo', e.target.value)} className="input-field" />
+            </div>
+            <div>
+              <label className="input-label">Vertical</label>
+              <AppSelect value={form.vertical_disparo} onChange={(v) => set('vertical_disparo', v)} options={VERTICAL_DISPARO_OPTIONS} placeholder="— Sin especificar —" />
+            </div>
+            <label className="flex cursor-pointer items-center gap-3" onClick={() => set('sin_novedad', !form.sin_novedad)}>
+              <div className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${form.sin_novedad ? 'bg-emerald-500' : 'bg-red-500/70'}`}>
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${form.sin_novedad ? 'left-5' : 'left-0.5'}`} />
+              </div>
+              <span className={`text-sm font-semibold ${form.sin_novedad ? 'text-emerald-400' : 'text-red-400'}`}>
+                {form.sin_novedad ? '✓ Sin novedad' : '⚠ Novedad'}
+              </span>
+            </label>
+
+            <div>
+              <label className="input-label">Observaciones Disparo</label>
+              <textarea value={form.observaciones_disparo} onChange={(e) => set('observaciones_disparo', e.target.value)} className="input-field" rows={2} />
+            </div>
+            <div>
+              <label className="input-label">Observaciones Turno</label>
+              <textarea value={form.observaciones} onChange={(e) => set('observaciones', e.target.value)} className="input-field" rows={2} />
+            </div>
+          </section>
+        </div>
+
+        <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+          <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isPending || !form.huecos_cantidad}
+            className="btn-primary"
+          >
+            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {editItem ? 'Actualizar' : 'Registrar Voladura'}
+          </button>
+        </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

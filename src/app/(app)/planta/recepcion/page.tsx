@@ -3,10 +3,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { Package, Plus, X, Loader2, Edit2 } from 'lucide-react';
+import { Plus, X, Loader2, Edit2 } from 'lucide-react';
 import type { RecepcionMaterial } from '@/lib/types';
+import { AppPageToolbar } from '@/components/app/AppPageToolbar';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
 const PESO_SACO_KG = 50;
+
+const TURNO_OPTIONS = [
+  { value: 'dia', label: 'Día' },
+  { value: 'noche', label: 'Noche' },
+  { value: 'completo', label: 'Completo' },
+];
 
 export default function RecepcionPage() {
   const { user } = useAuth();
@@ -29,11 +40,16 @@ export default function RecepcionPage() {
   };
   const [form, setForm] = useState(emptyForm);
 
+  const { begin, isStale } = useAsyncGuard();
+
   const loadData = useCallback(async () => {
+    const gen = begin();
+    setLoading(true);
     const { data } = await supabase.from('recepcion_material').select('*').order('fecha', { ascending: false }).limit(100);
+    if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, []);
+  }, [begin, isStale]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -55,21 +71,20 @@ export default function RecepcionPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Package className="w-6 h-6 text-teal-400" /> Recepción de Material
-          </h1>
-          <p className="text-white/40 text-sm mt-1">{totalSacos} sacos recibidos en total <span className="text-white/25">(≈ {totalSacos * PESO_SACO_KG} kg)</span></p>
-        </div>
+      <AppPageToolbar
+        lead={
+          <p className="text-white/40 text-sm">
+            {totalSacos} sacos recibidos en total <span className="text-white/25">(≈ {totalSacos * PESO_SACO_KG} kg)</span>
+          </p>
+        }
+      >
         <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} className="btn-primary">
           <Plus className="w-4 h-4" /> Nueva Recepción
         </button>
-      </div>
+      </AppPageToolbar>
 
       {/* Table & Cards */}
-      {loading ? <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div> : (
+      {loading ? <CrudPageSkeleton /> : (
         <>
           {/* Mobile Cards View */}
           <div className="block md:hidden space-y-4">
@@ -148,21 +163,20 @@ export default function RecepcionPage() {
         </>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
-          <div className="relative w-full max-w-2xl bg-[#091820]/98 border border-white/[0.10] rounded-2xl shadow-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold tracking-tight text-white/90">{editItem ? 'Editar Recepción' : 'Nueva Recepción'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 transition-colors"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title text-xl font-bold tracking-tight">{editItem ? 'Editar Recepción' : 'Nueva Recepción'}</h2>
+              <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} className="input-field" /></div>
               <div>
                 <label className="input-label">Turno *</label>
-                <select value={form.turno} onChange={e => setForm({ ...form, turno: e.target.value as 'dia' | 'noche' | 'completo' })} className="input-field">
-                  <option value="dia">Día</option><option value="noche">Noche</option><option value="completo">Completo</option>
-                </select>
+                <AppSelect
+                  value={form.turno}
+                  onChange={(v) => setForm({ ...form, turno: v as 'dia' | 'noche' | 'completo' })}
+                  options={TURNO_OPTIONS}
+                />
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Origen *</label><input value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })} className="input-field" placeholder="Zona mina, terceros..." /></div>
               <div>
@@ -180,13 +194,11 @@ export default function RecepcionPage() {
               <div><label className="input-label">Transportista</label><input value={form.transportista} onChange={e => setForm({ ...form, transportista: e.target.value })} className="input-field" /></div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Observaciones</label><textarea value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} className="input-field" rows={2} /></div>
             </div>
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-white/[0.07]">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} disabled={saving || !form.origen || !form.sacos_recibidos} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Recepción' : 'Registrar Recepción'}</button>
-            </div>
-          </div>
-        </div>
-      )}
+            <PageFormModalFooter>
+              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={saving || !form.origen || !form.sacos_recibidos} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Recepción' : 'Registrar Recepción'}</button>
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

@@ -3,9 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { Waves, Plus, X, Loader2, Trash2, Droplets, FlaskConical, Cog, AlertCircle } from 'lucide-react';
+import { Plus, X, Loader2, Trash2, Droplets, FlaskConical, Cog, AlertCircle } from 'lucide-react';
 import type { VentaArenas } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
+import { AppPageToolbar } from '@/components/app/AppPageToolbar';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
 
 const emptyForm = {
@@ -31,11 +35,16 @@ export default function ArenasPage() {
 
   const f = (k: keyof typeof emptyForm, v: string) => setForm(p => ({ ...p, [k]: v }));
 
+  const { begin, isStale } = useAsyncGuard();
+
   const loadData = useCallback(async () => {
+    const gen = begin();
+    setLoading(true);
     const { data } = await supabase.from('venta_arenas').select('*').order('fecha', { ascending: false }).limit(100);
+    if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, []);
+  }, [begin, isStale]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -84,24 +93,21 @@ export default function ArenasPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Waves className="w-6 h-6 text-cyan-400" /> Venta de Arenas
-          </h1>
-          <p className="text-white/40 text-sm mt-1">
+      <AppPageToolbar
+        lead={
+          <p className="text-white/40 text-sm">
             <span className="text-emerald-400 font-semibold">{fmt(totalVentas)}</span> vendido —{' '}
             <span className="text-cyan-400 font-semibold">{fmtNum(totalTon)} t</span> totales
           </p>
-        </div>
+        }
+      >
         <button onClick={() => { setForm(emptyForm); setShowModal(true); }} className="btn-primary">
           <Plus className="w-4 h-4" /> Nueva Venta
         </button>
-      </div>
+      </AppPageToolbar>
 
       {/* Table & Cards */}
-      {loading ? <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div> : (
+      {loading ? <CrudPageSkeleton /> : (
         <>
           {/* Mobile Cards */}
           <div className="block md:hidden space-y-4">
@@ -225,13 +231,10 @@ export default function ArenasPage() {
         </>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => { setShowModal(false); setFormError(null); }}>
-          <div className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <PageFormModal open={showModal} onClose={() => { setShowModal(false); setFormError(null); }} panelClassName="sm:max-w-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white/90 tracking-tight">Nueva Venta de Arenas</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 transition-colors"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title text-xl font-bold tracking-tight">Nueva Venta de Arenas</h2>
+              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
 
             {formError && (
@@ -295,15 +298,13 @@ export default function ArenasPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-zinc-800">
-              <button onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} disabled={saving} className="btn-primary">
+            <PageFormModalFooter>
+              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={saving} className="btn-primary">
                 {saving ? 'Guardando...' : 'Registrar Venta'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

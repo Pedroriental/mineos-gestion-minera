@@ -2,6 +2,54 @@ import { ColumnDef } from '@tanstack/react-table';
 import type { ReporteExtraccion } from '@/lib/types';
 import { Edit2, Trash2 } from 'lucide-react';
 
+export type BitacoraEntry = {
+  id: string;
+  reporteId: string;
+  fecha: string;
+  turno: string;
+  vertical: string;
+  mina: string;
+  hora: string;
+  descripcion: string;
+};
+
+export const bitacoraColumns: ColumnDef<BitacoraEntry>[] = [
+  {
+    accessorKey: 'fecha',
+    header: 'Fecha',
+    cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue() as string}</span>,
+  },
+  {
+    accessorKey: 'turno',
+    header: 'Turno',
+    cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue() as string}</span>,
+  },
+  {
+    accessorKey: 'vertical',
+    header: 'Vertical',
+    cell: ({ getValue }) => (
+      <span className="whitespace-nowrap font-semibold text-amber-600">{getValue() as string}</span>
+    ),
+  },
+  {
+    accessorKey: 'mina',
+    header: 'Mina',
+    cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue() as string}</span>,
+  },
+  {
+    accessorKey: 'hora',
+    header: 'Hora',
+    cell: ({ getValue }) => (
+      <span className="whitespace-nowrap font-medium text-blue-600">{getValue() as string}</span>
+    ),
+  },
+  {
+    accessorKey: 'descripcion',
+    header: 'Descripción',
+    cell: ({ getValue }) => <span className="text-xs">{getValue() as string}</span>,
+  },
+];
+
 const turnoLabel = (t: string) =>
   t === 'dia' ? '☀ Día' : t === 'noche' ? '🌙 Noche' : '🔄 Completo';
 

@@ -5,14 +5,19 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useCloseOnRouteChange } from '@/hooks/useCloseOnRouteChange';
 
 export default function GlobalDateRangePicker() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const isThemedShell = pathname !== '/';
 
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  useCloseOnRouteChange(() => setIsOpen(false));
 
   // Parse URLs
   const fromParam = searchParams.get('desde');
@@ -70,38 +75,101 @@ export default function GlobalDateRangePicker() {
       {/* Trigger Button */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="hidden sm:flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-white/90 text-xs px-3 py-1.5 rounded-lg transition-colors"
+        className={cn(
+          'hidden sm:flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors',
+          isThemedShell
+            ? 'border-[var(--dashboard-border)] bg-[var(--dashboard-card-muted)] hover:border-[var(--dashboard-accent)]/35'
+            : 'border-zinc-800 bg-zinc-900 text-white/90 hover:border-zinc-700',
+        )}
       >
-        <CalendarIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-        <span className="capitalize font-medium text-zinc-300 whitespace-nowrap">{formatDateLabel()}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <CalendarIcon
+          className={cn(
+            'h-3.5 w-3.5 shrink-0',
+            isThemedShell ? 'text-[var(--dashboard-accent)]' : 'text-amber-500',
+          )}
+        />
+        <span
+          className={cn(
+            'whitespace-nowrap font-medium capitalize',
+            isThemedShell ? 'text-[var(--dashboard-text-muted)]' : 'text-zinc-300',
+          )}
+        >
+          {formatDateLabel()}
+        </span>
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 transition-transform',
+            isOpen && 'rotate-180',
+            isThemedShell ? 'text-[var(--dashboard-text-muted)]' : 'text-white/40',
+          )}
+        />
       </button>
 
       {/* Popover Content */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2">
+        <div
+          className={cn(
+            'absolute right-0 z-50 mt-2 w-72 rounded-xl border p-4 shadow-2xl animate-in fade-in slide-in-from-top-2',
+            isThemedShell
+              ? 'border-[var(--dashboard-border)] bg-[var(--dashboard-card-bg)]'
+              : 'border-zinc-800 bg-zinc-950',
+          )}
+        >
           <div className="space-y-4">
-            <h4 className="text-white/90 font-bold text-sm border-b border-zinc-800 pb-2">Rango Histórico</h4>
+            <h4
+              className={cn(
+                'border-b pb-2 text-sm font-bold',
+                isThemedShell
+                  ? 'border-[var(--dashboard-border)] text-[var(--dashboard-text)]'
+                  : 'border-zinc-800 text-white/90',
+              )}
+            >
+              Rango Histórico
+            </h4>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold text-white/50 uppercase tracking-wider mb-1">Desde</label>
-                <input 
-                  type="date" 
+                <label
+                  className={cn(
+                    'mb-1 block text-[10px] font-bold uppercase tracking-wider',
+                    isThemedShell ? 'text-[var(--dashboard-text-muted)]' : 'text-white/50',
+                  )}
+                >
+                  Desde
+                </label>
+                <input
+                  type="date"
                   value={dateRange.from}
                   onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
-                  style={{ colorScheme: 'dark' }}
+                  className={cn(
+                    'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none',
+                    isThemedShell
+                      ? 'border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] text-[var(--dashboard-text)] focus:border-[var(--dashboard-accent)]/50'
+                      : 'border-zinc-800 bg-zinc-900 text-white focus:border-amber-500/50',
+                  )}
+                  style={{ colorScheme: isThemedShell ? 'dark' : undefined }}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-white/50 uppercase tracking-wider mb-1">Hasta</label>
-                <input 
-                  type="date" 
+                <label
+                  className={cn(
+                    'mb-1 block text-[10px] font-bold uppercase tracking-wider',
+                    isThemedShell ? 'text-[var(--dashboard-text-muted)]' : 'text-white/50',
+                  )}
+                >
+                  Hasta
+                </label>
+                <input
+                  type="date"
                   value={dateRange.to}
                   onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
-                  style={{ colorScheme: 'dark' }}
+                  className={cn(
+                    'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none',
+                    isThemedShell
+                      ? 'border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] text-[var(--dashboard-text)] focus:border-[var(--dashboard-accent)]/50'
+                      : 'border-zinc-800 bg-zinc-900 text-white focus:border-amber-500/50',
+                  )}
+                  style={{ colorScheme: isThemedShell ? 'dark' : undefined }}
                 />
               </div>
             </div>
@@ -112,20 +180,35 @@ export default function GlobalDateRangePicker() {
                   setIsOpen(false);
                   router.push(pathname, { scroll: false }); // Reset to Histórico
                 }}
-                className="px-3 py-1.5 text-xs font-semibold text-white/50 hover:text-white/80 transition-colors"
+                className={cn(
+                  'px-3 py-1.5 text-xs font-semibold transition-colors',
+                  isThemedShell
+                    ? 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)]'
+                    : 'text-white/50 hover:text-white/80',
+                )}
               >
                 Limpiar
               </button>
               <div className="flex gap-2">
-                <button 
+                <button
                   onClick={() => setIsOpen(false)}
-                  className="px-3 py-1.5 text-xs font-semibold text-white/50 hover:text-white/80 transition-colors"
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-semibold transition-colors',
+                    isThemedShell
+                      ? 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)]'
+                      : 'text-white/50 hover:text-white/80',
+                  )}
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   onClick={handleApply}
-                  className="bg-amber-600 hover:bg-amber-500 text-black font-bold text-xs px-4 py-1.5 rounded-md transition-colors"
+                  className={cn(
+                    'rounded-md px-4 py-1.5 text-xs font-bold transition-colors',
+                    isThemedShell
+                      ? 'bg-[var(--dashboard-accent)] text-[#0a0a0a] hover:opacity-90'
+                      : 'bg-amber-600 text-black hover:bg-amber-500',
+                  )}
                 >
                   Aplicar Rango
                 </button>

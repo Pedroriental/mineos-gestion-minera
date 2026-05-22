@@ -3,10 +3,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { FlaskConical, Plus, X, Loader2, Edit2 } from 'lucide-react';
+import { Plus, X, Loader2, Edit2 } from 'lucide-react';
 import type { ProcesamientoPlanta } from '@/lib/types';
+import { AppPageToolbar } from '@/components/app/AppPageToolbar';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
 const PESO_SACO_KG = 50;
+
+const PROCESO_OPTIONS = [
+  { value: 'molienda', label: 'Molienda' },
+  { value: 'concentracion', label: 'Concentración' },
+  { value: 'amalgamacion', label: 'Amalgamación' },
+  { value: 'cianuracion', label: 'Cianuración' },
+  { value: 'flotacion', label: 'Flotación' },
+  { value: 'otro', label: 'Otro' },
+];
+const ESTADO_OPTIONS = [
+  { value: 'en_proceso', label: 'En Proceso' },
+  { value: 'completado', label: 'Completado' },
+  { value: 'enviado_a_quemada', label: 'Enviado a Quemada' },
+];
 
 export default function ProcesamientoPage() {
   const { user } = useAuth();
@@ -25,11 +44,16 @@ export default function ProcesamientoPage() {
   };
   const [form, setForm] = useState(emptyForm);
 
+  const { begin, isStale } = useAsyncGuard();
+
   const loadData = useCallback(async () => {
+    const gen = begin();
+    setLoading(true);
     const { data } = await supabase.from('procesamiento_planta').select('*').order('fecha', { ascending: false }).limit(100);
+    if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, []);
+  }, [begin, isStale]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -52,21 +76,14 @@ export default function ProcesamientoPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-slate-800 font-medium tracking-tight text-2xl flex items-center gap-3">
-            <FlaskConical className="w-6 h-6 text-purple-400" /> Procesamiento
-          </h1>
-          <p className="text-slate-500 text-sm font-light mt-1">{data.length} procesos registrados</p>
-        </div>
+      <AppPageToolbar lead={<p className="text-slate-500 text-sm font-light">{data.length} procesos registrados</p>}>
         <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} className="btn-primary">
           <Plus className="w-4 h-4" /> Nuevo Proceso
         </button>
-      </div>
+      </AppPageToolbar>
 
       {/* Table & Cards */}
-      {loading ? <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-amber-700 animate-spin" /></div> : (
+      {loading ? <CrudPageSkeleton /> : (
         <>
           {/* Mobile Cards View */}
           <div className="block md:hidden space-y-4">
@@ -148,21 +165,20 @@ export default function ProcesamientoPage() {
         </>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
-          <div className="relative w-full max-w-2xl bg-white border border-[#E8E5DE] rounded-2xl shadow-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold tracking-tight text-slate-800">{editItem ? 'Editar Proceso' : 'Nuevo Proceso'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title text-xl font-bold tracking-tight">{editItem ? 'Editar Proceso' : 'Nuevo Proceso'}</h2>
+              <button type="button" onClick={() => setShowModal(false)} className="rounded-xl p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} className="input-field" /></div>
               <div>
                 <label className="input-label">Proceso *</label>
-                <select value={form.proceso} onChange={e => setForm({ ...form, proceso: e.target.value as ProcesamientoPlanta['proceso'] })} className="input-field">
-                  {Object.entries(procesoLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
+                <AppSelect
+                  value={form.proceso}
+                  onChange={(v) => setForm({ ...form, proceso: v as ProcesamientoPlanta['proceso'] })}
+                  options={PROCESO_OPTIONS}
+                />
               </div>
               <div>
                 <label className="input-label">Sacos Vaciados * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
@@ -179,20 +195,20 @@ export default function ProcesamientoPage() {
               <div><label className="input-label">Horas Proceso</label><input type="number" step="0.01" value={form.horas_proceso} onChange={e => setForm({ ...form, horas_proceso: e.target.value })} className="input-field" /></div>
               <div className="col-span-1 md:col-span-2">
                 <label className="input-label">Estado</label>
-                <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value as ProcesamientoPlanta['estado'] })} className="input-field">
-                  <option value="en_proceso">En Proceso</option><option value="completado">Completado</option><option value="enviado_a_quemada">Enviado a Quemada</option>
-                </select>
+                <AppSelect
+                  value={form.estado}
+                  onChange={(v) => setForm({ ...form, estado: v as ProcesamientoPlanta['estado'] })}
+                  options={ESTADO_OPTIONS}
+                />
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Químicos (opcional)</label><input value={form.quimicos_utilizados} onChange={e => setForm({ ...form, quimicos_utilizados: e.target.value })} className="input-field" placeholder="Agua oxigenada, cianuro..." /></div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Observaciones</label><textarea value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} className="input-field" rows={2} /></div>
             </div>
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-[#E8E5DE]">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} disabled={saving || !form.sacos_vaciados || !form.peso_procesado_kg} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Proceso' : 'Guardar Proceso'}</button>
-            </div>
-          </div>
-        </div>
-      )}
+            <PageFormModalFooter>
+              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={saving || !form.sacos_vaciados || !form.peso_procesado_kg} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Proceso' : 'Guardar Proceso'}</button>
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

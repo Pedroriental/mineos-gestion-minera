@@ -11,12 +11,14 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import Sidebar from '@/components/Sidebar';
+import { RouteTransitionGuard } from '@/components/app/RouteTransitionGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
 import IdleWarningModal from '@/components/IdleWarningModal';
 import { cn } from '@/lib/utils';
 import { Suspense } from 'react';
 import GlobalDateRangePicker from '@/components/ui/GlobalDateRangePicker';
+import { getAppSectionMeta } from '@/lib/app-section-meta';
 
 // ── All navigable routes (for search palette) ────────────────────────────
 const ALL_ROUTES = [
@@ -83,7 +85,7 @@ function SearchModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden"
+        className="app-popover w-full max-w-lg overflow-hidden rounded-2xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800">
@@ -113,7 +115,7 @@ function SearchModal({
                   <button
                     key={r.href}
                     onClick={() => onNavigate(r.href)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors text-left"
+                    className="app-popover-item w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors text-left"
                   >
                     <span className="text-zinc-600 flex-shrink-0">{r.icon}</span>
                     <span className="font-medium flex-1">{r.label}</span>
@@ -166,7 +168,7 @@ function BellPanel({
   ];
 
   return (
-    <div className="w-72 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
+    <div className="app-popover w-72 overflow-hidden rounded-xl shadow-2xl">
       <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">
           Acceso Rápido
@@ -186,7 +188,7 @@ function BellPanel({
               onNavigate(l.href);
               onClose();
             }}
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left hover:bg-zinc-900 transition-colors"
+            className="app-popover-item w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors"
           >
             <span className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 flex-shrink-0">
               {l.icon}
@@ -219,7 +221,7 @@ function UserMenu({
   onClose: () => void;
 }) {
   return (
-    <div className="w-64 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
+    <div className="app-popover w-64 overflow-hidden rounded-xl shadow-2xl">
       <div className="px-4 py-4 border-b border-zinc-800">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-amber-500/15 border-2 border-amber-500/30 flex items-center justify-center flex-shrink-0">
@@ -352,7 +354,6 @@ function GoldBackground({ theme }: { theme: 'dark' | 'light' }) {
   );
 }
 
-// ── App Layout ─────────────────────────────────────────────────────────────
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, isGuest, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -368,7 +369,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
-  const isDashboard = pathname === '/dashboard';
+  const sectionMeta = getAppSectionMeta(pathname);
 
   const handleNav = useCallback(
     (href: string) => {
@@ -416,12 +417,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMobileMenuOpen(false);
+    setSearchOpen(false);
+    setBellOpen(false);
+    setUserMenuOpen(false);
   }, [pathname]);
 
   if (loading) {
     return (
-      <div className="h-[100dvh] w-full flex items-center justify-center bg-[#09090b]">
-        <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-[var(--dashboard-bg,#121212)]">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--dashboard-accent)]" />
       </div>
     );
   }
@@ -430,19 +434,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden relative">
-      <GoldBackground theme={theme} />
-
-      {/* ── App Shell — Floating Layout ── */}
-      <div className="relative z-10 flex w-full h-full p-4 gap-5" data-app-shell>
-
-        {/* ── Sidebar: Floating Glass Dock ── */}
+      <RouteTransitionGuard />
+      {/* ── App Shell — tema global (dashboard tokens) ── */}
+      <div
+        className="relative z-10 flex h-full w-full gap-3 bg-[var(--dashboard-bg)] p-4"
+        data-app-shell
+      >
         <Sidebar
+          variant="dashboard"
           mobileOpen={mobileMenuOpen}
           onMobileClose={() => setMobileMenuOpen(false)}
         />
 
         {/* ── Right column: rounded content card ── */}
-        <div className="flex-1 flex flex-col min-w-0 bg-zinc-900/40 rounded-[2rem] border border-white/5 overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]">
 
           {/* ── Guest Banner ── */}
           {isGuest && (
@@ -465,39 +470,60 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* ── Topbar ── */}
           <header
             data-topbar
-            className="shrink-0 h-14 flex items-center justify-between px-5 gap-3 bg-black/20 backdrop-blur-md border-b border-white/5"
+            className="sticky top-0 z-[100] flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--dashboard-border)] bg-[var(--dashboard-header-bg)] px-5 py-2 backdrop-blur-[12px]"
           >
             {/* Left: hamburger (mobile) */}
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 onClick={() => setMobileMenuOpen(true)}
-                className="md:hidden p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
+                className="shrink-0 rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-white md:hidden"
                 aria-label="Abrir menú"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
+
+              {sectionMeta ? (
+                <div className="app-topbar-context min-w-0">
+                  <div className="app-topbar-context__heading">
+                    <sectionMeta.Icon
+                      className={cn('app-topbar-context__icon', sectionMeta.iconClassName)}
+                      aria-hidden
+                    />
+                    <h1
+                      className={cn(
+                        'app-topbar-context__title',
+                        sectionMeta.titleClassName ?? 'text-[var(--dashboard-text)]',
+                      )}
+                    >
+                      {sectionMeta.title}
+                    </h1>
+                  </div>
+                  <p className="app-topbar-context__desc">{sectionMeta.description}</p>
+                </div>
+              ) : null}
             </div>
 
-            {/* Right: search + date + theme + bell */}
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 onClick={() => setSearchOpen(true)}
-                className="hidden lg:flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/8 rounded-xl px-3 py-2 w-44 transition-colors cursor-pointer group"
+                className="group hidden w-[27.5rem] max-w-[42vw] cursor-pointer items-center gap-2 rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card-muted)] px-3 py-2 transition-colors hover:border-[var(--dashboard-accent)]/35 lg:flex"
               >
-                <Search className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 flex-shrink-0" />
-                <span className="text-[12px] text-zinc-600 group-hover:text-zinc-400 font-medium select-none">Buscar...</span>
+                <Search className="h-3.5 w-3.5 shrink-0 text-[var(--dashboard-text-muted)] group-hover:text-[var(--dashboard-text)]" />
+                <span className="select-none text-[12px] font-medium text-[var(--dashboard-text-muted)] group-hover:text-[var(--dashboard-text)]">
+                  Buscar...
+                </span>
               </button>
 
-              <Suspense fallback={<div className="h-8 w-44 bg-white/5 animate-pulse rounded-lg hidden sm:block" />}>
+              <Suspense fallback={<div className="hidden h-8 w-[27.5rem] max-w-[42vw] animate-pulse rounded-lg bg-[var(--dashboard-card-muted)] sm:block" />}>
                 <GlobalDateRangePicker />
               </Suspense>
 
               <button
                 onClick={toggleTheme}
                 title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-                className="w-8 h-8 rounded-xl border border-white/8 flex items-center justify-center transition-all bg-white/5 text-zinc-500 hover:text-zinc-200 hover:bg-white/10"
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card-muted)] text-[var(--dashboard-text-muted)] transition-all hover:text-[var(--dashboard-text)]"
               >
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
@@ -506,10 +532,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 ref={bellBtnRef}
                 onClick={openBell}
                 className={cn(
-                  'w-8 h-8 rounded-xl border flex items-center justify-center transition-all',
+                  'flex h-8 w-8 items-center justify-center rounded-xl border transition-all',
                   bellOpen
-                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                    : 'bg-white/5 border-white/8 text-zinc-500 hover:text-zinc-200 hover:bg-white/10',
+                    ? 'border-[var(--dashboard-accent)]/35 bg-[var(--dashboard-accent-soft)] text-[var(--dashboard-accent)]'
+                    : 'border-[var(--dashboard-border)] bg-[var(--dashboard-card-muted)] text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)]',
                 )}
               >
                 <BellRing className="w-4 h-4" />
@@ -518,20 +544,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </header>
 
           {/* ── Main Content ── */}
-          {isDashboard ? (
-            <main className="flex-1 overflow-hidden w-full">
-              {children}
-            </main>
-          ) : (
-            <main
-              className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-5 md:py-6 lg:px-8 pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-6"
-              data-main-content
-            >
-              <div className="max-w-[1400px] mx-auto w-full">
-                {children}
+          <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+            {pathname === '/dashboard' ? (
+              children
+            ) : (
+              <div className="app-page-scroll" data-main-content>
+                <div className="app-page-inner pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-6">
+                  {children}
+                </div>
               </div>
-            </main>
-          )}
+            )}
+          </main>
         </div>
       </div>
 
