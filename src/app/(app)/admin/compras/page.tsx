@@ -3,8 +3,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { ShoppingCart, Plus, X, Loader2, Edit2, Check } from 'lucide-react';
+import { Plus, X, Loader2, Edit2, Check } from 'lucide-react';
+import { AppPageToolbar } from '@/components/app/AppPageToolbar';
+import { AppSelect } from '@/components/ui/AppSelect';
 import type { CompraProgramada } from '@/lib/types';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+
+const PRIORIDAD_OPTIONS = [
+  { value: 'baja', label: 'Baja' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'alta', label: 'Alta' },
+  { value: 'urgente', label: 'Urgente' },
+];
 
 export default function ComprasPage() {
   const { user } = useAuth();
@@ -19,11 +31,16 @@ export default function ComprasPage() {
     prioridad: 'normal' as CompraProgramada['prioridad'], proveedor_sugerido: '', costo_estimado: '', notas: '',
   });
 
+  const { begin, isStale } = useAsyncGuard();
+
   const loadData = useCallback(async () => {
+    const gen = begin();
+    setLoading(true);
     const { data } = await supabase.from('compras_programadas').select('*').order('fecha_requerida', { ascending: true });
+    if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, []);
+  }, [begin, isStale]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -55,22 +72,15 @@ export default function ComprasPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <ShoppingCart className="w-6 h-6 text-purple-400" /> Compras Programadas
-          </h1>
-          <p className="text-white/40 text-sm mt-1">{data.filter(c => c.estado !== 'completada' && c.estado !== 'cancelada').length} pendientes</p>
-        </div>
+      <AppPageToolbar lead={<p className="text-white/40 text-sm">{data.filter(c => c.estado !== 'completada' && c.estado !== 'cancelada').length} pendientes</p>}>
         <button onClick={() => { setEditItem(null); setForm({ descripcion: '', cantidad_requerida: '', unidad_medida: '', fecha_requerida: new Date().toISOString().split('T')[0], prioridad: 'normal', proveedor_sugerido: '', costo_estimado: '', notas: '' }); setShowModal(true); }} className="btn-primary">
           <Plus className="w-4 h-4" /> Nueva Compra
         </button>
-      </div>
+      </AppPageToolbar>
 
       {/* Table & Cards */}
       {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>
+        <CrudPageSkeleton />
       ) : (
         <>
           <div className="block md:hidden space-y-4">
@@ -146,13 +156,10 @@ export default function ComprasPage() {
         </>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
-          <div className="relative w-full max-w-2xl bg-[#091820]/98 border border-white/[0.10] rounded-2xl shadow-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold tracking-tight text-white/90">{editItem ? 'Editar Compra' : 'Nueva Compra'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 transition-colors"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title text-xl font-bold tracking-tight">{editItem ? 'Editar Compra' : 'Nueva Compra'}</h2>
+              <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div className="col-span-1 md:col-span-2"><label className="input-label">Descripción *</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} className="input-field" placeholder="Ej: Brocas de perforación 2.5''" /></div>
@@ -161,20 +168,20 @@ export default function ComprasPage() {
               <div><label className="input-label">Fecha Requerida *</label><input type="date" value={form.fecha_requerida} onChange={e => setForm({ ...form, fecha_requerida: e.target.value })} className="input-field" /></div>
               <div>
                 <label className="input-label">Prioridad</label>
-                <select value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value as CompraProgramada['prioridad'] })} className="input-field">
-                  <option value="baja">Baja</option><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option>
-                </select>
+                <AppSelect
+                  value={form.prioridad}
+                  onChange={(v) => setForm({ ...form, prioridad: v as CompraProgramada['prioridad'] })}
+                  options={PRIORIDAD_OPTIONS}
+                />
               </div>
               <div><label className="input-label">Proveedor Sugerido</label><input value={form.proveedor_sugerido} onChange={e => setForm({ ...form, proveedor_sugerido: e.target.value })} className="input-field" /></div>
               <div><label className="input-label">Costo Estimado (USD)</label><input type="number" step="0.01" value={form.costo_estimado} onChange={e => setForm({ ...form, costo_estimado: e.target.value })} className="input-field" /></div>
             </div>
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-white/[0.07]">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} disabled={saving || !form.descripcion || !form.cantidad_requerida} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Compra' : 'Registrar Compra'}</button>
-            </div>
-          </div>
-        </div>
-      )}
+            <PageFormModalFooter>
+              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={saving || !form.descripcion || !form.cantidad_requerida} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Compra' : 'Registrar Compra'}</button>
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 /**
- * Skeleton — animated placeholder compatible con el tema oscuro de MineOS.
- * API idéntica a Shadcn/ui Skeleton para fácil migración futura.
+ * Skeleton — placeholder con tokens del dashboard (día/noche).
  */
 import { cn } from '@/lib/utils';
 
@@ -10,7 +9,7 @@ export function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
       className={cn(
-        'animate-pulse rounded-lg bg-white/[0.06]',
+        'animate-pulse rounded-lg bg-[var(--dashboard-card-muted)]',
         className,
       )}
       {...props}

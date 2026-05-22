@@ -12,51 +12,63 @@ import type { Gasto } from '@/lib/types';
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 
-// ── Función de sort para monto (numérico) ────────────────────
 const helper = createColumnHelper<Gasto>();
 
-// ── Ícono de ordenamiento ────────────────────────────────────
-function SortIcon({ direction }: { direction: 'asc' | 'desc' | false }) {
-  if (direction === 'asc')  return <ArrowUp   className="ml-1.5 w-3 h-3 text-amber-400" />;
-  if (direction === 'desc') return <ArrowDown className="ml-1.5 w-3 h-3 text-amber-400" />;
-  return <ArrowUpDown className="ml-1.5 w-3 h-3 text-white/20 group-hover:text-white/40 transition-colors" />;
+/** ISO YYYY-MM-DD → DD/MM/YY compacto */
+export function formatGastoFecha(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
 }
 
-// ── Filtro global personalizado ──────────────────────────────
-// Busca en descripción, nombre de categoría y proveedor
+function SortIcon({ direction }: { direction: 'asc' | 'desc' | false }) {
+  if (direction === 'asc') {
+    return <ArrowUp className="gastos-sort-icon gastos-sort-icon--active ml-1.5 h-3 w-3" />;
+  }
+  if (direction === 'desc') {
+    return <ArrowDown className="gastos-sort-icon gastos-sort-icon--active ml-1.5 h-3 w-3" />;
+  }
+  return <ArrowUpDown className="gastos-sort-icon ml-1.5 h-3 w-3" />;
+}
+
 export const gastoGlobalFilter: FilterFn<Gasto> = (row, _columnId, value) => {
   const q = String(value).toLowerCase();
   return (
     row.original.descripcion?.toLowerCase().includes(q)              ||
     (row.original.categorias_gasto?.nombre ?? '').toLowerCase().includes(q) ||
     (row.original.proveedor ?? '').toLowerCase().includes(q)         ||
-    row.original.fecha.includes(q)
+    (row.original.factura_referencia ?? '').toLowerCase().includes(q) ||
+    row.original.fecha.includes(q) ||
+    formatGastoFecha(row.original.fecha).includes(q)
   );
 };
 
-// ── Columnas ─────────────────────────────────────────────────
 interface GetColumnsOptions {
   onEdit:   (item: Gasto) => void;
   onDelete: (id: string)  => void;
   canEdit:  boolean;
   isPending: boolean;
+  onToggleFechaSort: () => void;
+  fechaSortDirection: 'asc' | 'desc' | false;
 }
 
 export function getGastoColumns({
-  onEdit, onDelete, canEdit, isPending,
+  onEdit, onDelete, canEdit, isPending, onToggleFechaSort, fechaSortDirection,
 }: GetColumnsOptions) {
   return [
     helper.accessor('fecha', {
-      header: ({ column }) => (
+      meta: { align: 'left' },
+      header: () => (
         <button
-          className="group flex items-center text-[10px] font-bold uppercase tracking-widest text-white/35 hover:text-white/60 transition-colors"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          type="button"
+          className="group gastos-th inline-flex w-full items-center text-[10px] font-bold uppercase tracking-widest transition-colors"
+          onClick={onToggleFechaSort}
         >
-          Fecha <SortIcon direction={column.getIsSorted()} />
+          Fecha <SortIcon direction={fechaSortDirection} />
         </button>
       ),
       cell: (info) => (
-        <span className="text-white/40 text-xs whitespace-nowrap font-mono">
+        <span className="gastos-td font-mono text-[11px] tabular-nums opacity-90">
           {info.getValue()}
         </span>
       ),
@@ -64,10 +76,15 @@ export function getGastoColumns({
     }),
 
     helper.accessor('descripcion', {
-      header: 'Descripción',
+      meta: { align: 'left' },
+      header: () => (
+        <span className="gastos-th text-[10px] font-bold uppercase tracking-widest">
+          Descripción
+        </span>
+      ),
       cell: (info) => (
         <span
-          className="text-white/80 font-medium max-w-[220px] truncate block"
+          className="gastos-td block max-w-full truncate text-[11px] font-medium"
           title={info.getValue()}
         >
           {info.getValue()}
@@ -78,17 +95,50 @@ export function getGastoColumns({
 
     helper.accessor((row) => row.categorias_gasto?.nombre ?? '—', {
       id: 'categoria',
-      header: 'Categoría',
+      meta: { align: 'left' },
+      header: () => (
+        <span className="gastos-th text-[10px] font-bold uppercase tracking-wide">
+          Categoría
+        </span>
+      ),
       cell: (info) => (
-        <span className="badge badge-neutral text-[10px]">{info.getValue()}</span>
+        <span
+          className="gastos-cat-pill block w-full min-w-0 truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight"
+          title={info.getValue()}
+        >
+          {info.getValue()}
+        </span>
       ),
       enableSorting: false,
     }),
 
     helper.accessor('proveedor', {
-      header: 'Proveedor',
+      meta: { align: 'left' },
+      header: () => (
+        <span className="gastos-th text-[10px] font-bold uppercase tracking-wide">
+          Proveedor
+        </span>
+      ),
       cell: (info) => (
-        <span className="text-white/40 text-xs truncate block max-w-[120px]">
+        <span className="gastos-td block max-w-full truncate text-[11px] opacity-80" title={info.getValue() || undefined}>
+          {info.getValue() || '—'}
+        </span>
+      ),
+      enableSorting: false,
+    }),
+
+    helper.accessor('factura_referencia', {
+      meta: { align: 'left' },
+      header: () => (
+        <span className="gastos-th text-[10px] font-bold uppercase tracking-wide" title="Referencia de factura">
+          Factura
+        </span>
+      ),
+      cell: (info) => (
+        <span
+          className="gastos-td block max-w-full truncate font-mono text-[11px] opacity-80"
+          title={info.getValue() || undefined}
+        >
           {info.getValue() || '—'}
         </span>
       ),
@@ -96,16 +146,18 @@ export function getGastoColumns({
     }),
 
     helper.accessor('monto', {
+      meta: { align: 'right' },
       header: ({ column }) => (
         <button
-          className="group flex items-center text-[10px] font-bold uppercase tracking-widest text-white/35 hover:text-white/60 transition-colors ml-auto"
+          type="button"
+          className="group gastos-th inline-flex w-full items-center justify-end text-[10px] font-bold uppercase tracking-widest transition-colors"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         >
           Monto <SortIcon direction={column.getIsSorted()} />
         </button>
       ),
       cell: (info) => (
-        <span className="text-right font-semibold text-red-400 whitespace-nowrap block">
+        <span className="gastos-amount block text-[11px]">
           {fmt(info.getValue())}
         </span>
       ),
@@ -114,25 +166,28 @@ export function getGastoColumns({
 
     helper.display({
       id: 'actions',
-      header: '',
+      meta: { align: 'right' },
+      header: () => <span className="sr-only">Acciones</span>,
       cell: ({ row }) =>
         canEdit ? (
-          <div className="flex gap-1 justify-end">
+          <div className="flex justify-end gap-0.5">
             <button
-              onClick={() => onEdit(row.original)}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onEdit(row.original); }}
               disabled={isPending}
-              className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors disabled:opacity-30"
+              className="gastos-page-btn rounded-lg p-1 transition-colors hover:!text-[var(--dashboard-accent)] disabled:opacity-30"
               title="Editar"
             >
-              <Edit2 className="w-4 h-4" />
+              <Edit2 className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={() => onDelete(row.original.id)}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(row.original.id); }}
               disabled={isPending}
-              className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors disabled:opacity-30"
+              className="gastos-page-btn rounded-lg p-1 transition-colors hover:!text-[var(--dashboard-danger)] disabled:opacity-30"
               title="Eliminar"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
         ) : null,

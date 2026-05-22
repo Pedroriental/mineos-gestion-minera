@@ -12,6 +12,7 @@
  */
 
 import { createServerClient } from '@/lib/supabase-server';
+import { resolveRegistradoPorLabels } from '@/lib/resolve-registrado-por';
 import GastosClient from './GastosClient';
 import type { Gasto, CategoriaGasto } from '@/lib/types';
 
@@ -35,6 +36,15 @@ export default async function GastosPage() {
   const data:       Gasto[]         = (gastosRes.data as Gasto[])        ?? [];
   const categorias: CategoriaGasto[] = (catsRes.data  as CategoriaGasto[]) ?? [];
 
-  // Pasa la data como props — el Client Component la recibe directamente
-  return <GastosClient data={data} categorias={categorias} />;
+  const registradoPorLabels = await resolveRegistradoPorLabels(
+    data.map(g => g.registrado_por),
+  );
+
+  return (
+    <GastosClient
+      data={data}
+      categorias={categorias}
+      registradoPorLabels={registradoPorLabels}
+    />
+  );
 }

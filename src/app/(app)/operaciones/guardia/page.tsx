@@ -4,8 +4,25 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { ClipboardList, Plus, X, Loader2, Sun, Moon, AlertTriangle, Users, Wrench, Clock, CloudSun, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, X, Loader2, Sun, Moon, AlertTriangle, Users, Wrench, Clock, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
+import { AppPageToolbar } from '@/components/app/AppPageToolbar';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 import type { LibroGuardia } from '@/lib/types';
+
+const TURNO_OPTIONS = [
+  { value: 'dia', label: '☀ Día' },
+  { value: 'noche', label: '🌙 Noche' },
+];
+const CLIMA_OPTIONS = [
+  { value: 'despejado', label: '☀️ Despejado' },
+  { value: 'nublado', label: '⛅ Nublado' },
+  { value: 'lluvia', label: '🌧️ Lluvia' },
+  { value: 'tormenta', label: '⛈️ Tormenta' },
+  { value: 'neblina', label: '🌫️ Neblina' },
+];
 
 export default function LibroGuardiaPage() {
   const { user } = useAuth();
@@ -35,16 +52,21 @@ export default function LibroGuardiaPage() {
   };
   const [form, setForm] = useState(emptyForm);
 
+  const { begin, isStale } = useAsyncGuard();
+
   const loadData = useCallback(async () => {
+    const gen = begin();
+    setLoading(true);
     const { data } = await supabase
       .from('libro_guardia')
       .select('*')
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(200);
+    if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, []);
+  }, [begin, isStale]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -98,20 +120,17 @@ export default function LibroGuardiaPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <ClipboardList className="w-6 h-6 text-purple-400" /> Libro de Guardia
-          </h1>
-          <p className="text-white/40 text-sm mt-1.5">
-            Registro de entrega de turno — {filtered.length} {filtered.length === 1 ? 'entrada' : 'entradas'} para este día
+      <AppPageToolbar
+        lead={
+          <p className="text-white/40 text-sm">
+            {filtered.length} {filtered.length === 1 ? 'entrada' : 'entradas'} para este día
           </p>
-        </div>
+        }
+      >
         <button onClick={() => { setForm({ ...emptyForm, fecha: selectedDate }); setShowModal(true); }} disabled={!canEdit} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed" title={!canEdit ? 'Modo observador: solo lectura' : undefined}>
           <Plus className="w-4 h-4" /> Nueva Entrada
         </button>
-      </div>
+      </AppPageToolbar>
 
       {/* Day Selector */}
       <div className="card-glass p-4">
@@ -137,7 +156,7 @@ export default function LibroGuardiaPage() {
 
       {/* Timeline */}
       {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-purple-400 animate-spin" /></div>
+        <CrudPageSkeleton rows={5} />
       ) : filtered.length === 0 ? (
         <div className="card-glass p-12 text-center">
           <ClipboardList className="w-12 h-12 text-white/20 mx-auto mb-3" />
@@ -274,13 +293,10 @@ export default function LibroGuardiaPage() {
         </div>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
-          <div className="relative w-full max-w-3xl bg-[#091820]/98 border border-white/[0.10] rounded-2xl shadow-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-3xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold tracking-tight text-white/90">Nueva Entrada — Libro de Guardia</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 transition-colors"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title text-xl font-bold tracking-tight">Nueva Entrada — Libro de Guardia</h2>
+              <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -288,9 +304,11 @@ export default function LibroGuardiaPage() {
               <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} className="input-field" /></div>
               <div>
                 <label className="input-label">Turno *</label>
-                <select value={form.turno} onChange={e => setForm({ ...form, turno: e.target.value as 'dia' | 'noche' })} className="input-field">
-                  <option value="dia">☀ Día</option><option value="noche">🌙 Noche</option>
-                </select>
+                <AppSelect
+                  value={form.turno}
+                  onChange={(v) => setForm({ ...form, turno: v as 'dia' | 'noche' })}
+                  options={TURNO_OPTIONS}
+                />
               </div>
               <div><label className="input-label">Hora de Entrega</label><input type="time" value={form.hora_entrega} onChange={e => setForm({ ...form, hora_entrega: e.target.value })} className="input-field" /></div>
 
@@ -306,16 +324,14 @@ export default function LibroGuardiaPage() {
               <div className="col-span-1 md:col-span-1"><label className="input-label">Jefe Entrante (Recibe) *</label><input value={form.jefe_entrante} onChange={e => setForm({ ...form, jefe_entrante: e.target.value })} className="input-field" placeholder="Nombre completo" /></div>
               <div>
                 <label className="input-label">Clima</label>
-                <select value={form.clima} onChange={e => setForm({ ...form, clima: e.target.value })} className="input-field">
-                  <option value="despejado">☀️ Despejado</option>
-                  <option value="nublado">⛅ Nublado</option>
-                  <option value="lluvia">🌧️ Lluvia</option>
-                  <option value="tormenta">⛈️ Tormenta</option>
-                  <option value="neblina">🌫️ Neblina</option>
-                </select>
+                <AppSelect
+                  value={form.clima}
+                  onChange={(v) => setForm({ ...form, clima: v })}
+                  options={CLIMA_OPTIONS}
+                />
               </div>
 
-              <div className="grid grid-cols-3 col-span-1 md:col-span-3 gap-4 p-4 bg-white/[0.05] rounded-xl border border-white/[0.07]">
+              <div className="grid grid-cols-3 col-span-1 md:col-span-3 gap-4 p-4 app-detail-panel">
                 <div><label className="input-label">Mina</label><input type="number" value={form.personal_mina} onChange={e => setForm({ ...form, personal_mina: e.target.value })} className="input-field text-center font-semibold" placeholder="0" /></div>
                 <div><label className="input-label">Planta</label><input type="number" value={form.personal_planta} onChange={e => setForm({ ...form, personal_planta: e.target.value })} className="input-field text-center font-semibold" placeholder="0" /></div>
                 <div><label className="input-label">Otros</label><input type="number" value={form.personal_otros} onChange={e => setForm({ ...form, personal_otros: e.target.value })} className="input-field text-center font-semibold" placeholder="0" /></div>
@@ -368,16 +384,14 @@ export default function LibroGuardiaPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-white/[0.07]">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} disabled={saving || !form.jefe_saliente || !form.jefe_entrante || !form.novedades_operativas} className="btn-primary">
+            <PageFormModalFooter>
+              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={saving || !form.jefe_saliente || !form.jefe_entrante || !form.novedades_operativas} className="btn-primary">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Registrar Entrega de Turno
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

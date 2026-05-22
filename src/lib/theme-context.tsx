@@ -6,39 +6,52 @@ export type Theme = 'dark' | 'light';
 
 interface ThemeContextType {
   theme: Theme;
+  mounted: boolean;
   toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'dark',
+  theme: 'light',
+  mounted: false,
   toggleTheme: () => {},
 });
 
+function applyThemeToDocument(theme: Theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.classList.toggle('dark-mode', theme === 'dark');
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('light');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem('mineos-theme') as Theme | null;
-      const resolved: Theme = stored === 'light' ? 'light' : 'dark';
+      const resolved: Theme = stored === 'dark' ? 'dark' : 'light';
       setTheme(resolved);
-      document.documentElement.setAttribute('data-theme', resolved);
+      applyThemeToDocument(resolved);
     } catch {
-      document.documentElement.setAttribute('data-theme', 'dark');
+      applyThemeToDocument('light');
     }
+    setMounted(true);
   }, []);
 
   const toggleTheme = useCallback(() => {
     setTheme(prev => {
       const next: Theme = prev === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      try { localStorage.setItem('mineos-theme', next); } catch {}
+      applyThemeToDocument(next);
+      try {
+        localStorage.setItem('mineos-theme', next);
+      } catch {
+        /* ignore */
+      }
       return next;
     });
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, mounted, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

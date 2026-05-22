@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Target, Loader2, Calculator, Gem, Pickaxe, Scale } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Target, Calculator, Gem, Pickaxe, Scale } from 'lucide-react';
+import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
 export default function CostoPorGramoPage() {
   const [reportes, setReportes] = useState<any[]>([]);
@@ -12,19 +14,24 @@ export default function CostoPorGramoPage() {
   const [calcRecovery, setCalcRecovery] = useState(65);
   const [calcCostoDiario, setCalcCostoDiario] = useState(0);
 
+  const { begin, isStale } = useAsyncGuard();
+
   const loadData = useCallback(async () => {
+    const gen = begin();
+    setLoading(true);
     const [repRes, gastosRes, precioRes, precioFallbackRes] = await Promise.all([
       supabase.from('reportes_produccion').select('*').order('fecha', { ascending: false }).limit(500),
       supabase.from('gastos').select('monto, fecha, categorias_gasto(nombre)').order('fecha', { ascending: false }).limit(500),
       supabase.from('precio_oro_cache').select('precio_usd_por_gramo, precio_usd_por_onza').eq('fecha', new Date().toISOString().split('T')[0]).single(),
       supabase.from('precio_oro_cache').select('precio_usd_por_gramo, precio_usd_por_onza').order('fecha', { ascending: false }).limit(1).single(),
     ]);
+    if (isStale(gen)) return;
     setReportes(repRes.data || []);
     setGastos(gastosRes.data || []);
     const p = precioRes.data || precioFallbackRes.data;
     setGoldPrice(p ? { usd_gramo: Number(p.precio_usd_por_gramo), usd_onza: Number(p.precio_usd_por_onza) } : { usd_gramo: 99.68, usd_onza: 3100.00 });
     setLoading(false);
-  }, []);
+  }, [begin, isStale]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -76,22 +83,12 @@ export default function CostoPorGramoPage() {
   const fmtFull = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
   const fmtNum = (n: number, d = 2) => new Intl.NumberFormat('en-US', { maximumFractionDigits: d }).format(n);
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-emerald-400 animate-spin" /></div>;
+  if (loading) return <CrudPageSkeleton showKpis kpiCount={4} rows={4} />;
 
   const isProfitable = margenPorGramo > 0;
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-          <DollarSign className="w-6 h-6 text-emerald-400" /> Costo por Gramo &amp; Ley de Corte
-        </h1>
-        <p className="text-white/40 text-sm mt-1.5">
-          Análisis de rentabilidad y calculadora de ley de corte — basado en {prodDays} días de producción
-        </p>
-      </div>
-
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="card-glass p-6" style={{ borderTop: `3px solid ${isProfitable ? '#059669' : '#DC2626'}` }}>
@@ -236,7 +233,7 @@ export default function CostoPorGramoPage() {
           )}
 
           {/* Total */}
-          <div className="mt-6 pt-4 border-t border-white/[0.07] flex items-center justify-between">
+          <div className="page-form-modal-footer justify-between">
             <span className="text-sm font-semibold text-white/50">Total Acumulado</span>
             <span className="text-lg font-bold text-white/85">{fmt(totalGastos)}</span>
           </div>

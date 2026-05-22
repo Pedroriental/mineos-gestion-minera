@@ -10,6 +10,15 @@ import {
   ChevronLeft, ChevronRight, CalendarDays, AlertCircle, Gem, Search, BookOpen
 } from 'lucide-react';
 import Link from 'next/link';
+import { AppPageToolbar } from '@/components/app/AppPageToolbar';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+
+const TURNO_OPTIONS = [
+  { value: 'dia', label: '☀ Día' },
+  { value: 'noche', label: '🌙 Noche' },
+  { value: 'completo', label: '🔄 Completo' },
+];
 import MetricCard from '@/components/MetricCard';
 import EmptyState from '@/components/EmptyState';
 import {
@@ -175,28 +184,23 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Flame className="w-6 h-6 text-orange-400" /> Quemado de Planchas
-          </h1>
-          <p className="text-white/40 text-sm mt-1">
+      <AppPageToolbar
+        lead={
+          <p className="text-white/40 text-sm">
             <span className="text-amber-400 font-semibold">{fmtN(totalOroDay)} g Au</span> recuperados
             {' '}— {dataForSelectedDate.length} quemadas
             {mermaDay > 0 && <span className="text-white/25"> — Merma: {mermaDay.toFixed(1)}%</span>}
           </p>
-        </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <Link href="/operaciones/resumen" className="btn-secondary min-h-[40px] px-4 flex-1 sm:flex-none flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
-            <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Resumen Ejecutivo</span>
-          </Link>
-          <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setPausas([emptyPlancha()]); setFormError(null); setShowModal(true); }}
-            disabled={!canEdit} className="btn-primary min-h-[40px] px-4 flex-1 sm:flex-none disabled:opacity-40 disabled:cursor-not-allowed">
-            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuevo Reporte</span>
-          </button>
-        </div>
-      </div>
+        }
+      >
+        <Link href="/operaciones/resumen" className="btn-secondary min-h-[40px] px-4 flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
+          <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Resumen Ejecutivo</span>
+        </Link>
+        <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setPausas([emptyPlancha()]); setFormError(null); setShowModal(true); }}
+          disabled={!canEdit} className="btn-primary min-h-[40px] px-4 disabled:opacity-40 disabled:cursor-not-allowed">
+          <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuevo Reporte</span>
+        </button>
+      </AppPageToolbar>
 
       <div className="card-glass p-4 flex items-start gap-3 border border-amber-400/20">
         <Gem className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -258,7 +262,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
           variant={mermaDay > 0 ? (mermaDay < 55 ? 'positive' : mermaDay < 70 ? 'neutral' : 'negative') : 'neutral'} icon={<Calculator className="w-4 h-4" />} />
       </div>
 
-      <div className="flex items-center bg-zinc-900/50 border border-white/5 rounded-xl px-3 py-2 w-full max-w-sm">
+      <div className="flex items-center app-search-field px-3 py-2 w-full max-w-sm">
         <Search className="w-4 h-4 text-white/40 mr-2" />
         <input type="text" placeholder="Buscar quemado..." value={globalFilter ?? ''} onChange={(e) => setGlobalFilter(e.target.value)}
           className="bg-transparent border-none outline-none text-sm text-white/90 placeholder:text-white/30 w-full" />
@@ -356,14 +360,11 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
         </table>
       </div>
 
-      {/* Modal Bottom-Sheet/Centered */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm" onClick={() => { setShowModal(false); setFormError(null); }}>
-          <div className="relative w-full sm:max-w-2xl bg-zinc-950 border border-zinc-800 sm:rounded-2xl rounded-t-2xl shadow-2xl p-6 sm:p-8 max-h-[92dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="sm:hidden flex justify-center mb-4 -mt-1"><div className="w-8 h-1 rounded-full bg-zinc-700" /></div>
+      <PageFormModal open={showModal} onClose={() => { setShowModal(false); setFormError(null); }} panelClassName="sm:max-w-2xl">
+            <div className="mb-4 -mt-1 flex justify-center sm:hidden"><div className="h-1 w-8 rounded-full bg-[var(--dashboard-border)]" /></div>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-white/90 flex items-center gap-2"><Flame className="w-5 h-5 text-orange-400" /> {editItem ? 'Editar Quemado' : 'Nuevo Quemado'}</h2>
-              <button onClick={() => { setShowModal(false); setFormError(null); }} className="p-2 rounded-lg hover:bg-white/[0.06] text-white/40 min-h-[44px] min-w-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title flex items-center gap-2 text-lg font-semibold"><Flame className="h-5 w-5 text-orange-400" /> {editItem ? 'Editar Quemado' : 'Nuevo Quemado'}</h2>
+              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
 
             {formError && (
@@ -376,9 +377,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} className="input-field min-h-[44px]" /></div>
                 <div><label className="input-label">Turno *</label>
-                  <select value={form.turno} onChange={e => set('turno', e.target.value)} className="input-field min-h-[44px]">
-                    <option value="dia">☀ Día</option><option value="noche">🌙 Noche</option><option value="completo">🔄 Completo</option>
-                  </select></div>
+                  <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={TURNO_OPTIONS} /></div>
                 <div><label className="input-label">N° Quemada</label><input value={form.numero_quemada} onChange={e => set('numero_quemada', e.target.value)} className="input-field min-h-[44px]" placeholder="001" /></div>
               </div>
 
@@ -391,7 +390,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                 </div>
                 <div className="space-y-3">
                   {planchas.map((p, i) => (
-                    <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-4">
+                    <div key={i} className="app-detail-panel rounded-xl p-4">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-semibold text-white/70">Plancha {i + 1}</span>
                         {planchas.length > 1 && <button onClick={() => removePlancha(i)} className="p-2 rounded-lg hover:bg-red-500/10 text-white/30 hover:text-red-400 min-h-[44px] min-w-[44px] flex justify-center items-center"><X className="w-4 h-4" /></button>}
@@ -407,7 +406,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
 
               <div>
                 <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-blue-400">🔧 Manto. Área Raspado</span><div className="flex-1 h-px bg-blue-400/20" /></div>
-                <div className="grid grid-cols-2 gap-3 bg-white/[0.04] border border-white/[0.08] rounded-xl p-4">
+                <div className="grid grid-cols-2 gap-3 app-detail-panel rounded-xl p-4">
                   <div><label className="input-label">Amalgama (g)</label><input type="number" step="0.01" value={form.manto_amalgama_g} onChange={e => set('manto_amalgama_g', e.target.value)} className="input-field min-h-[44px]" placeholder="1.19" /></div>
                   <div><label className="input-label text-amber-400">Oro Recup. (g Au)</label><input type="number" step="0.01" value={form.manto_oro_g} onChange={e => set('manto_oro_g', e.target.value)} className="input-field min-h-[44px]" placeholder="0.43" /></div>
                 </div>
@@ -415,7 +414,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
 
               <div>
                 <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-purple-400">⚗️ Retorta</span><div className="flex-1 h-px bg-purple-400/20" /></div>
-                <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-4 max-w-xs">
+                <div className="app-detail-panel max-w-xs rounded-xl p-4">
                   <label className="input-label text-amber-400">Oro Recuperado (g Au)</label><input type="number" step="0.01" value={form.retorta_oro_g} onChange={e => set('retorta_oro_g', e.target.value)} className="input-field min-h-[44px]" placeholder="0.33" />
                 </div>
               </div>
@@ -435,16 +434,14 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
               </div>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-6 pt-4 border-t border-zinc-800">
-              <button onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">Cancelar</button>
-              <button onClick={handleSave} disabled={isPending} className="btn-primary min-h-[48px] sm:min-h-[40px]">
+            <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary min-h-[48px] sm:min-h-[40px]">
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 {editItem ? 'Actualizar' : 'Registrar Quemado'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }

@@ -52,18 +52,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
-        {/* Theme detection — runs before paint to avoid flash */}
+        {/* Tema antes del paint — debe coincidir con theme-context (default: light) */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('mineos-theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark');}catch(e){}`,
+            __html: `try{var t=localStorage.getItem('mineos-theme');var th=t==='dark'?'dark':'light';document.documentElement.setAttribute('data-theme',th);document.documentElement.classList.toggle('dark-mode',th==='dark');}catch(e){}`,
           }}
         />
-        {/* Service Worker registration */}
+        {/* Service Worker: solo producción; en localhost se desregistra para no romper HMR */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').then(function(r){console.log('SW registered',r.scope)}).catch(function(e){console.warn('SW failed:',e)})})}`,
+            __html: `(function(){if(!('serviceWorker' in navigator))return;var h=location.hostname;var dev=h==='localhost'||h==='127.0.0.1'||h==='[::1]';function clearSw(){navigator.serviceWorker.getRegistrations().then(function(regs){regs.forEach(function(r){r.unregister()})});if('caches' in window){caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k)})})}}if(dev){clearSw();return}window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').then(function(r){console.log('SW registered',r.scope)}).catch(function(e){console.warn('SW failed:',e)})})})();`,
           }}
         />
       </head>

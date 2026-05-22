@@ -4,9 +4,39 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { Shield, Plus, X, Loader2, Edit2 } from 'lucide-react';
+import { Plus, X, Loader2, Edit2, Shield } from 'lucide-react';
 import type { MejoraSeguridad } from '@/lib/types';
+import { AppPageToolbar } from '@/components/app/AppPageToolbar';
+import { AppSelect } from '@/components/ui/AppSelect';
 import EmptyState from '@/components/EmptyState';
+import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+
+const TIPO_OPTIONS = [
+  { value: 'mejora_infraestructura', label: 'Infraestructura' },
+  { value: 'mejora_proceso', label: 'Proceso' },
+  { value: 'incidente', label: 'Incidente' },
+  { value: 'inspeccion', label: 'Inspección' },
+  { value: 'capacitacion', label: 'Capacitación' },
+];
+const AREA_OPTIONS = [
+  { value: 'mina', label: 'Mina' },
+  { value: 'planta', label: 'Planta' },
+  { value: 'general', label: 'General' },
+];
+const PRIORIDAD_OPTIONS = [
+  { value: 'baja', label: 'Baja' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'alta', label: 'Alta' },
+  { value: 'critica', label: 'Crítica' },
+];
+const ESTADO_OPTIONS = [
+  { value: 'reportado', label: 'Reportado' },
+  { value: 'en_proceso', label: 'En Proceso' },
+  { value: 'completado', label: 'Completado' },
+  { value: 'descartado', label: 'Descartado' },
+];
 
 
 export default function SeguridadPage() {
@@ -21,11 +51,16 @@ export default function SeguridadPage() {
   const emptyForm = { fecha: new Date().toISOString().split('T')[0], tipo: 'mejora_proceso' as MejoraSeguridad['tipo'], titulo: '', descripcion: '', area: 'mina' as MejoraSeguridad['area'], prioridad: 'normal' as MejoraSeguridad['prioridad'], estado: 'reportado' as MejoraSeguridad['estado'], responsable: '', costo_estimado: '' };
   const [form, setForm] = useState(emptyForm);
 
+  const { begin, isStale } = useAsyncGuard();
+
   const loadData = useCallback(async () => {
+    const gen = begin();
+    setLoading(true);
     const { data } = await supabase.from('mejoras_seguridad').select('*').order('fecha', { ascending: false });
+    if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, []);
+  }, [begin, isStale]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -48,22 +83,21 @@ export default function SeguridadPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-white/90 font-bold tracking-tight text-2xl flex items-center gap-3">
-            <Shield className="w-6 h-6 text-emerald-400" /> Mejoras y Seguridad
-          </h1>
-          <p className="text-white/40 text-sm mt-1">{data.filter(d => d.estado !== 'completado' && d.estado !== 'descartado').length} activos</p>
-        </div>
+      <AppPageToolbar
+        lead={
+          <p className="text-white/40 text-sm">
+            {data.filter(d => d.estado !== 'completado' && d.estado !== 'descartado').length} activos
+          </p>
+        }
+      >
         <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} disabled={!canEdit} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed" title={!canEdit ? 'Modo observador: solo lectura' : undefined}>
           <Plus className="w-4 h-4" /> Nuevo Registro
         </button>
-      </div>
+      </AppPageToolbar>
 
       {/* Table & Cards */}
       {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>
+        <CrudPageSkeleton />
       ) : (
         <>
           {/* Mobile Cards View */}
@@ -80,7 +114,7 @@ export default function SeguridadPage() {
                     <span className={`badge ${estadoBadge[d.estado]} block`}>{d.estado}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 p-3 bg-white/[0.05] rounded-lg border border-white/[0.07]">
+                <div className="grid grid-cols-2 gap-3 p-3 app-detail-panel">
                   <div>
                     <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Tipo</span>
                     <span className={`badge ${tipoBadge[d.tipo]} inline-block`}>{tipoLabel[d.tipo]}</span>
@@ -155,51 +189,54 @@ export default function SeguridadPage() {
         </>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
-          <div className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold tracking-tight text-white/90">{editItem ? 'Editar Registro' : 'Nuevo Registro de Seguridad'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 transition-colors"><X className="w-5 h-5" /></button>
+              <h2 className="page-form-modal-title text-xl font-bold tracking-tight">{editItem ? 'Editar Registro' : 'Nuevo Registro de Seguridad'}</h2>
+              <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div><label className="input-label">Fecha</label><input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} className="input-field" /></div>
               <div>
                 <label className="input-label">Tipo *</label>
-                <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value as MejoraSeguridad['tipo'] })} className="input-field">
-                  {Object.entries(tipoLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
+                <AppSelect
+                  value={form.tipo}
+                  onChange={(v) => setForm({ ...form, tipo: v as MejoraSeguridad['tipo'] })}
+                  options={TIPO_OPTIONS}
+                />
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Título *</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} className="input-field" placeholder="Ej: Nueva señalización en Galería Norte" /></div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Descripción *</label><textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} className="input-field" rows={3} /></div>
               <div>
                 <label className="input-label">Área</label>
-                <select value={form.area} onChange={e => setForm({ ...form, area: e.target.value as MejoraSeguridad['area'] })} className="input-field">
-                  <option value="mina">Mina</option><option value="planta">Planta</option><option value="general">General</option>
-                </select>
+                <AppSelect
+                  value={form.area}
+                  onChange={(v) => setForm({ ...form, area: v as MejoraSeguridad['area'] })}
+                  options={AREA_OPTIONS}
+                />
               </div>
               <div>
                 <label className="input-label">Prioridad</label>
-                <select value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value as MejoraSeguridad['prioridad'] })} className="input-field">
-                  <option value="baja">Baja</option><option value="normal">Normal</option><option value="alta">Alta</option><option value="critica">Crítica</option>
-                </select>
+                <AppSelect
+                  value={form.prioridad}
+                  onChange={(v) => setForm({ ...form, prioridad: v as MejoraSeguridad['prioridad'] })}
+                  options={PRIORIDAD_OPTIONS}
+                />
               </div>
               <div>
                 <label className="input-label">Estado</label>
-                <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value as MejoraSeguridad['estado'] })} className="input-field">
-                  <option value="reportado">Reportado</option><option value="en_proceso">En Proceso</option><option value="completado">Completado</option><option value="descartado">Descartado</option>
-                </select>
+                <AppSelect
+                  value={form.estado}
+                  onChange={(v) => setForm({ ...form, estado: v as MejoraSeguridad['estado'] })}
+                  options={ESTADO_OPTIONS}
+                />
               </div>
               <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => setForm({ ...form, responsable: e.target.value })} className="input-field" /></div>
             </div>
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-zinc-800">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSave} disabled={saving || !form.titulo || !form.descripcion} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Registro' : 'Guardar Registro'}</button>
-            </div>
-          </div>
-        </div>
-      )}
+            <PageFormModalFooter>
+              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={saving || !form.titulo || !form.descripcion} className="btn-primary">{saving ? 'Guardando...' : editItem ? 'Actualizar Registro' : 'Guardar Registro'}</button>
+            </PageFormModalFooter>
+      </PageFormModal>
     </div>
   );
 }
