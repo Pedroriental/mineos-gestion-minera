@@ -96,12 +96,12 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
     ].join(' ');
 
     return (
-      <div className="overflow-x-auto pb-1">
+      <div className="resumen-ejecutivo-page__chart-viewport">
         <svg
           viewBox={`0 0 ${totalW} ${H + 20}`}
           className="resumen-ejecutivo-page__chart-svg"
-          style={{ minWidth: Math.max(totalW, 260), display: 'block', width: '100%' }}
-          preserveAspectRatio="none"
+          style={{ minWidth: Math.max(totalW, 260), display: 'block' }}
+          preserveAspectRatio="xMidYMid meet"
         >
           <defs>
             <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
@@ -286,7 +286,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
                     <TrendingDown className="h-4 w-4 text-red-400 sm:h-5 sm:w-5" />
                   )}
                 </div>
-                <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-start gap-3 lg:gap-6">
                   <div className="flex min-w-0 flex-wrap items-baseline gap-2">
                     <h2
                       className={`text-lg font-black leading-none tracking-tight sm:text-xl lg:text-2xl ${
