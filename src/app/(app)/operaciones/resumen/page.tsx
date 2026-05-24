@@ -259,7 +259,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
 
   // ─────────────────────────────────────────────────────────────
   return (
-    <div className="resumen-ejecutivo-page flex min-h-0 flex-1 flex-col overflow-hidden print:space-y-4">
+    <div className="resumen-ejecutivo-page flex min-h-0 w-full flex-1 flex-col overflow-hidden print:space-y-4">
 
       <div className="resumen-ejecutivo-page__body min-h-0 flex-1 overflow-hidden">
         <div className="resumen-ejecutivo-page__content min-h-0 flex-1">

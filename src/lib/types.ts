@@ -18,6 +18,8 @@ export interface Personal {
   activo: boolean;
   telefono?: string;
   notas?: string;
+  esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15';
+  rotacion_inicio_fecha?: string;
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +76,44 @@ export interface NominaCierre {
   monto_darinel: number;
   monto_la_fe: number;
   created_at: string;
+}
+
+export interface NominaVale {
+  id: string;
+  personal_id: string;
+  monto: number;
+  fecha: string;
+  motivo: string;
+  estado: 'PENDIENTE' | 'COBRADO';
+  created_at: string;
+}
+
+export interface NominaAuditLog {
+  id: string;
+  accion: string;
+  entidad: string;
+  entidad_id?: string;
+  detalle?: string;
+  usuario_id?: string;
+  usuario_nombre?: string;
+  created_at: string;
+}
+
+export interface HistorialPagoRow {
+  semana_id: string;
+  semana_inicio: string;
+  semana_fin: string;
+  area: string;
+  monto_pagado: number;
+  es_semana_libre: boolean;
+  bono_transporte_pagado: number;
+  created_at: string;
+}
+
+export interface TendenciaSemanalRow {
+  semana_inicio: string;
+  total_pagado: number;
+  total_trabajadores: number;
 }
 
 export interface NominaHistoricoRow {

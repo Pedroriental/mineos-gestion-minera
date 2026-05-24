@@ -455,7 +455,7 @@ export default function ProduccionGerencialClient({
   };
 
   return (
-    <div className="produccion-page flex min-h-0 w-full max-w-[1600px] mx-auto flex-1 flex-col overflow-hidden">
+    <div className="produccion-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
 
       <FadeIn className="produccion-page__toolbar shrink-0">
         <div className="produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">

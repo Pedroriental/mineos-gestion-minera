@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
+import { fontDisplay, fontMono, fontSans } from "@/lib/fonts";
 
 export const metadata: Metadata = {
   title: "MineOS — Sistema de Gestión Minera",
@@ -67,7 +68,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>
+      <body className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable} font-sans antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

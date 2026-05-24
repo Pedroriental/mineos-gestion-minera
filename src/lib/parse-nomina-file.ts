@@ -74,6 +74,66 @@ export function detectWeekRange(text: string): WeekRange {
 }
 
 /**
+ * Detecta si una celda individual contiene un rango semanal y lo devuelve de forma estructurada.
+ * Infiere el fin sumándole 6 días si no hay una fecha de fin explícita.
+ */
+export function detectWeekRangeInCell(text: string, defaultYear: string): WeekRange {
+  const textLower = text.toLowerCase();
+  
+  // 1. Patrón en español: número de día seguido por nombre de mes
+  const spanishMonthRegex = /(\d{1,2})\s+(?:de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/gi;
+  const matches = [...textLower.matchAll(spanishMonthRegex)];
+  
+  if (matches.length >= 1) {
+    const firstDay = matches[0][1];
+    const firstMonth = matches[0][2];
+    const yearMatch = text.match(/\b(\d{4})\b/);
+    const year = yearMatch ? yearMatch[1] : defaultYear;
+    
+    const firstDate = parseSpanishDate(firstDay, firstMonth, year);
+    
+    if (matches.length >= 2) {
+      const secondDay = matches[1][1];
+      const secondMonth = matches[1][2];
+      const secondDate = parseSpanishDate(secondDay, secondMonth, year);
+      return { inicio: firstDate, fin: secondDate };
+    } else {
+      if (firstDate) {
+        const d = new Date(firstDate);
+        d.setDate(d.getDate() + 6);
+        const finDate = d.toISOString().split('T')[0];
+        return { inicio: firstDate, fin: finDate };
+      }
+    }
+  }
+  
+  // 2. Patrón numérico DD/MM
+  const numericPat = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g;
+  const numMatches = [...text.matchAll(numericPat)];
+  if (numMatches.length >= 1) {
+    const d1 = numMatches[0][1];
+    const m1 = numMatches[0][2];
+    const y1 = numMatches[0][3] || defaultYear;
+    const firstDate = `${y1}-${m1.padStart(2, '0')}-${d1.padStart(2, '0')}`;
+    
+    if (numMatches.length >= 2) {
+      const d2 = numMatches[1][1];
+      const m2 = numMatches[1][2];
+      const y2 = numMatches[1][3] || defaultYear;
+      const secondDate = `${y2}-${m2.padStart(2, '0')}-${d2.padStart(2, '0')}`;
+      return { inicio: firstDate, fin: secondDate };
+    } else {
+      const d = new Date(firstDate);
+      d.setDate(d.getDate() + 6);
+      const finDate = d.toISOString().split('T')[0];
+      return { inicio: firstDate, fin: finDate };
+    }
+  }
+  
+  return { inicio: null, fin: null };
+}
+
+/**
  * Detecta la semana desde las celdas de un archivo Excel.
  */
 export function detectWeekRangeFromExcel(workbook: import('xlsx').WorkBook): WeekRange {
@@ -106,15 +166,42 @@ export function inferArea(
 ): EmpleadoParseado['area'] {
   const lower = sectionName.toLowerCase();
   
-  // Como se ve en el PDF: Administrativos Molinos, Semanas Molinos- Grupo, etc.
-  if (lower.includes('molino') || lower.includes('planta')) {
+  // 1. Transporte
+  if (lower.includes('transporte') || lower.includes('chofer') || lower.includes('volque')) {
+    return 'transporte';
+  }
+
+  // 2. Seguridad
+  if (lower.includes('seguridad') || lower.includes('vigilancia') || lower.includes('sereno')) {
+    return 'seguridad';
+  }
+
+  // 3. Planta / Molino (Molino La Fé)
+  if (
+    lower.includes('molino') || 
+    lower.includes('planta') || 
+    lower.includes('grupo') || 
+    lower.includes('mixto') || 
+    lower.includes('la fe') || 
+    lower.includes('la fé')
+  ) {
     return 'planta';
   }
 
-  // De lo contrario (ej: Administrativo Mina, Cocinera Mina, Vertical, Compresor)
-  // todo pertenece a Mina.
+  // 4. Mina (explicit check)
+  if (lower.includes('mina') || lower.includes('vertical') || lower.includes('belen') || lower.includes('belén')) {
+    return 'mina';
+  }
+
+  // 5. Administración (generic fallback for administrative sections)
+  if (lower.includes('administra')) {
+    return 'administracion';
+  }
+
+  // Default fallback
   return 'mina';
 }
+
 
 // ── Limpia el nombre de sección para usarlo como "cargo" ─────────────────────
 export function cleanSectionName(section: string): string {
@@ -136,13 +223,11 @@ function normCedula(raw: string | number): string {
 // ── Normalizar monto (formato venezolano: 1.234,56 → 1234.56) ───────────────
 function normAmount(raw: string | number): number {
   if (typeof raw === 'number') return raw;
-  // Remove thousand separators (dots), then replace comma with dot
   const cleaned = String(raw).replace(/\./g, '').replace(',', '.');
   return parseFloat(cleaned) || 0;
 }
 
 // ── Detectar si una celda es una C.I. venezolana ─────────────────────────────
-// Formato: 7-9 dígitos (con o sin puntos como separadores)
 const CI_WITH_DOTS = /^\d{1,2}\.\d{3}\.\d{3}$/;
 const CI_PLAIN = /^\d{6,9}$/;
 
@@ -156,7 +241,6 @@ const DATE_REGEX = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
 function parseDate(cell: unknown): string | null {
   if (!cell) return null;
-  // Excel serial number
   if (typeof cell === 'number' && cell > 40000 && cell < 55000) {
     const d = XLSX.SSF.parse_date_code(cell);
     if (d) {
@@ -224,7 +308,7 @@ function shouldSkipRow(text: string): boolean {
 }
 
 // ── PARSER PRINCIPAL DE EXCEL ─────────────────────────────────────────────────
-export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
+export function parseExcelNomina(file: File, semanaInicio?: string): Promise<EmpleadoParseado[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -243,31 +327,52 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
 
           let currentSection = 'Personal';
           let currentArea: EmpleadoParseado['area'] = 'mina';
+          let activeWeekColIdx = -1;
 
           for (const rawRow of rows) {
             const row = rawRow as unknown[];
             if (!row || row.length === 0) continue;
 
-            // Collect non-empty cells
             const nonEmpty = row.filter(
               (c) => c !== '' && c !== null && c !== undefined
             );
             if (nonEmpty.length < 2) continue;
 
-            // First meaningful cell as text
             const firstCell = String(nonEmpty[0] ?? '').trim();
 
-            // Skip obvious header / total rows
+            // 1. Detectar si es una fila de cabecera de columnas para encontrar los índices semanales
+            const rowText = row.map(c => String(c ?? '').trim()).join(' ');
+            const isColHeader = /nombres?/i.test(rowText) && (/c\.?i\.?/i.test(rowText) || /fecha\s+de\s+ingreso/i.test(rowText));
+
+            if (isColHeader) {
+              activeWeekColIdx = -1;
+              if (semanaInicio) {
+                const defaultYear = semanaInicio.split('-')[0];
+                for (let i = 0; i < row.length; i++) {
+                  const cellText = String(row[i] ?? '').trim();
+                  if (!cellText) continue;
+                  
+                  // Analizamos si la cabecera representa un periodo que coincide con la semanaInicio
+                  const range = detectWeekRangeInCell(cellText, defaultYear);
+                  if (range.inicio && range.inicio === semanaInicio) {
+                    activeWeekColIdx = i;
+                    break;
+                  }
+                }
+              }
+              continue;
+            }
+
             if (shouldSkipRow(firstCell)) continue;
 
             // Check if section header
             if (isSectionHeader(firstCell)) {
               currentSection = firstCell;
               currentArea = inferArea(firstCell);
+              activeWeekColIdx = -1; // Reset para la nueva sección
               continue;
             }
 
-            // Look for a cedula OR a date in the row
             let ciIdx = -1;
             let ciValue = '';
             let dateIdx = -1;
@@ -283,15 +388,14 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
                   ciValue = norm;
                   break;
                 }
-              } else if (ciIdx < 0 && parseDate(s)) { // if we find a date before finding CI
+              } else if (ciIdx < 0 && parseDate(s)) {
                 dateIdx = i;
               }
             }
 
-            // Name = concatenation of text cells before CI or Date
             let nombre = '';
             const endIdx = ciIdx >= 0 ? ciIdx : dateIdx;
-            if (endIdx < 0) continue; // Not an employee row
+            if (endIdx < 0) continue;
 
             for (let i = 0; i < endIdx; i++) {
               const s = String(row[i] ?? '').trim();
@@ -301,12 +405,10 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
             if (!nombre || shouldSkipRow(nombre)) continue;
 
             if (ciIdx < 0 && dateIdx >= 0) {
-              // Generar seudo-cédula basada en el nombre
               ciValue = `SC-${nombre.replace(/[^A-Za-z0-9]/g, '').substring(0,8).toUpperCase()}`;
-              ciIdx = dateIdx - 1; // Para la lógica que sigue
+              ciIdx = dateIdx - 1;
             }
 
-            // Date = first date-like cell after CI
             let fechaIngreso = new Date().toISOString().split('T')[0];
             for (let i = ciIdx + 1; i < row.length; i++) {
               const d = parseDate(row[i]);
@@ -316,16 +418,24 @@ export function parseExcelNomina(file: File): Promise<EmpleadoParseado[]> {
               }
             }
 
-            // Salary = LAST number before any text cell ("salen libre").
-            // Toma la columna "Total Nóminas" acumulada que es la que se paga.
+            // 2. Extraer salario de la semana activa o usar el fallback anterior
             let salario = 0;
-            for (let i = ciIdx + 2; i < row.length; i++) {
-              const cell = row[i];
-              if (cell === '' || cell === null || cell === undefined) continue;
-              if (typeof cell === 'string' && /^[a-záéíóún]/i.test(cell.trim())) break;
-              if (isAmount(cell)) {
+            if (activeWeekColIdx !== -1 && activeWeekColIdx < row.length) {
+              const cell = row[activeWeekColIdx];
+              if (cell !== '' && cell !== null && cell !== undefined) {
                 const n = normAmount(cell as string | number);
-                if (n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; } // keeps updating to the last one
+                if (!isNaN(n)) salario = n;
+              }
+            } else {
+              // Fallback: último número
+              for (let i = ciIdx + 2; i < row.length; i++) {
+                const cell = row[i];
+                if (cell === '' || cell === null || cell === undefined) continue;
+                if (typeof cell === 'string' && /^[a-záéíóún]/i.test(cell.trim())) break;
+                if (isAmount(cell)) {
+                  const n = normAmount(cell as string | number);
+                  if (n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; }
+                }
               }
             }
 
@@ -394,7 +504,6 @@ const SKIP_LINES_PDF = [
 const CI_REGEX_PDF = /\b(\d{1,2}\.\d{3}\.\d{3})\b/;
 
 function isSectionHeaderPDF(line: string): boolean {
-  // Si contiene fecha o cédula, definitivamente es un empleado (pdfjs pegó el header a la misma línea)
   if (/\d{2}\/\d{2}\/\d{4}/.test(line) || CI_REGEX_PDF.test(line)) return false;
   return SECTION_PATTERNS_PDF.some((p) => p.test(line.trim()));
 }
@@ -402,14 +511,16 @@ function isSectionHeaderPDF(line: string): boolean {
 function shouldSkipLinePDF(line: string): boolean {
   const t = line.trim();
   if (!t) return true;
-  // Mismo principio: si tiene fecha/cédula, no saltar (aunque el nombre ensucie el inicio)
   if (/\d{2}\/\d{2}\/\d{4}/.test(line) || CI_REGEX_PDF.test(line)) return false;
   return SKIP_LINES_PDF.some((p) => p.test(t));
 }
 
 function parseEmployeeLine(
   line: string,
-  currentSection: string
+  currentSection: string,
+  sectionWeeks: string[],
+  activeWeekIdxInPDF: number,
+  semanaInicio?: string
 ): EmpleadoParseado | null {
   const ciMatch = line.match(CI_REGEX_PDF);
   const dateMatch = line.match(/\d{2}\/\d{2}\/\d{4}/);
@@ -424,24 +535,21 @@ function parseEmployeeLine(
     namePart = line.substring(0, ciIdx).trim();
     afterCI = line.substring(ciIdx + ciRaw.length).trim();
   } else if (dateMatch) {
-    // Si no hay cédula, dividimos usando la fecha
     const dateIdx = line.indexOf(dateMatch[0]);
     namePart = line.substring(0, dateIdx).trim();
-    afterCI = line.substring(dateIdx).trim(); // Incluye la fecha para que el parser de fecha lo agarre luego
-    // Generar una seudo-cédula única basada en el nombre para BD
+    afterCI = line.substring(dateIdx).trim();
     ciRaw = `SC-${namePart.replace(/[^A-Za-z0-9]/g, '').substring(0,8).toUpperCase()}`;
   } else {
-    return null; // Imposible procesar si no hay CI ni Fecha que delimite el nombre
+    return null;
   }
 
-  // Limpiar namePart por si el PDF pegó el header en la misma línea (ej: "Semanas Mina Belen - Cocinera NURBELIS")
   const knownHeaders = [
     /^Semanas?\s+Mina\s+Belen\s*-\s*Cocinera\s*/i,
     /^Semanas?\s+Mina\s+Belen\s*-\s*Tecnico\s+Operador\s+Compresor\s*/i,
     /^Semanas?\s+Mina\s+Belen\s*-\s*Vertical\s+1PD\s*/i,
     /^Semanas?\s+Mina\s+Belen\s*-\s*Vertical\s+2\s*/i,
     /^N[oó]minas?\s+Administrativos?\s+Mina\s*/i,
-    /^(N[oó]minas?|Semanas?)\s+Mina\s+Belen\s*-\s*/i // fallback general si cambia algo
+    /^(N[oó]minas?|Semanas?)\s+Mina\s+Belen\s*-\s*/i
   ];
 
   for (const headerRegex of knownHeaders) {
@@ -449,7 +557,6 @@ function parseEmployeeLine(
   }
   namePart = namePart.trim();
 
-  // Si quedó alguna basura obvia al inicio que sea idéntica a SECTION_PATTERNS sin nombre, quitarla
   SECTION_PATTERNS_PDF.forEach(p => {
     namePart = namePart.replace(p, '').trim();
   });
@@ -457,26 +564,51 @@ function parseEmployeeLine(
   if (!namePart || namePart.length < 2) return null;
   if (shouldSkipLinePDF(namePart)) return null;
 
-  // Date
   let fechaIngreso = new Date().toISOString().split('T')[0];
   let afterDate = afterCI;
 
   if (dateMatch) {
     const parts = dateMatch[0].split('/');
     fechaIngreso = `${parts[2]}-${parts[1]}-${parts[0]}`;
-    // Si afterCI incluye la fecha, cortamos a partir de ahí
     if (afterCI.includes(dateMatch[0])) {
       afterDate = afterCI.substring(afterCI.indexOf(dateMatch[0]) + dateMatch[0].length);
     }
   }
 
   const tokens = afterDate.split(/\s+/).filter(Boolean);
-  let salario = 0;
+  const numbers: number[] = [];
   for (const token of tokens) {
-    if (/^[a-zá-úñ]{3,}/i.test(token)) break; // stop at words like "libre"
+    if (/^[a-zá-úñ]{3,}/i.test(token)) break;
     const n = parseFloat(token.replace(/\./g, '').replace(',', '.'));
-    // Skip week counts (1,2...), years (2019...), row nums; take the LAST real wage (Total)
-    if (!isNaN(n) && n > 15 && !(n >= 1900 && n <= 2100)) { salario = n; } // keeps updating
+    if (!isNaN(n) && n > 15 && !(n >= 1900 && n <= 2100)) {
+      numbers.push(n);
+    }
+  }
+
+  let salario = 0;
+  if (numbers.length > 0) {
+    const lastNum = numbers[numbers.length - 1];
+    const sumOthers = numbers.slice(0, -1).reduce((a, b) => a + b, 0);
+    const isTotal = Math.abs(sumOthers - lastNum) < 0.05 && numbers.length > 1;
+    const weeklyAmounts = isTotal ? numbers.slice(0, -1) : numbers;
+
+    // APLICACIÓN DE ALINEACIÓN INTELIGENTE POR INGRESO
+    if (activeWeekIdxInPDF !== -1 && sectionWeeks.length > 0 && weeklyAmounts.length > 0 && semanaInicio) {
+      const activeWeeksForWorker: string[] = [];
+      sectionWeeks.forEach(w => {
+        if (w >= fechaIngreso) {
+          activeWeeksForWorker.push(w);
+        }
+      });
+      const idxInActive = activeWeeksForWorker.indexOf(semanaInicio);
+      if (idxInActive !== -1 && idxInActive < weeklyAmounts.length) {
+        salario = weeklyAmounts[idxInActive];
+      } else {
+        salario = 0;
+      }
+    } else {
+      salario = weeklyAmounts[weeklyAmounts.length - 1] || 0;
+    }
   }
 
   if (salario <= 0) return null;
@@ -494,11 +626,9 @@ function parseEmployeeLine(
 }
 
 // ── PARSER PRINCIPAL DE PDF (client-side con pdfjs-dist) ─────────────────────
-export async function parsePdfNomina(file: File): Promise<EmpleadoParseado[]> {
-  // Dynamic import — no aumenta el bundle inicial
+export async function parsePdfNomina(file: File, semanaInicio?: string): Promise<EmpleadoParseado[]> {
   const pdfjsLib = await import('pdfjs-dist');
 
-  // Worker desde CDN para evitar problemas de build
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (pdfjsLib as any).GlobalWorkerOptions.workerSrc =
     `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -511,11 +641,9 @@ export async function parsePdfNomina(file: File): Promise<EmpleadoParseado[]> {
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
 
-    // Rebuild lines grouping text items by their Y position
     type TextItem = { str: string; transform: number[] };
     const items = content.items as TextItem[];
 
-    // Group by rounded Y coordinate to reconstruct table rows
     const lineMap = new Map<number, string[]>();
     for (const item of items) {
       if (!item.str?.trim()) continue;
@@ -524,52 +652,74 @@ export async function parsePdfNomina(file: File): Promise<EmpleadoParseado[]> {
       lineMap.get(y)!.push(item.str);
     }
 
-    // Sort Y descending (top of page first) and join each line
     const sortedYs = Array.from(lineMap.keys()).sort((a, b) => b - a);
     for (const y of sortedYs) {
       fullText += lineMap.get(y)!.join(' ') + '\n';
     }
   }
 
-  // Parse extracted text line by line
   const lines = fullText.split('\n');
   const results: EmpleadoParseado[] = [];
   let currentSection = 'Personal';
 
+  let sectionWeeks: string[] = [];
+  let activeWeekIdxInPDF = -1;
   let lastUnusedText = '';
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || shouldSkipLinePDF(trimmed)) {
-      lastUnusedText = ''; // Reseteamos si hay basura vacía
+      lastUnusedText = '';
       continue;
     }
     
-    if (isSectionHeaderPDF(trimmed)) {
-      currentSection = trimmed;
-      lastUnusedText = ''; // Al cambiar de sección, la línea anterior no nos sirve
+    // Detectar si la línea es de cabecera de columnas en el PDF
+    const isColHeader = /nombres?/i.test(trimmed) && (/c\.?i\.?/i.test(trimmed) || /fecha\s+de\s+ingreso/i.test(trimmed));
+    if (isColHeader) {
+      sectionWeeks = [];
+      activeWeekIdxInPDF = -1;
+      if (semanaInicio) {
+        const defaultYear = semanaInicio.split('-')[0];
+        // Buscamos todas las fechas de inicio de semana
+        const datePat = /del\s+(\d{1,2})\s+(?:de\s+)?([A-Za-záéíóúñ]+)/gi;
+        const matches = [...trimmed.matchAll(datePat)];
+        for (let i = 0; i < matches.length; i++) {
+          const day = matches[i][1];
+          const month = matches[i][2];
+          const dateStr = parseSpanishDate(day, month, defaultYear);
+          if (dateStr) {
+            sectionWeeks.push(dateStr);
+            if (dateStr === semanaInicio) {
+              activeWeekIdxInPDF = sectionWeeks.length - 1;
+            }
+          }
+        }
+      }
       continue;
     }
 
-    // Try parsing the line itself
-    let emp = parseEmployeeLine(trimmed, currentSection);
+    if (isSectionHeaderPDF(trimmed)) {
+      currentSection = trimmed;
+      sectionWeeks = [];
+      activeWeekIdxInPDF = -1;
+      lastUnusedText = '';
+      continue;
+    }
 
-    // Si falló, quizás pdfjs cortó el nombre en una línea y la cédula en otra (por 1 píxel de diferencia en la coordenada Y)
-    // Ejemplo de Yánez: 
-    // "Yánez Luis" (Falla y queda guardado) -> "19.039.337 24/02/2026..." (Falla porque no tiene nombre, PERO se combina!)
+    let emp = parseEmployeeLine(trimmed, currentSection, sectionWeeks, activeWeekIdxInPDF, semanaInicio);
+
     if (!emp && lastUnusedText) {
-      emp = parseEmployeeLine(`${lastUnusedText} ${trimmed}`, currentSection);
+      emp = parseEmployeeLine(`${lastUnusedText} ${trimmed}`, currentSection, sectionWeeks, activeWeekIdxInPDF, semanaInicio);
     }
 
     if (emp) {
       results.push(emp);
-      lastUnusedText = ''; // Consumido exitosamente
+      lastUnusedText = '';
     } else {
-      lastUnusedText = trimmed; // Lo guardamos por si la siguiente línea es la cédula que le falta
+      lastUnusedText = trimmed;
     }
   }
 
-  // Deduplicate by cedula
   const seen = new Map<string, EmpleadoParseado>();
   for (const emp of results) {
     const key = emp.cedula || `no-ci-${seen.size}`;
@@ -578,4 +728,3 @@ export async function parsePdfNomina(file: File): Promise<EmpleadoParseado[]> {
 
   return Array.from(seen.values());
 }
-

@@ -449,9 +449,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* ── Right column: rounded content card ── */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]">
 
+          <div className="app-viewport-canvas flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           {/* ── Guest Banner ── */}
           {isGuest && (
-            <div className="shrink-0 flex items-center justify-between gap-3 px-5 py-1.5 bg-amber-950/20 border-b border-amber-800/20 z-40">
+            <div className="z-40 flex shrink-0 items-center justify-between gap-3 border-b border-amber-800/20 bg-amber-950/20 px-5 py-1.5">
               <div className="flex items-center gap-2">
                 <Eye className="w-3 h-3 text-amber-500/70 shrink-0" />
                 <span className="text-amber-400/75 font-medium text-[11px] tracking-wide">
@@ -500,7 +501,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       {sectionMeta.title}
                     </h1>
                   </div>
-                  <p className="app-topbar-context__desc">{sectionMeta.description}</p>
                 </div>
               ) : null}
             </div>
@@ -555,6 +555,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             )}
           </main>
+          </div>
         </div>
       </div>
 

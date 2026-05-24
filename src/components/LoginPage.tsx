@@ -65,7 +65,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-page flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
+    <div className="login-page flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden">
+      <div className="login-page__canvas app-viewport-canvas min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       {/* Panel izquierdo — 60% */}
       <aside className="sidebar-section shrink-0 lg:min-h-0">
@@ -205,8 +206,9 @@ export default function LoginPage() {
 
       </section>
       </div>
+      </div>
 
-      <footer className="login-global-footer shrink-0">
+      <footer className="login-global-footer w-full shrink-0">
         <div className="login-global-footer-inner">
           <div className="login-footer-version">MINE OS V0.1.0 — Plataforma Minera</div>
           <p className="login-footer-attributes">
