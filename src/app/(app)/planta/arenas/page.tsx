@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { Plus, X, Loader2, Trash2, Droplets, FlaskConical, Cog, AlertCircle } from 'lucide-react';
+import { Plus, X, Loader2, Trash2, Droplets, FlaskConical, Cog, AlertCircle, Waves } from 'lucide-react';
 import type { VentaArenas } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';

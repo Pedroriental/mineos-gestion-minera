@@ -1,26 +1,21 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { createQuemado, updateQuemado, deleteQuemado } from '@/lib/actions/quemado';
-import type { ReporteQuemado, PlanchaItem } from '@/lib/types';
+import type { ReporteQuemado } from '@/lib/types';
 import {
-  Loader2, Flame, Plus, X, Edit2, Trash2, Calculator,
-  ChevronLeft, ChevronRight, CalendarDays, AlertCircle, Gem, Search, BookOpen
+  Loader2, Flame, Plus, X, Calculator,
+  ChevronLeft, ChevronRight, AlertCircle, Gem, Search, LineChart, Scale, Layers,
 } from 'lucide-react';
-import Link from 'next/link';
-import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
-
-const TURNO_OPTIONS = [
-  { value: 'dia', label: '☀ Día' },
-  { value: 'noche', label: '🌙 Noche' },
-  { value: 'completo', label: '🔄 Completo' },
-];
-import MetricCard from '@/components/MetricCard';
 import EmptyState from '@/components/EmptyState';
+import { FadeIn } from '@/components/ui/motion';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
+} from 'recharts';
 import {
   useReactTable,
   getCoreRowModel,
@@ -32,23 +27,59 @@ import {
 } from '@tanstack/react-table';
 import { columns } from './columns';
 
-interface QuemadoClientProps {
-  data: ReporteQuemado[];
-}
+const TURNO_OPTIONS = [
+  { value: 'dia', label: '☀ Día' },
+  { value: 'noche', label: '🌙 Noche' },
+  { value: 'completo', label: '🔄 Completo' },
+];
+
+const QUEMADO_PAGE_MAX = 12;
+const QUEMADO_PAGE_BUTTONS_MAX = 5;
+const QUEMADO_ROW_MIN_PX = 40;
+const QUEMADO_HEAD_FALLBACK_PX = 40;
+const CHART_DAYS_MAX = 14;
 
 const fmtN = (n: number) =>
   new Intl.NumberFormat('es-VE', { maximumFractionDigits: 4, minimumFractionDigits: 2 }).format(n);
 
 const emptyPlancha = (): { amalgama_g: string; oro_recuperado_g: string } => ({ amalgama_g: '', oro_recuperado_g: '' });
 
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  const d = label ? new Date(label + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '';
+  return (
+    <div className="app-chart-tooltip rounded-lg p-2 shadow-xl backdrop-blur-md">
+      <p className="mb-1 font-mono text-[10px] text-white/60">{d}</p>
+      {payload.map((entry, i) => (
+        <div key={i} className="mb-0.5 flex items-center gap-2">
+          <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: entry.color }} />
+          <span className="text-[10px] text-white/80">{entry.name}:</span>
+          <span className="text-xs font-bold text-white">{fmtN(Number(entry.value))} g</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface QuemadoClientProps {
+  data: ReporteQuemado[];
+}
+
 export default function QuemadoClient({ data: initialData }: QuemadoClientProps) {
   const { user } = useAuth();
   const canEdit = useCanEdit();
 
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const defaultDate = useMemo(() => {
+    const dates = Array.from(new Set(initialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
+    return dates[0] ?? new Date().toISOString().split('T')[0];
+  }, [initialData]);
+
+  const [selectedDate, setSelectedDate] = useState(defaultDate);
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
-  
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: QUEMADO_PAGE_MAX });
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<ReporteQuemado | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -65,62 +96,167 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
     observaciones: '',
   };
   const [form, setForm] = useState(emptyForm);
-  const [planchas, setPausas] = useState([emptyPlancha()]); // Pausas here means planchas state
-  const set = (field: string, value: unknown) => setForm(f => ({ ...f, [field]: value }));
+  const [planchas, setPlanchas] = useState([emptyPlancha()]);
+  const set = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }));
+
+  const diasConRegistros = useMemo(() => {
+    const dates = Array.from(new Set(initialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
+    return dates.map((fecha) => ({
+      fecha,
+      count: initialData.filter((r) => r.fecha === fecha).length,
+    }));
+  }, [initialData]);
+
+  useEffect(() => {
+    if (diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+      setSelectedDate(diasConRegistros[0].fecha);
+    }
+  }, [diasConRegistros, initialData, selectedDate]);
 
   const dataForSelectedDate = useMemo(
-    () => initialData.filter(d => d.fecha === selectedDate),
-    [initialData, selectedDate]
+    () => initialData.filter((d) => d.fecha === selectedDate),
+    [initialData, selectedDate],
   );
-  
-  const availableDates = useMemo(() => Array.from(new Set(initialData.map(d => d.fecha))).sort(), [initialData]);
 
-  const navigateDay = (dir: 'prev' | 'next') => {
-    const d = new Date(selectedDate + 'T12:00:00');
-    d.setDate(d.getDate() + (dir === 'next' ? 1 : -1));
-    setSelectedDate(d.toISOString().split('T')[0]);
+  const openEdit = (item: ReporteQuemado) => {
+    setEditItem(item);
+    setPlanchas(item.planchas.map((p) => ({ amalgama_g: String(p.amalgama_g), oro_recuperado_g: String(p.oro_recuperado_g) })));
+    setForm({
+      fecha: item.fecha,
+      turno: item.turno,
+      numero_quemada: item.numero_quemada || '',
+      manto_amalgama_g: item.manto_amalgama_g ? String(item.manto_amalgama_g) : '',
+      manto_oro_g: item.manto_oro_g ? String(item.manto_oro_g) : '',
+      retorta_oro_g: item.retorta_oro_g ? String(item.retorta_oro_g) : '',
+      responsable: item.responsable || '',
+      observaciones: item.observaciones || '',
+    });
+    setFormError(null);
+    setShowModal(true);
   };
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+
+  const handleDelete = (id: string) => {
+    if (!confirm('¿Eliminar este reporte de quemado?')) return;
+    startTransition(async () => {
+      await deleteQuemado(id);
+    });
+  };
 
   const table = useReactTable({
     data: dataForSelectedDate,
     columns: columns(
       (item) => openEdit(item),
-      (id) => handleDelete(id)
+      (id) => handleDelete(id),
+      canEdit,
     ),
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, pagination },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 15 } },
   });
 
-  // Derived Totals
-  const totalAmalgamaDay = dataForSelectedDate.reduce((s, d) => s + Number(d.total_amalgama_g || 0), 0);
-  const totalOroDay      = dataForSelectedDate.reduce((s, d) => s + Number(d.total_oro_g || 0), 0);
-  const mermaDay         = totalAmalgamaDay > 0 ? ((totalAmalgamaDay - totalOroDay) / totalAmalgamaDay) * 100 : 0;
-  const totalPlanchasDay = dataForSelectedDate.reduce((s, d) => s + (d.planchas?.length || 0), 0);
+  const syncTableLayout = useCallback(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const headH = el.querySelector('thead')?.getBoundingClientRect().height ?? QUEMADO_HEAD_FALLBACK_PX;
+    const bodyAvailable = el.clientHeight - headH;
+    const pageRows = Math.min(
+      QUEMADO_PAGE_MAX,
+      Math.max(1, Math.floor(bodyAvailable / QUEMADO_ROW_MIN_PX)),
+    );
+    setPagination((prev) => (prev.pageSize === pageRows ? prev : { ...prev, pageSize: pageRows }));
+  }, []);
 
-  // Form Live Totals
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const pageCount = table.getPageCount();
+  const displayPageCount = Math.max(1, pageCount);
+  const pageIndex = Math.min(pagination.pageIndex, Math.max(0, displayPageCount - 1));
+  const activePageIndex = filteredCount === 0 ? 0 : pageIndex;
+  const pageWindowStart =
+    Math.floor(activePageIndex / QUEMADO_PAGE_BUTTONS_MAX) * QUEMADO_PAGE_BUTTONS_MAX;
+  const pageNumbers = useMemo(() => {
+    const len = Math.min(QUEMADO_PAGE_BUTTONS_MAX, Math.max(0, displayPageCount - pageWindowStart));
+    if (len === 0) return [0];
+    return Array.from({ length: len }, (_, i) => pageWindowStart + i);
+  }, [displayPageCount, pageWindowStart]);
+
+  const tableSummary = useMemo(() => {
+    const rows = table.getFilteredRowModel().rows;
+    const amalgama = rows.reduce((s, r) => s + (Number(r.original.total_amalgama_g) || 0), 0);
+    const oro = rows.reduce((s, r) => s + (Number(r.original.total_oro_g) || 0), 0);
+    const planchas = rows.reduce((s, r) => s + (r.original.planchas?.length || 0), 0);
+    const merma = amalgama > 0 ? ((amalgama - oro) / amalgama) * 100 : 0;
+    const recup = amalgama > 0 ? (oro / amalgama) * 100 : 0;
+    return { amalgama, oro, planchas, merma, recup, count: rows.length };
+  }, [filteredCount, globalFilter, dataForSelectedDate, sorting, pagination.pageIndex]);
+
+  const pageRows = table.getPaginationRowModel().rows;
+  const colCount = table.getAllLeafColumns().length;
+
+  const kpiRows = useMemo(
+    () => [
+      { label: 'Oro Recuperado', value: `${fmtN(tableSummary.oro)} g`, glow: 'amber' as const, icon: <Gem className="h-5 w-5 text-amber-400" />, bg: 'bg-amber-500/10' },
+      { label: 'Total Amalgama', value: `${fmtN(tableSummary.amalgama)} g`, glow: 'neutral' as const, icon: <Flame className="h-5 w-5 text-orange-400" />, bg: 'bg-orange-500/10' },
+      { label: 'Planchas', value: String(tableSummary.planchas), glow: 'blue' as const, icon: <Layers className="h-5 w-5 text-sky-400" />, bg: 'bg-sky-500/10' },
+      {
+        label: 'Merma Prom.',
+        value: tableSummary.merma > 0 ? `${tableSummary.merma.toFixed(1)}%` : '—',
+        glow: (tableSummary.merma > 0 && tableSummary.merma < 55 ? 'emerald' : tableSummary.merma < 70 ? 'neutral' : 'red') as 'emerald' | 'neutral' | 'red',
+        icon: <Calculator className="h-5 w-5 text-orange-400" />,
+        bg: 'bg-orange-500/10',
+      },
+    ],
+    [tableSummary],
+  );
+
+  const diariaChart = useMemo(() => {
+    const byDate = new Map<string, { fecha: string; oro: number }>();
+    for (const r of initialData) {
+      const cur = byDate.get(r.fecha) ?? { fecha: r.fecha, oro: 0 };
+      cur.oro += Number(r.total_oro_g) || 0;
+      byDate.set(r.fecha, cur);
+    }
+    return Array.from(byDate.values())
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+      .slice(-CHART_DAYS_MAX);
+  }, [initialData]);
+
   const formAmalgama = planchas.reduce((s, p) => s + (parseFloat(p.amalgama_g) || 0), 0) + (parseFloat(form.manto_amalgama_g) || 0);
-  const formOro = planchas.reduce((s, p) => s + (parseFloat(p.oro_recuperado_g) || 0), 0) + (parseFloat(form.manto_oro_g) || 0) + (parseFloat(form.retorta_oro_g) || 0);
+  const formOro =
+    planchas.reduce((s, p) => s + (parseFloat(p.oro_recuperado_g) || 0), 0) +
+    (parseFloat(form.manto_oro_g) || 0) +
+    (parseFloat(form.retorta_oro_g) || 0);
 
-  // Plancha helpers
-  const addPlancha    = () => setPausas(p => [...p, emptyPlancha()]);
-  const removePlancha = (i: number) => setPausas(p => p.filter((_, idx) => idx !== i));
+  const addPlancha = () => setPlanchas((p) => [...p, emptyPlancha()]);
+  const removePlancha = (i: number) => setPlanchas((p) => p.filter((_, idx) => idx !== i));
   const updatePlancha = (i: number, key: keyof ReturnType<typeof emptyPlancha>, val: string) =>
-    setPausas(p => p.map((x, idx) => idx === i ? { ...x, [key]: val } : x));
+    setPlanchas((p) => p.map((x, idx) => (idx === i ? { ...x, [key]: val } : x)));
+
+  const openNew = () => {
+    setEditItem(null);
+    setForm({ ...emptyForm, fecha: selectedDate });
+    setPlanchas([emptyPlancha()]);
+    setFormError(null);
+    setShowModal(true);
+  };
 
   const handleSave = () => {
-    if (planchas.length === 0) { setFormError('Agrega al menos 1 plancha.'); return; }
-    if (formOro <= 0) { setFormError('El total de oro recuperado debe ser mayor que 0.'); return; }
-    
+    if (planchas.length === 0) {
+      setFormError('Agrega al menos 1 plancha.');
+      return;
+    }
+    if (formOro <= 0) {
+      setFormError('El total de oro recuperado debe ser mayor que 0.');
+      return;
+    }
+
     setFormError(null);
     startTransition(async () => {
-      const planchasPayload = planchas.map(p => ({
+      const planchasPayload = planchas.map((p) => ({
         amalgama_g: parseFloat(p.amalgama_g) || 0,
         oro_recuperado_g: parseFloat(p.oro_recuperado_g) || 0,
       }));
@@ -136,12 +272,9 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
         registrado_por: user?.id,
       };
 
-      let res;
-      if (editItem) {
-        res = await updateQuemado({ ...payload, id: editItem.id });
-      } else {
-        res = await createQuemado(payload);
-      }
+      const res = editItem
+        ? await updateQuemado({ ...payload, id: editItem.id })
+        : await createQuemado(payload);
 
       if (res?.ok === false) {
         setFormError(res.message);
@@ -149,298 +282,494 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
         setShowModal(false);
         setEditItem(null);
         setForm({ ...emptyForm, fecha: selectedDate });
-        setPausas([emptyPlancha()]);
+        setPlanchas([emptyPlancha()]);
       }
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('¿Eliminar este reporte de quemado?')) return;
-    startTransition(async () => {
-      await deleteQuemado(id);
-    });
-  };
+  useEffect(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const run = () => syncTableLayout();
+    run();
+    const ro = new ResizeObserver(run);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncTableLayout, dataForSelectedDate.length]);
 
-  const openEdit = (item: ReporteQuemado) => {
-    setEditItem(item);
-    setPausas(item.planchas.map(p => ({ amalgama_g: String(p.amalgama_g), oro_recuperado_g: String(p.oro_recuperado_g) })));
-    setForm({
-      fecha: item.fecha, turno: item.turno,
-      numero_quemada: item.numero_quemada || '',
-      manto_amalgama_g: item.manto_amalgama_g ? String(item.manto_amalgama_g) : '',
-      manto_oro_g: item.manto_oro_g ? String(item.manto_oro_g) : '',
-      retorta_oro_g: item.retorta_oro_g ? String(item.retorta_oro_g) : '',
-      responsable: item.responsable || '',
-      observaciones: item.observaciones || '',
-    });
-    setFormError(null);
-    setShowModal(true);
-  };
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [selectedDate, globalFilter]);
 
-  const fmtDateDisplay = (s: string) =>
-    new Date(s + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-  const turnoLabel: Record<string, string> = { dia: '☀ Día', noche: '🌙 Noche', completo: '🔄 Completo' };
+  useEffect(() => {
+    const maxIndex = Math.max(0, displayPageCount - 1);
+    if (pagination.pageIndex > maxIndex) {
+      setPagination((p) => ({ ...p, pageIndex: maxIndex }));
+    }
+  }, [displayPageCount, pagination.pageIndex]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <AppPageToolbar
-        lead={
-          <p className="text-white/40 text-sm">
-            <span className="text-amber-400 font-semibold">{fmtN(totalOroDay)} g Au</span> recuperados
-            {' '}— {dataForSelectedDate.length} quemadas
-            {mermaDay > 0 && <span className="text-white/25"> — Merma: {mermaDay.toFixed(1)}%</span>}
-          </p>
-        }
-      >
-        <Link href="/operaciones/resumen" className="btn-secondary min-h-[40px] px-4 flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
-          <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Resumen Ejecutivo</span>
-        </Link>
-        <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, fecha: selectedDate }); setPausas([emptyPlancha()]); setFormError(null); setShowModal(true); }}
-          disabled={!canEdit} className="btn-primary min-h-[40px] px-4 disabled:opacity-40 disabled:cursor-not-allowed">
-          <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuevo Reporte</span>
-        </button>
-      </AppPageToolbar>
+    <div className="quemado-page produccion-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
 
-      <div className="card-glass p-4 flex items-start gap-3 border border-amber-400/20">
-        <Gem className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-        <p className="text-sm text-white/50">
-          El campo <strong className="text-amber-400">Au Total Recuperado</strong> alimenta directamente el Balance Diario
-          para calcular la <strong className="text-white/70">rentabilidad real</strong> de la operación.
-        </p>
-      </div>
-
-      {/* Day Selector */}
-      <div className="card-glass p-4">
-        <div className="flex items-center justify-between">
-          <button onClick={() => navigateDay('prev')} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 hover:text-white/75 transition-colors">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 text-orange-400" />
-              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                className="input-field !py-1.5 !px-3 !text-base font-semibold !w-auto !border-orange-400/30" />
+      <FadeIn className="produccion-page__toolbar shrink-0">
+        <div className="quemado-page__toolbar-grid produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+          <div className="quemado-page__toolbar-search min-w-0 lg:col-span-4">
+            <div className="produccion-page__search produccion-surface produccion-surface--input flex h-9 w-full min-w-0 items-center rounded-lg px-3 py-2">
+              <Search className="produccion-icon-muted mr-2 h-4 w-4 shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar quemada, responsable..."
+                value={globalFilter ?? ''}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="produccion-search-input w-full min-w-0 border-none bg-transparent text-sm outline-none"
+              />
             </div>
-            <div className="text-sm text-white/40 capitalize hidden sm:block">{fmtDateDisplay(selectedDate)}</div>
-            {isToday && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-400/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Hoy
+          </div>
+          <div className="quemado-page__toolbar-actions flex min-w-0 w-full flex-wrap items-center gap-2 sm:flex-nowrap lg:col-span-8 lg:justify-end">
+            <div className="quemado-page__toolbar-balance produccion-surface flex min-h-9 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-3 py-1.5 sm:flex-initial lg:max-w-none">
+              <Scale className="h-3.5 w-3.5 shrink-0 text-amber-500/80" aria-hidden />
+              <span className="produccion-section-title shrink-0 text-[9px] font-bold uppercase tracking-wider">
+                Balance del día
               </span>
+              {tableSummary.count === 0 ? (
+                <span className="produccion-muted truncate text-[10px] italic">Sin registros</span>
+              ) : (
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0 text-[10px] tabular-nums">
+                  <span>
+                    <span className="produccion-muted">Recup. </span>
+                    <strong className="text-amber-400">
+                      {tableSummary.recup > 0 ? `${tableSummary.recup.toFixed(1)}%` : '—'}
+                    </strong>
+                  </span>
+                  <span className="text-white/20">·</span>
+                  <span>
+                    <span className="produccion-muted">Merma </span>
+                    <strong className="text-orange-400">
+                      {tableSummary.merma > 0 ? `${tableSummary.merma.toFixed(1)}%` : '—'}
+                    </strong>
+                  </span>
+                  <span className="text-white/20">·</span>
+                  <span>
+                    <span className="produccion-muted">Quem. </span>
+                    <strong className="text-white/80">{tableSummary.count}</strong>
+                  </span>
+                  <span className="text-white/20">·</span>
+                  <span>
+                    <span className="produccion-muted">Planch. </span>
+                    <strong className="text-white/80">{tableSummary.planchas}</strong>
+                  </span>
+                </div>
+              )}
+            </div>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={openNew}
+                className="quemado-page__toolbar-btn produccion-page__toolbar-btn flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="truncate">Nuevo Reporte</span>
+              </button>
             )}
           </div>
-          <button onClick={() => navigateDay('next')} className="p-2 rounded-xl hover:bg-white/[0.06] text-white/40 hover:text-white/75 transition-colors">
-            <ChevronRight className="w-5 h-5" />
-          </button>
         </div>
-        {availableDates.length > 0 && (
-          <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-            {[...availableDates].reverse().map(date => {
-              const d = new Date(date + 'T12:00:00');
-              const isSel = date === selectedDate;
+      </FadeIn>
+
+      <div className="quemado-page__grid produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-4">
+
+        <div className="produccion-page__aside flex min-h-0 flex-col gap-2 overflow-y-auto lg:col-span-4 lg:h-full lg:overflow-hidden">
+          {kpiRows.map((k) => (
+            <div
+              key={k.label}
+              className="produccion-surface gerencial-kpi-card flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5"
+            >
+              <div className={`gerencial-kpi-glow gerencial-kpi-glow--${k.glow}`} aria-hidden />
+              <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${k.bg}`}>
+                {k.icon}
+              </div>
+              <div className="relative min-w-0 flex-1">
+                <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight tracking-wider">
+                  {k.label}
+                </span>
+                <span className={`gerencial-kpi-value gerencial-kpi-value--${k.glow} text-lg font-bold leading-tight tabular-nums`}>
+                  {k.value}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          <div className="quemado-page__chart produccion-page__chart produccion-surface flex min-h-[11rem] flex-1 flex-col rounded-xl p-3 lg:min-h-0">
+            <h2 className="produccion-section-title mb-2 flex shrink-0 items-center gap-2 text-xs font-bold">
+              <LineChart className="h-4 w-4 text-amber-400" />
+              Oro recuperado (g)
+            </h2>
+            <div className="quemado-page__chart-area relative min-h-0 w-full flex-1">
+              {diariaChart.length === 0 ? (
+                <p className="produccion-muted flex h-full items-center justify-center text-center text-xs italic">
+                  Sin datos para graficar
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%" className="absolute inset-0">
+                  <AreaChart data={diariaChart} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="quemadoOroGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.5} />
+                        <stop offset="55%" stopColor="#d97706" stopOpacity={0.15} />
+                        <stop offset="100%" stopColor="#b45309" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                    <XAxis
+                      dataKey="fecha"
+                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 9 }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(val) => {
+                        const d = new Date(val + 'T12:00:00');
+                        return `${d.getDate()}/${d.getMonth() + 1}`;
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 9 }}
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals
+                    />
+                    <RechartsTooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(245,158,11,0.45)', strokeWidth: 1 }} />
+                    {diariaChart.some((d) => d.fecha === selectedDate) && (
+                      <ReferenceLine
+                        x={selectedDate}
+                        stroke="#f59e0b"
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        label={{ value: 'Día', position: 'top', fill: '#f59e0b', fontSize: 9 }}
+                      />
+                    )}
+                    <Area
+                      type="monotone"
+                      dataKey="oro"
+                      name="Oro (g)"
+                      stroke="#fbbf24"
+                      strokeWidth={2.5}
+                      fill="url(#quemadoOroGradient)"
+                      dot={(props) => {
+                        const { cx, cy, payload } = props;
+                        if (cx == null || cy == null) return null;
+                        const active = payload?.fecha === selectedDate;
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={active ? 5 : 3.5}
+                            fill={active ? '#fcd34d' : '#d97706'}
+                            stroke={active ? '#fff' : 'transparent'}
+                            strokeWidth={active ? 1.5 : 0}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 6, fill: '#f59e0b', stroke: '#fffbeb', strokeWidth: 2 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          <p className="quemado-page__hint produccion-muted shrink-0 rounded-lg border border-amber-400/15 bg-amber-500/[0.06] px-3 py-2 text-[10px] leading-snug">
+            <Gem className="mb-0.5 inline h-3 w-3 text-amber-400" />{' '}
+            El <strong className="text-amber-400/90">Au recuperado</strong> alimenta el balance y la rentabilidad en Resumen Ejecutivo.
+          </p>
+        </div>
+
+        <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-8 lg:h-full">
+
+          <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 scrollbar-hide snap-x w-full">
+            {diasConRegistros.length === 0 && (
+              <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
+            )}
+            {diasConRegistros.map((dia) => {
+              const d = new Date(dia.fecha + 'T12:00:00');
+              const isSelected = selectedDate === dia.fecha;
               return (
-                <button key={date} onClick={() => setSelectedDate(date)}
-                  className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isSel ? 'bg-orange-500/15 text-orange-300 border border-orange-400/30'
-                    : 'bg-white/[0.04] text-white/40 border border-transparent hover:bg-white/[0.08] hover:text-white/65'
-                  }`}>
-                  <span className="uppercase">{d.toLocaleDateString('es-ES', { weekday: 'short' })}</span>
-                  <span className="text-sm font-bold">{d.getDate()}</span>
-                  <span className={`text-[10px] ${isSel ? 'text-orange-400' : 'text-white/30'}`}>{initialData.filter(x => x.fecha === date).length} reg</span>
+                <button
+                  key={dia.fecha}
+                  type="button"
+                  onClick={() => setSelectedDate(dia.fecha)}
+                  className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
+                >
+                  <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+                  <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>
+                    {dia.count}
+                  </span>
                 </button>
               );
             })}
           </div>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard label="Oro Recuperado" value={totalOroDay} unit="g" variant="gold" icon={<span className="text-base">🔥</span>} />
-        <MetricCard label="Total Amalgama" value={totalAmalgamaDay} unit="g" variant="neutral" icon={<span className="text-base">⚗️</span>} />
-        <MetricCard label="Planchas" value={totalPlanchasDay} variant="neutral" icon={<span className="text-base">🟫</span>} />
-        <MetricCard label="Merma Prom." value={mermaDay > 0 ? mermaDay.toFixed(1) : '—'} unit={mermaDay > 0 ? '%' : undefined}
-          variant={mermaDay > 0 ? (mermaDay < 55 ? 'positive' : mermaDay < 70 ? 'neutral' : 'negative') : 'neutral'} icon={<Calculator className="w-4 h-4" />} />
-      </div>
-
-      <div className="flex items-center app-search-field px-3 py-2 w-full max-w-sm">
-        <Search className="w-4 h-4 text-white/40 mr-2" />
-        <input type="text" placeholder="Buscar quemado..." value={globalFilter ?? ''} onChange={(e) => setGlobalFilter(e.target.value)}
-          className="bg-transparent border-none outline-none text-sm text-white/90 placeholder:text-white/30 w-full" />
-      </div>
-
-      {/* Mobile Cards */}
-      <div className="grid grid-cols-1 space-y-3 md:hidden">
-        {table.getRowModel().rows.map(row => {
-          const d = row.original;
-          return (
-            <div key={d.id} className="card-glass p-4 border-l-4 border-l-orange-500 relative">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-white/45 bg-white/[0.07] px-2 py-0.5 rounded-sm">
-                    {turnoLabel[d.turno]}
-                  </span>
-                  {d.numero_quemada && <p className="text-white/60 text-xs mt-1.5 font-medium">Quemada #{d.numero_quemada}</p>}
-                </div>
-                <div className="text-right bg-amber-500/10 px-3 py-2 rounded-xl border border-amber-500/20 shadow-inner">
-                  <span className="font-black text-amber-400 text-xl block leading-none">{fmtN(d.total_oro_g)} <span className="text-sm">g</span></span>
-                  <span className="text-[10px] text-amber-400/60 uppercase tracking-widest mt-1 block font-bold">Au Recup.</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 mb-3 text-sm bg-white/[0.05] p-3 rounded-xl border border-white/[0.07]">
-                <div><span className="text-xs text-white/35 block mb-0.5 font-semibold">Planchas</span><span className="text-white/70 font-semibold">{d.planchas?.length || 0}</span></div>
-                <div><span className="text-xs text-white/35 block mb-0.5 font-semibold">Amalgama</span><span className="text-white/70 font-semibold">{fmtN(d.total_amalgama_g)} g</span></div>
-                <div><span className="text-xs text-white/35 block mb-0.5 font-semibold">Merma</span>
-                  <span className="text-orange-400 font-bold">{d.total_amalgama_g > 0 ? `${(((d.total_amalgama_g - d.total_oro_g) / d.total_amalgama_g) * 100).toFixed(1)}%` : '—'}</span></div>
-              </div>
-
-              {d.planchas?.length > 0 && (
-                <div className="space-y-1 mb-4 bg-black/20 p-2 rounded-lg border border-white/5">
-                  {d.planchas.map((p, i) => (
-                    <div key={i} className="flex justify-between text-xs text-white/50 px-1 py-0.5">
-                      <span>Plancha {i + 1}</span>
-                      <span>{fmtN(p.amalgama_g)}g → <span className="text-amber-400/90 font-medium">{fmtN(p.oro_recuperado_g)}g</span></span>
-                    </div>
+          <div className="produccion-page__table-stack min-h-0 flex-1">
+            <div
+              ref={tableBodyRef}
+              className="produccion-page__table-body min-h-0 flex-1 overflow-x-auto overflow-y-auto custom-scrollbar"
+            >
+              <table className="w-full border-collapse text-left">
+                <thead className="produccion-page__table-head sticky top-0 z-10 shadow-sm">
+                  {table.getHeaderGroups().map((hg) => (
+                    <tr key={hg.id}>
+                      {hg.headers.map((header) => (
+                        <th
+                          key={header.id}
+                          onClick={header.column.getToggleSortingHandler()}
+                          className={`produccion-table-th whitespace-nowrap px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${header.column.getCanSort() ? 'cursor-pointer select-none' : ''}`}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
+                      ))}
+                    </tr>
                   ))}
-                  {d.manto_oro_g != null && (
-                    <div className="flex justify-between text-xs text-white/40 px-1 pt-1.5 mt-1 border-t border-white/[0.06]">
-                      <span>Manto Raspado</span>
-                      <span>{fmtN(d.manto_amalgama_g || 0)}g → <span className="text-amber-400/80">{fmtN(d.manto_oro_g)}g</span></span>
-                    </div>
+                </thead>
+                <tbody>
+                  {pageRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={colCount} className="py-12">
+                        <EmptyState
+                          icon={<Flame className="h-6 w-6" />}
+                          title="Día sin quemados"
+                          description="No hay reportes de quemado ingresados para este día."
+                        />
+                      </td>
+                    </tr>
+                  ) : (
+                    pageRows.map((row) => (
+                      <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
                   )}
-                  {d.retorta_oro_g != null && (
-                    <div className="flex justify-between text-xs text-white/40 px-1">
-                      <span>Retorta</span>
-                      <span className="text-amber-400/80">{fmtN(d.retorta_oro_g)}g</span>
-                    </div>
-                  )}
-                </div>
-              )}
+                </tbody>
+              </table>
+            </div>
 
-              {canEdit && (
-                <div className="flex gap-2 justify-end pt-3 border-t border-white/[0.07]">
-                  <button onClick={() => openEdit(d)} className="btn-secondary flex-1 min-h-[48px] !text-sm"><Edit2 className="w-4 h-4 mr-2" /> Editar</button>
-                  <button onClick={() => handleDelete(d.id)} className="btn-danger flex-1 min-h-[48px] !text-sm"><Trash2 className="w-4 h-4 mr-2" /> Borrar</button>
+            <div className="produccion-page__table-footer gastos-footer-bar flex shrink-0 items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
+                <span className="gastos-footer-label text-[8px] uppercase tracking-wider">Resumen</span>
+                <span className="produccion-page__footer-amount produccion-page__footer-amount--oro text-[11px] font-bold tabular-nums">
+                  {fmtN(tableSummary.oro)} g Au
+                </span>
+                <span className="gastos-footer-label text-[9px]">·</span>
+                <span className="gastos-footer-label text-[9px] tabular-nums">{fmtN(tableSummary.amalgama)} g amalgama</span>
+                <span className="gastos-footer-label text-[9px]">·</span>
+                <span className="gastos-footer-label text-[9px] tabular-nums">{tableSummary.planchas} planchas</span>
+                <span className="gastos-footer-label text-[9px]">· {tableSummary.count} reg.</span>
+              </div>
+              {filteredCount > 0 && (
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                    className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                    aria-label="Página anterior"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  {pageNumbers.map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => table.setPageIndex(page)}
+                      aria-label={`Página ${page + 1}`}
+                      aria-current={page === activePageIndex ? 'page' : undefined}
+                      className={`gastos-page-btn min-w-[1.35rem] rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
+                        page === activePageIndex ? 'gastos-page-btn--active' : ''
+                      }`}
+                    >
+                      {page + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                    className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                    aria-label="Página siguiente"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="gastos-footer-label ml-1 hidden text-[10px] tabular-nums sm:inline">
+                    {activePageIndex + 1} / {displayPageCount}
+                  </span>
                 </div>
               )}
             </div>
-          );
-        })}
-        {table.getRowModel().rows.length === 0 && (
-          <EmptyState icon={<Flame className="w-8 h-8" />} title="Sin reportes" description={`No hay quemados registrados para el ${fmtDateDisplay(selectedDate)}.`} />
-        )}
-      </div>
-
-      {/* Desktop Table */}
-      <div className="table-container hidden md:block">
-        <table className="data-table">
-          <thead>
-            {table.getHeaderGroups().map(hg => (
-              <tr key={hg.id}>
-                {hg.headers.map(header => (
-                  <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map(row => (
-              <tr key={row.id}>
-                {row.getVisibleCells().map(cell => (
-                  <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                ))}
-              </tr>
-            ))}
-            {table.getRowModel().rows.length === 0 && (
-              <tr><td colSpan={10} className="py-8"><EmptyState icon={<Flame className="w-8 h-8" />} title="Sin reportes" description={`No hay quemados para el ${fmtDateDisplay(selectedDate)}.`} /></td></tr>
-            )}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
 
       <PageFormModal open={showModal} onClose={() => { setShowModal(false); setFormError(null); }} panelClassName="sm:max-w-2xl">
-            <div className="mb-4 -mt-1 flex justify-center sm:hidden"><div className="h-1 w-8 rounded-full bg-[var(--dashboard-border)]" /></div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="page-form-modal-title flex items-center gap-2 text-lg font-semibold"><Flame className="h-5 w-5 text-orange-400" /> {editItem ? 'Editar Quemado' : 'Nuevo Quemado'}</h2>
-              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
+        <div className="mb-4 -mt-1 flex justify-center sm:hidden">
+          <div className="h-1 w-8 rounded-full bg-[var(--dashboard-border)]" />
+        </div>
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="page-form-modal-title flex items-center gap-2 text-lg font-semibold">
+            <Flame className="h-5 w-5 text-orange-400" /> {editItem ? 'Editar Quemado' : 'Nuevo Quemado'}
+          </h2>
+          <button
+            type="button"
+            onClick={() => { setShowModal(false); setFormError(null); }}
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {formError && (
+          <div className="mb-4 flex animate-in slide-in-from-top-2 items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2.5">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+            <span className="text-sm text-red-400">{formError}</span>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div>
+              <label className="input-label">Fecha *</label>
+              <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="input-field min-h-[44px]" />
             </div>
-
-            {formError && (
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 mb-4 animate-in slide-in-from-top-2">
-                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" /><span className="text-sm text-red-400">{formError}</span>
-              </div>
-            )}
-
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} className="input-field min-h-[44px]" /></div>
-                <div><label className="input-label">Turno *</label>
-                  <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={TURNO_OPTIONS} /></div>
-                <div><label className="input-label">N° Quemada</label><input value={form.numero_quemada} onChange={e => set('numero_quemada', e.target.value)} className="input-field min-h-[44px]" placeholder="001" /></div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2"><span className="text-sm font-semibold text-orange-400">🟫 Planchas</span><div className="flex-1 h-px bg-orange-400/20 w-24 hidden sm:block" /></div>
-                  <button type="button" onClick={addPlancha} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 text-xs font-medium transition-colors border border-orange-400/20 min-h-[36px]">
-                    <Plus className="w-3.5 h-3.5" /> Agregar
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {planchas.map((p, i) => (
-                    <div key={i} className="app-detail-panel rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-white/70">Plancha {i + 1}</span>
-                        {planchas.length > 1 && <button onClick={() => removePlancha(i)} className="p-2 rounded-lg hover:bg-red-500/10 text-white/30 hover:text-red-400 min-h-[44px] min-w-[44px] flex justify-center items-center"><X className="w-4 h-4" /></button>}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div><label className="input-label">Amalgama (g)</label><input type="number" step="0.01" value={p.amalgama_g} onChange={e => updatePlancha(i, 'amalgama_g', e.target.value)} className="input-field min-h-[44px]" placeholder="60.81" /></div>
-                        <div><label className="input-label text-amber-400">Oro Recup. (g Au)</label><input type="number" step="0.01" value={p.oro_recuperado_g} onChange={e => updatePlancha(i, 'oro_recuperado_g', e.target.value)} className="input-field min-h-[44px]" placeholder="24.62" /></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-blue-400">🔧 Manto. Área Raspado</span><div className="flex-1 h-px bg-blue-400/20" /></div>
-                <div className="grid grid-cols-2 gap-3 app-detail-panel rounded-xl p-4">
-                  <div><label className="input-label">Amalgama (g)</label><input type="number" step="0.01" value={form.manto_amalgama_g} onChange={e => set('manto_amalgama_g', e.target.value)} className="input-field min-h-[44px]" placeholder="1.19" /></div>
-                  <div><label className="input-label text-amber-400">Oro Recup. (g Au)</label><input type="number" step="0.01" value={form.manto_oro_g} onChange={e => set('manto_oro_g', e.target.value)} className="input-field min-h-[44px]" placeholder="0.43" /></div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 mb-3"><span className="text-sm font-semibold text-purple-400">⚗️ Retorta</span><div className="flex-1 h-px bg-purple-400/20" /></div>
-                <div className="app-detail-panel max-w-xs rounded-xl p-4">
-                  <label className="input-label text-amber-400">Oro Recuperado (g Au)</label><input type="number" step="0.01" value={form.retorta_oro_g} onChange={e => set('retorta_oro_g', e.target.value)} className="input-field min-h-[44px]" placeholder="0.33" />
-                </div>
-              </div>
-
-              <div className="bg-amber-500/[0.07] border border-amber-400/20 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3"><Calculator className="w-4 h-4 text-amber-400" /><span className="text-sm font-semibold text-amber-400">Totales (calculados)</span></div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center"><p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">Total Amalgama</p><p className="font-bold text-white/80 text-lg">{fmtN(formAmalgama)} <span className="text-xs text-white/40">g</span></p></div>
-                  <div className="text-center border-x border-amber-400/10"><p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">Total Au Recup.</p><p className="font-bold text-amber-400 text-lg">{fmtN(formOro)} <span className="text-xs">g Au</span></p></div>
-                  <div className="text-center"><p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">Merma</p><p className="font-bold text-orange-400 text-lg">{formAmalgama > 0 ? `${(((formAmalgama - formOro) / formAmalgama) * 100).toFixed(1)}%` : '—'}</p></div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => set('responsable', e.target.value)} className="input-field min-h-[44px]" /></div>
-                <div><label className="input-label">Observaciones</label><input value={form.observaciones} onChange={e => set('observaciones', e.target.value)} className="input-field min-h-[44px]" /></div>
-              </div>
+            <div>
+              <label className="input-label">Turno *</label>
+              <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={TURNO_OPTIONS} />
             </div>
+            <div>
+              <label className="input-label">N° Quemada</label>
+              <input value={form.numero_quemada} onChange={(e) => set('numero_quemada', e.target.value)} className="input-field min-h-[44px]" placeholder="001" />
+            </div>
+          </div>
 
-            <PageFormModalFooter className="flex-col-reverse sm:flex-row">
-              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">Cancelar</button>
-              <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary min-h-[48px] sm:min-h-[40px]">
-                {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {editItem ? 'Actualizar' : 'Registrar Quemado'}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-orange-400" />
+                <span className="text-sm font-semibold text-orange-400">Planchas</span>
+                <div className="hidden h-px w-24 flex-1 bg-orange-400/20 sm:block" />
+              </div>
+              <button
+                type="button"
+                onClick={addPlancha}
+                className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-orange-400/20 bg-orange-500/10 px-3 py-1.5 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/20"
+              >
+                <Plus className="h-3.5 w-3.5" /> Agregar
               </button>
-            </PageFormModalFooter>
+            </div>
+            <div className="space-y-3">
+              {planchas.map((p, i) => (
+                <div key={i} className="app-detail-panel rounded-xl p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-white/70">Plancha {i + 1}</span>
+                    {planchas.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removePlancha(i)}
+                        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 text-white/30 hover:bg-red-500/10 hover:text-red-400"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="input-label">Amalgama (g)</label>
+                      <input type="number" step="0.01" value={p.amalgama_g} onChange={(e) => updatePlancha(i, 'amalgama_g', e.target.value)} className="input-field min-h-[44px]" placeholder="60.81" />
+                    </div>
+                    <div>
+                      <label className="input-label text-amber-400">Oro Recup. (g Au)</label>
+                      <input type="number" step="0.01" value={p.oro_recuperado_g} onChange={(e) => updatePlancha(i, 'oro_recuperado_g', e.target.value)} className="input-field min-h-[44px]" placeholder="24.62" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-sm font-semibold text-blue-400">🔧 Manto. Área Raspado</span>
+              <div className="h-px flex-1 bg-blue-400/20" />
+            </div>
+            <div className="app-detail-panel grid grid-cols-2 gap-3 rounded-xl p-4">
+              <div>
+                <label className="input-label">Amalgama (g)</label>
+                <input type="number" step="0.01" value={form.manto_amalgama_g} onChange={(e) => set('manto_amalgama_g', e.target.value)} className="input-field min-h-[44px]" placeholder="1.19" />
+              </div>
+              <div>
+                <label className="input-label text-amber-400">Oro Recup. (g Au)</label>
+                <input type="number" step="0.01" value={form.manto_oro_g} onChange={(e) => set('manto_oro_g', e.target.value)} className="input-field min-h-[44px]" placeholder="0.43" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-sm font-semibold text-purple-400">⚗️ Retorta</span>
+              <div className="h-px flex-1 bg-purple-400/20" />
+            </div>
+            <div className="app-detail-panel max-w-xs rounded-xl p-4">
+              <label className="input-label text-amber-400">Oro Recuperado (g Au)</label>
+              <input type="number" step="0.01" value={form.retorta_oro_g} onChange={(e) => set('retorta_oro_g', e.target.value)} className="input-field min-h-[44px]" placeholder="0.33" />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-amber-400" />
+              <span className="text-sm font-semibold text-amber-400">Totales (calculados)</span>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">Total Amalgama</p>
+                <p className="text-lg font-bold text-white/80">
+                  {fmtN(formAmalgama)} <span className="text-xs text-white/40">g</span>
+                </p>
+              </div>
+              <div className="border-x border-amber-400/10 text-center">
+                <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">Total Au Recup.</p>
+                <p className="text-lg font-bold text-amber-400">
+                  {fmtN(formOro)} <span className="text-xs">g Au</span>
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">Merma</p>
+                <p className="text-lg font-bold text-orange-400">
+                  {formAmalgama > 0 ? `${(((formAmalgama - formOro) / formAmalgama) * 100).toFixed(1)}%` : '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="input-label">Responsable</label>
+              <input value={form.responsable} onChange={(e) => set('responsable', e.target.value)} className="input-field min-h-[44px]" />
+            </div>
+            <div>
+              <label className="input-label">Observaciones</label>
+              <input value={form.observaciones} onChange={(e) => set('observaciones', e.target.value)} className="input-field min-h-[44px]" />
+            </div>
+          </div>
+        </div>
+
+        <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+          <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary min-h-[48px] sm:min-h-[40px]">
+            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {editItem ? 'Actualizar' : 'Registrar Quemado'}
+          </button>
+        </PageFormModalFooter>
       </PageFormModal>
     </div>
   );

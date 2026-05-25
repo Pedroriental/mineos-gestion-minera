@@ -9,7 +9,8 @@ const fmtN = (n: number) =>
 
 export const columns = (
   openEdit: (item: ReporteQuemado) => void,
-  handleDelete: (id: string) => void
+  handleDelete: (id: string) => void,
+  canEdit: boolean,
 ): ColumnDef<ReporteQuemado>[] => [
   {
     accessorKey: 'turno',
@@ -33,18 +34,18 @@ export const columns = (
     header: () => <div className="text-center">Planchas</div>,
     cell: ({ row }) => {
       const planchas = row.original.planchas;
-      return <div className="text-center text-white/65">{planchas?.length || 0}</div>;
+       return <div className="text-center text-white/65">{planchas?.length || 0}</div>;
     },
   },
   {
     accessorKey: 'total_amalgama_g',
-    header: () => <div className="text-right">Total Amalgama (g)</div>,
-    cell: ({ row }) => <div className="text-right text-white/65">{fmtN(row.getValue('total_amalgama_g'))} g</div>,
+    header: () => <div className="text-right">Amalgama (g)</div>,
+    cell: ({ row }) => <div className="text-right text-white/65 tabular-nums">{fmtN(row.getValue('total_amalgama_g'))} g</div>,
   },
   {
     accessorKey: 'total_oro_g',
-    header: () => <div className="text-right text-amber-400">Total Au (g)</div>,
-    cell: ({ row }) => <div className="text-right font-bold text-amber-400">{fmtN(row.getValue('total_oro_g'))} g</div>,
+    header: () => <div className="text-right text-amber-400">Au (g)</div>,
+    cell: ({ row }) => <div className="text-right font-bold text-amber-400 tabular-nums">{fmtN(row.getValue('total_oro_g'))} g</div>,
   },
   {
     id: 'merma',
@@ -74,10 +75,10 @@ export const columns = (
   },
   {
     accessorKey: 'retorta_oro_g',
-    header: 'Retorta (g)',
+    header: 'Retorta',
     cell: ({ row }) => {
       const val = row.getValue('retorta_oro_g') as number | null;
-      return <span className="text-white/40">{val != null ? `${fmtN(val)} g` : '—'}</span>;
+      return <span className="text-white/40 tabular-nums">{val != null ? `${fmtN(val)} g` : '—'}</span>;
     },
   },
   {
@@ -88,21 +89,28 @@ export const columns = (
   {
     id: 'acciones',
     header: 'Acciones',
-    cell: ({ row }) => (
-      <div className="flex gap-1 justify-end">
-        <button
-          onClick={() => openEdit(row.original)}
-          className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-orange-400 transition-colors"
-        >
-          <Edit2 className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => handleDelete(row.original.id)}
-          className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    ),
+    cell: ({ row }) => {
+      if (!canEdit) return null;
+      return (
+        <div className="flex gap-1 justify-end">
+          <button
+            type="button"
+            onClick={() => openEdit(row.original)}
+            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-orange-400"
+            title="Editar"
+          >
+            <Edit2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDelete(row.original.id)}
+            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            title="Eliminar"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      );
+    },
   },
 ];
