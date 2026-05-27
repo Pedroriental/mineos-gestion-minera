@@ -1,6 +1,13 @@
+import dynamic from 'next/dynamic';
 import { createServerClient } from '@/lib/supabase-server';
 import { computePlanchaBalances, resolvePlanchaLines } from '@/lib/dashboard-planchas';
-import SatelliteCommandClient, { LocationData, GlobalData } from '@/components/dashboard/SatelliteCommandClient';
+import { DashboardCommandSkeleton } from '@/components/dashboard/DashboardCommandSkeleton';
+import type { LocationData, GlobalData } from '@/components/dashboard/types';
+
+const SatelliteCommandClient = dynamic(
+  () => import('@/components/dashboard/SatelliteCommandClient'),
+  { loading: () => <DashboardCommandSkeleton /> },
+);
 
 export const metadata = { title: 'Command Center - MineOS' };
 export const revalidate = 60;
@@ -79,21 +86,34 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const supabase = await createServerClient();
 
   try {
-    const [gastosHoyRes, gastosPeriodoRes, equiposRes, prodRes, volRes, inventarioRes, personalRes] =
-      await Promise.all([
-        supabase.from('gastos').select('monto').eq('fecha', today),
-        supabase.from('gastos').select('monto').gte('fecha', from).lte('fecha', to),
-        supabase.from('equipos').select('estado').eq('activo', true),
-        supabase
-          .from('reportes_produccion')
-          .select('molino, oro_recuperado_g, fecha, tenor_tonelada_gpt, merma_1_pct, material, material_codigo')
-          .gte('fecha', from)
-          .lte('fecha', to)
-          .order('fecha', { ascending: false }),
-        supabase.from('reportes_voladuras').select('*').order('fecha', { ascending: false }).limit(50),
-        supabase.from('inventario_items').select('stock_actual, stock_minimo').eq('activo', true),
-        supabase.from('personal').select('id').eq('activo', true).in('area', ['planta', 'mina']),
-      ]);
+    const [
+      gastosHoyRes,
+      gastosPeriodoRes,
+      equiposRes,
+      prodRes,
+      volRes,
+      inventarioRes,
+      personalRes,
+      planchaLines,
+    ] = await Promise.all([
+      supabase.from('gastos').select('monto').eq('fecha', today),
+      supabase.from('gastos').select('monto').gte('fecha', from).lte('fecha', to),
+      supabase.from('equipos').select('id', { count: 'exact', head: true }).eq('activo', true),
+      supabase
+        .from('reportes_produccion')
+        .select('molino, oro_recuperado_g, tenor_tonelada_gpt, merma_1_pct, material, material_codigo')
+        .gte('fecha', from)
+        .lte('fecha', to)
+        .order('fecha', { ascending: false }),
+      supabase
+        .from('reportes_voladuras')
+        .select('id, mina')
+        .order('fecha', { ascending: false })
+        .limit(1),
+      supabase.from('inventario_items').select('stock_actual, stock_minimo').eq('activo', true),
+      supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).in('area', ['planta', 'mina']),
+      resolvePlanchaLines(supabase),
+    ]);
 
     const reportesProd = (prodRes?.data ?? []) as {
       molino?: string | null;
@@ -112,19 +132,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const criticalInventory = (inventarioRes.data ?? []).filter(
       (i) => Number(i.stock_actual) <= Number(i.stock_minimo),
     ).length;
-    const activePersonnel = personalRes.data?.length ?? 0;
+    const activePersonnel = personalRes.count ?? 0;
 
-    const notifications = reportesVol.slice(0, 1).map((v) => ({
+    const notifications = reportesVol.map((v) => ({
       id: v.id,
       title: `Voladura: Mina ${v.mina ?? 'Desconocida'}`,
     }));
 
-    const planchaLines = await resolvePlanchaLines(supabase);
     const balancesPlanchas = computePlanchaBalances(reportesProd, planchaLines);
 
     const globalData: GlobalData = {
       totalGrams,
-      eqTotal: equiposRes.data?.length ?? 0,
+      eqTotal: equiposRes.count ?? 0,
       todayExpenses,
       monthlyExpenses,
       criticalInventory,

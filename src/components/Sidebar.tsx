@@ -28,6 +28,8 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MineosLogo, sidebarIconSurface } from '@/components/brand/MineosLogo';
+import { useTheme } from '@/lib/theme-context';
 
 // ── Navigation data ───────────────────────────────────────────
 interface NavItem {
@@ -332,6 +334,8 @@ export default function Sidebar({
   const pathname = usePathname();
   const router   = useRouter();
   const { signOut, user } = useAuth();
+  const { theme } = useTheme();
+  const iconSurface = sidebarIconSurface(variant, theme);
 
   const handleNav = useCallback(
     (href: string) => { router.push(href); onMobileClose?.(); },
@@ -360,18 +364,34 @@ export default function Sidebar({
   const dockContent = (onClose?: () => void) => (
     <div className="flex flex-col h-full">
       {/* Header / Logo */}
-      <div className={cn('flex items-center gap-3 px-4 pb-4 mb-2 border-b', tone.headerBorder)}>
-        <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4.5 h-4.5 text-amber-400">
-            <path d="M2 18 L7 8 L10 13 L13 8 L18 18 Z" opacity="0.85" />
-            <circle cx="14" cy="5" r="2.5" opacity="0.7" />
-          </svg>
+      <div
+        className={cn(
+          'mb-2 flex items-center gap-2.5 border-b px-4 py-3',
+          tone.headerBorder,
+        )}
+      >
+        <div
+          className={cn(
+            'flex h-12 w-12 flex-shrink-0 items-center justify-center self-center',
+            variant === 'default' &&
+              'rounded-xl border border-amber-500/20 bg-amber-500/10 p-1',
+          )}
+          aria-hidden
+        >
+          <MineosLogo
+            variant="icon"
+            surface={iconSurface}
+            className="h-10 w-10 object-[center_46%]"
+            alt=""
+          />
         </div>
-        <div className="flex flex-col leading-tight">
+        <div className="flex min-w-0 flex-col justify-center gap-px self-center leading-none">
           <span className={cn('text-[14px] font-extrabold tracking-tight', tone.headerTitle)}>
             La Fe
           </span>
-          <span className="text-[9px] text-amber-400/70 font-bold tracking-[0.18em] uppercase">MineOS</span>
+          <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-400/70">
+            MineOS
+          </span>
         </div>
         {/* Mobile close button */}
         {onClose && (

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { ResumenScaleShell } from '@/components/resumen/ResumenScaleShell';
+import { ResumenViewportShell } from '@/components/resumen/ResumenViewportShell';
 
 // ── Helpers de formato ────────────────────────────────────────
 function fmt(n: number) {
@@ -262,7 +262,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
   return (
     <div className="resumen-ejecutivo-page flex min-h-0 w-full flex-1 flex-col overflow-hidden print:space-y-4">
 
-      <ResumenScaleShell>
+      <ResumenViewportShell>
       <div className="resumen-ejecutivo-page__body min-h-0 flex-1 overflow-hidden">
         <div className="resumen-ejecutivo-page__content min-h-0 flex-1">
           {/* Fila 1: tarjeta larga ganancia + precio oro */}
@@ -456,7 +456,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           })}
         </StaggerGrid>
       </div>
-      </ResumenScaleShell>
+      </ResumenViewportShell>
 
       <div className="hidden pt-2 text-center text-xs text-white/25 print:block">
         Informe generado por MineOS —{' '}

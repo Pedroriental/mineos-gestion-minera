@@ -840,7 +840,7 @@ ${rows.map((r, i) => {
     <div className="nomina-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div className="nomina-page__body min-h-0 flex-1 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
 
-        <aside className="nomina-page__aside lg:col-span-3 flex flex-col gap-3 min-h-0 lg:overflow-y-auto lg:pr-0.5 custom-scrollbar">
+        <aside className="nomina-page__aside lg:col-span-3 flex flex-col gap-3 min-h-0 lg:overflow-y-auto custom-scrollbar">
           <header className="nomina-page__title flex items-center flex-shrink-0 min-h-[2.25rem]">
             <h1 className="text-white/90 font-bold tracking-tight text-base md:text-lg inline-flex items-center gap-2">
               <IconComponent className="w-4 h-4 text-amber-500 shrink-0" />

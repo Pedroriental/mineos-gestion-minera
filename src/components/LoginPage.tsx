@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { useRouter } from 'next/navigation';
-import { MineIcon } from '@/components/login/MineIcon';
+import { MineosLogo } from '@/components/brand/MineosLogo';
 import { GeologyStrataPanel } from '@/components/login/GeologyStrataPanel';
 import {
   Lock,
@@ -67,30 +67,30 @@ export default function LoginPage() {
   return (
     <div className="login-page flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden">
       <div className="login-page__canvas app-viewport-canvas min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
       {/* Panel izquierdo — 60% */}
-      <aside className="sidebar-section shrink-0 lg:min-h-0">
-        <GeologyStrataPanel />
+      <aside className="sidebar-section flex min-h-0 w-full flex-1 flex-col lg:min-h-0">
+        <div className="login-sidebar-copy">
+          <header className="brand-header">
+            <MineosLogo variant="logotipo" className="brand-logotipo" alt="MineOS" />
+          </header>
 
-        <header className="brand-header">
-          <div className="brand-logo">
-            <MineIcon size={20} />
+          <div className="info-intro">
+            <div className="info-accent-line" aria-hidden />
+            <h1 className="info-title">
+              Plataforma de
+              <br />
+              Gestión Minera
+            </h1>
+            <p className="info-desc">
+              Sistema integral para el monitoreo, control y análisis de operaciones mineras en
+              tiempo real.
+            </p>
           </div>
-          <span className="brand-name">Mine OS</span>
-        </header>
+        </div>
 
-        <div className="info-block">
-          <div className="info-accent-line" aria-hidden />
-          <h1 className="info-title">
-            Plataforma de
-            <br />
-            Gestión Minera
-          </h1>
-          <p className="info-desc">
-            Sistema integral para el monitoreo, control y análisis de operaciones mineras en tiempo
-            real.
-          </p>
-
+        <div className="login-strata-zone">
+          <GeologyStrataPanel />
           <ul className="features-list">
             {FEATURES.map(({ icon: Icon, label }) => (
               <li key={label} className="feature-item">

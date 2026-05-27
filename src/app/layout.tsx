@@ -20,13 +20,14 @@ export const metadata: Metadata = {
   },
   icons: {
     apple: [
-      { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
     icon: [
-      { url: "/icons/icon-128.png", sizes: "128x128", type: "image/png" },
-      { url: "/icons/icon-256.png", sizes: "256x256", type: "image/png" },
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
+    shortcut: [{ url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" }],
   },
   other: {
     // iOS splash screens (most common device sizes)

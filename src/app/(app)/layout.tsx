@@ -424,8 +424,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] w-full items-center justify-center bg-[var(--dashboard-bg,#121212)]">
-        <Loader2 className="h-8 w-8 animate-spin text-[var(--dashboard-accent)]" />
+      <div className="flex h-[100dvh] w-full overflow-hidden bg-[var(--app-chrome-bg)]">
+        <div className="relative z-10 flex h-full w-full gap-3 p-4" data-app-shell>
+          <Sidebar
+            variant="dashboard"
+            mobileOpen={false}
+            onMobileClose={() => setMobileMenuOpen(false)}
+          />
+          <div className="app-main-panel flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]">
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--dashboard-accent)]" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -433,13 +442,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!user && !isGuest) return null;
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden relative">
+    <div className="flex h-[100dvh] w-full overflow-hidden relative bg-[var(--app-chrome-bg)]">
       <RouteTransitionGuard />
-      {/* ── App Shell — tema global (dashboard tokens) ── */}
-      <div
-        className="relative z-10 flex h-full w-full gap-3 bg-[var(--dashboard-bg)] p-4"
-        data-app-shell
-      >
+      {/* ── App Shell — fondo exterior (chrome) + panel de contenido ── */}
+      <div className="relative z-10 flex h-full w-full gap-3 p-4" data-app-shell>
         <Sidebar
           variant="dashboard"
           mobileOpen={mobileMenuOpen}
@@ -447,7 +453,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         />
 
         {/* ── Right column: rounded content card ── */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]">
+        <div className="app-main-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]">
 
           <div className="app-viewport-canvas flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           {/* ── Guest Banner ── */}
