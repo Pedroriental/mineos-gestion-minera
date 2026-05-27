@@ -57,7 +57,20 @@ git checkout "${BRANCH}"
 git pull origin "${BRANCH}"
 npm ci
 npm run build
-pm2 restart mineos
+
+if [[ ! -f .next/BUILD_ID ]]; then
+  echo "ERROR: npm run build no generó .next/BUILD_ID. Revisa el log de build."
+  exit 1
+fi
+
+# Producción: next start (NO npm run dev / turbopack)
+if [[ -f ecosystem.config.cjs ]]; then
+  pm2 delete mineos 2>/dev/null || true
+  pm2 start ecosystem.config.cjs
+else
+  pm2 delete mineos 2>/dev/null || true
+  pm2 start npm --name mineos -- start
+fi
 pm2 save 2>/dev/null || true
 echo "==> OK — último commit:"
 git log -1 --oneline

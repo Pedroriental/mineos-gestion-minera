@@ -96,6 +96,35 @@ git pull
 npm ci && npm run build && pm2 restart mineos
 ```
 
+## Error F12: 500 en `turbopack-*.js` o `*_~*.js`
+
+Eso significa que el servidor está en **modo desarrollo** (`next dev --turbopack`) o el build falló.
+
+Comprobar:
+
+```bash
+cd /var/www/mineos
+pm2 describe mineos | grep -E "script args|exec cwd|status"
+test -f .next/BUILD_ID && echo "BUILD OK" || echo "FALTA BUILD"
+pm2 logs mineos --lines 40
+```
+
+**Arreglo (producción):**
+
+```bash
+cd /var/www/mineos
+git pull origin release/diseno-sin-nomina
+npm ci
+npm run build
+pm2 delete mineos
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+En el navegador: recarga forzada (Ctrl+Shift+R) o borra caché del sitio (el service worker puede guardar chunks viejos).
+
+`pm2 describe mineos` debe mostrar `next start`, **no** `run dev`.
+
 ## Seguridad
 
 - No compartas la contraseña de `root` por chat; cámbiala si ya se expuso.
