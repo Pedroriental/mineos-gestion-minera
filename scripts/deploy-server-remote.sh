@@ -1,18 +1,51 @@
 #!/usr/bin/env bash
 # Ejecutar EN EL SERVIDOR (después de ssh root@24.144.116.215)
+# Uso: bash scripts/deploy-server-remote.sh [rama] [ruta_opcional]
 set -euo pipefail
 
 BRANCH="${1:-release/diseno-sin-nomina}"
+APP_CWD="${2:-${MINEOS_APP_CWD:-}}"
+
+resolve_app_cwd() {
+  if [[ -n "${APP_CWD}" && -f "${APP_CWD}/package.json" ]]; then
+    echo "${APP_CWD}"
+    return
+  fi
+
+  if [[ -f "./package.json" ]] && grep -q '"name": "mineos-app"' ./package.json 2>/dev/null; then
+    pwd
+    return
+  fi
+
+  if command -v pm2 >/dev/null 2>&1; then
+    local parsed=""
+  parsed="$(pm2 show mineos 2>/dev/null | grep -i 'exec cwd' | head -1 | sed -E 's/.*exec cwd[^/]*(\/[^|│]+).*/\1/' | tr -d '[:space:]')"
+    if [[ -n "${parsed}" && -d "${parsed}" ]]; then
+      echo "${parsed}"
+      return
+    fi
+  fi
+
+  for candidate in /var/www/mineos /var/www/mineos-gestion-minera; do
+    if [[ -f "${candidate}/package.json" ]]; then
+      echo "${candidate}"
+      return
+    fi
+  done
+
+  echo ""
+}
 
 if ! command -v pm2 >/dev/null 2>&1; then
   echo "pm2 no encontrado. Instálalo o reinicia el proceso Node manualmente."
   exit 1
 fi
 
-APP_CWD="$(pm2 show mineos 2>/dev/null | awk -F'│' '/exec cwd/ { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit }')"
-if [[ -z "${APP_CWD}" || ! -d "${APP_CWD}" ]]; then
-  echo "No se pudo leer exec cwd de pm2 (mineos). Indica la ruta del proyecto:"
-  read -r APP_CWD
+APP_CWD="$(resolve_app_cwd)"
+if [[ -z "${APP_CWD}" ]]; then
+  echo "No se encontró la carpeta del proyecto."
+  echo "Uso: bash scripts/deploy-server-remote.sh ${BRANCH} /var/www/mineos"
+  exit 1
 fi
 
 cd "${APP_CWD}"
