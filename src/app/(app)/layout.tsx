@@ -1,13 +1,12 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
 import {
-  Loader2, Eye, Search, BellRing, LogOut, User, ChevronRight,
-  LayoutDashboard, BookOpen, ShieldCheck, Wrench, Zap, Receipt,
-  Package, ShoppingCart, Users, Flame, FlaskConical, BarChart2,
-  ClipboardList, TestTube2, Calculator, Sun, Moon,
+  Loader2, Eye, Search, BellRing, ChevronRight,
+  LayoutGrid, BookOpen, ClipboardList, Sun, Moon,
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import Sidebar from '@/components/Sidebar';
@@ -20,123 +19,10 @@ import { Suspense } from 'react';
 import GlobalDateRangePicker from '@/components/ui/GlobalDateRangePicker';
 import { getAppSectionMeta } from '@/lib/app-section-meta';
 
-// ── All navigable routes (for search palette) ────────────────────────────
-const ALL_ROUTES = [
-  { label: 'Dashboard',          href: '/dashboard',              section: 'Principal',      icon: <LayoutDashboard className="w-4 h-4" /> },
-  { label: 'Nómina Molino',      href: '/planta/nomina',          section: 'Administración', icon: <Users className="w-4 h-4" /> },
-  { label: 'Nómina Mina',        href: '/mina/nomina',            section: 'Administración', icon: <Users className="w-4 h-4" /> },
-  { label: 'Gastos',             href: '/admin/gastos',           section: 'Administración', icon: <Receipt className="w-4 h-4" /> },
-  { label: 'Inventario',         href: '/admin/inventario',       section: 'Administración', icon: <Package className="w-4 h-4" /> },
-  { label: 'Compras',            href: '/admin/compras',          section: 'Administración', icon: <ShoppingCart className="w-4 h-4" /> },
-  { label: 'Voladuras',          href: '/mina/voladuras',         section: 'Mina',           icon: <Zap className="w-4 h-4" /> },
-  { label: 'Extracción',         href: '/mina/extraccion',        section: 'Mina',           icon: <Wrench className="w-4 h-4" /> },
-  { label: 'Quemado de Planchas',href: '/mina/quemado',           section: 'Molino',         icon: <Flame className="w-4 h-4" /> },
-  { label: 'Equipos',            href: '/mina/equipos',           section: 'Mina',           icon: <Wrench className="w-4 h-4" /> },
-  { label: 'Seguridad',          href: '/mina/seguridad',         section: 'Mina',           icon: <ShieldCheck className="w-4 h-4" /> },
-  { label: 'Producción',         href: '/planta/produccion',      section: 'Molino',         icon: <BarChart2 className="w-4 h-4" /> },
-  { label: 'Recepción',          href: '/planta/recepcion',       section: 'Molino',         icon: <Package className="w-4 h-4" /> },
-  { label: 'Procesamiento',      href: '/planta/procesamiento',   section: 'Molino',         icon: <FlaskConical className="w-4 h-4" /> },
-  { label: 'Arenas',             href: '/planta/arenas',          section: 'Molino',         icon: <FlaskConical className="w-4 h-4" /> },
-  { label: 'Resumen Ejecutivo',  href: '/operaciones/resumen',    section: 'Operaciones',     icon: <BookOpen className="w-4 h-4" /> },
-  { label: 'Libro de Guardia',   href: '/operaciones/guardia',    section: 'Operaciones',     icon: <ClipboardList className="w-4 h-4" /> },
-  { label: 'Control de Leyes',   href: '/operaciones/leyes',      section: 'Operaciones',     icon: <TestTube2 className="w-4 h-4" /> },
-  { label: 'Costo por Gramo',    href: '/operaciones/costos',     section: 'Operaciones',     icon: <Calculator className="w-4 h-4" /> },
-];
-
-// ── Search palette ────────────────────────────────────────────────────────
-function SearchModal({
-  onClose,
-  onNavigate,
-}: {
-  onClose: () => void;
-  onNavigate: (href: string) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const filtered = query.trim()
-    ? ALL_ROUTES.filter(
-        (r) =>
-          r.label.toLowerCase().includes(query.toLowerCase()) ||
-          r.section.toLowerCase().includes(query.toLowerCase()),
-      )
-    : ALL_ROUTES;
-
-  const grouped = filtered.reduce(
-    (acc, r) => {
-      (acc[r.section] ??= []).push(r);
-      return acc;
-    },
-    {} as Record<string, typeof ALL_ROUTES>,
-  );
-
-  return (
-    <div
-      className="fixed inset-0 z-[9998] flex items-start justify-center pt-20 px-4 bg-black/60 backdrop-blur-[3px]"
-      onClick={onClose}
-    >
-      <div
-        className="app-popover w-full max-w-lg overflow-hidden rounded-2xl shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800">
-          <Search className="w-4 h-4 text-zinc-600 flex-shrink-0" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar módulo o página..."
-            className="flex-1 bg-transparent text-[14px] text-white/90 placeholder-zinc-600 outline-none"
-          />
-          <kbd className="text-[10px] text-zinc-600 border border-zinc-700 rounded px-1.5 py-0.5 font-mono">
-            ESC
-          </kbd>
-        </div>
-
-        <div className="max-h-[360px] overflow-y-auto py-2">
-          {Object.keys(grouped).length === 0 ? (
-            <p className="text-center text-zinc-600 text-sm py-8">Sin resultados</p>
-          ) : (
-            Object.entries(grouped).map(([section, routes]) => (
-              <div key={section} className="mb-1">
-                <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-600">
-                  {section}
-                </p>
-                {routes.map((r) => (
-                  <button
-                    key={r.href}
-                    onClick={() => onNavigate(r.href)}
-                    className="app-popover-item w-full flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors text-left"
-                  >
-                    <span className="text-zinc-600 flex-shrink-0">{r.icon}</span>
-                    <span className="font-medium flex-1">{r.label}</span>
-                    <ChevronRight className="w-3 h-3 text-zinc-700" />
-                  </button>
-                ))}
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="px-4 py-2 border-t border-zinc-800/60 flex items-center gap-4">
-          <span className="text-[10px] text-zinc-600">
-            {filtered.length} módulo{filtered.length !== 1 ? 's' : ''}
-          </span>
-          <span className="text-[10px] text-zinc-600 ml-auto">↵ para navegar</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+const AppSearchModal = dynamic(
+  () => import('@/components/app/AppSearchModal').then((m) => m.AppSearchModal),
+  { ssr: false },
+);
 
 // ── Quick Access Panel ────────────────────────────────────────────────────
 function BellPanel({
@@ -162,7 +48,7 @@ function BellPanel({
     {
       label: 'Dashboard',
       href: '/dashboard',
-      icon: <LayoutDashboard className="w-4 h-4" />,
+      icon: <LayoutGrid className="w-4 h-4" />,
       desc: 'Vista general',
     },
   ];
@@ -208,152 +94,6 @@ function BellPanel({
   );
 }
 
-// ── User Menu ─────────────────────────────────────────────────────────────
-function UserMenu({
-  email,
-  isGuest,
-  onSignOut,
-  onClose,
-}: {
-  email: string;
-  isGuest: boolean;
-  onSignOut: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="app-popover w-64 overflow-hidden rounded-xl shadow-2xl">
-      <div className="px-4 py-4 border-b border-zinc-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-amber-500/15 border-2 border-amber-500/30 flex items-center justify-center flex-shrink-0">
-            <span className="text-amber-300 font-black text-sm">
-              {email?.charAt(0).toUpperCase() ?? 'U'}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-zinc-200 truncate">{email}</p>
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full',
-                isGuest
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-              )}
-            >
-              {isGuest ? <Eye className="w-2.5 h-2.5" /> : <User className="w-2.5 h-2.5" />}
-              {isGuest ? 'Observador' : 'Administrador'}
-            </span>
-          </div>
-        </div>
-      </div>
-      <div className="p-1.5">
-        <button
-          onClick={() => {
-            onSignOut();
-            onClose();
-          }}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] text-red-400/80 hover:text-red-400 hover:bg-red-500/[0.08] transition-colors font-medium"
-        >
-          <LogOut className="w-4 h-4" />
-          Cerrar sesión
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Minimal inline "watermark" ingot background ───────────────────────────
-function GoldBackground({ theme }: { theme: 'dark' | 'light' }) {
-  if (theme === 'light') {
-    return (
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#EDE8DF] via-[#F0EBE1] to-[#E8E2D6]" />
-        {/* Subtle ingot watermark — very low opacity */}
-        <svg
-          className="absolute inset-0 w-full h-full opacity-[0.04]"
-          viewBox="0 0 1440 900"
-          preserveAspectRatio="xMidYMid slice"
-        >
-          <defs>
-            <linearGradient id="lgTA" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#C8A840" />
-              <stop offset="100%" stopColor="#8A6C10" />
-            </linearGradient>
-          </defs>
-          <g transform="translate(870,560) rotate(-6)">
-            <polygon points="0,32  380,32  350,0  -30,0" fill="url(#lgTA)" />
-            <polygon points="0,32  380,32  380,172  0,172" fill="#B08010" />
-          </g>
-          <g transform="translate(882,447) rotate(-6)">
-            <polygon points="0,30  360,30  332,0  -28,0" fill="url(#lgTA)" />
-            <polygon points="0,30  360,30  360,160  0,160" fill="#B08010" />
-          </g>
-          <g transform="translate(1140,600) rotate(7)">
-            <polygon points="0,24  290,24  268,0  -22,0" fill="url(#lgTA)" />
-            <polygon points="0,24  290,24  290,130  0,130" fill="#B08010" />
-          </g>
-        </svg>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-      {/* Pure zinc-950 base — professional & clean */}
-      <div className="absolute inset-0 bg-[#09090b]" />
-
-      {/* Gold ingot SVG scene — ultra-low opacity (~3%) watermark */}
-      <svg
-        className="absolute inset-0 w-full h-full opacity-[0.035]"
-        viewBox="0 0 1440 900"
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <defs>
-          <linearGradient id="igTA" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#F5D050" />
-            <stop offset="100%" stopColor="#B89020" />
-          </linearGradient>
-          <filter id="ingotBlur">
-            <feGaussianBlur stdDeviation="3" />
-          </filter>
-        </defs>
-
-        {/* Pile 1 — 3 stacked bars */}
-        <g transform="translate(870,560) rotate(-6)" filter="url(#ingotBlur)">
-          <polygon points="0,32  380,32  350,0  -30,0"   fill="url(#igTA)" />
-          <polygon points="0,32  380,32  380,172  0,172" fill="#C89418" />
-          <polygon points="380,32  350,0  350,140  380,172" fill="#9E6C0A" />
-        </g>
-        <g transform="translate(882,447) rotate(-6)" filter="url(#ingotBlur)">
-          <polygon points="0,30  360,30  332,0  -28,0"   fill="url(#igTA)" />
-          <polygon points="0,30  360,30  360,160  0,160" fill="#C89418" />
-          <polygon points="360,30  332,0  332,130  360,160" fill="#9E6C0A" />
-        </g>
-        <g transform="translate(894,340) rotate(-6)" filter="url(#ingotBlur)">
-          <polygon points="0,28  338,28  312,0  -26,0"   fill="url(#igTA)" />
-          <polygon points="0,28  338,28  338,148  0,148" fill="#C89418" />
-          <polygon points="338,28  312,0  312,120  338,148" fill="#9E6C0A" />
-        </g>
-
-        {/* Pile 2 — far right */}
-        <g transform="translate(1140,600) rotate(7)" filter="url(#ingotBlur)">
-          <polygon points="0,24  290,24  268,0  -22,0"   fill="url(#igTA)" />
-          <polygon points="0,24  290,24  290,130  0,130" fill="#B08010" />
-        </g>
-        <g transform="translate(1150,497) rotate(7)" filter="url(#ingotBlur)">
-          <polygon points="0,22  272,22  252,0  -20,0"   fill="url(#igTA)" />
-          <polygon points="0,22  272,22  272,120  0,120" fill="#B08010" />
-        </g>
-
-        {/* Bottom-left solo ingot */}
-        <g transform="translate(-30,700) rotate(14)" filter="url(#ingotBlur)">
-          <polygon points="0,20  230,20  212,0  -18,0"   fill="url(#igTA)" />
-          <polygon points="0,20  230,20  230,105  0,105" fill="#B08010" />
-        </g>
-      </svg>
-    </div>
-  );
-}
-
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, isGuest, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -365,7 +105,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [searchOpen,    setSearchOpen]    = useState(false);
   const [bellOpen,      setBellOpen]      = useState(false);
   const [bellCoords,    setBellCoords]    = useState({ top: 56, right: 56 });
-  const [userMenuOpen,  setUserMenuOpen]  = useState(false);
 
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
@@ -375,7 +114,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     (href: string) => {
       setSearchOpen(false);
       setBellOpen(false);
-      setUserMenuOpen(false);
       router.push(href);
     },
     [router],
@@ -419,22 +157,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setMobileMenuOpen(false);
     setSearchOpen(false);
     setBellOpen(false);
-    setUserMenuOpen(false);
   }, [pathname]);
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] w-full overflow-hidden bg-[var(--app-chrome-bg)]">
-        <div className="relative z-10 flex h-full w-full gap-3 p-4" data-app-shell>
-          <Sidebar
-            variant="dashboard"
-            mobileOpen={false}
-            onMobileClose={() => setMobileMenuOpen(false)}
-          />
-          <div className="app-main-panel flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]">
-            <Loader2 className="h-8 w-8 animate-spin text-[var(--dashboard-accent)]" />
-          </div>
-        </div>
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-[var(--app-chrome-bg)]">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--dashboard-accent)]" />
       </div>
     );
   }
@@ -445,7 +173,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-[100dvh] w-full overflow-hidden relative bg-[var(--app-chrome-bg)]">
       <RouteTransitionGuard />
       {/* ── App Shell — fondo exterior (chrome) + panel de contenido ── */}
-      <div className="relative z-10 flex h-full w-full gap-3 p-4" data-app-shell>
+      <div className="relative z-10 flex h-full w-full gap-2 p-2 sm:gap-3 sm:p-3 md:gap-3 md:p-4" data-app-shell>
         <Sidebar
           variant="dashboard"
           mobileOpen={mobileMenuOpen}
@@ -554,7 +282,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {pathname === '/dashboard' ? (
               children
             ) : (
-              <div className="app-page-scroll" data-main-content>
+              <div className="app-page-scroll scroll-y-fade" data-main-content>
                 <div className="app-page-inner pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-6">
                   {children}
                 </div>
@@ -580,7 +308,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* ── Search Modal ── */}
       {searchOpen && (
-        <SearchModal
+        <AppSearchModal
           onClose={() => setSearchOpen(false)}
           onNavigate={(href) => {
             setSearchOpen(false);

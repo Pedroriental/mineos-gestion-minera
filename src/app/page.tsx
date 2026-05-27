@@ -1,10 +1,20 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth-context';
-import LoginPage from '@/components/LoginPage';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+
+const LoginPage = dynamic(() => import('@/components/LoginPage'), {
+  loading: () => (
+    <div className="min-h-screen flex items-center justify-center bg-[#0B1E27]">
+      <div
+        className="h-8 w-8 rounded-full border-2 border-amber-400/25 border-t-amber-400 animate-spin"
+        aria-hidden
+      />
+    </div>
+  ),
+});
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -12,19 +22,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push('/dashboard');
+      router.replace('/dashboard');
     }
   }, [user, loading, router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0B1E27]">
-        <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-      </div>
-    );
-  }
-
-  if (user) {
+  if (!loading && user) {
     return null;
   }
 

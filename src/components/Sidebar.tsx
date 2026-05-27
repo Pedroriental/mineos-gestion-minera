@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard,
+  LayoutGrid,
   CircleDollarSign,
   Users,
   Receipt,
@@ -164,14 +164,17 @@ function NavItemWithSubmenu({
     if (anySubActive) setOpen(true);
   }, [anySubActive]);
 
+  const compact = variant === 'dashboard';
+
   return (
-    <div className="mb-1">
+    <div className={compact ? 'mb-0' : 'mb-1'}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cn(
-          'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors',
+          'flex w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors',
+          compact ? 'py-1.5' : 'py-2',
           anySubActive ? 'text-amber-500' : tone.subParentIdle,
           !anySubActive && tone.navIdle,
         )}
@@ -191,9 +194,12 @@ function NavItemWithSubmenu({
       </button>
       <div
         className="overflow-hidden transition-all duration-200 ease-in-out"
-        style={{ maxHeight: open ? `${subItems.length * 44}px` : '0px', opacity: open ? 1 : 0 }}
+        style={{
+          maxHeight: open ? `${subItems.length * (compact ? 36 : 44)}px` : '0px',
+          opacity: open ? 1 : 0,
+        }}
       >
-        <div className="mt-0.5 space-y-0.5">
+        <div className="mt-0.5 space-y-0">
           {subItems.map((sub) => {
             const subActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
             return (
@@ -202,7 +208,8 @@ function NavItemWithSubmenu({
                 type="button"
                 onClick={() => onNav(sub.href)}
                 className={cn(
-                  'block w-full py-2.5 pl-12 text-left text-[13px] transition-all duration-150',
+                  'block w-full pl-11 text-left text-[13px] transition-all duration-150',
+                  compact ? 'py-2' : 'py-2.5 pl-12',
                   subActive
                     ? 'font-medium text-amber-500'
                     : tone.subIdle,
@@ -233,6 +240,7 @@ function GlassAccordion({
   variant: SidebarVariant;
 }) {
   const tone = getSidebarTone(variant);
+  const compact = variant === 'dashboard';
   const [open, setOpen] = useState(defaultOpen);
   const isActive = section.items.some(
     (i) => pathname.startsWith(i.href) || i.subItems?.some((s) => pathname.startsWith(s.href))
@@ -267,7 +275,7 @@ function GlassAccordion({
         className="overflow-hidden transition-all duration-200 ease-in-out"
         style={{ maxHeight: open ? '600px' : '0px', opacity: open ? 1 : 0 }}
       >
-        <div className="space-y-0.5 pb-2">
+        <div className={cn('space-y-0', compact ? 'pb-0.5' : 'space-y-0.5 pb-2')}>
           {section.items.map((item) => {
             if (item.subItems?.length) {
               return (
@@ -287,7 +295,8 @@ function GlassAccordion({
                 key={item.href}
                 onClick={() => onNav(item.href)}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-all duration-150 text-left',
+                  'w-full flex items-center gap-3 px-3 text-sm transition-all duration-150 text-left',
+                  compact ? 'py-2' : 'py-2.5',
                   active
                     ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520] font-medium rounded-r-xl rounded-l-none'
                     : cn(tone.navIdle, 'transition-colors rounded-xl'),
@@ -319,7 +328,8 @@ interface SidebarProps {
 
 const sidebarShellClass = (variant: 'default' | 'dashboard') =>
   cn(
-    'flex flex-col w-[260px] py-6 px-4 flex-shrink-0',
+    'flex flex-col w-[260px] flex-shrink-0',
+    variant === 'dashboard' ? 'py-3 px-3' : 'py-6 px-4',
     variant === 'dashboard'
       ? 'rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]'
       : 'rounded-[2rem] bg-zinc-900/40 backdrop-blur-2xl border border-white/5 shadow-2xl',
@@ -359,20 +369,23 @@ export default function Sidebar({
 
   const initials = (user?.email?.charAt(0) ?? 'U').toUpperCase();
   const tone = getSidebarTone(variant);
+  const compact = variant === 'dashboard';
 
   // ── GLASS DOCK CONTENT ────────────────────────────────────
   const dockContent = (onClose?: () => void) => (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Header / Logo */}
       <div
         className={cn(
-          'mb-2 flex items-center gap-2.5 border-b px-4 py-3',
+          'flex items-center gap-2 border-b',
+          compact ? 'mb-1 px-2 py-2' : 'mb-2 gap-2.5 px-4 py-3',
           tone.headerBorder,
         )}
       >
         <div
           className={cn(
-            'flex h-12 w-12 flex-shrink-0 items-center justify-center self-center',
+            'flex flex-shrink-0 items-center justify-center self-center',
+            compact ? 'h-9 w-9' : 'h-12 w-12',
             variant === 'default' &&
               'rounded-xl border border-amber-500/20 bg-amber-500/10 p-1',
           )}
@@ -381,7 +394,7 @@ export default function Sidebar({
           <MineosLogo
             variant="icon"
             surface={iconSurface}
-            className="h-10 w-10 object-[center_46%]"
+            className={cn('object-[center_46%]', compact ? 'h-8 w-8' : 'h-10 w-10')}
             alt=""
           />
         </div>
@@ -405,17 +418,18 @@ export default function Sidebar({
       </div>
 
       {/* Dashboard pill */}
-      <div className="px-2 mb-3">
+      <div className={cn('px-2', compact ? 'mb-1' : 'mb-3')}>
         <button
           onClick={() => handleNav('/dashboard')}
           className={cn(
-            'w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-all duration-150 text-left',
+            'flex w-full items-center gap-3 px-3 text-sm transition-all duration-150 text-left',
+            compact ? 'py-2' : 'py-2.5',
             pathname === '/dashboard'
               ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520] font-medium rounded-r-xl rounded-l-none'
               : cn(tone.dashboardNavIdle, 'transition-colors rounded-xl'),
           )}
         >
-          <LayoutDashboard
+          <LayoutGrid
             className={cn(
               'w-4 h-4 flex-shrink-0',
               pathname === '/dashboard' ? 'text-amber-500' : tone.dashboardNavIcon,
@@ -426,7 +440,12 @@ export default function Sidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] px-2 space-y-1">
+      <nav
+        className={cn(
+          'sidebar-nav-scroll scroll-y-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2',
+          compact ? 'space-y-0' : 'space-y-1',
+        )}
+      >
         {navigation.map((section) => (
           <GlassAccordion
             key={section.id}
@@ -440,8 +459,20 @@ export default function Sidebar({
       </nav>
 
       {/* Footer: User pill */}
-      <div className={cn('mt-auto border-t pt-4 mt-2 px-2', tone.footerBorder)}>
-        <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl', tone.userCard)}>
+      <div
+        className={cn(
+          'mt-auto shrink-0 border-t px-2',
+          compact ? 'pt-2' : 'mt-2 pt-4',
+          tone.footerBorder,
+        )}
+      >
+        <div
+          className={cn(
+            'flex items-center gap-3 rounded-xl px-3',
+            compact ? 'py-2' : 'py-2.5',
+            tone.userCard,
+          )}
+        >
           {/* Avatar */}
           <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
             <span className="text-amber-300 font-bold text-[12px]">{initials}</span>
@@ -470,7 +501,11 @@ export default function Sidebar({
       <aside
         data-sidebar
         data-sidebar-variant={variant}
-        className={cn('hidden md:flex h-[calc(100vh-2rem)]', sidebarShellClass(variant))}
+        className={cn(
+          'hidden md:flex',
+          variant === 'dashboard' ? 'h-full max-h-full' : 'h-[calc(100vh-2rem)]',
+          sidebarShellClass(variant),
+        )}
       >
         {dockContent()}
       </aside>
@@ -478,7 +513,7 @@ export default function Sidebar({
       {/* ── MOBILE: Slide-in Drawer ── */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] md:hidden"
+          className="fixed inset-0 z-40 bg-black/55 backdrop-blur-md md:hidden"
           onClick={onMobileClose}
           aria-hidden="true"
         />
@@ -487,10 +522,13 @@ export default function Sidebar({
         data-sidebar
         data-sidebar-variant={variant}
         className={cn(
-          'fixed inset-y-4 left-4 z-50 md:hidden',
-          sidebarShellClass(variant),
-          'transition-transform duration-300 ease-in-out',
-          mobileOpen ? 'translate-x-0' : '-translate-x-[calc(100%+2rem)]',
+          'fixed inset-y-3 left-3 z-50 w-[min(18.5rem,calc(100vw-1.5rem))] md:hidden',
+          'flex flex-col rounded-2xl border border-white/[0.08]',
+          'bg-[color-mix(in_srgb,var(--dashboard-bg,#09090b)_78%,transparent)]',
+          'py-3 px-3 shadow-[0_24px_80px_rgba(0,0,0,0.55)]',
+          'backdrop-blur-2xl backdrop-saturate-150',
+          'transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
+          mobileOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)]',
         )}
       >
         {dockContent(onMobileClose)}

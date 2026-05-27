@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { DashboardShell } from './DashboardShell';
-import { CriticalAlertsBanner } from './CriticalAlertsBanner';
+import { DashboardCommandHeader } from './DashboardCommandHeader';
 import { DashboardMetricsRail } from './DashboardMetricsRail';
 import { NodeTacticalPanel } from './NodeTacticalPanel';
 import { NodesOperationsMap } from './NodesOperationsMap';
@@ -32,7 +32,12 @@ export default function SatelliteCommandClient({
   return (
     <DashboardShell>
       <div className="dashboard-command-layout">
-        <CriticalAlertsBanner variant="compact" alerts={globalData.notifications ?? []} />
+        <DashboardCommandHeader
+          globalData={globalData}
+          activeNodes={activeNodes}
+          totalNodes={locations.length}
+          alerts={globalData.notifications ?? []}
+        />
 
         <div className="dashboard-command-main">
           <NodesOperationsMap

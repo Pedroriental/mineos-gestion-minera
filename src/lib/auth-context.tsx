@@ -30,29 +30,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
-    // Restore guest flag (synchronous) before the async Supabase session check
     const guestStored = sessionStorage.getItem(GUEST_KEY);
     if (guestStored === 'true') {
       setIsGuest(true);
     }
 
-    // Always check Supabase session — works for both real users and the guest account
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Una sola fuente: sesión en caché vía INITIAL_SESSION (sin getSession extra = menos espera en local)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
+    const slowNetworkGuard = window.setTimeout(() => {
+      setLoading(false);
+    }, 1200);
 
-    return () => subscription.unsubscribe();
+    return () => {
+      window.clearTimeout(slowNetworkGuard);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

@@ -24,16 +24,50 @@ Conéctate (usa llave SSH si es posible; evita pegar la contraseña en scripts):
 ssh root@24.144.116.215
 ```
 
-Ruta típica del proyecto (ajústala si en el servidor está en otra carpeta):
+### Encontrar la carpeta real del proyecto
+
+En muchos servidores **no** está en `/var/www/mineos-gestion-minera`. Usa la ruta que PM2 ya tiene configurada:
 
 ```bash
-cd /var/www/mineos-gestion-minera   # o la ruta real del clone
+pm2 show mineos | grep -E "exec cwd|script path"
+# o:
+pm2 describe mineos | grep -E "cwd|script path"
+```
+
+Copia la ruta de **`exec cwd`** (carpeta del proyecto) y entra ahí:
+
+```bash
+cd "$(pm2 show mineos 2>/dev/null | awk -F'│' '/exec cwd/ { gsub(/ /,""); print $3; exit }')"
+pwd
+git rev-parse --is-inside-work-tree   # debe imprimir: true
+```
+
+Si no es un repo git, busca clones:
+
+```bash
+find /root /home /var/www /opt -maxdepth 4 -name package.json 2>/dev/null | xargs grep -l '"name": "mineos-app"' 2>/dev/null
+```
+
+### Desplegar (desde la carpeta correcta)
+
+Opción rápida (script en el repo, tras `git pull`):
+
+```bash
+cd <RUTA_DEL_PROYECTO>
+bash scripts/deploy-server-remote.sh release/diseno-sin-nomina
+```
+
+Manual:
+
+```bash
+cd <RUTA_DEL_PROYECTO>   # la de exec cwd, no /var/www/... si no existe
 git fetch origin
 git checkout release/diseno-sin-nomina
 git pull origin release/diseno-sin-nomina
 npm ci
 npm run build
-pm2 restart mineos   # o: systemctl restart mineos — según cómo esté configurado
+pm2 restart mineos
+git log -1 --oneline
 ```
 
 Si no usan PM2, suele ser:

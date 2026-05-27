@@ -9,7 +9,7 @@ import {
   Factory,
   HardHat,
   Layers,
-  LayoutDashboard,
+  LayoutGrid,
   Package,
   Pickaxe,
   ShieldCheck,
@@ -35,7 +35,7 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
   '/dashboard': {
     title: 'Dashboard',
     description: 'Monitoreo, métricas y estados en tiempo real.',
-    Icon: LayoutDashboard,
+    Icon: LayoutGrid,
     iconClassName: 'text-[var(--dashboard-accent)]',
     titleClassName: 'text-[var(--dashboard-accent)]',
   },

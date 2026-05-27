@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Factory, Pickaxe, BookOpen, MoreHorizontal } from 'lucide-react';
+import { LayoutGrid, Factory, Pickaxe, BookOpen, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Only the 4 most critical routes stay in the bottom bar.
@@ -16,7 +16,7 @@ interface Tab {
 const TABS: Tab[] = [
   {
     label: 'Dashboard',
-    icon: <LayoutDashboard className="w-5 h-5" />,
+    icon: <LayoutGrid className="w-5 h-5" />,
     href: '/dashboard',
     matchPrefix: '/dashboard',
   },
@@ -56,9 +56,10 @@ export default function MobileBottomNav({ onMorePress }: MobileBottomNavProps) {
       className={cn(
         'md:hidden fixed bottom-0 inset-x-0 z-40',
         'flex items-stretch',
-        'bg-zinc-950/95 border-t border-zinc-800/60',
-        'backdrop-blur-xl',
-        // iOS safe-area bottom padding
+        'border-t border-white/[0.06]',
+        'bg-[color-mix(in_srgb,var(--dashboard-bg,#09090b)_88%,transparent)]',
+        'backdrop-blur-2xl backdrop-saturate-150',
+        'shadow-[0_-12px_40px_rgba(0,0,0,0.35)]',
       )}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >

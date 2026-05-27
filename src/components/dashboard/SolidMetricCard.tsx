@@ -13,6 +13,8 @@ type SolidMetricCardProps = {
   footer?: string;
   /** rail = tarjeta alargada para la columna lateral del dashboard */
   layout?: 'grid' | 'rail';
+  /** Destaca el KPI principal en el rail */
+  featured?: boolean;
 };
 
 /** Tarjeta KPI con fondo sólido y borde del sistema de diseño global. */
@@ -25,6 +27,7 @@ export function SolidMetricCard({
   trend,
   footer,
   layout = 'grid',
+  featured = false,
 }: SolidMetricCardProps) {
   const isRail = layout === 'rail';
 
@@ -33,6 +36,7 @@ export function SolidMetricCard({
       <article
         className={[
           'dashboard-card dashboard-metric-card dashboard-metric-card--rail',
+          featured ? 'dashboard-metric-card--featured' : '',
           alert ? 'dashboard-metric-card--alert' : '',
         ]
           .filter(Boolean)

@@ -3,9 +3,9 @@
 import {
   BatteryCharging,
   Flame,
+  Gem,
   Package,
   Receipt,
-  Server,
   Users,
 } from 'lucide-react';
 import { SolidMetricCard } from './SolidMetricCard';
@@ -18,45 +18,49 @@ type DashboardMetricsRailProps = {
 
 /** Indicadores consolidados en columna lateral (sustituye la lista de nodos). */
 export function DashboardMetricsRail({ globalData, activeNodes }: DashboardMetricsRailProps) {
-  const kpiRowCount = 1 + globalData.balancesPlanchas.length + 4;
-
   return (
     <aside className="dashboard-metrics-rail" aria-labelledby="dashboard-kpi-heading">
       <div className="dashboard-metrics-rail__head">
         <h2 id="dashboard-kpi-heading" className="dashboard-metrics-rail__title">
-          Indicadores consolidados
+          Panel operativo
         </h2>
+        <p className="dashboard-metrics-rail__desc">Detalle financiero y de planta</p>
       </div>
 
-      <div
-        className="dashboard-metrics-rail__list"
-        style={{ gridTemplateRows: `repeat(${kpiRowCount}, minmax(0, 1fr))` }}
-      >
+      <div className="dashboard-metrics-rail__list scroll-y-fade">
+        <p className="dashboard-metrics-rail__section">Producción</p>
         <SolidMetricCard
           layout="rail"
-          label="Oro total"
+          featured
+          label="Oro total período"
           value={globalData.totalGrams.toLocaleString('en-US', {
             minimumFractionDigits: 1,
             maximumFractionDigits: 1,
           })}
           unit="g Au"
-          icon={<Server className="h-3.5 w-3.5" />}
+          icon={<Gem className="h-4 w-4" />}
         />
 
-        {globalData.balancesPlanchas.map((plancha) => (
-          <SolidMetricCard
-            key={plancha.id}
-            layout="rail"
-            label={plancha.label}
-            value={plancha.grams.toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-            unit="g Au"
-            icon={<Flame className="h-3.5 w-3.5" />}
-          />
-        ))}
+        {globalData.balancesPlanchas.length > 0 ? (
+          <>
+            <p className="dashboard-metrics-rail__section">Planchas</p>
+            {globalData.balancesPlanchas.map((plancha) => (
+              <SolidMetricCard
+                key={plancha.id}
+                layout="rail"
+                label={plancha.label}
+                value={plancha.grams.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+                unit="g Au"
+                icon={<Flame className="h-3.5 w-3.5" />}
+              />
+            ))}
+          </>
+        ) : null}
 
+        <p className="dashboard-metrics-rail__section">Recursos</p>
         <SolidMetricCard
           layout="rail"
           label="Consumo diario"
@@ -83,7 +87,7 @@ export function DashboardMetricsRail({ globalData, activeNodes }: DashboardMetri
           value={globalData.activePersonnel}
           unit="operarios"
           icon={<Users className="h-3.5 w-3.5" />}
-          footer={`${activeNodes} nodos`}
+          footer={`${activeNodes} nodos activos`}
         />
       </div>
     </aside>

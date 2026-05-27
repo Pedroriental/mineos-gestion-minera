@@ -12,11 +12,11 @@ const NODE_LABEL_PLACEMENT: Record<string, 'top' | 'bottom' | 'left' | 'right'> 
   Mantenimiento: 'bottom',
   'Molino 1': 'top',
   'Molino 1-2': 'top',
-  'Molino 1-3': 'right',
+  'Molino 1-3': 'top',
   'Molino 2': 'top',
-  'Molino 2-3': 'right',
+  'Molino 2-3': 'top',
   'Molino 3': 'bottom',
-  'Molino Continuo': 'left',
+  'Molino Continuo': 'bottom',
   'Molino 1-2-3': 'right',
 };
 
@@ -145,9 +145,12 @@ export function NodesOperationsMap({ locations, selectedId, onSelectNode }: Node
     <section className="dashboard-card dashboard-nodes-card dashboard-nodes-card--fill">
       <div className="dashboard-nodes-card__header">
         <div className="dashboard-nodes-card__intro">
-          <h2 className="dashboard-section-title dashboard-nodes-card__title">Mapa de nodos operacionales</h2>
+          <div className="dashboard-nodes-card__title-row">
+            <h2 className="dashboard-section-title dashboard-nodes-card__title">Mapa operacional</h2>
+            <span className="dashboard-nodes-card__badge">{locations.length} nodos</span>
+          </div>
           <p className="dashboard-section-desc dashboard-nodes-card__desc">
-            Molinos, fusión y mantenimiento del complejo en tiempo real.
+            Selecciona un molino para ver tenor, merma y conexiones del complejo.
           </p>
         </div>
         <div className="dashboard-nodes-search">
@@ -236,6 +239,22 @@ export function NodesOperationsMap({ locations, selectedId, onSelectNode }: Node
             );
           })}
         </div>
+
+        <footer className="dashboard-nodes-legend" aria-label="Leyenda de estados">
+          <span className="dashboard-nodes-legend__item">
+            <span className="dashboard-node-dot dashboard-node-dot--active" aria-hidden />
+            Activo
+          </span>
+          <span className="dashboard-nodes-legend__item">
+            <span className="dashboard-node-dot dashboard-node-dot--maint" aria-hidden />
+            Mantenimiento
+          </span>
+          <span className="dashboard-nodes-legend__item">
+            <span className="dashboard-node-dot dashboard-node-dot--idle" aria-hidden />
+            Inactivo
+          </span>
+          <span className="dashboard-nodes-legend__hint">Clic en un nodo para detalle</span>
+        </footer>
       </div>
     </section>
   );

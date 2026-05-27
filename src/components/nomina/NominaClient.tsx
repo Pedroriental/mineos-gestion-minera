@@ -36,6 +36,17 @@ import {
   registrarAuditAction,
 } from '@/lib/actions/nomina-v3';
 
+import {
+  NominaMobileActionBar,
+  NominaMobileHistorial,
+  NominaMobileKpiStrip,
+  NominaMobileMoreSheet,
+  NominaMobileSearch,
+  NominaMobileStatusCard,
+  NominaMobileSteps,
+  NominaMobileWorkerCard,
+} from '@/components/nomina/nomina-mobile';
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function getWeekStart(d = new Date()): string {
   const date = new Date(d);
@@ -375,6 +386,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   const [importingState, setImportingState] = useState(false);
   const [importResult, setImportResult] = useState<{ nuevos: number; actualizados: number } | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
 
   // ── Load trend data for sparklines ──────────────────────────────────────
   useEffect(() => {
@@ -840,7 +852,48 @@ ${rows.map((r, i) => {
     <div className="nomina-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div className="nomina-page__body min-h-0 flex-1 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
 
-        <aside className="nomina-page__aside lg:col-span-3 flex flex-col gap-3 min-h-0 lg:overflow-y-auto custom-scrollbar">
+        {/* ── Móvil: resumen, pasos y semana (estilo panel Doojo) ── */}
+        <div className="nomina-mobile-panel flex flex-col gap-3 lg:hidden">
+          <NominaMobileKpiStrip
+            totalSemana={totalSemana}
+            activos={data.length}
+            promedio={data.length > 0 ? totalSemana / data.length : 0}
+            valesPend={preNominaRows.reduce((s, r) => s + r.totalVales, 0)}
+            fmtMoney={fmtMoney}
+          />
+          <NominaMobileSteps activeStep={activeStep} onStep={setActiveStep} />
+          <NominaMobileStatusCard
+            cerrada={semanaActualProcesada}
+            semanaActual={semanaActual}
+            weekRange={weekRange}
+            setWeekRange={setWeekRange}
+            preNominaCount={preNominaRows.length}
+            totalSemana={totalSemana}
+            procesadoOk={procesadoOk}
+            fmtMoney={fmtMoney}
+            fmtDate={fmtDate}
+          />
+          {prevSemana && Math.abs(weekDeltaPct) > 15 && (
+            <div className="flex items-start gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-3 py-2.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+              <p className="text-[10px] leading-snug text-yellow-300">
+                <strong>Anomalía:</strong> {Math.abs(weekDeltaPct).toFixed(1)}% vs semana anterior.
+              </p>
+            </div>
+          )}
+          <NominaMobileHistorial
+            semanas={semanas}
+            showHistorial={showHistorial}
+            setShowHistorial={setShowHistorial}
+            canEdit={canEdit}
+            isPending={isPending}
+            onRevertir={handleRevertirSemana}
+            fmtMoney={fmtMoney}
+            fmtDate={fmtDate}
+          />
+        </div>
+
+        <aside className="nomina-page__aside scroll-y-fade hidden lg:col-span-3 lg:flex flex-col gap-3 min-h-0 lg:overflow-y-auto">
           <header className="nomina-page__title flex items-center flex-shrink-0 min-h-[2.25rem]">
             <h1 className="text-white/90 font-bold tracking-tight text-base md:text-lg inline-flex items-center gap-2">
               <IconComponent className="w-4 h-4 text-amber-500 shrink-0" />
@@ -910,8 +963,10 @@ ${rows.map((r, i) => {
           <div className="nomina-page__status shrink-0 flex flex-col gap-2">
             {semanaActualProcesada ? (
               <div className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 px-4 py-3.5 flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0"><CheckCircle2 className="w-4 h-4 text-emerald-400" /></div>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/10">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  </div>
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-emerald-400">Nómina Cerrada</p>
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-black text-emerald-400 uppercase tracking-widest mt-1">
@@ -920,16 +975,16 @@ ${rows.map((r, i) => {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-1">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="text-[9px] font-bold text-white/40 uppercase">Desde:</span>
-                    <input type="date" value={weekRange.inicio} onChange={e => { const newInicio = e.target.value; const d = new Date(newInicio); d.setDate(d.getDate() + 6); setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] }); }} className="nomina-page__date-input bg-transparent border-0 text-xs text-white/90 outline-none focus:ring-0 cursor-pointer p-0 flex-1 min-w-0" />
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-1">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="text-[9px] font-bold text-white/40 uppercase">Hasta:</span>
-                    <input type="date" value={weekRange.fin} onChange={e => setWeekRange(prev => ({ ...prev, fin: e.target.value }))} className="nomina-page__date-input bg-transparent border-0 text-xs text-white/90 outline-none focus:ring-0 cursor-pointer p-0 flex-1 min-w-0" />
-                  </div>
+                  <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1">
+                    <Calendar className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
+                    <span className="text-[9px] font-bold uppercase text-white/40">Desde:</span>
+                    <input type="date" value={weekRange.inicio} onChange={e => { const newInicio = e.target.value; const d = new Date(newInicio); d.setDate(d.getDate() + 6); setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] }); }} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1">
+                    <Calendar className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
+                    <span className="text-[9px] font-bold uppercase text-white/40">Hasta:</span>
+                    <input type="date" value={weekRange.fin} onChange={e => setWeekRange(prev => ({ ...prev, fin: e.target.value }))} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
+                  </label>
                   <p className="text-[11px] text-white/50">{semanaActual.total_trabajadores} trabajadores · <span className="font-bold text-emerald-400">{fmtMoney(Number(semanaActual.total_pagado))}</span></p>
                 </div>
                 <button onClick={() => handleRevertirSemana(semanaActual)} disabled={!canEdit || isPending} className="h-8 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-40">
@@ -937,22 +992,24 @@ ${rows.map((r, i) => {
                 </button>
               </div>
             ) : (
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3.5">
-                <div className="flex items-center gap-3 mb-2.5">
-                  <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0"><AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" /></div>
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3.5 flex flex-col gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/10">
+                    <AlertTriangle className="h-3.5 w-3.5 animate-pulse text-amber-500" />
+                  </div>
                   <p className="text-xs font-semibold text-amber-500">Nómina Pendiente</p>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-1">
-                    <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span className="text-[9px] font-bold text-white/40 uppercase">Desde:</span>
-                    <input type="date" value={weekRange.inicio} onChange={e => { const newInicio = e.target.value; const d = new Date(newInicio); d.setDate(d.getDate() + 6); setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] }); }} className="nomina-page__date-input bg-transparent border-0 text-xs text-white/90 outline-none focus:ring-0 cursor-pointer p-0 flex-1 min-w-0" />
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-1">
-                    <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span className="text-[9px] font-bold text-white/40 uppercase">Hasta:</span>
-                    <input type="date" value={weekRange.fin} onChange={e => setWeekRange(prev => ({ ...prev, fin: e.target.value }))} className="nomina-page__date-input bg-transparent border-0 text-xs text-white/90 outline-none focus:ring-0 cursor-pointer p-0 flex-1 min-w-0" />
-                  </div>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1.5">
+                    <Calendar className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+                    <span className="text-[9px] font-bold uppercase text-white/40">Desde:</span>
+                    <input type="date" value={weekRange.inicio} onChange={e => { const newInicio = e.target.value; const d = new Date(newInicio); d.setDate(d.getDate() + 6); setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] }); }} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1.5">
+                    <Calendar className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+                    <span className="text-[9px] font-bold uppercase text-white/40">Hasta:</span>
+                    <input type="date" value={weekRange.fin} onChange={e => setWeekRange(prev => ({ ...prev, fin: e.target.value }))} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
+                  </label>
                   <p className="text-[11px] text-white/50">{preNominaRows.length} activos · <span className="font-bold text-amber-400">{fmtMoney(totalSemana)}</span></p>
                 </div>
                 {procesadoOk && <div className="mt-2.5 flex items-center gap-2 text-xs text-emerald-400 font-bold"><CheckCircle2 className="w-3.5 h-3.5" />{procesadoOk}</div>}
@@ -975,7 +1032,7 @@ ${rows.map((r, i) => {
                 {showHistorial ? <ChevronUp className="w-4 h-4 text-white/30" /> : <ChevronDown className="w-4 h-4 text-white/30" />}
               </button>
               {showHistorial && (
-                <div className="p-2.5 overflow-y-auto flex-1 flex flex-col gap-2 custom-scrollbar">
+                <div className="p-2.5 overflow-y-auto flex-1 flex flex-col gap-2 scroll-y-fade">
                   {semanas.map(sem => (
                     <div key={sem.id} className="bg-zinc-950/40 border border-zinc-850 rounded-lg p-3 hover:border-zinc-800 transition-colors">
                       <div className="flex justify-between items-start gap-2">
@@ -995,7 +1052,11 @@ ${rows.map((r, i) => {
         </aside>
 
         <div className="nomina-page__content lg:col-span-9 flex flex-col gap-3 min-h-0 overflow-hidden">
-          <div className="nomina-page__toolbar shrink-0 flex flex-wrap items-center gap-2 min-w-0">
+          <div className="shrink-0 lg:hidden">
+            <NominaMobileSearch value={search} onChange={setSearch} />
+          </div>
+
+          <div className="nomina-page__toolbar hidden shrink-0 lg:flex flex-wrap items-center gap-2 min-w-0">
             <div className="nomina-page__toolbar-search flex-1 min-w-[12rem] bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 flex items-center gap-2">
               <Search className="w-4 h-4 text-white/40 shrink-0" />
               <input type="text" placeholder="Buscar por nombre o cédula..." value={search} onChange={e => setSearch(e.target.value)} className="w-full min-w-0 bg-transparent border-0 text-sm text-white/90 placeholder-white/30 outline-none" />
@@ -1030,9 +1091,9 @@ ${rows.map((r, i) => {
             </div>
           </div>
 
-          <div className="nomina-page__main nomina-page__table-stack flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/30">
+          <div className="nomina-page__main nomina-page__table-stack flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/30 lg:border lg:bg-zinc-900/30 border-transparent bg-transparent">
           {/* Grouped Worker Tables */}
-          <div className="nomina-page__table-scroll flex flex-col gap-6 flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 custom-scrollbar">
+          <div className="nomina-page__table-scroll flex flex-col gap-4 lg:gap-6 flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-0 lg:p-3 scroll-y-fade pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-3">
             {isHistoricalLoading ? (
               <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800 rounded-xl p-20 text-center flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
@@ -1065,7 +1126,38 @@ ${rows.map((r, i) => {
                       </div>
                       <span className="text-sm font-semibold text-amber-500">Subtotal: {fmtMoney(groupTotal)}</span>
                     </div>
-                    <div className="overflow-x-auto">
+
+                    <div className="space-y-2.5 p-3 lg:hidden">
+                      {rows.map((row) => {
+                        const p = row.personal;
+                        const baseSal = calculateDefaultBaseSal(p, row.estadoAsistencia, weekRange.inicio);
+                        return (
+                          <NominaMobileWorkerCard
+                            key={p.id}
+                            row={row}
+                            activeStep={activeStep}
+                            locked={semanaActualProcesada}
+                            canEdit={canEdit}
+                            theme={theme}
+                            initials={getInitials(p.nombre_completo)}
+                            avatarColor={getAvatarColor(p.cargo)}
+                            baseSal={baseSal}
+                            onOpenDrawer={() => openDrawer(p.id)}
+                            onOpenReceipt={() => setSelectedReceipt(row)}
+                            onEdit={() => openEdit(p)}
+                            onDelete={() => handleDelete(p.id)}
+                            onUpdateRow={(fields) => handleUpdateRow(p.id, fields)}
+                            fmtMoney={fmtMoney}
+                          />
+                        );
+                      })}
+                      <div className="flex items-center justify-between rounded-xl border border-zinc-700/50 bg-zinc-950/60 px-3 py-2.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-white/45">Subtotal {cargoName}</span>
+                        <span className="text-sm font-black tabular-nums text-amber-500">{fmtMoney(groupTotal)}</span>
+                      </div>
+                    </div>
+
+                    <div className="hidden overflow-x-auto lg:block">
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-zinc-950/40 border-b border-zinc-800 text-[10px] font-bold text-white/50 uppercase tracking-wider">
@@ -1199,10 +1291,31 @@ ${rows.map((r, i) => {
         </div>
       </div>
 
+      <NominaMobileActionBar
+        cerrada={semanaActualProcesada}
+        canEdit={canEdit}
+        hasRows={preNominaRows.length > 0}
+        isPending={isPending}
+        onCerrar={() => setShowProcesarModal(true)}
+        onRevertir={() => semanaActual && handleRevertirSemana(semanaActual)}
+        onRegistrar={() => { resetForm(); setShowModal(true); }}
+        onMore={() => setMobileMoreOpen(true)}
+      />
+      <NominaMobileMoreSheet
+        open={mobileMoreOpen}
+        onClose={() => setMobileMoreOpen(false)}
+        canEdit={canEdit}
+        hasData={data.length > 0}
+        onImport={() => setShowImport(true)}
+        onPdf={handlePrintReport}
+        onCsv={handleExportCSV}
+        onBorrar={() => setShowBorrarModal(true)}
+      />
+
       {/* ── SLIDE-OVER DRAWER ── */}
       {drawerPersonalId && drawerRow && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm" onClick={() => setDrawerPersonalId(null)}>
-          <div className="w-full max-w-md bg-zinc-950 border-l border-zinc-800 shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300" onClick={e => e.stopPropagation()}>
+          <div className="flex h-full w-full max-w-md flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl animate-in slide-in-from-right duration-300 sm:max-w-md" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-zinc-800 flex-shrink-0">
               <div className="flex items-center gap-3">
@@ -1224,7 +1337,7 @@ ${rows.map((r, i) => {
               ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto scroll-y-fade p-6 space-y-6">
               
               {/* Profile Card (always visible) */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
@@ -1245,7 +1358,7 @@ ${rows.map((r, i) => {
                     <span className="text-xs font-bold text-red-400 tabular-nums">Total: {fmtMoney(drawerVales.reduce((s, v) => s + Number(v.monto), 0))}</span>
                   </div>
                   {loadingDrawer ? <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 text-amber-500 animate-spin" /></div> : drawerVales.length > 0 ? (
-                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                    <div className="space-y-2 max-h-48 overflow-y-auto scroll-y-fade">
                       {drawerVales.map(v => (
                         <div key={v.id} className="flex items-center justify-between gap-3 bg-zinc-950/50 border border-zinc-800/50 rounded-lg px-3 py-2.5">
                           <div className="flex-1 min-w-0"><p className="text-xs text-white/80 font-medium truncate">{v.motivo || 'Adelanto'}</p><p className="text-[10px] text-white/30">{fmtDate(v.fecha)}</p></div>

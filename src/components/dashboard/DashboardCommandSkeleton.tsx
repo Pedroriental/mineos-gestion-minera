@@ -5,7 +5,7 @@ export function DashboardCommandSkeleton() {
       <div className="dashboard-scroll" aria-busy="true" aria-label="Cargando dashboard">
         <div className="dashboard-scroll__inner dashboard-scroll__inner--command">
           <div className="dashboard-command-layout">
-            <div className="dashboard-alerts-compact h-10 animate-pulse rounded-lg bg-[var(--dashboard-card-muted)]" />
+            <div className="dashboard-command-header h-[7.5rem] animate-pulse rounded-[0.85rem] bg-[var(--dashboard-card-muted)]" />
             <div className="dashboard-command-main">
               <div className="dashboard-card dashboard-nodes-card--fill min-h-0 animate-pulse bg-[var(--dashboard-card-muted)]" />
               <div className="dashboard-metrics-rail min-h-0 animate-pulse bg-[var(--dashboard-card-muted)]" />

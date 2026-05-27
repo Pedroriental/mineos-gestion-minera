@@ -619,7 +619,7 @@ export default function ProduccionGerencialClient({
          <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-7 lg:h-full lg:pl-5">
             
             {/* 1. Selector de Días (más reciente → más antiguo) */}
-            <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 scrollbar-hide snap-x w-full">
+            <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 snap-x w-full">
                {diasConRegistros.length === 0 && (
                   <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
                )}
