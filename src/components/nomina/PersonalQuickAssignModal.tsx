@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
+import { PageFormModal } from '@/components/ui/PageFormModal';
 import {
   areaNominaLabel,
   getAsignacionNomina,
@@ -207,8 +208,6 @@ export function PersonalQuickAssignModal({
     });
   }
 
-  if (!open) return null;
-
   const statusColors = {
     new: 'border-amber-500/25 bg-amber-500/10 text-amber-200/90',
     here: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200/90',
@@ -217,14 +216,12 @@ export function PersonalQuickAssignModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={onClose}
+    <PageFormModal
+      open={open}
+      onClose={onClose}
+      panelClassName="!flex !h-auto !max-h-[min(92dvh,calc(100dvh-2rem))] !w-full !max-w-xl !flex-col !overflow-hidden !p-0"
     >
-      <div
-        className="flex max-h-[92dvh] w-full max-w-xl flex-col rounded-t-2xl border border-zinc-800 bg-zinc-950 shadow-2xl sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex min-h-0 w-full flex-1 flex-col">
         <div className="shrink-0 border-b border-zinc-800/80 p-5 pb-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -309,7 +306,7 @@ export function PersonalQuickAssignModal({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 overscroll-contain">
           {error && (
             <p className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
               {error}
@@ -452,6 +449,6 @@ export function PersonalQuickAssignModal({
           </button>
         </div>
       </div>
-    </div>
+    </PageFormModal>
   );
 }

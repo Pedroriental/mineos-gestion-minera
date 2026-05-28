@@ -77,6 +77,9 @@ export interface NominaRegistro {
   monto_pagado: number;
   es_semana_libre: boolean;
   bono_transporte_pagado: number;
+  estado_asistencia?: 'trabajada' | 'libre' | 'no_laborado' | null;
+  dias_trabajados?: number | null;
+  salario_base_calculado?: number | null;
   created_at: string;
   personal?: Personal;
 }
@@ -91,6 +94,12 @@ export interface NominaCierre {
   monto_pedro: number;
   monto_darinel: number;
   monto_la_fe: number;
+  distribucion?: Array<{
+    id: string;
+    nombre: string;
+    porcentaje: number;
+    pagoDirecto: number;
+  }> | null;
   created_at: string;
 }
 
@@ -151,6 +160,11 @@ export interface PreNominaRow {
   esSemanaLibre: boolean;
   bonoTransporte: number;
   total: number;
+  estadoAsistencia?: 'trabajada' | 'libre' | 'no_laborado';
+  diasTrabajados?: number;
+  salarioBaseCalculado?: number;
+  novedadTurno?: string;
+  novedadTurnoObs?: string;
 }
 
 export interface CategoriaGasto {

@@ -175,6 +175,13 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     Icon: Calculator,
     iconClassName: 'text-emerald-400',
   },
+  '/operaciones/nomina-vista-previa': {
+    title: 'Vista previa de Nómina',
+    description: 'Propuesta: reporte consolidado en tiempo real (no sustituye el cierre oficial).',
+    Icon: Users,
+    iconClassName: 'text-violet-400',
+    titleClassName: 'text-violet-300',
+  },
   '/plataforma/datos-fiscales': {
     title: 'Datos Fiscales',
     description: 'Parámetros fiscales y tributarios de la operación.',

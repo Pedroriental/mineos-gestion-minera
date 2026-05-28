@@ -1,7 +1,29 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
-import { ChevronDown, PencilLine, Plus, Search } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+} from 'react';
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  PencilLine,
+  Plus,
+  Search,
+  Users,
+  X,
+} from 'lucide-react';
 import { useBiblioteca, useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
 import { areaNominaLabel, getAsignacionNomina, getUbicacionLaboralLabel } from '@/lib/personal-master';
@@ -81,6 +103,15 @@ function calcEdad(fechaNacimiento?: string | null): number | null {
   return age < 0 ? null : age;
 }
 
+function formatFechaIngreso(iso?: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
 function antiguedadLabel(fechaIngreso?: string | null, ajusteDias?: number | null): string {
   if (!fechaIngreso) return 'Sin fecha de ingreso';
   const start = new Date(`${fechaIngreso}T00:00:00`);
@@ -109,6 +140,38 @@ function diffDaysIso(startIso: string, endIso: string): number | null {
   return diff >= 0 ? diff : null;
 }
 
+const TRABAJADORES_PAGE_MAX = 50;
+const TRABAJADORES_PAGE_BUTTONS_MAX = 5;
+const TRABAJADORES_DEFAULT_PAGE_ROWS = 10;
+/** Debe coincidir con --gastos-row-h (3.5rem) en globals.css */
+const TRABAJADORES_ROW_PX = 56;
+const TRABAJADORES_HEAD_FALLBACK_PX = 56;
+const TRABAJADORES_LAYOUT_SAFETY_PX = 4;
+const TRABAJADORES_TABLE_COLS = 9;
+
+const ESTADOS_FILTRO: { value: EstadoLaboral; label: string }[] = [
+  { value: 'ACTIVO', label: 'Activo' },
+  { value: 'REPOSO', label: 'Reposo' },
+  { value: 'VACACIONES', label: 'Vacaciones' },
+  { value: 'DESPEDIDO', label: 'Retirado' },
+  { value: 'REENGANCHADO', label: 'Reenganchado' },
+];
+
+function estadoLabel(estado: EstadoLaboral): string {
+  const found = ESTADOS_FILTRO.find((e) => e.value === estado);
+  if (found) return found.label;
+  const raw = estado.trim().toLowerCase();
+  return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : estado;
+}
+
+function filterPillClass(active: boolean) {
+  return `rounded-md border px-2 py-1 text-left text-[10px] font-bold leading-tight transition-colors ${
+    active
+      ? 'border-amber-500/40 bg-amber-500/15 text-amber-200'
+      : 'border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.06] hover:text-white/80'
+  }`;
+}
+
 function emptyEstadoModal(): EstadoModal {
   return {
     open: false,
@@ -130,6 +193,14 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   const biblioteca = useBiblioteca();
   const areaOptions = useBibliotecaOptions('areas_nomina');
   const [search, setSearch] = useState('');
+  const [filterNomina, setFilterNomina] = useState('');
+  const [filterEstado, setFilterEstado] = useState('');
+  const [filterSitio, setFilterSitio] = useState('');
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: TRABAJADORES_DEFAULT_PAGE_ROWS,
+  });
+  const tableBodyRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [docCedula, setDocCedula] = useState<File | null>(null);
@@ -154,11 +225,24 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
     [biblioteca.ubicacionSugerenciasPorArea],
   );
 
+  const sitiosDisponibles = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of trabajadores) {
+      const u = getUbicacionLaboralLabel(t);
+      if (u) set.add(u);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [trabajadores]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return trabajadores;
-    return trabajadores.filter((t) =>
-      [
+    return trabajadores.filter((t) => {
+      const estado = (t.estado_laboral || 'ACTIVO') as EstadoLaboral;
+      if (filterNomina && t.area !== filterNomina) return false;
+      if (filterEstado && estado !== filterEstado) return false;
+      if (filterSitio && getUbicacionLaboralLabel(t) !== filterSitio) return false;
+      if (!q) return true;
+      return [
         t.nombre_completo,
         t.cedula,
         t.cargo,
@@ -166,13 +250,108 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
         getAsignacionNomina(t) || '',
         getUbicacionLaboralLabel(t),
         areaNominaLabel(t.area, biblioteca),
-        t.estado_laboral || '',
+        estado,
       ]
         .join(' ')
         .toLowerCase()
-        .includes(q),
+        .includes(q);
+    });
+  }, [trabajadores, search, filterNomina, filterEstado, filterSitio, biblioteca]);
+
+  const filterSummary = useMemo(() => {
+    let activos = 0;
+    let reposo = 0;
+    let despedidos = 0;
+    for (const t of filtered) {
+      const e = (t.estado_laboral || 'ACTIVO') as EstadoLaboral;
+      if (e === 'ACTIVO' || e === 'REENGANCHADO') activos += 1;
+      else if (e === 'REPOSO' || e === 'VACACIONES') reposo += 1;
+      else if (e === 'DESPEDIDO') despedidos += 1;
+    }
+    return { activos, reposo, despedidos, total: filtered.length };
+  }, [filtered]);
+
+  const tableColumns = useMemo(
+    () => [{ id: 'id', accessorFn: (row: Personal) => row.id }],
+    [],
+  );
+
+  const table = useReactTable({
+    data: filtered,
+    columns: tableColumns,
+    state: { pagination },
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  const syncTableLayout = useCallback(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const available = el.clientHeight;
+    if (available < TRABAJADORES_ROW_PX + TRABAJADORES_HEAD_FALLBACK_PX) return;
+
+    const headPx =
+      el.querySelector('thead')?.getBoundingClientRect().height ?? TRABAJADORES_HEAD_FALLBACK_PX;
+    const bodyAvailable = Math.max(0, available - headPx);
+
+    let pageRows = Math.floor((bodyAvailable - TRABAJADORES_LAYOUT_SAFETY_PX) / TRABAJADORES_ROW_PX);
+    pageRows = Math.max(1, Math.min(TRABAJADORES_PAGE_MAX, pageRows));
+    setPagination((prev) => (prev.pageSize === pageRows ? prev : { ...prev, pageSize: pageRows }));
+  }, []);
+
+  useEffect(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const run = () => syncTableLayout();
+    run();
+    const ro = new ResizeObserver(run);
+    ro.observe(el);
+    const mq = window.matchMedia('(min-width: 1024px)');
+    mq.addEventListener('change', run);
+    return () => {
+      ro.disconnect();
+      mq.removeEventListener('change', run);
+    };
+  }, [syncTableLayout]);
+
+  useEffect(() => {
+    setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
+  }, [search, filterNomina, filterEstado, filterSitio]);
+
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const pageRows = table.getPaginationRowModel().rows;
+  const emptyRowSlots = Math.max(0, pagination.pageSize - pageRows.length);
+  const pageCount = table.getPageCount();
+  const displayPageCount = Math.max(1, pageCount);
+  const pageIndex = Math.min(pagination.pageIndex, displayPageCount - 1);
+  const activePageIndex = filteredCount === 0 ? 0 : pageIndex;
+  const pageWindowStart =
+    Math.floor(pageIndex / TRABAJADORES_PAGE_BUTTONS_MAX) * TRABAJADORES_PAGE_BUTTONS_MAX;
+  const pageNumbers = useMemo(() => {
+    const len = Math.min(
+      TRABAJADORES_PAGE_BUTTONS_MAX,
+      Math.max(0, displayPageCount - pageWindowStart),
     );
-  }, [trabajadores, search]);
+    if (len === 0) return [0];
+    return Array.from({ length: len }, (_, i) => pageWindowStart + i);
+  }, [displayPageCount, pageWindowStart]);
+
+  useEffect(() => {
+    const maxIndex = Math.max(0, displayPageCount - 1);
+    if (pagination.pageIndex > maxIndex) {
+      setPagination((p) => ({ ...p, pageIndex: maxIndex }));
+    }
+  }, [displayPageCount, pagination.pageIndex]);
+
+  const hasActiveFilters = !!(search || filterNomina || filterEstado || filterSitio);
+
+  function clearFilters() {
+    setSearch('');
+    setFilterNomina('');
+    setFilterEstado('');
+    setFilterSitio('');
+  }
 
   useEffect(() => {
     function onDocDown(e: MouseEvent) {
@@ -359,116 +538,350 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
     });
   }
 
-  return (
-    <div className="flex flex-col gap-6 pb-8 sm:gap-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2">
-          <Search className="h-4 w-4 text-white/35" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, cédula, sitio o estado..."
-            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
-          />
-        </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-300 transition-colors hover:bg-amber-500/20"
-        >
-          <Plus className="h-4 w-4" />
-          Agregar Trabajador
-        </button>
-      </div>
+  function renderPadRow(key: string) {
+    return (
+      <tr key={key} className="gastos-tr gastos-table__row trabajadores-table__row--pad" aria-hidden>
+        {Array.from({ length: TRABAJADORES_TABLE_COLS }, (_, col) => (
+          <td key={col} className="gastos-table__cell gastos-td px-3" />
+        ))}
+      </tr>
+    );
+  }
 
-      <div className="card-glass overflow-visible rounded-xl border border-white/[0.08]">
-        <div className="overflow-x-auto overflow-y-visible">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wider text-white/45">
-              <tr>
-                <th className="px-3 py-2.5">Trabajador</th>
-                <th className="px-3 py-2.5">Cédula</th>
-                <th className="px-3 py-2.5">Edad</th>
-                <th className="px-3 py-2.5">Antiguedad</th>
-                <th className="px-3 py-2.5">Cargo</th>
-                <th className="px-3 py-2.5">Estado</th>
-                <th className="px-3 py-2.5">Observación</th>
-                <th className="px-3 py-2.5">Adjuntos</th>
-                <th className="px-3 py-2.5 text-right">Editar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((t) => {
-                const estado = (t.estado_laboral || 'ACTIVO') as EstadoLaboral;
-                const isFired = estado === 'DESPEDIDO';
-                const isReengaged = estado === 'REENGANCHADO';
-                return (
-                  <tr
-                    key={t.id}
-                    className={
-                      isFired
-                        ? 'border-t border-red-900/50 bg-red-950/20'
-                        : isReengaged
-                          ? 'border-t border-orange-900/45 bg-orange-950/15'
-                          : 'border-t border-white/[0.06]'
-                    }
+  function renderWorkerRow(t: Personal) {
+    const estado = (t.estado_laboral || 'ACTIVO') as EstadoLaboral;
+    const isFired = estado === 'DESPEDIDO';
+    const isReengaged = estado === 'REENGANCHADO';
+    const fechaIngresoFmt = formatFechaIngreso(t.fecha_ingreso);
+    return (
+      <tr
+        key={t.id}
+        className={`gastos-tr gastos-table__row ${
+          isFired
+            ? 'trabajadores-table__row--fired'
+            : isReengaged
+              ? 'trabajadores-table__row--reengaged'
+              : ''
+        }`}
+      >
+        <td className="gastos-table__cell gastos-td px-3">
+          <div className="trabajadores-row-worker">
+            <p className="truncate font-semibold text-white">{t.nombre_completo}</p>
+            <p className="truncate text-[10px] text-white/45">{getUbicacionLaboralLabel(t)}</p>
+          </div>
+        </td>
+        <td className="gastos-table__cell gastos-td px-3 text-white/80">{t.cedula}</td>
+        <td className="gastos-table__cell gastos-td px-3 text-white/70">{calcEdad(t.fecha_nacimiento) ?? '-'}</td>
+        <td className="gastos-table__cell gastos-td px-3 text-white/70">
+          <p className="text-[11px] tabular-nums leading-tight">
+            {antiguedadLabel(t.fecha_ingreso, t.ajuste_antiguedad_dias)}
+          </p>
+          {fechaIngresoFmt ? (
+            <p className="mt-0.5 text-[10px] tabular-nums text-white/40" title="Fecha de ingreso">
+              {fechaIngresoFmt}
+            </p>
+          ) : null}
+        </td>
+        <td className="gastos-table__cell gastos-td px-3 text-white/80">{t.cargo || '-'}</td>
+        <td className="gastos-table__cell gastos-td px-3">
+          <div className="relative inline-flex max-w-full">
+            <button
+              type="button"
+              data-estado-trigger
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const menuWidth = 160;
+                const x = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+                const y = rect.bottom + 6;
+                setEstadoMenu((prev) => (prev?.id === t.id ? null : { id: t.id, x, y }));
+              }}
+              className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold tracking-wide ${statusTone(estado)}`}
+            >
+              <span className="truncate">{estadoLabel(estado)}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-75" />
+            </button>
+          </div>
+        </td>
+        <td className="gastos-table__cell gastos-td px-3 text-xs text-white/55">
+          <span className="block truncate">
+            {t.observacion_estado || t.despido_causa || t.notas || '-'}
+          </span>
+        </td>
+        <td className="gastos-table__cell gastos-td px-3 text-xs">
+          <div className="flex min-w-0 flex-col gap-0.5 leading-tight">
+            {t.doc_cedula_url ? (
+              <a className="truncate text-cyan-300 hover:underline" href={t.doc_cedula_url} target="_blank" rel="noreferrer">
+                Cédula
+              </a>
+            ) : (
+              <span className="text-white/35">Sin cédula</span>
+            )}
+            {t.foto_carnet_url ? (
+              <a className="truncate text-cyan-300 hover:underline" href={t.foto_carnet_url} target="_blank" rel="noreferrer">
+                Foto
+              </a>
+            ) : (
+              <span className="text-white/35">Sin foto</span>
+            )}
+          </div>
+        </td>
+        <td className="gastos-table__cell gastos-td px-3 text-right">
+          <button
+            type="button"
+            onClick={() => openEdit(t)}
+            className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-300"
+          >
+            <PencilLine className="h-3.5 w-3.5" />
+            Editar
+          </button>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <div className="trabajadores-page gastos-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <div className="trabajadores-page__grid gastos-page__grid min-h-0 flex-1">
+        <aside className="trabajadores-page__filters app-surface-card flex min-h-0 flex-col p-3">
+          <p className="mb-3 shrink-0 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
+            Filtros
+          </p>
+
+          <div className="trabajadores-page__filters-body min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-contain">
+            <div>
+              <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Nómina (módulo)</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFilterNomina('')}
+                  className={filterPillClass(filterNomina === '')}
+                >
+                  Todas
+                </button>
+                {areaOptions.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setFilterNomina(filterNomina === o.value ? '' : o.value)}
+                    className={filterPillClass(filterNomina === o.value)}
                   >
-                    <td className="px-3 py-2.5">
-                      <p className="font-semibold text-white">{t.nombre_completo}</p>
-                      <p className="text-[11px] leading-tight text-white/45">{getUbicacionLaboralLabel(t)}</p>
-                    </td>
-                    <td className="px-3 py-2.5 text-white/80">{t.cedula}</td>
-                    <td className="px-3 py-2.5 text-white/70">{calcEdad(t.fecha_nacimiento) ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-white/70">{antiguedadLabel(t.fecha_ingreso, t.ajuste_antiguedad_dias)}</td>
-                    <td className="px-3 py-2.5 text-white/80">{t.cargo || '-'}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="relative inline-flex">
-                        <button
-                          type="button"
-                          data-estado-trigger
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const menuWidth = 160;
-                            const x = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
-                            const y = rect.bottom + 6;
-                            setEstadoMenu((prev) => (prev?.id === t.id ? null : { id: t.id, x, y }));
-                          }}
-                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusTone(estado)}`}
-                        >
-                          <span>{estado}</span>
-                          <ChevronDown className="h-3.5 w-3.5 opacity-75" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-white/55">
-                      {t.observacion_estado || t.despido_causa || t.notas || '-'}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs">
-                      <div className="flex flex-col gap-1">
-                        {t.doc_cedula_url ? <a className="text-cyan-300 hover:underline" href={t.doc_cedula_url} target="_blank" rel="noreferrer">Cédula</a> : <span className="text-white/35">Sin cédula</span>}
-                        {t.foto_carnet_url ? <a className="text-cyan-300 hover:underline" href={t.foto_carnet_url} target="_blank" rel="noreferrer">Foto</a> : <span className="text-white/35">Sin foto</span>}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <button
-                        onClick={() => openEdit(t)}
-                        className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-300"
-                      >
-                        <PencilLine className="h-3.5 w-3.5" />
-                        Editar
-                      </button>
-                    </td>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Estado laboral</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFilterEstado('')}
+                  className={filterPillClass(filterEstado === '')}
+                >
+                  Todos
+                </button>
+                {ESTADOS_FILTRO.map((e) => (
+                  <button
+                    key={e.value}
+                    type="button"
+                    onClick={() => setFilterEstado(filterEstado === e.value ? '' : e.value)}
+                    className={filterPillClass(filterEstado === e.value)}
+                  >
+                    {e.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {sitiosDisponibles.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Sitio laboral</p>
+                <div className="trabajadores-page__sitios flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFilterSitio('')}
+                    className={filterPillClass(filterSitio === '')}
+                  >
+                    Todos
+                  </button>
+                  {sitiosDisponibles.map((sitio) => (
+                    <button
+                      key={sitio}
+                      type="button"
+                      title={sitio}
+                      onClick={() => setFilterSitio(filterSitio === sitio ? '' : sitio)}
+                      className={`${filterPillClass(filterSitio === sitio)} max-w-full truncate`}
+                    >
+                      {sitio}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="trabajadores-page__filter-summary mt-auto shrink-0 border-t border-white/[0.08] pt-3">
+            <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white/40">
+              <Users className="h-3.5 w-3.5" />
+              Resumen filtrado
+            </div>
+            <dl className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
+              <div>
+                <dt className="text-white/40">Total</dt>
+                <dd className="font-bold tabular-nums text-white">{filterSummary.total}</dd>
+              </div>
+              <div>
+                <dt className="text-white/40">Activos</dt>
+                <dd className="font-bold tabular-nums text-emerald-300">{filterSummary.activos}</dd>
+              </div>
+              <div>
+                <dt className="text-white/40">Reposo / vac.</dt>
+                <dd className="font-bold tabular-nums text-amber-300">{filterSummary.reposo}</dd>
+              </div>
+              <div>
+                <dt className="text-white/40">Retirados</dt>
+                <dd className="font-bold tabular-nums text-red-300">{filterSummary.despedidos}</dd>
+              </div>
+            </dl>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="btn-secondary mt-2.5 w-full !py-1.5 text-[10px]"
+              >
+                Limpiar filtros
+              </button>
+            ) : null}
+          </div>
+        </aside>
+
+        <div className="trabajadores-page__table gastos-page__table app-surface-card relative flex min-h-[min(52dvh,32rem)] min-w-0 flex-col overflow-hidden lg:min-h-0">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="trabajadores-page__table-toolbar flex shrink-0 flex-col gap-2 border-b border-white/[0.08] px-3 py-2.5 sm:flex-row sm:items-center">
+              <div className="gastos-search-wrap flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3">
+                <Search className="gastos-icon-muted h-3.5 w-3.5 shrink-0" aria-hidden />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar por nombre, cédula, cargo…"
+                  className="min-w-0 flex-1 border-none bg-transparent text-sm outline-none"
+                />
+                {search ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="gastos-page-btn shrink-0 rounded p-0.5"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={openCreate}
+                className="app-btn-primary inline-flex h-9 shrink-0 items-center justify-center gap-2 px-4 text-xs sm:min-w-[10.5rem]"
+              >
+                <Plus className="h-4 w-4" />
+                Agregar Trabajador
+              </button>
+            </div>
+
+            <div
+              ref={tableBodyRef}
+              className="gastos-page__table-body min-h-0 flex-1 overflow-x-auto overflow-y-hidden"
+              style={
+                {
+                  '--trabajadores-page-rows': pagination.pageSize,
+                } as CSSProperties
+              }
+            >
+              <table className="gastos-table trabajadores-table--uniform min-w-full border-collapse text-left text-sm">
+                <thead className="gastos-thead sticky top-0 z-[1] bg-white/[0.03] text-[11px] uppercase tracking-wider text-white/45">
+                  <tr className="gastos-table__row">
+                    <th className="gastos-th gastos-table__cell px-3">Trabajador</th>
+                    <th className="gastos-th gastos-table__cell px-3">Cédula</th>
+                    <th className="gastos-th gastos-table__cell px-3">Edad</th>
+                    <th className="gastos-th gastos-table__cell px-3">Antigüedad</th>
+                    <th className="gastos-th gastos-table__cell px-3">Cargo</th>
+                    <th className="gastos-th gastos-table__cell px-3">Estado</th>
+                    <th className="gastos-th gastos-table__cell px-3">Observación</th>
+                    <th className="gastos-th gastos-table__cell px-3">Adjuntos</th>
+                    <th className="gastos-th gastos-table__cell px-3 text-right">Editar</th>
                   </tr>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td className="px-3 py-8 text-center text-sm text-white/45" colSpan={9}>
-                    No hay trabajadores para mostrar con este filtro.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {filteredCount === 0 ? (
+                    <>
+                      <tr className="gastos-tr gastos-table__row">
+                        <td
+                          className="gastos-table__cell gastos-td px-3 text-center text-sm text-white/45"
+                          colSpan={TRABAJADORES_TABLE_COLS}
+                        >
+                          No hay trabajadores para mostrar con este filtro.
+                        </td>
+                      </tr>
+                      {Array.from({ length: Math.max(0, pagination.pageSize - 1) }, (_, i) =>
+                        renderPadRow(`empty-pad-${i}`),
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {pageRows.map((row) => renderWorkerRow(row.original))}
+                      {Array.from({ length: emptyRowSlots }, (_, i) => renderPadRow(`pad-${i}`))}
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="gastos-page__table-footer gastos-footer-bar flex shrink-0 items-center justify-between border-t px-3 py-1.5">
+              <span className="gastos-footer-label text-[10px]">
+                {filteredCount === 0
+                  ? '0 trabajadores'
+                  : `${pageIndex * pagination.pageSize + 1}–${Math.min(
+                      (pageIndex + 1) * pagination.pageSize,
+                      filteredCount,
+                    )} de ${filteredCount} trabajadores`}
+              </span>
+              <div className="flex shrink-0 items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => table.previousPage()}
+                  disabled={!table.getCanPreviousPage()}
+                  className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                  aria-label="Página anterior"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                {pageNumbers.map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => table.setPageIndex(page)}
+                    disabled={filteredCount === 0 && page > 0}
+                    aria-label={`Página ${page + 1}`}
+                    aria-current={page === activePageIndex ? 'page' : undefined}
+                    className={`gastos-page-btn min-w-[1.35rem] rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
+                      page === activePageIndex ? 'gastos-page-btn--active' : ''
+                    }`}
+                  >
+                    {page + 1}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => table.nextPage()}
+                  disabled={!table.getCanNextPage()}
+                  className="gastos-page-btn rounded p-1 transition-colors disabled:opacity-30"
+                  aria-label="Página siguiente"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -479,7 +892,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
           style={{ left: `${estadoMenu.x}px`, top: `${estadoMenu.y}px` }}
         >
           {(['ACTIVO', 'REPOSO', 'VACACIONES', 'DESPEDIDO', 'REENGANCHADO'] as EstadoLaboral[]).map((opt) => {
-            const worker = filtered.find((w) => w.id === estadoMenu.id);
+            const worker = trabajadores.find((w) => w.id === estadoMenu.id);
             const current = ((worker?.estado_laboral || 'ACTIVO') as EstadoLaboral);
             return (
               <button
@@ -495,7 +908,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
                     : 'text-white/75 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                {opt}
+                {estadoLabel(opt)}
               </button>
             );
           })}

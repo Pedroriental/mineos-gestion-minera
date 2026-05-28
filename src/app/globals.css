@@ -177,6 +177,7 @@ h6,
 .font-display,
 .app-topbar-context__title,
 .page-form-modal-title,
+.nomina-page__title,
 .nomina-page__title h1,
 .dashboard-metrics-rail__title,
 .dashboard-alerts__title,
@@ -969,6 +970,11 @@ button, a, [role="button"] {
 [data-theme="light"] .page-form-modal-backdrop select.input-field {
   color-scheme: light;
   accent-color: #c66d47;
+}
+
+/* Por encima del topbar (100) y paneles del layout; debajo de búsqueda/idle (9998+) */
+.page-form-modal-backdrop {
+  z-index: 9500;
 }
 
 /* Modales de formulario: tema oscuro/claro coherente con el dashboard */
@@ -2408,6 +2414,7 @@ input, textarea, select {
 
 /* Gastos / Inventario — sin scroll de página; tabla + pie fijos en el viewport */
 .app-page-scroll:has(.gastos-page),
+.app-page-scroll:has(.trabajadores-page),
 .app-page-scroll:has(.inventario-page),
 .app-page-scroll:has(.resumen-ejecutivo-page),
 .app-page-scroll:has(.produccion-page),
@@ -2421,6 +2428,7 @@ input, textarea, select {
 
 .app-page-inner:has(.gastos-page),
 .app-page-inner:has(.inventario-page),
+.app-page-inner:has(.trabajadores-page),
 .app-page-inner:has(.resumen-ejecutivo-page),
 .app-page-inner:has(.produccion-page),
 .app-page-inner:has(.extraccion-page),
@@ -2440,6 +2448,119 @@ input, textarea, select {
 .app-page-inner:has(.biblioteca-variables-page) {
   padding-top: 0.5rem;
   padding-bottom: 0.85rem;
+}
+
+.app-page-scroll:has(.nomina-vista-previa-page) {
+  overflow: auto;
+}
+
+/* Modal vista previa nómina (Excel) — siempre aspecto claro aunque la app esté en oscuro */
+.page-form-modal-panel--excel-preview {
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  color-scheme: light;
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(148, 163, 184, 0.35) !important;
+}
+
+.page-form-modal-panel--excel-preview .page-form-modal-title,
+.page-form-modal-panel--excel-preview h2,
+.page-form-modal-panel--excel-preview h3 {
+  color: #0f172a !important;
+}
+
+.page-form-modal-panel--excel-preview .input-field,
+.page-form-modal-panel--excel-preview input[type='date'] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  color-scheme: light !important;
+}
+
+.page-form-modal-panel--excel-preview .input-field:focus {
+  border-color: #d97706 !important;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.22) !important;
+  background-color: #ffffff !important;
+}
+
+.page-form-modal-panel--excel-preview-sm {
+  max-height: min(72dvh, 640px) !important;
+  max-width: min(94vw, 720px) !important;
+}
+
+.page-form-modal-panel--excel-preview-md {
+  max-height: min(88dvh, 900px) !important;
+  max-width: min(96vw, 1280px) !important;
+}
+
+.page-form-modal-panel--excel-preview-lg {
+  max-height: min(94dvh, 960px) !important;
+  max-width: min(98vw, 1520px) !important;
+}
+
+.nomina-vista-previa-content {
+  min-height: 0;
+  max-height: inherit;
+}
+
+.nomina-vista-previa-content__toolbar {
+  flex-shrink: 0;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.nomina-vista-previa-content__body {
+  isolation: isolate;
+}
+
+.nomina-vista-previa-content__zoom-root {
+  transform-origin: top center;
+}
+
+@supports not (zoom: 1) {
+  .nomina-vista-previa-content__zoom-root {
+    transform: scale(var(--nomina-preview-zoom, 1));
+    transform-origin: top center;
+    width: calc(100% / var(--nomina-preview-zoom, 1));
+  }
+}
+
+.nomina-vista-previa-zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  accent-color: #d97706;
+}
+
+.nomina-vista-previa-zoom-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(217, 119, 6, 0.22);
+}
+
+.nomina-vista-previa-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 999px;
+  background: #d97706;
+  border: 1px solid #b45309;
+}
+
+@media print {
+  .page-form-modal-backdrop {
+    background: white !important;
+  }
+  .page-form-modal-panel--excel-preview {
+    max-height: none !important;
+    box-shadow: none !important;
+  }
+  .nomina-vista-previa-content__toolbar {
+    display: none !important;
+  }
 }
 
 .app-page-inner:has(.resumen-ejecutivo-page) .app-page-toolbar {
@@ -2463,6 +2584,7 @@ input, textarea, select {
 @media (min-width: 768px) {
   .app-page-inner:has(.gastos-page),
   .app-page-inner:has(.inventario-page),
+  .app-page-inner:has(.trabajadores-page),
   .app-page-inner:has(.resumen-ejecutivo-page),
   .app-page-inner:has(.produccion-page),
   .app-page-inner:has(.extraccion-page),
@@ -2705,8 +2827,89 @@ input, textarea, select {
   min-height: 0;
 }
 
-.nomina-page__toolbar {
-  margin-bottom: 0;
+/* Nómina: título en columna izquierda; evitar duplicar con el topbar global */
+@media (min-width: 1024px) {
+  .app-page-inner:has(.nomina-page) .app-topbar-context {
+    display: none;
+  }
+}
+
+.nomina-page__aside-head {
+  width: 100%;
+  padding: 1rem 0.25rem 0.875rem;
+  text-align: center;
+}
+
+.nomina-page__aside-head .nomina-page__title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: 100%;
+  margin: 0;
+  text-align: center;
+}
+
+.nomina-page__title-icon {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  color: #f59e0b;
+  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.4));
+}
+
+.nomina-page__title-text {
+  display: block;
+  max-width: 100%;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.96);
+  text-wrap: balance;
+}
+
+@media (min-width: 1024px) {
+  .nomina-page__title-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .nomina-page__title-text {
+    font-size: 1.375rem;
+  }
+}
+
+.nomina-page__main .nomina-page__toolbar {
+  width: 100%;
+  min-width: 0;
+}
+
+.nomina-page__toolbar-search {
+  min-width: 0;
+}
+
+.nomina-page__toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.375rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.nomina-page__toolbar-actions .nomina-page__toolbar-btn {
+  flex: 1 1 5.5rem;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.nomina-vista-previa-content__toolbar-row {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(217, 119, 6, 0.35) transparent;
 }
 
 .nomina-page__date-input {
@@ -2739,6 +2942,9 @@ input, textarea, select {
 
 .nomina-page__console {
   width: 100%;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .nomina-page__status {
@@ -2790,10 +2996,6 @@ input, textarea, select {
 .nomina-page__avisos-center {
   display: flex;
   flex-direction: column;
-}
-
-.nomina-page__aside-head {
-  width: 100%;
 }
 
 .nomina-page__kpis {
@@ -3980,6 +4182,87 @@ input, textarea, select {
   padding-right: 0.5rem;
   padding-left: 0.25rem;
   white-space: nowrap;
+}
+
+/* Base de trabajadores — columna filtros más angosta */
+@media (min-width: 1024px) {
+  .trabajadores-page__grid.gastos-page__grid {
+    grid-template-columns: minmax(11.5rem, 0.78fr) minmax(0, 2.35fr);
+    align-items: stretch;
+  }
+}
+
+.trabajadores-page__filters {
+  align-self: stretch;
+  min-height: 0;
+  height: 100%;
+}
+
+.trabajadores-page__filters-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.trabajadores-page__filter-summary {
+  flex-shrink: 0;
+}
+
+.trabajadores-page__sitios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-content: flex-start;
+}
+
+.trabajadores-page__table-toolbar {
+  width: 100%;
+  min-width: 0;
+}
+
+.trabajadores-page .gastos-page__table-body {
+  --gastos-row-h: 3.5rem;
+  --trabajadores-page-rows: 10;
+}
+
+.trabajadores-page .gastos-table.trabajadores-table--uniform {
+  height: calc(var(--gastos-row-h) * (var(--trabajadores-page-rows) + 1));
+}
+
+.trabajadores-page .gastos-table.trabajadores-table--uniform thead tr.gastos-table__row,
+.trabajadores-page .gastos-table.trabajadores-table--uniform tbody tr.gastos-table__row {
+  height: var(--gastos-row-h);
+  max-height: var(--gastos-row-h);
+}
+
+.trabajadores-page .gastos-table.trabajadores-table--uniform .gastos-table__cell {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.trabajadores-row-worker {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.125rem;
+  line-height: 1.15;
+}
+
+.trabajadores-table__row--pad {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.trabajadores-table__row--fired {
+  background-color: rgba(69, 10, 10, 0.2);
+}
+
+.trabajadores-table__row--reengaged {
+  background-color: rgba(67, 20, 7, 0.15);
 }
 
 [data-theme='light'] .gastos-page .app-surface-card,

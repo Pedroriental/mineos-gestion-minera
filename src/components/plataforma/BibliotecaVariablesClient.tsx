@@ -53,7 +53,6 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [categoriaId, setCategoriaId] = useState<string | null>(catalogo[0]?.id ?? null);
-  const [msg, setMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const [catModal, setCatModal] = useState(false);
@@ -118,10 +117,11 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
   function run(action: () => Promise<{ ok: boolean; message: string }>, onOk?: () => void) {
     startTransition(async () => {
       const res = await action();
-      setMsg(res.message);
       if (res.ok) {
         router.refresh();
         onOk?.();
+      } else {
+        alert(res.message);
       }
     });
   }
@@ -189,17 +189,6 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
 
   return (
     <div className="biblioteca-variables-page flex min-h-0 w-full flex-1 flex-col gap-2.5 sm:gap-3">
-      <p className="mt-1.5 text-xs leading-snug text-white/50 sm:mt-2 sm:text-sm">
-        Catálogo central de parámetros reutilizables (cargos, áreas, rotaciones, minas, condimentos…)
-        para automatizar módulos y alimentar balances con un ecosistema interconectado.
-      </p>
-
-      {msg && (
-        <p className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-white/75">
-          {msg}
-        </p>
-      )}
-
       <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="relative min-w-0 w-full flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />

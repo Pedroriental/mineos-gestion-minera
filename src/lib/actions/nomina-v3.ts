@@ -5,6 +5,11 @@ import { createServerClient } from '@/lib/supabase-server';
 import { normalizeAreaDetalle, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { AUTO_ROTACION_OBS, tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
+import {
+  distribucionToCierrePayload,
+  validateDistribucion,
+  type DistribucionParte,
+} from '@/lib/nomina-distribucion';
 import type { NominaVale, PreNominaRow, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
 
 export type ActionResult =
@@ -269,22 +274,13 @@ export async function procesarCierreNominaV3Action(payload: {
   inicio: string;
   fin: string;
   rows: PreNominaRow[];
-  pctPedro: number;
-  pctDarinel: number;
-  pctLaFe: number;
-  gastoPedro: number;
-  gastoDarinel: number;
-  gastoLaFe: number;
+  distribucion: DistribucionParte[];
 }): Promise<ActionResult> {
-  const {
-    userId, area, inicio, fin, rows,
-    pctPedro, pctDarinel, pctLaFe,
-    gastoPedro, gastoDarinel, gastoLaFe
-  } = payload;
+  const { userId, area, inicio, fin, rows, distribucion } = payload;
 
-  // Validar que sumen 100
-  if (Math.abs(pctPedro + pctDarinel + pctLaFe - 100) > 0.01) {
-    return { ok: false, message: 'Los porcentajes deben sumar exactamente 100%.' };
+  const distCheck = validateDistribucion(distribucion);
+  if (!distCheck.ok) {
+    return { ok: false, message: distCheck.message ?? 'Distribución inválida.' };
   }
 
   try {
@@ -314,37 +310,42 @@ export async function procesarCierreNominaV3Action(payload: {
     await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);
 
     // 3. Insertar registros individuales
-    const registros = rows.map((r) => ({
-      semana_id: semanaId,
-      personal_id: r.personal.id,
-      monto_pagado: r.total,
-      es_semana_libre: r.esSemanaLibre,
-      bono_transporte_pagado: r.bonoTransporte,
-    }));
+    const registros = rows.map((r) => {
+      const estado =
+        r.estadoAsistencia ?? (r.esSemanaLibre ? 'libre' : 'trabajada');
+      const dias =
+        r.diasTrabajados ?? (estado === 'no_laborado' ? 0 : 7);
+      return {
+        semana_id: semanaId,
+        personal_id: r.personal.id,
+        monto_pagado: r.total,
+        es_semana_libre: r.esSemanaLibre,
+        bono_transporte_pagado: r.bonoTransporte,
+        estado_asistencia: estado,
+        dias_trabajados: dias,
+        salario_base_calculado: r.salarioBaseCalculado ?? null,
+        novedad_turno: r.novedadTurno ?? 'ACTIVO',
+        novedad_turno_obs: (r.novedadTurnoObs ?? '').trim(),
+      };
+    });
     const { error: regError } = await supabase.from('nomina_registros').insert(registros);
     if (regError) return { ok: false, message: `Error registros: ${regError.message}` };
 
-    // 4. Calcular aportes netos de socios (porcentaje - gastos directos)
-    const brutoPedro = parseFloat(((pctPedro / 100) * totalNomina).toFixed(2));
-    const brutoDarinel = parseFloat(((pctDarinel / 100) * totalNomina).toFixed(2));
-    const brutoLaFe = parseFloat(((pctLaFe / 100) * totalNomina).toFixed(2));
+    const cierrePayload = distribucionToCierrePayload(totalNomina, distribucion);
 
-    const netoPedro = parseFloat((brutoPedro - gastoPedro).toFixed(2));
-    const netoDarinel = parseFloat((brutoDarinel - gastoDarinel).toFixed(2));
-    const netoLaFe = parseFloat((brutoLaFe - gastoLaFe).toFixed(2));
-
-    // 5. Upsert cierre
+    // 4. Upsert cierre (columnas legacy + JSON flexible)
     const { error: cierreError } = await supabase
       .from('nomina_cierres')
       .upsert({
         semana_id: semanaId,
         total_nomina_usd: totalNomina,
-        pct_pedro: pctPedro,
-        pct_darinel: pctDarinel,
-        pct_la_fe: pctLaFe,
-        monto_pedro: netoPedro,
-        monto_darinel: netoDarinel,
-        monto_la_fe: netoLaFe,
+        pct_pedro: cierrePayload.pct_pedro,
+        pct_darinel: cierrePayload.pct_darinel,
+        pct_la_fe: cierrePayload.pct_la_fe,
+        monto_pedro: cierrePayload.monto_pedro,
+        monto_darinel: cierrePayload.monto_darinel,
+        monto_la_fe: cierrePayload.monto_la_fe,
+        distribucion: cierrePayload.distribucion,
       }, { onConflict: 'semana_id' });
 
     if (cierreError) return { ok: false, message: `Error cierre: ${cierreError.message}` };
@@ -372,7 +373,7 @@ export async function procesarCierreNominaV3Action(payload: {
         descripcion: `Nómina ${area.toUpperCase()} ${inicio} al ${fin} — ${rows.length} trabajadores`,
         monto: totalNomina,
         proveedor: 'Nómina interna',
-        notas: `Cierre V3: Pedro ${pctPedro}% ($${netoPedro}) / Darinel ${pctDarinel}% ($${netoDarinel}) / La Fe ${pctLaFe}% ($${netoLaFe})`,
+        notas: `Cierre V3: ${cierrePayload.lineas.map((l) => `${l.nombre} ${l.porcentaje}% ($${l.neto})`).join(' · ')}`,
         registrado_por: userId || null,
       });
     }
@@ -390,11 +391,44 @@ export async function procesarCierreNominaV3Action(payload: {
     return {
       ok: true,
       message: `Nómina cerrada — $${totalNomina.toFixed(2)} para ${rows.length} trabajadores. Vales liquidados.`,
-      data: { semanaId, totalNomina, netoPedro, netoDarinel, netoLaFe },
+      data: { semanaId, totalNomina, distribucion: cierrePayload.lineas },
     };
   } catch (err) {
     console.error('[Action] procesarCierreNominaV3:', err);
     return { ok: false, message: 'Error interno del servidor.' };
+  }
+}
+
+// ── Cierre de semana (reparto de socios / beneficiarios) ─────
+export async function getSemanaCierreAction(semanaId: string): Promise<{
+  ok: boolean;
+  data?: {
+    total_nomina_usd: number;
+    pct_pedro: number;
+    pct_darinel: number;
+    pct_la_fe: number;
+    monto_pedro: number;
+    monto_darinel: number;
+    monto_la_fe: number;
+    distribucion?: DistribucionParte[] | null;
+  };
+  message?: string;
+}> {
+  try {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase
+      .from('nomina_cierres')
+      .select(
+        'total_nomina_usd, pct_pedro, pct_darinel, pct_la_fe, monto_pedro, monto_darinel, monto_la_fe, distribucion',
+      )
+      .eq('semana_id', semanaId)
+      .maybeSingle();
+
+    if (error) return { ok: false, message: error.message };
+    if (!data) return { ok: true, data: undefined };
+    return { ok: true, data: data as NonNullable<typeof data> };
+  } catch {
+    return { ok: false, message: 'Error al cargar cierre.' };
   }
 }
 

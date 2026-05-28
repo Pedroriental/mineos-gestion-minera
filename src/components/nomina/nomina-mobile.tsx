@@ -1,7 +1,11 @@
 'use client';
 
+import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
+import { PageFormModal } from '@/components/ui/PageFormModal';
 import { cn } from '@/lib/utils';
-import type { NominaSemana, Personal, NominaVale } from '@/lib/types';
+import { NOMINA_DIAS_POR_SEMANA } from '@/lib/nomina-calculo';
+import type { NominaNovedadTurno } from '@/lib/nomina-novedad-turno';
+import type { NominaSemana, NominaVale, Personal } from '@/lib/types';
 import {
   AlertTriangle,
   Calendar,
@@ -27,6 +31,7 @@ import {
   Wallet,
   X,
   XCircle,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export interface PreNominaRowState {
@@ -37,8 +42,12 @@ export interface PreNominaRowState {
   deducciones: number;
   total: number;
   estadoAsistencia: 'trabajada' | 'libre' | 'no_laborado';
+  diasTrabajados: number;
+  salarioBaseCalculado: number;
   valesPendientes: NominaVale[];
   totalVales: number;
+  novedadTurno: NominaNovedadTurno;
+  novedadTurnoObs: string;
 }
 
 type CargoTheme = { bg: string; text: string; border: string };
@@ -305,22 +314,22 @@ export function NominaMobileWorkerCard({
   theme,
   initials,
   avatarColor,
-  baseSal,
   onOpenDrawer,
   onOpenReceipt,
   onEdit,
   onDelete,
   onUpdateRow,
+  onNovedadTurnoChange,
   fmtMoney,
 }: {
   row: PreNominaRowState;
   activeStep: 1 | 2 | 3;
   locked: boolean;
   canEdit: boolean;
+  onNovedadTurnoChange: (fields: Partial<Pick<PreNominaRowState, 'novedadTurno' | 'novedadTurnoObs'>>) => void;
   theme?: CargoTheme;
   initials: string;
   avatarColor: string;
-  baseSal: number;
   onOpenDrawer: () => void;
   onOpenReceipt: () => void;
   onEdit: () => void;
@@ -352,6 +361,20 @@ export function NominaMobileWorkerCard({
           <p className="text-base font-black tabular-nums text-amber-500">{fmtMoney(row.total)}</p>
         </div>
       </button>
+
+      <div className="mt-3 flex flex-col items-center">
+        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-white/35">
+          Novedad turno
+        </p>
+        <NominaNovedadTurnoCell
+          value={row.novedadTurno}
+          observacion={row.novedadTurnoObs}
+          disabled={locked || !canEdit}
+          workerName={p.nombre_completo}
+          onChange={(novedadTurno) => onNovedadTurnoChange({ novedadTurno })}
+          onObservacionChange={(novedadTurnoObs) => onNovedadTurnoChange({ novedadTurnoObs })}
+        />
+      </div>
 
       {activeStep === 1 && (
         <div className="mt-3">
@@ -385,6 +408,22 @@ export function NominaMobileWorkerCard({
               );
             })}
           </div>
+          <div className="mt-2.5 flex items-center justify-between gap-2 rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
+            <div>
+              <p className="text-[9px] font-bold uppercase text-white/35">Días trabajados</p>
+              <p className="text-[8px] text-white/30">Sueldo = (base ÷ 7) × días</p>
+            </div>
+            <input
+              type="number"
+              min={0}
+              max={NOMINA_DIAS_POR_SEMANA}
+              step={1}
+              disabled={locked}
+              value={row.diasTrabajados}
+              onChange={(e) => onUpdateRow({ diasTrabajados: Number(e.target.value) })}
+              className="w-14 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-center text-sm font-bold tabular-nums text-amber-400 outline-none focus:border-amber-500/50 disabled:opacity-45"
+            />
+          </div>
         </div>
       )}
 
@@ -392,7 +431,14 @@ export function NominaMobileWorkerCard({
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
             <span className="text-[9px] font-bold uppercase text-white/35">Sueldo</span>
-            <p className="mt-0.5 font-semibold tabular-nums text-white/85">{fmtMoney(baseSal)}</p>
+            <p className="mt-0.5 font-semibold tabular-nums text-white/85">
+              {fmtMoney(row.salarioBaseCalculado)}
+            </p>
+            {row.diasTrabajados < NOMINA_DIAS_POR_SEMANA ? (
+              <p className="text-[8px] text-white/35">
+                {row.diasTrabajados}/{NOMINA_DIAS_POR_SEMANA} días
+              </p>
+            ) : null}
           </div>
           {activeStep >= 2 && (
             <>
@@ -550,6 +596,7 @@ export function NominaMobileMoreSheet({
   onImport,
   onPdf,
   onCsv,
+  onExcel,
   onBorrar,
 }: {
   open: boolean;
@@ -559,21 +606,28 @@ export function NominaMobileMoreSheet({
   onImport: () => void;
   onPdf: () => void;
   onCsv: () => void;
+  onExcel?: () => void;
   onBorrar: () => void;
 }) {
-  if (!open) return null;
-
   const items = [
     { label: 'Importar nómina', icon: Upload, onClick: onImport, needsEdit: true },
+    ...(onExcel
+      ? [{ label: 'Vista Excel (propuesta)', icon: FileSpreadsheet, onClick: onExcel, needsEdit: false }]
+      : []),
     { label: 'Exportar PDF', icon: Printer, onClick: onPdf, needsEdit: false },
     { label: 'Exportar CSV', icon: Download, onClick: onCsv, needsEdit: false },
     { label: 'Dar de baja todo', icon: Trash2, onClick: onBorrar, needsEdit: true, danger: true },
   ];
 
   return (
-    <div className="fixed inset-0 z-[55] lg:hidden" role="dialog" aria-modal="true">
-      <button type="button" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-label="Cerrar" />
-      <div className="nomina-mobile-sheet absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-white/10 bg-zinc-950/95 px-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-2xl">
+    <PageFormModal
+      open={open}
+      onClose={onClose}
+      align="bottom"
+      backdropClassName="lg:hidden"
+      panelClassName="nomina-mobile-sheet !max-w-none border-0 bg-zinc-950/95 px-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-3 shadow-none backdrop-blur-2xl !rounded-t-3xl !rounded-b-none sm:!rounded-2xl"
+    >
+      <div className="lg:hidden">
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-zinc-700" />
         <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Más acciones</p>
         <div className="space-y-1.5">
@@ -619,7 +673,7 @@ export function NominaMobileMoreSheet({
           Cerrar
         </button>
       </div>
-    </div>
+    </PageFormModal>
   );
 }
 
