@@ -44,11 +44,10 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     titleClassName: 'text-[var(--dashboard-accent)]',
   },
   '/reportes-balances': {
-    title: 'Reporte y Balances',
-    description: 'Vista macro y micro para cotejar indicadores operativos.',
+    title: 'Centro de Reportes y Balances',
+    description: 'Consolida y descarga reportes de toda tu operación minera.',
     Icon: CircleDollarSign,
-    iconClassName: 'text-[var(--dashboard-accent)]',
-    titleClassName: 'text-[var(--dashboard-accent)]',
+    iconClassName: 'text-amber-500',
   },
   '/admin/gastos': {
     title: 'Gastos Operativos',
@@ -193,12 +192,6 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     description: 'Catálogo central de parámetros reutilizables para toda la plataforma.',
     Icon: Library,
     iconClassName: 'text-violet-400',
-  },
-  '/operaciones/reportes': {
-    title: 'Centro de Reportes y Balances',
-    description: 'Consolida y descarga reportes de toda tu operación minera.',
-    Icon: FileText,
-    iconClassName: 'text-amber-500',
   },
 };
 

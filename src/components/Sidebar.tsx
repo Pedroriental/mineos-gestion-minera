@@ -95,11 +95,8 @@ const navigation: NavSection[] = [
     id: 'ops',
     title: 'Operaciones',
     items: [
-      { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', icon: <BookOpen className="w-4 h-4" /> },
       { label: 'Libro de Guardia',  href: '/operaciones/guardia', icon: <ClipboardList className="w-4 h-4" /> },
       { label: 'Control de Leyes',  href: '/operaciones/leyes',   icon: <TestTube2 className="w-4 h-4" /> },
-      { label: 'Costo por Gramo',   href: '/operaciones/costos',  icon: <Calculator className="w-4 h-4" /> },
-      { label: 'Reportes y Balances', href: '/operaciones/reportes', icon: <FileBarChart className="w-4 h-4" /> },
     ],
   },
 ];
