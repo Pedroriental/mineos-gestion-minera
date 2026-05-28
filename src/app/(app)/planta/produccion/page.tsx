@@ -40,11 +40,20 @@ export default async function ProduccionPage(props: {
   const totalOroQuemado  = (quemadoData ?? []).reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
   const countQuemado     = (quemadoData ?? []).length;
 
-  // 3. Fechas Efectivas para el Gráfico
-  const fechaDesde = hasParams ? searchParams.desde! : (reportes.length > 0 ? reportes[0].fecha : format(hoy, 'yyyy-MM-dd'));
-  const fechaHasta = hasParams ? searchParams.hasta! : (reportes.length > 0 ? reportes[reportes.length - 1].fecha : format(hoy, 'yyyy-MM-dd'));
+  // 3. Filtrar registros válidos para evitar caídas por datos corruptos
+  const reportesValidos = reportes.filter(
+    (r) => r && r.fecha && !isNaN(Date.parse(r.fecha))
+  );
 
-  // 3. Procesamiento en Memoria (Node.js Server-Side)
+  // 3b. Fechas Efectivas para el Gráfico
+  const fechaDesde = hasParams 
+    ? searchParams.desde! 
+    : (reportesValidos.length > 0 && reportesValidos[0].fecha ? reportesValidos[0].fecha : format(hoy, 'yyyy-MM-dd'));
+  const fechaHasta = hasParams 
+    ? searchParams.hasta! 
+    : (reportesValidos.length > 0 && reportesValidos[reportesValidos.length - 1].fecha ? reportesValidos[reportesValidos.length - 1].fecha : format(hoy, 'yyyy-MM-dd'));
+
+  // 3c. Procesamiento en Memoria (Node.js Server-Side)
   let totalOro = 0;
   let totalTon = 0;
   
@@ -54,7 +63,11 @@ export default async function ProduccionPage(props: {
   // Prellenar el mapa con todas las fechas del rango para asegurar continuidad en el gráfico
   const startD = parseISO(fechaDesde);
   const endD = parseISO(fechaHasta);
-  const totalDiasRango = Math.max(1, differenceInDays(endD, startD) + 1);
+  
+  let totalDiasRango = 1;
+  if (!isNaN(startD.getTime()) && !isNaN(endD.getTime())) {
+    totalDiasRango = Math.max(1, differenceInDays(endD, startD) + 1);
+  }
 
   for (let i = 0; i < totalDiasRango; i++) {
      const d = new Date(startD);
@@ -63,7 +76,7 @@ export default async function ProduccionPage(props: {
   }
 
   // Llenar datos reales
-  reportes.forEach(r => {
+  reportesValidos.forEach(r => {
     const oro = Number(r.oro_recuperado_g) || 0;
     const ton = Number(r.toneladas_procesadas) || 0;
     totalOro += oro;
@@ -84,30 +97,36 @@ export default async function ProduccionPage(props: {
   produccionDiariaMap.forEach((vals, fecha) => {
     metaAcumulada += DAILY_GOLD_TARGET;
     oroAcumulado += vals.oro;
+    
+    const tenorVal = vals.ton > 0 ? vals.oro / vals.ton : 0;
+    
     serieDiaria.push({
        fecha,
        oro: Number(vals.oro.toFixed(2)),
        oroAcumulado: Number(oroAcumulado.toFixed(2)),
        metaDiaria: DAILY_GOLD_TARGET,
        metaAcumulada: metaAcumulada,
-       tenor: vals.ton > 0 ? Number((vals.oro / vals.ton).toFixed(2)) : 0,
+       tenor: isFinite(tenorVal) ? Number(tenorVal.toFixed(2)) : 0,
        toneladas: Number(vals.ton.toFixed(2))
     });
   });
 
-  // 4. Cálculo de KPIs Generales
+  // 4. Cálculo de KPIs Generales de forma ultra segura
   const metaTotalOro = totalDiasRango * DAILY_GOLD_TARGET;
-  const cumplimientoOro = metaTotalOro > 0 ? ((totalOro - metaTotalOro) / metaTotalOro) * 100 : 0;
+  const rawCumplimientoOro = metaTotalOro > 0 ? ((totalOro - metaTotalOro) / metaTotalOro) * 100 : 0;
+  const cumplimientoOro = isFinite(rawCumplimientoOro) ? rawCumplimientoOro : 0;
   
-  const tenorPromedio = totalTon > 0 ? totalOro / totalTon : 0;
+  const rawTenorPromedio = totalTon > 0 ? totalOro / totalTon : 0;
+  const tenorPromedio = isFinite(rawTenorPromedio) ? rawTenorPromedio : 0;
 
-  // Eficiencia Molino simulada basada en data existente (Días productivos vs Días inactivos)
+  // Eficiencia Molino simulada
   const diasProductivos = Array.from(produccionDiariaMap.values()).filter(v => v.ton > 0).length;
-  const eficienciaMolino = (diasProductivos / totalDiasRango) * 100;
+  const rawEficienciaMolino = totalDiasRango > 0 ? (diasProductivos / totalDiasRango) * 100 : 0;
+  const eficienciaMolino = isFinite(rawEficienciaMolino) ? rawEficienciaMolino : 0;
 
   const eficienciaData = [
      { name: 'Operativo', value: diasProductivos },
-     { name: 'Inactivo', value: totalDiasRango - diasProductivos }
+     { name: 'Inactivo', value: Math.max(0, totalDiasRango - diasProductivos) }
   ];
 
   const processedData: ProduccionGerencialData = {
@@ -117,11 +136,11 @@ export default async function ProduccionPage(props: {
         tenorPromedio: Number(tenorPromedio.toFixed(2)),
         eficienciaMolino: eficienciaMolino,
         cumplimientoOro: cumplimientoOro,
-        cumplimientoTon: 95.5 // Dummy / placeholder value as Ton target wasn't specified
+        cumplimientoTon: 95.5
      },
      diaria: serieDiaria,
      eficienciaData,
-     registros: reportes.reverse() // Revertir para que la tabla muestre lo más reciente primero
+     registros: [...reportesValidos].reverse()
   };
 
   return <ProduccionGerencialClient data={processedData} selectedDateStr={fechaHasta} totalOroQuemado={totalOroQuemado} countQuemado={countQuemado} />;

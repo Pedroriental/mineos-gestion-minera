@@ -23,7 +23,7 @@ export const GastoSchema = z.object({
     .transform((s) => s.trim()),
 
   monto: z
-    .number({ invalid_type_error: 'El monto debe ser un número' })
+    .number({ message: 'El monto debe ser un número' })
     .positive('El monto debe ser mayor que cero')
     .max(9_999_999, 'El monto parece fuera de rango'),
 

@@ -63,7 +63,7 @@ export function FadeIn({ delay = 0, className, children, ...props }: FadeInProps
       animate="show"
       transition={{ delay } as any}
       className={className}
-      {...props}
+      {...props as any}
     >
       {children}
     </motion.div>
@@ -94,7 +94,7 @@ export function StaggerGrid({ delay = 0, className, children, ...props }: Stagge
       initial="hidden"
       animate="show"
       className={className}
-      {...props}
+      {...props as any}
     >
       {children}
     </motion.div>
@@ -113,7 +113,7 @@ export function StaggerItem({ className, children, ...props }: StaggerItemProps)
     <motion.div
       variants={staggerItemVariants}
       className={className}
-      {...props}
+      {...props as any}
     >
       {children}
     </motion.div>
@@ -136,7 +136,7 @@ export function FadeInSection({ delay = 0, className, children, ...props }: Fade
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6, delay, ease: 'easeOut' }}
       className={className}
-      {...props}
+      {...props as any}
     >
       {children}
     </motion.div>

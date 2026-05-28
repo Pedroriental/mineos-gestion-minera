@@ -52,25 +52,25 @@ export const VoladuraSchema = z.object({
   sin_novedad: z.boolean().default(true),
 
   huecos_cantidad: z.coerce
-    .number({ invalid_type_error: 'Debe ser un número' })
+    .number({ message: 'Debe ser un número' })
     .int('Debe ser entero')
     .min(0, 'No puede ser negativo')
     .default(0),
 
   huecos_pies: z.coerce
-    .number({ invalid_type_error: 'Debe ser un número' })
+    .number({ message: 'Debe ser un número' })
     .int('Debe ser entero')
     .min(0)
     .default(0),
 
   chupis_cantidad: z.coerce
-    .number({ invalid_type_error: 'Debe ser un número' })
+    .number({ message: 'Debe ser un número' })
     .int('Debe ser entero')
     .min(0)
     .default(0),
 
   chupis_pies: z.coerce
-    .number({ invalid_type_error: 'Debe ser un número' })
+    .number({ message: 'Debe ser un número' })
     .int('Debe ser entero')
     .min(0)
     .default(0),
@@ -80,12 +80,12 @@ export const VoladuraSchema = z.object({
   vitamina_e:  z.coerce.number().int().min(0).default(0),
 
   trenza_metros: z.coerce
-    .number({ invalid_type_error: 'Debe ser un número' })
+    .number({ message: 'Debe ser un número' })
     .min(0)
     .default(0),
 
   arroz_kg: z.coerce
-    .number({ invalid_type_error: 'Debe ser un número' })
+    .number({ message: 'Debe ser un número' })
     .min(0, 'No puede ser negativo')
     .default(0),
 

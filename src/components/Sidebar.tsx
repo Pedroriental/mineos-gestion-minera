@@ -21,6 +21,10 @@ import {
   Database,
   LogOut,
   X,
+  FileBarChart,
+  ClipboardList,
+  TestTube2,
+  Calculator,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MineosLogo, sidebarIconSurface } from '@/components/brand/MineosLogo';
@@ -85,6 +89,17 @@ const navigation: NavSection[] = [
       { label: 'Recepción',     href: '/planta/recepcion',     icon: <Layers className="w-4 h-4" /> },
       { label: 'Arenas',        href: '/planta/arenas',        icon: <Package className="w-4 h-4" /> },
       { label: 'Quemado',       href: '/mina/quemado',         icon: <Flame className="w-4 h-4" /> },
+    ],
+  },
+  {
+    id: 'ops',
+    title: 'Operaciones',
+    items: [
+      { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', icon: <BookOpen className="w-4 h-4" /> },
+      { label: 'Libro de Guardia',  href: '/operaciones/guardia', icon: <ClipboardList className="w-4 h-4" /> },
+      { label: 'Control de Leyes',  href: '/operaciones/leyes',   icon: <TestTube2 className="w-4 h-4" /> },
+      { label: 'Costo por Gramo',   href: '/operaciones/costos',  icon: <Calculator className="w-4 h-4" /> },
+      { label: 'Reportes y Balances', href: '/operaciones/reportes', icon: <FileBarChart className="w-4 h-4" /> },
     ],
   },
 ];
