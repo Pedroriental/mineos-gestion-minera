@@ -18,6 +18,7 @@ import {
   Users,
   Wrench,
   Zap,
+  FileText,
 } from 'lucide-react';
 
 export type AppSectionMeta = {
@@ -158,6 +159,12 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     description: 'Costos, precio del oro y rentabilidad.',
     Icon: Calculator,
     iconClassName: 'text-emerald-400',
+  },
+  '/operaciones/reportes': {
+    title: 'Centro de Reportes y Balances',
+    description: 'Consolida y descarga reportes de toda tu operación minera.',
+    Icon: FileText,
+    iconClassName: 'text-amber-500',
   },
 };
 

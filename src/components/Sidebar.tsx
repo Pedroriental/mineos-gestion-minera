@@ -26,6 +26,7 @@ import {
   ChevronDown,
   LogOut,
   X,
+  FileBarChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -88,6 +89,7 @@ const navigation: NavSection[] = [
       { label: 'Libro de Guardia',  href: '/operaciones/guardia', icon: <ClipboardList className="w-4 h-4" /> },
       { label: 'Control de Leyes',  href: '/operaciones/leyes',   icon: <TestTube2 className="w-4 h-4" /> },
       { label: 'Costo por Gramo',   href: '/operaciones/costos',  icon: <Calculator className="w-4 h-4" /> },
+      { label: 'Reportes y Balances', href: '/operaciones/reportes', icon: <FileBarChart className="w-4 h-4" /> },
     ],
   },
 ];
