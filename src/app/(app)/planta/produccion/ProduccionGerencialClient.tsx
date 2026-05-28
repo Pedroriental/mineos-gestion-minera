@@ -11,13 +11,9 @@ import {
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useBiblioteca, useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { mergeSuggestions } from '@/lib/biblioteca-catalog';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
-
-const TURNO_OPTIONS = [
-  { value: 'dia', label: '☀ Día' },
-  { value: 'noche', label: '🌙 Noche' },
-  { value: 'completo', label: '🔄 Completo' },
-];
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -800,9 +796,11 @@ export default function ProduccionGerencialClient({
                 <h3 className="produccion-page__modal-col-title produccion-modal-title text-sm font-semibold">Datos del reporte</h3>
                 <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => handleFieldChange('fecha', e.target.value)} className="input-field" /></div>
                 <div><label className="input-label">Turno *</label>
-                  <AppSelect value={form.turno} onChange={(v) => handleFieldChange('turno', v)} options={TURNO_OPTIONS} />
+                  <AppSelect value={form.turno} onChange={(v) => handleFieldChange('turno', v)} options={turnoOptions} />
                 </div>
-                <div><label className="input-label">Molino *</label><input list="molinos-list" value={form.molino} onChange={e => handleFieldChange('molino', e.target.value)} className="input-field" placeholder="Escribir molino..." /><datalist id="molinos-list">{molinosSug.map(m => <option key={m} value={m} />)}</datalist></div>
+                <div><label className="input-label">Molino *</label>
+                  <AppSelect value={form.molino} onChange={(v) => handleFieldChange('molino', v)} options={molinoSelectOptions.length ? molinoSelectOptions : molinosSug.map((m) => ({ value: m, label: m }))} placeholder="— Seleccionar molino —" />
+                </div>
                 <div><label className="input-label">Material / Mina de Origen *</label><input list="materiales-list" value={form.material} onChange={e => handleFieldChange('material', e.target.value)} className="input-field" placeholder="Escribir material o mina..." /><datalist id="materiales-list">{materialesSug.map(m => <option key={m} value={m} />)}</datalist></div>
                 <div><label className="input-label">Código Lote/Veta</label><input value={form.material_codigo} onChange={e => handleFieldChange('material_codigo', e.target.value)} className="input-field" placeholder="V-2D19" /></div>
               </section>

@@ -7,9 +7,12 @@ export interface Personal {
   id: string;
   cedula: string;
   nombre_completo: string;
+  fecha_nacimiento?: string | null;
   cargo: string;
   area: 'mina' | 'planta' | 'administracion' | 'seguridad' | 'transporte';
   area_detalle: string;
+  /** Sitio operativo: Mina Belén, otra mina, Molino La Fé, etc. */
+  ubicacion_laboral?: string | null;
   salario_base: number;
   salario_libre: number;
   bono_transporte: number;
@@ -18,6 +21,19 @@ export interface Personal {
   activo: boolean;
   telefono?: string;
   notas?: string;
+  estado_laboral?: 'ACTIVO' | 'DESPEDIDO' | 'REPOSO' | 'VACACIONES' | 'REENGANCHADO';
+  observacion_estado?: string | null;
+  estado_inicio_fecha?: string | null;
+  estado_fin_fecha?: string | null;
+  estado_duracion_dias?: number | null;
+  despido_fecha?: string | null;
+  despido_causa?: string | null;
+  reenganche_fecha?: string | null;
+  reenganche_cargo?: string | null;
+  reenganche_observacion?: string | null;
+  ajuste_antiguedad_dias?: number | null;
+  doc_cedula_url?: string | null;
+  foto_carnet_url?: string | null;
   esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15';
   rotacion_inicio_fecha?: string;
   created_at: string;
@@ -537,6 +553,124 @@ export interface GoldPriceResponse {
   precio_usd_onza: number;
   fuente: 'cache' | 'api';
   fecha: string;
+}
+
+// --- Datos fiscales / legales (plataforma) ---
+export type FiscalTextoCategoria = 'factura' | 'balance' | 'planilla' | 'general';
+export type FiscalParametroGrupo = 'tributario' | 'documento' | 'numeracion' | 'otro';
+
+export interface FiscalEntidad {
+  id: string;
+  nombre_comercial: string;
+  razon_social: string;
+  rif: string;
+  direccion_fiscal: string;
+  direccion_operativa?: string | null;
+  ciudad?: string | null;
+  estado_region?: string | null;
+  codigo_postal?: string | null;
+  pais: string;
+  telefono?: string | null;
+  email?: string | null;
+  sitio_web?: string | null;
+  actividad_economica?: string | null;
+  es_emisor_principal: boolean;
+  notas?: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FiscalRepresentante {
+  id: string;
+  entidad_id: string;
+  nombre_completo: string;
+  cedula?: string | null;
+  cargo: string;
+  telefono?: string | null;
+  email?: string | null;
+  es_principal: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FiscalCuentaBancaria {
+  id: string;
+  entidad_id: string;
+  banco: string;
+  tipo_cuenta: string;
+  numero_cuenta: string;
+  titular?: string | null;
+  moneda: string;
+  es_principal: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FiscalTextoLegal {
+  id: string;
+  slug: string;
+  titulo: string;
+  categoria: FiscalTextoCategoria;
+  contenido: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FiscalParametro {
+  id: string;
+  clave: string;
+  etiqueta: string;
+  valor: string;
+  grupo: FiscalParametroGrupo;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FiscalEntidadCompleta extends FiscalEntidad {
+  representantes: FiscalRepresentante[];
+  cuentas: FiscalCuentaBancaria[];
+}
+
+export interface FiscalDocumentoBundle {
+  emisor: FiscalEntidadCompleta | null;
+  textos: FiscalTextoLegal[];
+  parametros: Record<string, string>;
+}
+
+// --- Biblioteca de variables (plataforma) ---
+export type BibliotecaModulo = 'general' | 'nomina' | 'mina' | 'planta' | 'operaciones' | 'admin';
+
+export interface BibliotecaCategoria {
+  id: string;
+  slug: string;
+  nombre: string;
+  descripcion?: string | null;
+  modulo: BibliotecaModulo;
+  orden: number;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BibliotecaVariable {
+  id: string;
+  categoria_id: string;
+  clave: string;
+  etiqueta: string;
+  valor: string;
+  unidad?: string | null;
+  descripcion?: string | null;
+  orden: number;
+  activo: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BibliotecaCategoriaCompleta extends BibliotecaCategoria {
+  variables: BibliotecaVariable[];
 }
 
 // --- Sidebar Navigation ---

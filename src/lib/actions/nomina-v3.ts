@@ -2,22 +2,17 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
+import { normalizeAreaDetalle, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
+import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
+import { AUTO_ROTACION_OBS, tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
 import type { NominaVale, PreNominaRow, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
   | { ok: false; message: string };
 
-const REVALIDATE_PATHS = [
-  '/admin/nomina',
-  '/mina/nomina',
-  '/planta/nomina',
-  '/operaciones/resumen',
-  '/dashboard',
-] as const;
-
 function revalidateAll() {
-  REVALIDATE_PATHS.forEach((p) => revalidatePath(p));
+  PERSONAL_SYNC_PATHS.forEach((p) => revalidatePath(p));
 }
 
 // ── Crear/Actualizar trabajador con campos V3 (rotación) ─────
@@ -39,12 +34,25 @@ export async function upsertPersonalV3Action(raw: {
 }): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
-    const payload = {
+    const areaDetalle = normalizeAreaDetalle(raw.area_detalle || '', raw.area);
+
+    const { data: existingByCedula } = await supabase
+      .from('personal')
+      .select(
+        'id, estado_laboral, observacion_estado, despido_fecha, despido_causa, reenganche_fecha, reenganche_cargo, reenganche_observacion',
+      )
+      .eq('cedula', raw.cedula)
+      .maybeSingle();
+
+    const targetId = raw.id || existingByCedula?.id;
+    const estadoActual = (existingByCedula?.estado_laboral || 'ACTIVO') as string;
+
+    const payload: Record<string, unknown> = {
       cedula: raw.cedula,
       nombre_completo: raw.nombre_completo,
       cargo: raw.cargo,
       area: raw.area,
-      area_detalle: raw.area_detalle || raw.cargo,
+      area_detalle: areaDetalle,
       salario_base: raw.salario_base,
       salario_libre: raw.salario_libre,
       bono_transporte: raw.bono_transporte,
@@ -53,21 +61,119 @@ export async function upsertPersonalV3Action(raw: {
       fecha_ingreso: raw.fecha_ingreso,
       esquema_rotacion: raw.esquema_rotacion || 'FIJO_SEMANAL',
       rotacion_inicio_fecha: raw.rotacion_inicio_fecha || null,
-      activo: true,
-      estatus: 'ACTIVO' as const,
     };
 
+    if (estadoActual === 'DESPEDIDO') {
+      payload.estado_laboral = 'REENGANCHADO';
+      payload.reenganche_fecha = new Date().toISOString().split('T')[0];
+      payload.reenganche_cargo = raw.cargo;
+      payload.reenganche_observacion = 'Reincorporado desde módulo de nómina.';
+      payload.despido_fecha = null;
+      payload.despido_causa = null;
+      payload.activo = true;
+      payload.estatus = 'ACTIVO';
+    } else if (estadoActual === 'INACTIVO' || estadoActual === 'VACACIONES') {
+      payload.estado_laboral = 'ACTIVO';
+      if (String(existingByCedula?.observacion_estado || '').startsWith(AUTO_ROTACION_OBS)) {
+        payload.observacion_estado = null;
+      }
+      payload.activo = true;
+      payload.estatus = 'ACTIVO';
+    } else if (estadoActual === 'ACTIVO' || estadoActual === 'REENGANCHADO') {
+      payload.activo = true;
+      payload.estatus = 'ACTIVO';
+    }
+
     let error;
-    if (raw.id) {
-      ({ error } = await supabase.from('personal').update(payload).eq('id', raw.id));
+    if (targetId) {
+      ({ error } = await supabase.from('personal').update(payload).eq('id', targetId));
     } else {
-      ({ error } = await supabase.from('personal').insert(payload));
+      ({ error } = await supabase.from('personal').insert({
+        ...payload,
+        estado_laboral: 'ACTIVO',
+        activo: true,
+        estatus: 'ACTIVO',
+      }));
     }
 
     if (error) return { ok: false, message: error.message };
     revalidateAll();
     return { ok: true, message: raw.id ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
   } catch (e) {
+    return { ok: false, message: 'Error interno del servidor.' };
+  }
+}
+
+/** Asigna un trabajador existente de la base maestra a la nómina del área indicada. */
+export async function assignPersonalToNominaAreaAction(input: {
+  personalId: string;
+  targetArea: string;
+  areaDetalle?: string;
+}): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    const { data: row, error: fetchError } = await supabase
+      .from('personal')
+      .select('*')
+      .eq('id', input.personalId)
+      .maybeSingle();
+
+    if (fetchError) return { ok: false, message: fetchError.message };
+    if (!row) return { ok: false, message: 'Trabajador no encontrado en la base.' };
+
+    const areaDetalle = normalizeAreaDetalle(
+      input.areaDetalle || String(row.area_detalle || ''),
+      input.targetArea,
+    );
+    const estadoActual = String(row.estado_laboral || 'ACTIVO');
+
+    const payload: Record<string, unknown> = {
+      area: input.targetArea,
+      area_detalle: areaDetalle,
+      activo: true,
+      estatus: 'ACTIVO',
+    };
+
+    if (estadoActual === 'DESPEDIDO') {
+      payload.estado_laboral = 'REENGANCHADO';
+      payload.reenganche_fecha = new Date().toISOString().split('T')[0];
+      payload.reenganche_cargo = row.cargo;
+      payload.reenganche_observacion = 'Reasignado desde nómina.';
+      payload.despido_fecha = null;
+      payload.despido_causa = null;
+    } else if (
+      estadoActual === 'VACACIONES' &&
+      String(row.observacion_estado || '').startsWith(AUTO_ROTACION_OBS)
+    ) {
+      payload.estado_laboral = 'ACTIVO';
+      payload.observacion_estado = null;
+    } else if (estadoActual === 'INACTIVO' || estadoActual === 'VACACIONES') {
+      payload.estado_laboral = 'ACTIVO';
+      if (String(row.observacion_estado || '').startsWith(AUTO_ROTACION_OBS)) {
+        payload.observacion_estado = null;
+      }
+    } else if (estadoActual === 'ACTIVO' || estadoActual === 'REENGANCHADO') {
+      payload.estado_laboral = estadoActual;
+    }
+
+    const biblioteca = await loadBibliotecaAppSnapshot();
+    const esquemaActual = String(row.esquema_rotacion || '');
+    const esquemaDefault =
+      biblioteca.esquemaDefaultPorArea[input.targetArea] || ('FIJO_SEMANAL' as const);
+    if (!esquemaActual || esquemaActual === 'FIJO_SEMANAL') {
+      payload.esquema_rotacion = esquemaDefault;
+    }
+    const esquemaFinal = String(payload.esquema_rotacion || esquemaActual);
+    if (tieneEsquemaConRotacion(esquemaFinal) && !row.rotacion_inicio_fecha) {
+      payload.rotacion_inicio_fecha = new Date().toISOString().split('T')[0];
+    }
+
+    const { error } = await supabase.from('personal').update(payload).eq('id', input.personalId);
+    if (error) return { ok: false, message: error.message };
+
+    revalidateAll();
+    return { ok: true, message: `${row.nombre_completo} asignado a esta nómina.` };
+  } catch {
     return { ok: false, message: 'Error interno del servidor.' };
   }
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { ProduccionSchema, ProduccionUpdateSchema } from '@/lib/validations/produccion';
+import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { z } from 'zod';
 
 export type ActionResult =
@@ -29,6 +30,14 @@ export async function createProduccion(raw: unknown): Promise<ActionResult> {
   }
 
   const data = parsed.data;
+
+  try {
+    await assertBibliotecaValue('turnos', data.turno, 'Turno');
+    await assertBibliotecaValue('molinos', data.molino, 'Molino');
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : 'Valor no permitido en biblioteca.' };
+  }
+
   const supabase = await createServerClient();
 
   const { error } = await supabase.from('reportes_produccion').insert({

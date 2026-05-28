@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight, AlertCircle, Gem, Search, LineChart, Scale, Layers,
 } from 'lucide-react';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import EmptyState from '@/components/EmptyState';
 import { FadeIn } from '@/components/ui/motion';
@@ -26,12 +27,6 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { columns } from './columns';
-
-const TURNO_OPTIONS = [
-  { value: 'dia', label: '☀ Día' },
-  { value: 'noche', label: '🌙 Noche' },
-  { value: 'completo', label: '🔄 Completo' },
-];
 
 const QUEMADO_PAGE_MAX = 12;
 const QUEMADO_PAGE_BUTTONS_MAX = 5;
@@ -68,6 +63,7 @@ interface QuemadoClientProps {
 export default function QuemadoClient({ data: initialData }: QuemadoClientProps) {
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const turnoOptions = useTurnoOptions();
 
   const defaultDate = useMemo(() => {
     const dates = Array.from(new Set(initialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
@@ -641,7 +637,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
             </div>
             <div>
               <label className="input-label">Turno *</label>
-              <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={TURNO_OPTIONS} />
+              <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={turnoOptions} />
             </div>
             <div>
               <label className="input-label">N° Quemada</label>

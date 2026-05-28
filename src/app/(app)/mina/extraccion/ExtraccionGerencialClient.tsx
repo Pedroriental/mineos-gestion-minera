@@ -10,19 +10,8 @@ import {
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
-
-const TURNO_OPTIONS = [
-  { value: 'dia', label: '☀ Día' },
-  { value: 'noche', label: '🌙 Noche' },
-  { value: 'completo', label: '🔄 Completo' },
-];
-const VERTICAL_OPTIONS = [
-  { value: '', label: '— Sin especificar —' },
-  { value: 'Vertical 1', label: 'Vertical 1' },
-  { value: 'Vertical 2', label: 'Vertical 2' },
-  { value: 'Vertical 3', label: 'Vertical 3' },
-];
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -88,6 +77,12 @@ export interface ExtraccionGerencialData {
 export default function ExtraccionGerencialClient({ data, selectedDateStr }: { data: ExtraccionGerencialData, selectedDateStr: string }) {
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const turnoOptions = useTurnoOptions();
+  const verticalOptions = useBibliotecaOptions('verticales_voladura', {
+    prependEmpty: true,
+    emptyLabel: '— Sin especificar —',
+  });
+  const minaOptions = useBibliotecaOptions('minas');
 
   const [selectedDate, setSelectedDate] = useState(selectedDateStr);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -879,12 +874,14 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                 </h3>
                 <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => setFormField('fecha', e.target.value)} className="input-field" /></div>
                 <div><label className="input-label">Turno *</label>
-                  <AppSelect value={form.turno} onChange={(v) => setFormField('turno', v)} options={TURNO_OPTIONS} />
+                  <AppSelect value={form.turno} onChange={(v) => setFormField('turno', v)} options={turnoOptions} />
                 </div>
                 <div><label className="input-label">Vertical</label>
-                  <AppSelect value={form.vertical} onChange={(v) => setFormField('vertical', v)} options={VERTICAL_OPTIONS} placeholder="— Sin especificar —" />
+                  <AppSelect value={form.vertical} onChange={(v) => setFormField('vertical', v)} options={verticalOptions} placeholder="— Sin especificar —" />
                 </div>
-                <div><label className="input-label">Mina</label><input value={form.mina} onChange={e => setFormField('mina', e.target.value)} placeholder="Ej: Belén 2" className="input-field" /></div>
+                <div><label className="input-label">Mina</label>
+                  <AppSelect value={form.mina} onChange={(v) => setFormField('mina', v)} options={minaOptions} placeholder="— Seleccionar mina —" />
+                </div>
                 <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => setFormField('responsable', e.target.value)} className="input-field" /></div>
                 <div><label className="input-label">Hora Inicio</label><input type="time" value={form.hora_inicio} onChange={e => setFormField('hora_inicio', e.target.value)} className="input-field" /></div>
                 <div><label className="input-label">Hora Culmina</label><input type="time" value={form.hora_fin} onChange={e => setFormField('hora_fin', e.target.value)} className="input-field" /></div>

@@ -1,30 +1,25 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { Plus, X, Loader2, Sun, Moon, AlertTriangle, Users, Wrench, Clock, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 import type { LibroGuardia } from '@/lib/types';
 
-const TURNO_OPTIONS = [
-  { value: 'dia', label: '☀ Día' },
-  { value: 'noche', label: '🌙 Noche' },
-];
-const CLIMA_OPTIONS = [
-  { value: 'despejado', label: '☀️ Despejado' },
-  { value: 'nublado', label: '⛅ Nublado' },
-  { value: 'lluvia', label: '🌧️ Lluvia' },
-  { value: 'tormenta', label: '⛈️ Tormenta' },
-  { value: 'neblina', label: '🌫️ Neblina' },
-];
-
 export default function LibroGuardiaPage() {
+  const allTurnos = useTurnoOptions();
+  const climaOptions = useBibliotecaOptions('clima_guardia');
+  const turnoOptions = useMemo(
+    () => allTurnos.filter((t) => t.value === 'dia' || t.value === 'noche'),
+    [allTurnos],
+  );
   const { user } = useAuth();
   const canEdit = useCanEdit();
   const [data, setData] = useState<LibroGuardia[]>([]);
@@ -307,7 +302,7 @@ export default function LibroGuardiaPage() {
                 <AppSelect
                   value={form.turno}
                   onChange={(v) => setForm({ ...form, turno: v as 'dia' | 'noche' })}
-                  options={TURNO_OPTIONS}
+                  options={turnoOptions}
                 />
               </div>
               <div><label className="input-label">Hora de Entrega</label><input type="time" value={form.hora_entrega} onChange={e => setForm({ ...form, hora_entrega: e.target.value })} className="input-field" /></div>
@@ -327,7 +322,7 @@ export default function LibroGuardiaPage() {
                 <AppSelect
                   value={form.clima}
                   onChange={(v) => setForm({ ...form, clima: v })}
-                  options={CLIMA_OPTIONS}
+                  options={climaOptions}
                 />
               </div>
 

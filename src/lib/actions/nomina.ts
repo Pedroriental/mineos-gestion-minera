@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
+import { normalizeAreaDetalle, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { PersonalSchema, PersonalUpdateSchema, ImportarPersonalSchema, EmpleadoParseadoType } from '@/lib/validations/nomina';
 import { z } from 'zod';
 import { registrarAuditAction } from './nomina-v3';
@@ -10,16 +11,8 @@ export type ActionResult =
   | { ok: true;  message: string; data?: any }
   | { ok: false; message: string; fieldErrors?: Record<string, string[]> };
 
-const REVALIDATE_PATHS = [
-  '/admin/nomina',
-  '/mina/nomina',
-  '/planta/nomina',
-  '/operaciones/resumen',
-  '/dashboard',
-] as const;
-
 function revalidateAll() {
-  REVALIDATE_PATHS.forEach((p) => revalidatePath(p));
+  PERSONAL_SYNC_PATHS.forEach((p) => revalidatePath(p));
 }
 
 export async function createPersonal(raw: unknown): Promise<ActionResult> {
@@ -138,9 +131,12 @@ export async function importarPersonalAction(rawEmps: unknown, area: string): Pr
         nombre_completo: emp.nombre_completo,
         cargo: emp.cargo,
         area: emp.area,
+        area_detalle: normalizeAreaDetalle(emp.cargo, emp.area),
         salario_base: emp.salario_semanal,
         fecha_ingreso: emp.fecha_ingreso,
         activo: true,
+        estado_laboral: 'ACTIVO',
+        estatus: 'ACTIVO',
       };
 
       const { data: existing } = await supabase.from('personal').select('id').eq('cedula', emp.cedula).maybeSingle();

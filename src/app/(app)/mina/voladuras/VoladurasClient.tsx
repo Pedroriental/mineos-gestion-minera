@@ -13,6 +13,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import EmptyState from '@/components/EmptyState';
 import { FadeIn } from '@/components/ui/motion';
@@ -26,18 +27,6 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { columns } from './columns';
-
-const TURNO_OPTIONS = [
-  { value: 'dia', label: '☀ Día' },
-  { value: 'noche', label: '🌙 Noche' },
-  { value: 'completo', label: '🔄 Completo' },
-];
-const VERTICAL_DISPARO_OPTIONS = [
-  { value: '', label: '— Sin especificar —' },
-  { value: 'Vertical 1', label: 'Vertical 1' },
-  { value: 'Vertical 2', label: 'Vertical 2' },
-  { value: 'Vertical 3', label: 'Vertical 3' },
-];
 
 const VOLADURAS_PAGE_MAX = 12;
 const VOLADURAS_PAGE_BUTTONS_MAX = 5;
@@ -78,6 +67,12 @@ interface VoladurasClientProps {
 export default function VoladurasClient({ data: initialData }: VoladurasClientProps) {
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const turnoOptions = useTurnoOptions();
+  const verticalOptions = useBibliotecaOptions('verticales_voladura', {
+    prependEmpty: true,
+    emptyLabel: '— Sin especificar —',
+  });
+  const minaOptions = useBibliotecaOptions('minas');
 
   const defaultDate = useMemo(() => {
     const dates = Array.from(new Set(initialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
@@ -656,11 +651,16 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
               </div>
               <div>
                 <label className="input-label">Turno *</label>
-                <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={TURNO_OPTIONS} />
+                <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={turnoOptions} />
               </div>
               <div>
                 <label className="input-label">Mina</label>
-                <input value={form.mina} onChange={(e) => set('mina', e.target.value)} placeholder="Ej: Belén 2" className="input-field" />
+                <AppSelect
+                  value={form.mina}
+                  onChange={(v) => set('mina', v)}
+                  options={minaOptions}
+                  placeholder="— Seleccionar mina —"
+                />
               </div>
               <div>
                 <label className="input-label">Responsable</label>
@@ -775,7 +775,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
             </div>
             <div>
               <label className="input-label">Vertical</label>
-              <AppSelect value={form.vertical_disparo} onChange={(v) => set('vertical_disparo', v)} options={VERTICAL_DISPARO_OPTIONS} placeholder="— Sin especificar —" />
+              <AppSelect value={form.vertical_disparo} onChange={(v) => set('vertical_disparo', v)} options={verticalOptions} placeholder="— Sin especificar —" />
             </div>
             <label className="flex cursor-pointer items-center gap-3" onClick={() => set('sin_novedad', !form.sin_novedad)}>
               <div className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${form.sin_novedad ? 'bg-emerald-500' : 'bg-red-500/70'}`}>

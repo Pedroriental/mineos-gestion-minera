@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
+import { PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import type { PreNominaRow } from '@/lib/types';
 import { registrarAuditAction } from './nomina-v3';
 
@@ -9,16 +10,8 @@ export type ActionResult =
   | { ok: true;  message: string; data?: any }
   | { ok: false; message: string };
 
-const REVALIDATE_PATHS = [
-  '/admin/nomina',
-  '/mina/nomina',
-  '/planta/nomina',
-  '/operaciones/resumen',
-  '/dashboard',
-] as const;
-
 function revalidateAll() {
-  REVALIDATE_PATHS.forEach((p) => revalidatePath(p));
+  PERSONAL_SYNC_PATHS.forEach((p) => revalidatePath(p));
 }
 
 // ── Actualizar estado de trabajador ─────────────────────────
@@ -29,10 +22,17 @@ export async function updatePersonalEstatusAction(
   try {
     const supabase = await createServerClient();
     const activo = estatus === 'ACTIVO';
-    const { error } = await supabase
-      .from('personal')
-      .update({ estatus, activo })
-      .eq('id', id);
+    const patch: Record<string, unknown> = { estatus, activo };
+    if (estatus === 'ACTIVO') {
+      patch.estado_laboral = 'ACTIVO';
+      patch.despido_fecha = null;
+      patch.despido_causa = null;
+    } else if (estatus === 'LIQUIDADO') {
+      patch.estado_laboral = 'DESPEDIDO';
+      patch.despido_fecha = new Date().toISOString().split('T')[0];
+    }
+
+    const { error } = await supabase.from('personal').update(patch).eq('id', id);
 
     if (error) return { ok: false, message: error.message };
     revalidateAll();

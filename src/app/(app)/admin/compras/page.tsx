@@ -6,20 +6,15 @@ import { useAuth } from '@/lib/auth-context';
 import { Plus, X, Loader2, Edit2, Check } from 'lucide-react';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import type { CompraProgramada } from '@/lib/types';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
-const PRIORIDAD_OPTIONS = [
-  { value: 'baja', label: 'Baja' },
-  { value: 'normal', label: 'Normal' },
-  { value: 'alta', label: 'Alta' },
-  { value: 'urgente', label: 'Urgente' },
-];
-
 export default function ComprasPage() {
   const { user } = useAuth();
+  const prioridadOptions = useBibliotecaOptions('compras_prioridad');
   const [data, setData] = useState<CompraProgramada[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -171,7 +166,7 @@ export default function ComprasPage() {
                 <AppSelect
                   value={form.prioridad}
                   onChange={(v) => setForm({ ...form, prioridad: v as CompraProgramada['prioridad'] })}
-                  options={PRIORIDAD_OPTIONS}
+                  options={prioridadOptions}
                 />
               </div>
               <div><label className="input-label">Proveedor Sugerido</label><input value={form.proveedor_sugerido} onChange={e => setForm({ ...form, proveedor_sugerido: e.target.value })} className="input-field" /></div>

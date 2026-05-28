@@ -8,29 +8,16 @@ import { Plus, X, Loader2, Edit2, Trash2 } from 'lucide-react';
 import type { Equipo } from '@/lib/types';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
-const TIPO_OPTIONS = [
-  { value: 'compresor', label: 'Compresor' },
-  { value: 'perforadora', label: 'Perforadora' },
-  { value: 'volqueta', label: 'Volqueta' },
-  { value: 'bomba', label: 'Bomba' },
-  { value: 'generador', label: 'Generador' },
-  { value: 'ventilador', label: 'Ventilador' },
-  { value: 'otro', label: 'Otro' },
-];
-const ESTADO_OPTIONS = [
-  { value: 'operativo', label: 'Operativo' },
-  { value: 'en_mantenimiento', label: 'Mantenimiento' },
-  { value: 'fuera_servicio', label: 'Fuera Servicio' },
-  { value: 'en_reparacion', label: 'En Reparación' },
-];
-
 export default function EquiposPage() {
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const tipoOptions = useBibliotecaOptions('equipos_tipo');
+  const estadoOptions = useBibliotecaOptions('equipos_estado');
   const [data, setData] = useState<Equipo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -141,7 +128,7 @@ export default function EquiposPage() {
                 <AppSelect
                   value={form.tipo}
                   onChange={(v) => setForm({ ...form, tipo: v as Equipo['tipo'] })}
-                  options={TIPO_OPTIONS}
+                  options={tipoOptions}
                 />
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Nombre *</label><input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} className="input-field" placeholder="Sullair 185" /></div>
@@ -150,7 +137,7 @@ export default function EquiposPage() {
                 <AppSelect
                   value={form.estado}
                   onChange={(v) => setForm({ ...form, estado: v as Equipo['estado'] })}
-                  options={ESTADO_OPTIONS}
+                  options={estadoOptions}
                 />
               </div>
               <div><label className="input-label">Horas Operación</label><input type="number" step="0.1" value={form.horas_operacion} onChange={e => setForm({ ...form, horas_operacion: e.target.value })} className="input-field font-semibold text-amber-700" /></div>

@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useState, useTransition, useMemo, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { 
@@ -12,6 +13,11 @@ import {
   Hammer, Umbrella, XCircle, History, Copy, Check, Lock
 } from 'lucide-react';
 
+import { getGrupoNominaKey } from '@/lib/personal-master';
+import { PersonalQuickAssignModal } from '@/components/nomina/PersonalQuickAssignModal';
+import { NominaRotacionPanel } from '@/components/nomina/NominaRotacionPanel';
+import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
+import { useBiblioteca } from '@/contexts/biblioteca-context';
 import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
 import type { EmpleadoParseado } from '@/lib/parse-nomina-file';
 
@@ -161,41 +167,6 @@ function Sparkline({ data, width = 120, height = 32, color = '#f59e0b' }: {
   );
 }
 
-// ── Rotation Prediction Engine ─────────────────────────────────────────────
-function calculateExpectedAttendance(
-  esquema: string,
-  rotacionInicio: string | undefined | null,
-  weekStartStr: string
-): 'trabajada' | 'libre' | 'no_laborado' {
-  if (!rotacionInicio || esquema === 'FIJO_SEMANAL' || esquema === 'MOLINO_FIJO') {
-    return 'trabajada';
-  }
-  const startDate = new Date(rotacionInicio);
-  const weekStart = new Date(weekStartStr);
-  const diffMs = weekStart.getTime() - startDate.getTime();
-  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
-
-  if (esquema === 'MINA_2X1') {
-    const position = ((diffWeeks % 3) + 3) % 3;
-    return position === 2 ? 'libre' : 'trabajada';
-  }
-  if (esquema === 'MOLINO_ROTATIVO') {
-    const position = ((diffWeeks % 2) + 2) % 2;
-    return position === 1 ? 'libre' : 'trabajada';
-  }
-  if (esquema === 'MINA_ROTATIVA_3G') {
-    const position = ((diffWeeks % 3) + 3) % 3;
-    return position === 2 ? 'libre' : 'trabajada';
-  }
-  if (esquema === 'MOLINO_15X15') {
-    const position = ((diffWeeks % 4) + 4) % 4;
-    if (position === 2) return 'libre';
-    if (position === 3) return 'no_laborado';
-    return 'trabajada';
-  }
-  return 'trabajada';
-}
-
 // Predict next N weeks of rotation for calendar
 function predictRotationCalendar(
   esquema: string,
@@ -216,15 +187,6 @@ function predictRotationCalendar(
   }
   return results;
 }
-
-const ESQUEMA_LABELS: Record<string, string> = {
-  'FIJO_SEMANAL': 'Fijo Semanal',
-  'MINA_2X1': 'Mina 2×1 (2 labor, 1 libre)',
-  'MOLINO_FIJO': 'Molino Fijo (trabaja siempre)',
-  'MOLINO_ROTATIVO': 'Molino Rotativo (1×1)',
-  'MINA_ROTATIVA_3G': 'Mina Rotativa 3G (1 Noche, 1 Día, 1 Libre)',
-  'MOLINO_15X15': 'Molino 15x15 (2 labor, 1 libre pagada, 1 libre no pagada)',
-};
 
 function getMina3GState(rotacionInicio: string | undefined | null, weekStartStr: string): string | null {
   if (!rotacionInicio) return null;
@@ -285,6 +247,7 @@ function calculateDefaultBaseSal(
 // ── Types ────────────────────────────────────────────────────────────────────
 interface NominaClientProps {
   data: Personal[];
+  masterCatalog: Personal[];
   semanas: NominaSemana[];
   area: 'administracion' | 'mina' | 'planta' | 'seguridad' | 'transporte';
 }
@@ -330,15 +293,19 @@ function getCargoTheme(cargo: string): { bg: string; text: string; border: strin
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
-export default function NominaClient({ data, semanas, area }: NominaClientProps) {
+export default function NominaClient({ data, masterCatalog, semanas, area }: NominaClientProps) {
+  const router = useRouter();
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const biblioteca = useBiblioteca();
+  const esquemaOpciones = biblioteca.esquemasPorArea[area] || ['FIJO_SEMANAL'];
   const [isPending, startTransition] = useTransition();
 
   // State
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'primario' | 'esquema'>('primario');
   const [showModal, setShowModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showProcesarModal, setShowProcesarModal] = useState(false);
   const [showBorrarModal, setShowBorrarModal] = useState(false);
@@ -540,6 +507,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
 
   const IconComponent = ICONS[area];
   const pageTitle = TITLES[area];
+  const assignedIds = useMemo(() => new Set(data.map((p) => p.id)), [data]);
 
   // Filter & Group
   const filteredRows = useMemo(() => {
@@ -551,9 +519,9 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
   const groupedRows = useMemo(() => {
     const groups: Record<string, PreNominaRowState[]> = {};
     filteredRows.forEach(row => {
-      const cargo = row.personal.cargo || 'General';
-      if (!groups[cargo]) groups[cargo] = [];
-      groups[cargo].push(row);
+      const grupo = getGrupoNominaKey(row.personal);
+      if (!groups[grupo]) groups[grupo] = [];
+      groups[grupo].push(row);
     });
     return groups;
   }, [filteredRows]);
@@ -684,7 +652,7 @@ export default function NominaClient({ data, semanas, area }: NominaClientProps)
     startTransition(async () => {
       const res = await upsertPersonalV3Action({
         id: editItem?.id, cedula: form.cedula, nombre_completo: form.nombre_completo,
-        cargo: form.cargo, area, area_detalle: form.area_detalle || form.cargo,
+        cargo: form.cargo, area, area_detalle: form.area_detalle,
         salario_base: Number(form.salario_base) || 0, salario_libre: Number(form.salario_libre) || 0,
         bono_transporte: Number(form.bono_transporte) || 0, telefono: form.telefono, notas: form.notas,
         fecha_ingreso: form.fecha_ingreso, esquema_rotacion: form.esquema_rotacion,
@@ -1025,6 +993,12 @@ ${rows.map((r, i) => {
             )}
           </div>
 
+          <NominaRotacionPanel
+            area={area}
+            weekStart={weekRange.inicio}
+            onSynced={() => router.refresh()}
+          />
+
           {semanas.length > 0 && (
             <div className="nomina-page__historial hidden lg:flex flex-col flex-1 min-h-0 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
               <button onClick={() => setShowHistorial(!showHistorial)} className="w-full flex justify-between px-4 py-3 hover:bg-white/[0.02] transition-colors border-b border-zinc-850 flex-shrink-0">
@@ -1071,8 +1045,8 @@ ${rows.map((r, i) => {
                   {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
                 </button>
               )}
-              <button onClick={() => { resetForm(); setShowModal(true); }} disabled={!canEdit} title="Registrar" className="nomina-page__toolbar-btn bg-amber-600/15 border border-amber-500/30 text-amber-400 font-bold h-9 px-3 rounded-lg flex items-center gap-1.5 disabled:opacity-40 text-xs">
-                <Plus className="w-3.5 h-3.5" /> Registrar
+              <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className="nomina-page__toolbar-btn bg-amber-600 hover:bg-amber-500 text-black font-bold h-9 px-3 rounded-lg flex items-center gap-1.5 disabled:opacity-40 text-xs">
+                <Plus className="w-3.5 h-3.5" /> Trabajador
               </button>
               <button onClick={() => setShowImport(true)} disabled={!canEdit} title="Importar" className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center gap-1.5">
                 <Upload className="w-3.5 h-3.5 text-zinc-400" /> Importar
@@ -1100,7 +1074,19 @@ ${rows.map((r, i) => {
                 <p className="text-sm text-white/50 font-medium">Cargando registros históricos de nómina...</p>
               </div>
             ) : Object.keys(groupedRows).length === 0 ? (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center"><Users className="w-12 h-12 text-white/20 mx-auto mb-3" /><p className="text-sm text-white/40">No hay trabajadores registrados o coincidentes.</p></div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
+                <Users className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                <p className="text-sm text-white/40">No hay trabajadores en esta nómina.</p>
+                {canEdit && !search.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAssignModal(true)}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-black"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Asignar desde la base
+                  </button>
+                )}
+              </div>
             ) : (
               Object.entries(groupedRows).map(([cargoName, rows]) => {
                 const theme = getCargoTheme(cargoName);
@@ -1298,7 +1284,7 @@ ${rows.map((r, i) => {
         isPending={isPending}
         onCerrar={() => setShowProcesarModal(true)}
         onRevertir={() => semanaActual && handleRevertirSemana(semanaActual)}
-        onRegistrar={() => { resetForm(); setShowModal(true); }}
+        onRegistrar={() => setShowAssignModal(true)}
         onMore={() => setMobileMoreOpen(true)}
       />
       <NominaMobileMoreSheet
@@ -1421,7 +1407,7 @@ ${rows.map((r, i) => {
                     <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
                     <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Esquema de Rotación</h4>
                   </div>
-                  <p className="text-xs text-cyan-400 font-semibold">{ESQUEMA_LABELS[drawerRow.personal.esquema_rotacion] || drawerRow.personal.esquema_rotacion}</p>
+                  <p className="text-xs text-cyan-400 font-semibold">{biblioteca.esquemaLabels[drawerRow.personal.esquema_rotacion] || drawerRow.personal.esquema_rotacion}</p>
                   {drawerRow.personal.rotacion_inicio_fecha && <p className="text-[10px] text-white/30">Inicio del ciclo: {fmtDate(drawerRow.personal.rotacion_inicio_fecha)}</p>}
                   
                   {/* Mini Gantt Calendar - next 6 weeks */}
@@ -1460,6 +1446,15 @@ ${rows.map((r, i) => {
         </div>
       )}
 
+      <PersonalQuickAssignModal
+        open={showAssignModal}
+        onClose={() => setShowAssignModal(false)}
+        area={area}
+        masterCatalog={masterCatalog}
+        assignedIds={assignedIds}
+        onAssigned={() => router.refresh()}
+      />
+
       {/* ── MODAL: Worker Form ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowModal(false)}>
@@ -1479,6 +1474,16 @@ ${rows.map((r, i) => {
                     <div className="space-y-1"><label className="input-label">Cédula</label><input type="text" placeholder="9933498" value={form.cedula} onChange={e => setForm({...form, cedula: e.target.value})} className="input-field" /></div>
                     <div className="space-y-1"><label className="input-label">Cargo</label><input type="text" placeholder="Vertical 1PD" value={form.cargo} onChange={e => setForm({...form, cargo: e.target.value})} className="input-field" /></div>
                   </div>
+                  <div className="space-y-1">
+                    <label className="input-label">Asignación (Vertical / Sector)</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Vertical 2"
+                      value={form.area_detalle}
+                      onChange={e => setForm({ ...form, area_detalle: e.target.value })}
+                      className="input-field"
+                    />
+                  </div>
                   <div className="space-y-1"><label className="input-label">Salario Labor Semanal ($)</label><input type="number" placeholder="150.00" value={form.salario_base} onChange={e => setForm({...form, salario_base: e.target.value})} className="input-field" /></div>
                 </>
               ) : (
@@ -1493,13 +1498,12 @@ ${rows.map((r, i) => {
                   </div>
                   <div className="pt-3 border-t border-zinc-800 space-y-3">
                     <div className="flex items-center gap-2"><RotateCcw className="w-3.5 h-3.5 text-cyan-400" /><label className="input-label !mb-0">Esquema de Rotación</label></div>
-                    <select value={form.esquema_rotacion} onChange={e => setForm({...form, esquema_rotacion: e.target.value})} className="input-field">
-                      <option value="FIJO_SEMANAL">Fijo Semanal</option>
-                      <option value="MINA_2X1">Mina 2×1</option>
-                      <option value="MOLINO_FIJO">Molino Fijo</option>
-                      <option value="MOLINO_ROTATIVO">Molino Rotativo</option>
-                      <option value="MINA_ROTATIVA_3G">Mina Rotativa 3G (1 Noche, 1 Día, 1 Libre)</option>
-                      <option value="MOLINO_15X15">Molino 15x15 (2 labor, 1 libre pagada, 1 libre no pagada)</option>
+                    <select value={form.esquema_rotacion} onChange={e => setForm({...form, esquema_rotacion: e.target.value as Personal['esquema_rotacion']})} className="input-field">
+                      {esquemaOpciones.map((code) => (
+                        <option key={code} value={code}>
+                          {biblioteca.esquemaLabels[code] || code}
+                        </option>
+                      ))}
                     </select>
                     {(form.esquema_rotacion === 'MINA_2X1' || form.esquema_rotacion === 'MOLINO_ROTATIVO' || form.esquema_rotacion === 'MINA_ROTATIVA_3G' || form.esquema_rotacion === 'MOLINO_15X15') && (
                       <div className="space-y-1"><label className="input-label">Fecha Inicio Ciclo</label><input type="date" value={form.rotacion_inicio_fecha} onChange={e => setForm({...form, rotacion_inicio_fecha: e.target.value})} className="input-field" /><p className="text-[10px] text-white/30">Primera semana laboral del trabajador.</p></div>

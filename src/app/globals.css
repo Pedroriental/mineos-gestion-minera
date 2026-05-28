@@ -4483,6 +4483,10 @@ input, textarea, select {
   align-self: start;
 }
 
+.dashboard-command-header--no-alerts .dashboard-command-header__brand {
+  grid-column: 1 / -1;
+}
+
 .dashboard-command-header__status {
   grid-column: 3 / span 2;
   grid-row: 1;
@@ -4515,6 +4519,11 @@ input, textarea, select {
 
   .dashboard-command-header__brand {
     grid-column: 1 / span 2;
+  }
+
+  .dashboard-command-header--no-alerts .dashboard-command-header__brand {
+    grid-column: 1 / span 2;
+    grid-row: 1;
   }
 
   .dashboard-command-header__status {

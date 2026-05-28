@@ -1,5 +1,6 @@
 import dynamic from 'next/dynamic';
 import { createServerClient } from '@/lib/supabase-server';
+import { buildDashboardAlerts } from '@/lib/dashboard-alerts';
 import { computePlanchaBalances, resolvePlanchaLines } from '@/lib/dashboard-planchas';
 import { DashboardCommandSkeleton } from '@/components/dashboard/DashboardCommandSkeleton';
 import type { LocationData, GlobalData } from '@/components/dashboard/types';
@@ -93,6 +94,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       prodRes,
       volRes,
       inventarioRes,
+      nominaSemanasRes,
+      personalAreasRes,
+      valesPendientesRes,
       personalRes,
       planchaLines,
     ] = await Promise.all([
@@ -107,10 +111,22 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         .order('fecha', { ascending: false }),
       supabase
         .from('reportes_voladuras')
-        .select('id, mina')
+        .select('id, mina, fecha, sin_novedad')
+        .gte('fecha', from)
+        .lte('fecha', to)
+        .eq('sin_novedad', false)
         .order('fecha', { ascending: false })
-        .limit(1),
-      supabase.from('inventario_items').select('stock_actual, stock_minimo').eq('activo', true),
+        .limit(10),
+      supabase
+        .from('inventario_items')
+        .select('id, nombre, stock_actual, stock_minimo')
+        .eq('activo', true),
+      supabase.from('nomina_semanas').select('area, semana_inicio'),
+      supabase.from('personal').select('area').eq('activo', true).in('area', ['planta', 'mina', 'administracion']),
+      supabase
+        .from('nomina_vales')
+        .select('id, monto, personal:personal_id(area)')
+        .eq('estado', 'PENDIENTE'),
       supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).in('area', ['planta', 'mina']),
       resolvePlanchaLines(supabase),
     ]);
@@ -124,20 +140,29 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       material?: string | null;
       material_codigo?: string | null;
     }[];
-    const reportesVol = (volRes?.data ?? []) as { id: string; mina?: string | null }[];
-
+    const inventarioRows = inventarioRes.data ?? [];
     const totalGrams = reportesProd.reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
     const todayExpenses = (gastosHoyRes.data ?? []).reduce((s, g) => s + Number(g.monto), 0);
     const monthlyExpenses = (gastosPeriodoRes.data ?? []).reduce((s, g) => s + Number(g.monto), 0);
-    const criticalInventory = (inventarioRes.data ?? []).filter(
-      (i) => Number(i.stock_actual) <= Number(i.stock_minimo),
+    const criticalInventory = inventarioRows.filter(
+      (i) => Number(i.stock_minimo) > 0 && Number(i.stock_actual) <= Number(i.stock_minimo),
     ).length;
     const activePersonnel = personalRes.count ?? 0;
 
-    const notifications = reportesVol.map((v) => ({
-      id: v.id,
-      title: `Voladura: Mina ${v.mina ?? 'Desconocida'}`,
-    }));
+    const personalCountByArea: Record<string, number> = {};
+    for (const p of personalAreasRes.data ?? []) {
+      const area = String(p.area ?? '');
+      if (!area) continue;
+      personalCountByArea[area] = (personalCountByArea[area] ?? 0) + 1;
+    }
+
+    const notifications = buildDashboardAlerts({
+      inventario: inventarioRows,
+      voladuras: volRes?.data ?? [],
+      nominaSemanas: nominaSemanasRes.data ?? [],
+      personalCountByArea,
+      valesPendientes: valesPendientesRes.data ?? [],
+    });
 
     const balancesPlanchas = computePlanchaBalances(reportesProd, planchaLines);
 

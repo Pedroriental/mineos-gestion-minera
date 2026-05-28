@@ -27,31 +27,20 @@ import {
   digitsOnlyCodigo,
   needsCodigoReset,
 } from './codigo';
-import { DESTINO_OPTIONS, destinoLabel, needsUbicacionReset, normalizeDestino } from './destino';
-
-const CAT_LABELS: Record<string, string> = {
-  explosivos: 'Explosivos',
-  combustible: 'Combustible',
-  herramientas: 'Herramientas',
-  epp: 'EPP',
-  quimicos: 'Químicos',
-  repuestos: 'Repuestos',
-  otros: 'Otros',
-};
+import { useBibliotecaLabelsMap, useBibliotecaOptions } from '@/contexts/biblioteca-context';
+import {
+  buildDestinoLabelsFromOptions,
+  destinoLabel,
+  getValidDestinos,
+  needsUbicacionReset,
+  normalizeDestino,
+} from './destino';
 
 const INVENTARIO_PAGE_MAX = 50;
 const INVENTARIO_PAGE_BUTTONS_MAX = 5;
 const INVENTARIO_ROW_MIN_PX = 44;
 const INVENTARIO_HEAD_FALLBACK_PX = 40;
 const INVENTARIO_MOBILE_CARD_MIN_PX = 132;
-
-const CATEGORIA_OPTIONS = Object.entries(CAT_LABELS).map(([value, label]) => ({ value, label }));
-
-const MOV_TIPO_OPTIONS = [
-  { value: 'entrada', label: '⬆ Entrada' },
-  { value: 'salida', label: '⬇ Salida' },
-  { value: 'ajuste', label: '↔ Ajuste' },
-];
 
 const EMPTY_MOV_FORM = {
   item_id: '',
@@ -80,6 +69,19 @@ const EMPTY_ITEM_FORM = {
 export default function InventarioClient() {
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const categoriaOptions = useBibliotecaOptions('inventario_categoria');
+  const movimientoOptions = useBibliotecaOptions('inventario_movimiento');
+  const destinoSelectOptions = useBibliotecaOptions('inventario_destino');
+  const catLabelsMap = useBibliotecaLabelsMap('inventario_categoria');
+  const destinoLabels = useMemo(
+    () => buildDestinoLabelsFromOptions(destinoSelectOptions),
+    [destinoSelectOptions],
+  );
+  const validDestinos = useMemo(() => getValidDestinos(destinoLabels), [destinoLabels]);
+  const labelDestino = useCallback(
+    (value?: string | null) => destinoLabel(value, destinoLabels),
+    [destinoLabels],
+  );
   const [items, setItems] = useState<InventarioItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -97,7 +99,9 @@ export default function InventarioClient() {
     const { data } = await supabase.from('inventario_items').select('*').eq('activo', true).order('nombre');
     let list = data || [];
 
-    const staleUbicacionIds = list.filter((i) => needsUbicacionReset(i.ubicacion)).map((i) => i.id);
+    const staleUbicacionIds = list
+      .filter((i) => needsUbicacionReset(i.ubicacion, validDestinos))
+      .map((i) => i.id);
     const staleCodigoIds = list.filter((i) => needsCodigoReset(i.codigo)).map((i) => i.id);
     const staleIds = [...new Set([...staleUbicacionIds, ...staleCodigoIds])];
     if (staleIds.length > 0) {
@@ -196,7 +200,7 @@ export default function InventarioClient() {
         costo_unitario:
           item.costo_unitario_promedio > 0 ? String(item.costo_unitario_promedio) : '',
         referencia: '',
-        destino_area: normalizeDestino(item.ubicacion),
+        destino_area: normalizeDestino(item.ubicacion, validDestinos),
         observaciones: '',
       });
     },
@@ -242,7 +246,7 @@ export default function InventarioClient() {
       stock_minimo: String(item.stock_minimo),
       stock_actual: String(item.stock_actual),
       costo_unitario_promedio: String(item.costo_unitario_promedio),
-      destino: normalizeDestino(item.ubicacion),
+      destino: normalizeDestino(item.ubicacion, validDestinos),
     });
     setShowItemModal(true);
   };
@@ -259,8 +263,8 @@ export default function InventarioClient() {
         onEdit: openEditItem,
         onDelete: handleDeleteItem,
         canEdit,
-        catLabels: CAT_LABELS,
-        destinoLabel,
+        catLabels: catLabelsMap,
+        destinoLabel: labelDestino,
       }),
     [canEdit, handleDeleteItem],
   );
@@ -271,7 +275,7 @@ export default function InventarioClient() {
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: inventarioGlobalFilter(CAT_LABELS, destinoLabel),
+    globalFilterFn: inventarioGlobalFilter(catLabelsMap, labelDestino),
     state: { globalFilter, pagination },
     onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
@@ -422,7 +426,7 @@ export default function InventarioClient() {
                               {item.nombre}
                             </h3>
                             <p className="mt-1 text-sm text-[var(--gastos-subtle)]">
-                              {CAT_LABELS[item.categoria] || '—'}
+                              {catLabelsMap[item.categoria] || '—'}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">
@@ -460,10 +464,10 @@ export default function InventarioClient() {
                             <span className="mb-0.5 block text-[var(--gastos-label)]">Ubicación</span>
                             <span
                               className={`gastos-cat-pill inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                normalizeDestino(item.ubicacion) ? '' : 'opacity-80'
+                                normalizeDestino(item.ubicacion, validDestinos) ? '' : 'opacity-80'
                               }`}
                             >
-                              {destinoLabel(item.ubicacion)}
+                              {labelDestino(item.ubicacion)}
                             </span>
                           </div>
                         </div>
@@ -672,7 +676,7 @@ export default function InventarioClient() {
                   onChange={(v) =>
                     setItemForm({ ...itemForm, categoria: v as InventarioItem['categoria'] })
                   }
-                  options={CATEGORIA_OPTIONS}
+                  options={categoriaOptions}
                 />
               </div>
               <div className="md:col-span-2">
@@ -732,7 +736,7 @@ export default function InventarioClient() {
                 <AppSelect
                   value={itemForm.destino}
                   onChange={(v) => setItemForm({ ...itemForm, destino: v })}
-                  options={DESTINO_OPTIONS}
+                  options={destinoSelectOptions}
                 />
               </div>
             </div>
@@ -822,7 +826,7 @@ export default function InventarioClient() {
               </span>
               <span className="text-[var(--gastos-border)]">|</span>
               <span className="gastos-cat-pill rounded px-1 py-px font-semibold">
-                {destinoLabel(selectedMovItem.ubicacion)}
+                {labelDestino(selectedMovItem.ubicacion)}
               </span>
             </div>
           )}
@@ -839,7 +843,7 @@ export default function InventarioClient() {
                   cantidad: '',
                 })
               }
-              options={MOV_TIPO_OPTIONS}
+              options={movimientoOptions}
             />
           </div>
           <div>

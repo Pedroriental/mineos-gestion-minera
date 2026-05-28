@@ -527,7 +527,7 @@ export function NominaMobileActionBar({
           className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-500/30 bg-amber-500/10 py-2.5 text-amber-400 disabled:opacity-40"
         >
           <Plus className="h-5 w-5" />
-          <span className="text-[9px] font-bold uppercase tracking-wide">Alta</span>
+          <span className="text-[9px] font-bold uppercase tracking-wide">Asignar</span>
         </button>
         <button
           type="button"

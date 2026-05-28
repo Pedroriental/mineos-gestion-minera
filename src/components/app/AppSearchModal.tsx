@@ -6,7 +6,6 @@ import {
   ChevronRight,
   LayoutGrid,
   BookOpen,
-  ShieldCheck,
   Wrench,
   Zap,
   Receipt,
@@ -16,15 +15,19 @@ import {
   Flame,
   FlaskConical,
   BarChart2,
-  ClipboardList,
-  TestTube2,
-  Calculator,
+  CircleDollarSign,
+  Database,
+  Library,
 } from 'lucide-react';
 
 const ALL_ROUTES = [
   { label: 'Dashboard', href: '/dashboard', section: 'Principal', icon: LayoutGrid },
+  { label: 'Reporte y Balances', href: '/reportes-balances', section: 'Principal', icon: CircleDollarSign },
+  { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', section: 'Administración', icon: BookOpen },
+  { label: 'Base de Trabajadores', href: '/admin/trabajadores', section: 'Administración', icon: Users },
   { label: 'Nómina Molino', href: '/planta/nomina', section: 'Administración', icon: Users },
   { label: 'Nómina Mina', href: '/mina/nomina', section: 'Administración', icon: Users },
+  { label: 'Nómina Administración', href: '/admin/nomina', section: 'Administración', icon: Users },
   { label: 'Gastos', href: '/admin/gastos', section: 'Administración', icon: Receipt },
   { label: 'Inventario', href: '/admin/inventario', section: 'Administración', icon: Package },
   { label: 'Compras', href: '/admin/compras', section: 'Administración', icon: ShoppingCart },
@@ -32,15 +35,16 @@ const ALL_ROUTES = [
   { label: 'Extracción', href: '/mina/extraccion', section: 'Mina', icon: Wrench },
   { label: 'Quemado de Planchas', href: '/mina/quemado', section: 'Molino', icon: Flame },
   { label: 'Equipos', href: '/mina/equipos', section: 'Mina', icon: Wrench },
-  { label: 'Seguridad', href: '/mina/seguridad', section: 'Mina', icon: ShieldCheck },
   { label: 'Producción', href: '/planta/produccion', section: 'Molino', icon: BarChart2 },
   { label: 'Recepción', href: '/planta/recepcion', section: 'Molino', icon: Package },
-  { label: 'Procesamiento', href: '/planta/procesamiento', section: 'Molino', icon: FlaskConical },
   { label: 'Arenas', href: '/planta/arenas', section: 'Molino', icon: FlaskConical },
-  { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', section: 'Operaciones', icon: BookOpen },
-  { label: 'Libro de Guardia', href: '/operaciones/guardia', section: 'Operaciones', icon: ClipboardList },
-  { label: 'Control de Leyes', href: '/operaciones/leyes', section: 'Operaciones', icon: TestTube2 },
-  { label: 'Costo por Gramo', href: '/operaciones/costos', section: 'Operaciones', icon: Calculator },
+  { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales', section: 'Administración', icon: Database },
+  {
+    label: 'Biblioteca de Variables',
+    href: '/plataforma/biblioteca-variables',
+    section: 'Administración',
+    icon: Library,
+  },
 ] as const;
 
 export function AppSearchModal({

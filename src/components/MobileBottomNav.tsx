@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutGrid, Factory, Pickaxe, BookOpen, MoreHorizontal } from 'lucide-react';
+import { LayoutGrid, Factory, Pickaxe, CircleDollarSign, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Only the 4 most critical routes stay in the bottom bar.
@@ -33,10 +33,10 @@ const TABS: Tab[] = [
     matchPrefix: '/mina',
   },
   {
-    label: 'Ops',
-    icon: <BookOpen className="w-5 h-5" />,
-    href: '/operaciones/resumen',
-    matchPrefix: '/operaciones',
+    label: 'Reportes',
+    icon: <CircleDollarSign className="w-5 h-5" />,
+    href: '/reportes-balances',
+    matchPrefix: '/reportes-balances',
   },
 ];
 

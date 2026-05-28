@@ -175,7 +175,7 @@ export default function RecepcionPage() {
                 <AppSelect
                   value={form.turno}
                   onChange={(v) => setForm({ ...form, turno: v as 'dia' | 'noche' | 'completo' })}
-                  options={TURNO_OPTIONS}
+                  options={turnoOptions}
                 />
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Origen *</label><input value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })} className="input-field" placeholder="Zona mina, terceros..." /></div>

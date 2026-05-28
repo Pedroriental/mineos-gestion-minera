@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { QuemadoSchema, QuemadoUpdateSchema } from '@/lib/validations/quemado';
+import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { z } from 'zod';
 
 export type ActionResult =
@@ -29,6 +30,13 @@ export async function createQuemado(raw: unknown): Promise<ActionResult> {
   }
 
   const data = parsed.data;
+
+  try {
+    await assertBibliotecaValue('turnos', data.turno, 'Turno');
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : 'Turno no válido.' };
+  }
+
   const supabase = await createServerClient();
 
   const { error } = await supabase.from('reportes_quemado').insert({

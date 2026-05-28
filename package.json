@@ -9,7 +9,10 @@
     "start": "next start",
     "lint": "eslint",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "supabase:link": "supabase link --project-ref abhfedunawgzfnzeazgb",
+    "supabase:check": "supabase db query --linked \"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'biblioteca_categorias') AS biblioteca, EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fiscal_entidades') AS fiscal;\"",
+    "supabase:migrate:plataforma": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-plataforma.ps1"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

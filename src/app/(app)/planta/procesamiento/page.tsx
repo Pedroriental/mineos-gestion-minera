@@ -7,28 +7,17 @@ import { Plus, X, Loader2, Edit2 } from 'lucide-react';
 import type { ProcesamientoPlanta } from '@/lib/types';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
 const PESO_SACO_KG = 50;
 
-const PROCESO_OPTIONS = [
-  { value: 'molienda', label: 'Molienda' },
-  { value: 'concentracion', label: 'Concentración' },
-  { value: 'amalgamacion', label: 'Amalgamación' },
-  { value: 'cianuracion', label: 'Cianuración' },
-  { value: 'flotacion', label: 'Flotación' },
-  { value: 'otro', label: 'Otro' },
-];
-const ESTADO_OPTIONS = [
-  { value: 'en_proceso', label: 'En Proceso' },
-  { value: 'completado', label: 'Completado' },
-  { value: 'enviado_a_quemada', label: 'Enviado a Quemada' },
-];
-
 export default function ProcesamientoPage() {
   const { user } = useAuth();
+  const procesoOptions = useBibliotecaOptions('procesamiento_tipo');
+  const estadoOptions = useBibliotecaOptions('procesamiento_estado');
   const [data, setData] = useState<ProcesamientoPlanta[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -177,7 +166,7 @@ export default function ProcesamientoPage() {
                 <AppSelect
                   value={form.proceso}
                   onChange={(v) => setForm({ ...form, proceso: v as ProcesamientoPlanta['proceso'] })}
-                  options={PROCESO_OPTIONS}
+                  options={procesoOptions}
                 />
               </div>
               <div>
@@ -198,7 +187,7 @@ export default function ProcesamientoPage() {
                 <AppSelect
                   value={form.estado}
                   onChange={(v) => setForm({ ...form, estado: v as ProcesamientoPlanta['estado'] })}
-                  options={ESTADO_OPTIONS}
+                  options={estadoOptions}
                 />
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Químicos (opcional)</label><input value={form.quimicos_utilizados} onChange={e => setForm({ ...form, quimicos_utilizados: e.target.value })} className="input-field" placeholder="Agua oxigenada, cianuro..." /></div>

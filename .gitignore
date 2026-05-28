@@ -48,3 +48,6 @@ next-env.d.ts
 # Staging de logos (solo README en repo)
 /brand-inbox/*
 !/brand-inbox/README.md
+
+# Supabase CLI (estado local del enlace)
+supabase/.temp/

@@ -14,6 +14,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { VoladuraSchema, VoladuraUpdateSchema } from '@/lib/validations/voladuras';
+import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { z } from 'zod';
 
 // ── Tipo de respuesta estándar (igual al módulo de Gastos) ────
@@ -38,6 +39,7 @@ function revalidateAll() {
 export async function createVoladura(raw: unknown): Promise<ActionResult> {
   // 1) Validar con Zod (coerciona strings a numbers)
   const parsed = VoladuraSchema.safeParse(raw);
+  // biblioteca turnos validated below after parse
 
   if (!parsed.success) {
     const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
@@ -46,6 +48,18 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
   }
 
   const data = parsed.data;
+
+  try {
+    await assertBibliotecaValue('turnos', data.turno, 'Turno');
+    if (data.vertical_disparo) {
+      await assertBibliotecaValue('verticales_voladura', data.vertical_disparo, 'Vertical');
+    }
+    if (data.mina) {
+      await assertBibliotecaValue('minas', data.mina, 'Mina');
+    }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : 'Valor no permitido en biblioteca.' };
+  }
 
   // 2) Insertar en Supabase
   const supabase = await createServerClient();

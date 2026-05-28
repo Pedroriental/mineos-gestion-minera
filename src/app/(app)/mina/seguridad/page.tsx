@@ -8,40 +8,19 @@ import { Plus, X, Loader2, Edit2, Shield } from 'lucide-react';
 import type { MejoraSeguridad } from '@/lib/types';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import EmptyState from '@/components/EmptyState';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
-const TIPO_OPTIONS = [
-  { value: 'mejora_infraestructura', label: 'Infraestructura' },
-  { value: 'mejora_proceso', label: 'Proceso' },
-  { value: 'incidente', label: 'Incidente' },
-  { value: 'inspeccion', label: 'Inspección' },
-  { value: 'capacitacion', label: 'Capacitación' },
-];
-const AREA_OPTIONS = [
-  { value: 'mina', label: 'Mina' },
-  { value: 'planta', label: 'Planta' },
-  { value: 'general', label: 'General' },
-];
-const PRIORIDAD_OPTIONS = [
-  { value: 'baja', label: 'Baja' },
-  { value: 'normal', label: 'Normal' },
-  { value: 'alta', label: 'Alta' },
-  { value: 'critica', label: 'Crítica' },
-];
-const ESTADO_OPTIONS = [
-  { value: 'reportado', label: 'Reportado' },
-  { value: 'en_proceso', label: 'En Proceso' },
-  { value: 'completado', label: 'Completado' },
-  { value: 'descartado', label: 'Descartado' },
-];
-
-
 export default function SeguridadPage() {
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const tipoOptions = useBibliotecaOptions('seguridad_tipo');
+  const areaOptions = useBibliotecaOptions('areas_operativas');
+  const prioridadOptions = useBibliotecaOptions('seguridad_prioridad');
+  const estadoOptions = useBibliotecaOptions('seguridad_estado');
   const [data, setData] = useState<MejoraSeguridad[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -201,7 +180,7 @@ export default function SeguridadPage() {
                 <AppSelect
                   value={form.tipo}
                   onChange={(v) => setForm({ ...form, tipo: v as MejoraSeguridad['tipo'] })}
-                  options={TIPO_OPTIONS}
+                  options={tipoOptions}
                 />
               </div>
               <div className="col-span-1 md:col-span-2"><label className="input-label">Título *</label><input value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} className="input-field" placeholder="Ej: Nueva señalización en Galería Norte" /></div>
@@ -211,7 +190,7 @@ export default function SeguridadPage() {
                 <AppSelect
                   value={form.area}
                   onChange={(v) => setForm({ ...form, area: v as MejoraSeguridad['area'] })}
-                  options={AREA_OPTIONS}
+                  options={areaOptions}
                 />
               </div>
               <div>
@@ -219,7 +198,7 @@ export default function SeguridadPage() {
                 <AppSelect
                   value={form.prioridad}
                   onChange={(v) => setForm({ ...form, prioridad: v as MejoraSeguridad['prioridad'] })}
-                  options={PRIORIDAD_OPTIONS}
+                  options={prioridadOptions}
                 />
               </div>
               <div>
@@ -227,7 +206,7 @@ export default function SeguridadPage() {
                 <AppSelect
                   value={form.estado}
                   onChange={(v) => setForm({ ...form, estado: v as MejoraSeguridad['estado'] })}
-                  options={ESTADO_OPTIONS}
+                  options={estadoOptions}
                 />
               </div>
               <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => setForm({ ...form, responsable: e.target.value })} className="input-field" /></div>

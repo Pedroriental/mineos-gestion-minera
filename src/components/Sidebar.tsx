@@ -10,20 +10,15 @@ import {
   Receipt,
   Package,
   ShoppingCart,
-  Pickaxe,
   Zap,
   Wrench,
-  ShieldCheck,
   HardHat,
-  Factory,
   FlaskConical,
   Flame,
   Layers,
   BookOpen,
-  ClipboardList,
-  TestTube2,
-  Calculator,
   ChevronDown,
+  Database,
   LogOut,
   X,
 } from 'lucide-react';
@@ -49,14 +44,26 @@ const navigation: NavSection[] = [
     id: 'admin',
     title: 'Administración',
     items: [
+      { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', icon: <BookOpen className="w-4 h-4" /> },
       { label: 'Gastos',     href: '/admin/gastos',     icon: <Receipt className="w-4 h-4" /> },
       { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
       { label: 'Compras',    href: '/admin/compras',    icon: <ShoppingCart className="w-4 h-4" /> },
       {
         label: 'Nómina de Personal', href: '#', icon: <Users className="w-4 h-4" />,
         subItems: [
+          { label: 'Base de Trabajadores', href: '/admin/trabajadores' },
           { label: 'Nómina Mina',    href: '/mina/nomina' },
           { label: 'Nómina Molinos', href: '/planta/nomina' },
+          { label: 'Nómina Administración', href: '/admin/nomina' },
+        ],
+      },
+      {
+        label: 'Datos de Plataforma',
+        href: '#',
+        icon: <Database className="w-4 h-4" />,
+        subItems: [
+          { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales' },
+          { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables' },
         ],
       },
     ],
@@ -68,7 +75,6 @@ const navigation: NavSection[] = [
       { label: 'Voladuras',  href: '/mina/voladuras',  icon: <Zap className="w-4 h-4" /> },
       { label: 'Extracción', href: '/mina/extraccion', icon: <HardHat className="w-4 h-4" /> },
       { label: 'Equipos',    href: '/mina/equipos',    icon: <Wrench className="w-4 h-4" /> },
-      { label: 'Seguridad',  href: '/mina/seguridad',  icon: <ShieldCheck className="w-4 h-4" /> },
     ],
   },
   {
@@ -77,19 +83,8 @@ const navigation: NavSection[] = [
     items: [
       { label: 'Producción',    href: '/planta/produccion',    icon: <FlaskConical className="w-4 h-4" /> },
       { label: 'Recepción',     href: '/planta/recepcion',     icon: <Layers className="w-4 h-4" /> },
-      { label: 'Procesamiento', href: '/planta/procesamiento', icon: <Factory className="w-4 h-4" /> },
       { label: 'Arenas',        href: '/planta/arenas',        icon: <Package className="w-4 h-4" /> },
       { label: 'Quemado',       href: '/mina/quemado',         icon: <Flame className="w-4 h-4" /> },
-    ],
-  },
-  {
-    id: 'ops',
-    title: 'Operaciones',
-    items: [
-      { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', icon: <BookOpen className="w-4 h-4" /> },
-      { label: 'Libro de Guardia',  href: '/operaciones/guardia', icon: <ClipboardList className="w-4 h-4" /> },
-      { label: 'Control de Leyes',  href: '/operaciones/leyes',   icon: <TestTube2 className="w-4 h-4" /> },
-      { label: 'Costo por Gramo',   href: '/operaciones/costos',  icon: <Calculator className="w-4 h-4" /> },
     ],
   },
 ];
@@ -193,13 +188,13 @@ function NavItemWithSubmenu({
         />
       </button>
       <div
-        className="overflow-hidden transition-all duration-200 ease-in-out"
-        style={{
-          maxHeight: open ? `${subItems.length * (compact ? 36 : 44)}px` : '0px',
-          opacity: open ? 1 : 0,
-        }}
+        className={cn(
+          'grid transition-[grid-template-rows,opacity] duration-200 ease-in-out',
+          open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
       >
-        <div className="mt-0.5 space-y-0">
+        <div className="overflow-hidden">
+        <div className="mt-0.5 space-y-0 pb-0.5">
           {subItems.map((sub) => {
             const subActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
             return (
@@ -219,6 +214,7 @@ function NavItemWithSubmenu({
               </button>
             );
           })}
+        </div>
         </div>
       </div>
     </div>
@@ -436,6 +432,26 @@ export default function Sidebar({
             )}
           />
           <span className="text-[13px]">Dashboard</span>
+        </button>
+        <button
+          onClick={() => handleNav('/reportes-balances')}
+          className={cn(
+            'mt-1 flex w-full items-center gap-3 px-3 text-sm transition-all duration-150 text-left',
+            compact ? 'py-2' : 'py-2.5',
+            pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')
+              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520] font-medium rounded-r-xl rounded-l-none'
+              : cn(tone.dashboardNavIdle, 'transition-colors rounded-xl'),
+          )}
+        >
+          <CircleDollarSign
+            className={cn(
+              'w-4 h-4 flex-shrink-0',
+              pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')
+                ? 'text-amber-500'
+                : tone.dashboardNavIcon,
+            )}
+          />
+          <span className="text-[13px]">Reporte y Balances</span>
         </button>
       </div>
 

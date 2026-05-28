@@ -1,17 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, AlertTriangle, CheckCircle2, ChevronRight, Gem, Users, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, ChevronRight, Gem, Users, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { GlobalData } from './types';
-
-type AlertItem = { id: string; title: string };
+import type { DashboardAlert, GlobalData } from './types';
 
 type DashboardCommandHeaderProps = {
   globalData: GlobalData;
   activeNodes: number;
   totalNodes: number;
-  alerts: AlertItem[];
+  alerts: DashboardAlert[];
 };
 
 export function DashboardCommandHeader({
@@ -22,8 +20,15 @@ export function DashboardCommandHeader({
 }: DashboardCommandHeaderProps) {
   const hasAlerts = alerts.length > 0;
 
+  const primaryHref = alerts[0]?.href ?? '/dashboard';
+
   return (
-    <header className="dashboard-command-header">
+    <header
+      className={cn(
+        'dashboard-command-header',
+        !hasAlerts && 'dashboard-command-header--no-alerts',
+      )}
+    >
       <div className="dashboard-command-header__brand">
         <p className="dashboard-command-header__eyebrow">Complejo operativo La Fe</p>
         <h1 className="dashboard-command-header__title">Command Center</h1>
@@ -32,35 +37,27 @@ export function DashboardCommandHeader({
         </p>
       </div>
 
-      <div
-        className={cn(
-          'dashboard-command-header__status',
-          hasAlerts
-            ? 'dashboard-command-header__status--critical'
-            : 'dashboard-command-header__status--nominal',
-        )}
-        aria-live="polite"
-      >
-        <span className="dashboard-command-header__status-icon" aria-hidden>
-          {hasAlerts ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-        </span>
-        <div className="dashboard-command-header__status-copy">
-          <p className="dashboard-command-header__status-label">
-            {hasAlerts ? 'Atención requerida' : 'Operación nominal'}
-          </p>
-          <p className="dashboard-command-header__status-text">
-            {hasAlerts
-              ? alerts.map((a) => a.title).join(' · ')
-              : 'Sin alertas críticas activas en el complejo'}
-          </p>
-        </div>
-        {hasAlerts ? (
-          <Link href="/mina/voladuras" className="dashboard-command-header__status-cta">
+      {hasAlerts ? (
+        <div
+          className="dashboard-command-header__status dashboard-command-header__status--critical"
+          aria-live="polite"
+          role="alert"
+        >
+          <span className="dashboard-command-header__status-icon" aria-hidden>
+            <AlertTriangle className="h-4 w-4" />
+          </span>
+          <div className="dashboard-command-header__status-copy">
+            <p className="dashboard-command-header__status-label">Atención requerida</p>
+            <p className="dashboard-command-header__status-text">
+              {alerts.map((a) => a.title).join(' · ')}
+            </p>
+          </div>
+          <Link href={primaryHref} className="dashboard-command-header__status-cta">
             Ver detalle
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div className="dashboard-command-stat dashboard-command-stat--hero" role="listitem">
         <span className="dashboard-command-stat__icon" aria-hidden>

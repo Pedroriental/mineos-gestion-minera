@@ -16,6 +16,10 @@ export type PlanchaBalance = {
   grams: number;
 };
 
+import type { DashboardAlert } from '@/lib/dashboard-alerts';
+
+export type { DashboardAlert };
+
 export interface GlobalData {
   totalGrams: number;
   eqTotal: number;
@@ -23,6 +27,6 @@ export interface GlobalData {
   monthlyExpenses: number;
   criticalInventory: number;
   activePersonnel: number;
-  notifications: { id: string; title: string }[];
+  notifications: DashboardAlert[];
   balancesPlanchas: PlanchaBalance[];
 }

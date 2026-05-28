@@ -1,10 +1,13 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  CircleDollarSign,
   Beaker,
   BookOpen,
   Calculator,
   ClipboardList,
+  Database,
   Flame,
+  Library,
   FlaskConical,
   Factory,
   HardHat,
@@ -39,11 +42,24 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     iconClassName: 'text-[var(--dashboard-accent)]',
     titleClassName: 'text-[var(--dashboard-accent)]',
   },
+  '/reportes-balances': {
+    title: 'Reporte y Balances',
+    description: 'Vista macro y micro para cotejar indicadores operativos.',
+    Icon: CircleDollarSign,
+    iconClassName: 'text-[var(--dashboard-accent)]',
+    titleClassName: 'text-[var(--dashboard-accent)]',
+  },
   '/admin/gastos': {
     title: 'Gastos Operativos',
     description: 'Control de egresos y costos operacionales.',
     Icon: TrendingDown,
     iconClassName: 'text-red-400',
+  },
+  '/admin/trabajadores': {
+    title: 'Base de Trabajadores',
+    description: 'Registro maestro de personal para automatizar asignaciones de nómina.',
+    Icon: Users,
+    iconClassName: 'text-amber-400',
   },
   '/admin/inventario': {
     title: 'Inventario',
@@ -158,6 +174,24 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     description: 'Costos, precio del oro y rentabilidad.',
     Icon: Calculator,
     iconClassName: 'text-emerald-400',
+  },
+  '/plataforma/datos-fiscales': {
+    title: 'Datos Fiscales',
+    description: 'Parámetros fiscales y tributarios de la operación.',
+    Icon: Database,
+    iconClassName: 'text-violet-400',
+  },
+  '/plataforma/biblioteca-variables': {
+    title: 'Biblioteca de Variables',
+    description: 'Catálogo central de parámetros reutilizables para toda la plataforma.',
+    Icon: Library,
+    iconClassName: 'text-violet-400',
+  },
+  '/plataforma/diccionario-variables': {
+    title: 'Biblioteca de Variables',
+    description: 'Catálogo central de parámetros reutilizables para toda la plataforma.',
+    Icon: Library,
+    iconClassName: 'text-violet-400',
   },
 };
 

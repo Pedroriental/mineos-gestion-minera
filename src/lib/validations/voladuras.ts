@@ -21,9 +21,7 @@ export const VoladuraSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)')
     .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida'),
 
-  turno: z.enum(['dia', 'noche', 'completo'], {
-    errorMap: () => ({ message: 'Turno inválido' }),
-  }),
+  turno: z.string().min(1, 'Turno requerido'),
 
   mina: z
     .string()

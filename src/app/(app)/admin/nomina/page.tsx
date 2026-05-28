@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase-server';
 import NominaClient from '@/components/nomina/NominaClient';
+import { isPersonalVisibleInNomina } from '@/lib/personal-master';
 import type { Personal, NominaSemana } from '@/lib/types';
 
 export const metadata = {
@@ -11,11 +12,17 @@ export default async function AdminNominaPage() {
   const area = 'administracion';
 
   // Obtener trabajadores activos de esta área
-  const { data: personal } = await supabase
+  const { data: personalRows } = await supabase
     .from('personal')
     .select('*')
-    .eq('activo', true)
     .eq('area', area)
+    .order('nombre_completo');
+
+  const personal = ((personalRows as Personal[]) || []).filter((p) => isPersonalVisibleInNomina(p, area));
+
+  const { data: masterRows } = await supabase
+    .from('personal')
+    .select('*')
     .order('nombre_completo');
 
   // Obtener historial de semanas procesadas
@@ -26,10 +33,11 @@ export default async function AdminNominaPage() {
     .order('semana_inicio', { ascending: false });
 
   return (
-    <NominaClient 
-      area={area} 
-      data={(personal as Personal[]) || []} 
-      semanas={(semanas as NominaSemana[]) || []} 
+    <NominaClient
+      area={area}
+      data={(personal as Personal[]) || []}
+      masterCatalog={(masterRows as Personal[]) || []}
+      semanas={(semanas as NominaSemana[]) || []}
     />
   );
 }
