@@ -2414,7 +2414,8 @@ input, textarea, select {
 .app-page-scroll:has(.extraccion-page),
 .app-page-scroll:has(.voladuras-page),
 .app-page-scroll:has(.quemado-page),
-.app-page-scroll:has(.nomina-page) {
+.app-page-scroll:has(.nomina-page),
+.app-page-scroll:has(.biblioteca-variables-page) {
   overflow: hidden;
 }
 
@@ -2425,7 +2426,8 @@ input, textarea, select {
 .app-page-inner:has(.extraccion-page),
 .app-page-inner:has(.voladuras-page),
 .app-page-inner:has(.quemado-page),
-.app-page-inner:has(.nomina-page) {
+.app-page-inner:has(.nomina-page),
+.app-page-inner:has(.biblioteca-variables-page) {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -2433,6 +2435,11 @@ input, textarea, select {
   min-height: 0;
   padding-top: 0.25rem;
   padding-bottom: 0.5rem;
+}
+
+.app-page-inner:has(.biblioteca-variables-page) {
+  padding-top: 0.5rem;
+  padding-bottom: 0.85rem;
 }
 
 .app-page-inner:has(.resumen-ejecutivo-page) .app-page-toolbar {
@@ -2463,6 +2470,10 @@ input, textarea, select {
   .app-page-inner:has(.quemado-page),
   .app-page-inner:has(.nomina-page) {
     padding-bottom: 0.65rem;
+  }
+
+  .app-page-inner:has(.biblioteca-variables-page) {
+    padding-bottom: 1rem;
   }
 }
 

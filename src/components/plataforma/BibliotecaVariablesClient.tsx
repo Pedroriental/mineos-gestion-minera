@@ -8,7 +8,6 @@ import {
   Plus,
   Search,
   Trash2,
-  Variable,
 } from 'lucide-react';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import {
@@ -17,22 +16,17 @@ import {
   upsertBibliotecaCategoriaAction,
   upsertBibliotecaVariableAction,
 } from '@/lib/actions/biblioteca-variables';
-import { formatMetadataResumen } from '@/lib/biblioteca-metadata';
-import type { BibliotecaCategoriaCompleta, BibliotecaModulo } from '@/lib/types';
 import {
-  BibliotecaVariableMetadataFields,
-  formFieldsFromMetadata,
-  metadataFromFormFields,
-} from '@/components/plataforma/BibliotecaVariableMetadataFields';
-
-const MODULO_LABEL: Record<BibliotecaModulo, string> = {
-  general: 'General',
-  nomina: 'Nómina',
-  mina: 'Mina',
-  planta: 'Planta',
-  operaciones: 'Operaciones',
-  admin: 'Administración',
-};
+  buildVariableMetadata,
+  emptyMetadataForSlug,
+  parseVariableMetadata,
+  type BibliotecaVariableMetadata,
+} from '@/lib/biblioteca-metadata';
+import { getBibliotecaCategorySchema } from '@/lib/biblioteca-schemas';
+import type { BibliotecaCategoriaCompleta, BibliotecaModulo } from '@/lib/types';
+import { BibliotecaCategoryVariablesView } from '@/components/plataforma/BibliotecaCategoryVariablesView';
+import { BibliotecaVariableFormFields } from '@/components/plataforma/BibliotecaVariableFormFields';
+import { MODULO_LABEL } from '@/components/plataforma/biblioteca-constants';
 
 type Props = { catalogo: BibliotecaCategoriaCompleta[] };
 
@@ -83,9 +77,7 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
     unidad: '',
     descripcion: '',
     orden: 0,
-    metadataAreas: [] as string[],
-    metadataDefaultForArea: '',
-    displayLabel: '',
+    metadata: {} as BibliotecaVariableMetadata,
   });
 
   const filteredCatalogo = useMemo(() => {
@@ -170,9 +162,7 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
       unidad: '',
       descripcion: '',
       orden: (cat?.variables.length ?? 0) * 10,
-      metadataAreas: [],
-      metadataDefaultForArea: '',
-      displayLabel: '',
+      metadata: emptyMetadataForSlug(cat?.slug || ''),
     });
     setVarModal(true);
   }
@@ -182,7 +172,6 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
     catId: string,
     catSlug: string,
   ) {
-    const metaFields = formFieldsFromMetadata(catSlug, v.metadata);
     setVarCategoriaSlug(catSlug);
     setVarForm({
       id: v.id,
@@ -193,35 +182,39 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
       unidad: v.unidad || '',
       descripcion: v.descripcion || '',
       orden: v.orden,
-      ...metaFields,
+      metadata: parseVariableMetadata(v),
     });
     setVarModal(true);
   }
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-6 sm:gap-8">
-      <p className="text-sm text-white/55">
+    <div className="biblioteca-variables-page flex min-h-0 w-full flex-1 flex-col gap-2.5 sm:gap-3">
+      <p className="mt-1.5 text-xs leading-snug text-white/50 sm:mt-2 sm:text-sm">
         Catálogo central de parámetros reutilizables (cargos, áreas, rotaciones, minas, condimentos…)
         para automatizar módulos y alimentar balances con un ecosistema interconectado.
       </p>
 
       {msg && (
-        <p className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75">
+        <p className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-white/75">
           {msg}
         </p>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative min-w-0 flex-1 sm:max-w-md">
+      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="relative min-w-0 w-full flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar categoría, variable, clave o valor…"
-            className="input-field w-full pl-9"
+            className="input-field w-full py-2 pl-9"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <p className="shrink-0 text-xs tabular-nums text-white/40">
+          {catalogo.length} categorías · {totalVariables} variables
+          {search.trim() ? ` · ${filteredCatalogo.length} en búsqueda` : ''}
+        </p>
+        <div className="ml-auto flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
             onClick={openNuevaCategoria}
@@ -242,11 +235,6 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
         </div>
       </div>
 
-      <p className="text-xs text-white/40">
-        {catalogo.length} categorías · {totalVariables} variables
-        {search.trim() ? ` · ${filteredCatalogo.length} categorías en búsqueda` : ''}
-      </p>
-
       {catalogo.length === 0 ? (
         <div className="card-glass rounded-xl border border-dashed border-white/[0.12] p-8 text-center">
           <p className="text-sm text-white/60">
@@ -254,8 +242,8 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
           </p>
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(220px,280px)_1fr]">
-          <aside className="card-glass flex max-h-[min(70vh,640px)] flex-col overflow-hidden rounded-xl border border-white/[0.08]">
+        <div className="grid min-h-0 flex-1 gap-3 pb-3 sm:pb-4 lg:grid-cols-[minmax(220px,280px)_1fr]">
+          <aside className="card-glass flex max-h-[min(46vh,420px)] flex-col overflow-hidden rounded-xl border border-white/[0.08] lg:max-h-none lg:min-h-0">
             <div className="border-b border-white/[0.06] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white/45">
               Categorías
             </div>
@@ -282,9 +270,11 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
                             {cat.variables.length}
                           </span>
                         </div>
-                        <div className="mt-0.5 flex flex-wrap gap-1.5">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                           <span className="text-[10px] text-white/40">{MODULO_LABEL[cat.modulo]}</span>
-                          <code className="text-[10px] text-violet-300/70">{cat.slug}</code>
+                          <span className="text-[9px] text-white/30">
+                            {getBibliotecaCategorySchema(cat.slug).label}
+                          </span>
                         </div>
                       </button>
                     </li>
@@ -294,112 +284,26 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
             </ul>
           </aside>
 
-          <section className="card-glass flex min-h-[320px] flex-col overflow-hidden rounded-xl border border-white/[0.08]">
+          <section className="card-glass flex min-h-[280px] flex-1 flex-col overflow-hidden rounded-xl border border-white/[0.08] lg:min-h-0">
             {!categoriaActiva ? (
               <div className="flex flex-1 items-center justify-center p-8 text-sm text-white/50">
                 Selecciona una categoría.
               </div>
             ) : (
-              <>
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/[0.06] p-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Variable className="h-4 w-4 text-violet-400" />
-                      <h2 className="text-base font-bold text-white">{categoriaActiva.nombre}</h2>
-                    </div>
-                    {categoriaActiva.descripcion && (
-                      <p className="mt-1 text-xs text-white/50">{categoriaActiva.descripcion}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openEditarCategoria(categoriaActiva)}
-                      className="rounded-lg border border-white/10 p-2 text-white/55 hover:text-white"
-                      title="Editar categoría"
-                    >
-                      <PencilLine className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => {
-                        if (!confirm('¿Eliminar categoría y todas sus variables?')) return;
-                        run(() => deleteBibliotecaCategoriaAction(categoriaActiva.id));
-                      }}
-                      className="rounded-lg border border-red-500/20 p-2 text-red-300/80 hover:bg-red-500/10"
-                      title="Eliminar categoría"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-auto">
-                  <table className="w-full min-w-[520px] text-left text-sm">
-                    <thead className="sticky top-0 z-10 bg-[#0f1419]/95 backdrop-blur-sm">
-                      <tr className="border-b border-white/[0.08] text-[11px] uppercase tracking-wide text-white/45">
-                        <th className="px-4 py-3">Etiqueta</th>
-                        <th className="px-4 py-3">Clave</th>
-                        <th className="px-4 py-3">Valor</th>
-                        <th className="px-4 py-3">Unidad</th>
-                        <th className="px-4 py-3">Ámbito / UI</th>
-                        <th className="w-20 px-4 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {categoriaActiva.variables.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-10 text-center text-xs text-white/45">
-                            Sin variables en esta categoría.
-                          </td>
-                        </tr>
-                      ) : (
-                        categoriaActiva.variables.map((v) => (
-                          <tr
-                            key={v.id}
-                            className="border-b border-white/[0.05] hover:bg-white/[0.02]"
-                          >
-                            <td className="px-4 py-3 font-medium text-white/90">{v.etiqueta}</td>
-                            <td className="px-4 py-3 font-mono text-xs text-violet-300/80">{v.clave}</td>
-                            <td className="max-w-[200px] truncate px-4 py-3 text-white/65" title={v.valor}>
-                              {v.valor || '—'}
-                            </td>
-                            <td className="px-4 py-3 text-white/50">{v.unidad || '—'}</td>
-                            <td className="max-w-[180px] px-4 py-3 text-[10px] text-white/45">
-                              {formatMetadataResumen(v, categoriaActiva.slug) || '—'}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    openEditarVariable(v, categoriaActiva.id, categoriaActiva.slug)
-                                  }
-                                  className="rounded border border-white/10 p-1.5 text-white/55 hover:text-white"
-                                >
-                                  <PencilLine className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isPending}
-                                  onClick={() => {
-                                    if (!confirm('¿Eliminar esta variable?')) return;
-                                    run(() => deleteBibliotecaVariableAction(v.id));
-                                  }}
-                                  className="rounded border border-red-500/20 p-1.5 text-red-300/70 hover:bg-red-500/10"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+              <BibliotecaCategoryVariablesView
+                categoria={categoriaActiva}
+                isPending={isPending}
+                onEditCategoria={() => openEditarCategoria(categoriaActiva)}
+                onDeleteCategoria={() => {
+                  if (!confirm('¿Eliminar categoría y todas sus variables?')) return;
+                  run(() => deleteBibliotecaCategoriaAction(categoriaActiva.id));
+                }}
+                onEditVariable={(v) => openEditarVariable(v, categoriaActiva.id, categoriaActiva.slug)}
+                onDeleteVariable={(id) => {
+                  if (!confirm('¿Eliminar esta variable?')) return;
+                  run(() => deleteBibliotecaVariableAction(id));
+                }}
+              />
             )}
           </section>
         </div>
@@ -483,6 +387,11 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
           className="page-form-modal-panel max-h-[85vh] overflow-y-auto p-5 sm:p-6"
           onSubmit={(e) => {
             e.preventDefault();
+            const schema = getBibliotecaCategorySchema(varCategoriaSlug);
+            let valor = varForm.valor;
+            if (schema.kind === 'explosive_supply' && varForm.metadata.campo_voladura) {
+              valor = varForm.metadata.campo_voladura;
+            }
             run(
               () =>
                 upsertBibliotecaVariableAction({
@@ -490,21 +399,42 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
                   categoria_id: varForm.categoria_id,
                   clave: varForm.clave,
                   etiqueta: varForm.etiqueta,
-                  valor: varForm.valor,
+                  valor,
                   unidad: varForm.unidad,
                   descripcion: varForm.descripcion,
                   orden: varForm.orden,
-                  metadata: metadataFromFormFields(varCategoriaSlug, varForm),
+                  metadata: buildVariableMetadata(varForm.metadata),
                 }),
               () => setVarModal(false),
             );
           }}
         >
-          <h2 className="text-lg font-bold text-white">
-            {varForm.id ? 'Editar variable' : 'Nueva variable'}
-          </h2>
+          {(() => {
+            const schema = getBibliotecaCategorySchema(varCategoriaSlug);
+            return (
+              <>
+                <h2 className="text-lg font-bold text-white">
+                  {varForm.id ? 'Editar variable' : 'Nueva variable'}
+                </h2>
+                <p className="mt-1 text-xs text-white/45">
+                  <span className={schema.badgeClass}>{schema.label}</span>
+                  {' — '}
+                  {schema.purpose}
+                </p>
+              </>
+            );
+          })()}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Field label="Etiqueta (nombre visible)" className="sm:col-span-2">
+            <Field
+              label={
+                getBibliotecaCategorySchema(varCategoriaSlug).kind === 'labor_role'
+                  ? 'Nombre del cargo'
+                  : getBibliotecaCategorySchema(varCategoriaSlug).kind === 'explosive_supply'
+                    ? 'Nombre del insumo'
+                    : 'Etiqueta (nombre visible)'
+              }
+              className="sm:col-span-2"
+            >
               <input
                 className="input-field w-full"
                 value={varForm.etiqueta}
@@ -512,31 +442,15 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
                 required
               />
             </Field>
-            <Field label="Clave interna">
+            <Field label="Clave interna (catálogo)">
               <input
                 className="input-field w-full font-mono text-sm"
                 value={varForm.clave}
                 onChange={(e) => setVarForm({ ...varForm, clave: e.target.value })}
-                placeholder="auto desde etiqueta"
+                placeholder="palero, fosforos_lp…"
               />
             </Field>
-            <Field label="Valor (código / dato)">
-              <input
-                className="input-field w-full"
-                value={varForm.valor}
-                onChange={(e) => setVarForm({ ...varForm, valor: e.target.value })}
-                placeholder="Igual que etiqueta si se deja vacío"
-              />
-            </Field>
-            <Field label="Unidad">
-              <input
-                className="input-field w-full"
-                value={varForm.unidad}
-                onChange={(e) => setVarForm({ ...varForm, unidad: e.target.value })}
-                placeholder="kg, días, unid., —"
-              />
-            </Field>
-            <Field label="Orden" className="sm:col-span-2">
+            <Field label="Orden">
               <input
                 type="number"
                 className="input-field w-full"
@@ -544,20 +458,24 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
                 onChange={(e) => setVarForm({ ...varForm, orden: Number(e.target.value) || 0 })}
               />
             </Field>
-            <Field label="Notas" className="sm:col-span-2">
+            <BibliotecaVariableFormFields
+              schema={getBibliotecaCategorySchema(varCategoriaSlug)}
+              metadata={varForm.metadata}
+              valor={varForm.valor}
+              unidad={varForm.unidad}
+              onMetadataChange={(patch) =>
+                setVarForm((p) => ({ ...p, metadata: { ...p.metadata, ...patch } }))
+              }
+              onValorChange={(valor) => setVarForm((p) => ({ ...p, valor }))}
+              onUnidadChange={(unidad) => setVarForm((p) => ({ ...p, unidad }))}
+            />
+            <Field label="Notas / descripción" className="sm:col-span-2">
               <textarea
                 className="input-field min-h-[64px] w-full resize-y"
                 value={varForm.descripcion}
                 onChange={(e) => setVarForm({ ...varForm, descripcion: e.target.value })}
               />
             </Field>
-            <BibliotecaVariableMetadataFields
-              categoriaSlug={varCategoriaSlug}
-              metadataAreas={varForm.metadataAreas}
-              metadataDefaultForArea={varForm.metadataDefaultForArea}
-              displayLabel={varForm.displayLabel}
-              onChange={(patch) => setVarForm((p) => ({ ...p, ...patch }))}
-            />
           </div>
           <PageFormModalFooter>
             <button type="button" className="btn-secondary" onClick={() => setVarModal(false)}>
