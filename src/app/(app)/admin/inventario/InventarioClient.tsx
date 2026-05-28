@@ -886,7 +886,7 @@ export default function InventarioClient() {
               value={movForm.destino_area}
               disabled={!movFieldsEnabled}
               onChange={(v) => setMovForm({ ...movForm, destino_area: v })}
-              options={DESTINO_OPTIONS}
+              options={destinoSelectOptions}
             />
           </div>
           <div className="md:col-span-2">

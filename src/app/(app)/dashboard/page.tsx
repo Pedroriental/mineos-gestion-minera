@@ -161,7 +161,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       voladuras: volRes?.data ?? [],
       nominaSemanas: nominaSemanasRes.data ?? [],
       personalCountByArea,
-      valesPendientes: valesPendientesRes.data ?? [],
+      valesPendientes: (valesPendientesRes.data ?? []).map((v: any) => ({
+        id: v.id,
+        monto: v.monto,
+        personal: Array.isArray(v.personal) ? v.personal[0] : v.personal,
+      })),
     });
 
     const balancesPlanchas = computePlanchaBalances(reportesProd, planchaLines);

@@ -97,6 +97,8 @@ export default function ProduccionGerencialClient({
 }) {
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const turnoOptions = useTurnoOptions();
+  const molinoSelectOptions = useBibliotecaOptions('planta_molinos');
 
   // For the Form
   const [selectedDate, setSelectedDate] = useState(selectedDateStr);

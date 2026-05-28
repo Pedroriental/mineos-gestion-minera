@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { NominaSemana, Personal } from '@/lib/types';
+import type { NominaSemana, Personal, NominaVale } from '@/lib/types';
 import {
   AlertTriangle,
   Calendar,
@@ -37,7 +37,7 @@ export interface PreNominaRowState {
   deducciones: number;
   total: number;
   estadoAsistencia: 'trabajada' | 'libre' | 'no_laborado';
-  valesPendientes: { id: string; monto: number | string }[];
+  valesPendientes: NominaVale[];
   totalVales: number;
 }
 

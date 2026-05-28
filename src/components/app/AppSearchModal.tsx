@@ -74,13 +74,10 @@ export function AppSearchModal({
       )
     : ALL_ROUTES;
 
-  const grouped = filtered.reduce(
-    (acc, r) => {
-      (acc[r.section] ??= []).push(r);
-      return acc;
-    },
-    {} as Record<string, (typeof ALL_ROUTES)[number][]>,
-  );
+  const grouped: Record<string, any[]> = {};
+  filtered.forEach((r) => {
+    (grouped[r.section] ??= []).push(r);
+  });
 
   return (
     <div
