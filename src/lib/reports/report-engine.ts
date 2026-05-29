@@ -32,6 +32,60 @@ export function getWeekRangeLabel(dateStr: string): string {
   }
 }
 
+/**
+ * Normaliza una cadena de texto a un formato estándar en minúsculas y sin acentos.
+ * E.g., "Belén  " -> "belen"
+ */
+export function normalizeString(str: string | undefined | null): string {
+  if (!str) return '';
+  return str
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Dada una lista de nombres originales que normalizan al mismo valor,
+ * selecciona la representación canónica más legible y completa.
+ */
+export function getBestCanonicalName(names: (string | undefined | null)[]): string {
+  const cleanNames = names
+    .map((n) => n?.trim() || '')
+    .filter((n) => n.length > 0);
+
+  if (cleanNames.length === 0) return '';
+
+  let bestName = cleanNames[0];
+  let bestScore = -1;
+
+  for (const name of cleanNames) {
+    let score = 0;
+
+    // 1. Presencia de acentos (prioriza mantener la tilde original)
+    const normalizedNFD = name.normalize('NFD');
+    const hasAccents = normalizedNFD !== normalizedNFD.replace(/[\u0300-\u036f]/g, '');
+    if (hasAccents) score += 5;
+
+    // 2. Formato de Título / CamelCase (Empieza con mayúscula y contiene minúsculas)
+    const isFirstUpper = name[0] === name[0].toUpperCase() && name[0] !== name[0].toLowerCase();
+    const hasLower = /[a-z]/g.test(name);
+    if (isFirstUpper && hasLower) score += 3;
+
+    // 3. No es puramente mayúsculas (a menos que sea muy corta)
+    const isPureUpper = name === name.toUpperCase() && name !== name.toLowerCase();
+    if (!isPureUpper) score += 2;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestName = name;
+    }
+  }
+
+  return bestName;
+}
+
 // ── 1. Módulo: Producción ───────────────────────────────────
 
 export interface ProduccionSummary {
@@ -74,6 +128,8 @@ export function aggregateProduccion(
     registrosCount: number;
   }>();
 
+  const rawNamesMap = new Map<string, Set<string>>();
+
   data.forEach((r) => {
     const oro = Number(r.oro_recuperado_g ?? 0);
     const sacos = Number(r.sacos ?? 0);
@@ -96,20 +152,28 @@ export function aggregateProduccion(
     }
 
     // Calcular grupo
-    let grupo = 'Otros';
+    let grupoOriginal = 'Otros';
     if (agruparPor === 'dia') {
-      grupo = safeFormatDate(r.fecha, 'dd/MM/yyyy');
+      grupoOriginal = safeFormatDate(r.fecha, 'dd/MM/yyyy');
     } else if (agruparPor === 'semana') {
-      grupo = getWeekRangeLabel(r.fecha);
+      grupoOriginal = getWeekRangeLabel(r.fecha);
     } else if (agruparPor === 'mes') {
-      grupo = safeFormatDate(r.fecha, 'MMMM yyyy');
+      grupoOriginal = safeFormatDate(r.fecha, 'MMMM yyyy');
     } else if (agruparPor === 'molino') {
-      grupo = r.molino || 'Sin Molino';
+      grupoOriginal = r.molino || 'Sin Molino';
     } else if (agruparPor === 'material') {
-      grupo = r.material || 'Sin Material';
+      grupoOriginal = r.material || 'Sin Material';
     }
 
-    const current = gruposMap.get(grupo) || {
+    const isStringGrouping = agruparPor === 'molino' || agruparPor === 'material';
+    const grupoKey = isStringGrouping ? normalizeString(grupoOriginal) : grupoOriginal;
+
+    if (isStringGrouping) {
+      if (!rawNamesMap.has(grupoKey)) rawNamesMap.set(grupoKey, new Set());
+      rawNamesMap.get(grupoKey)!.add(grupoOriginal);
+    }
+
+    const current = gruposMap.get(grupoKey) || {
       sacos: 0,
       toneladas: 0,
       oroGramos: 0,
@@ -133,13 +197,19 @@ export function aggregateProduccion(
       current.mermaCount++;
     }
 
-    gruposMap.set(grupo, current);
+    gruposMap.set(grupoKey, current);
   });
 
-  const rows = Array.from(gruposMap.entries()).map(([grupo, stats]) => {
+  const rows = Array.from(gruposMap.entries()).map(([grupoKey, stats]) => {
     const tenorGpt = stats.toneladas > 0 
       ? stats.tenorSumaPesada / stats.toneladas 
       : (stats.sacos > 0 ? stats.tenorSumaPesada / (stats.sacos * 0.05) : 0);
+
+    let grupo = grupoKey;
+    if (agruparPor === 'molino' || agruparPor === 'material') {
+      const names = Array.from(rawNamesMap.get(grupoKey) || []);
+      grupo = getBestCanonicalName(names) || grupoKey;
+    }
 
     return {
       grupo,
@@ -228,6 +298,8 @@ export function aggregateNomina(
     semanaIds: Set<string>;
   }>();
 
+  const rawNamesMap = new Map<string, Set<string>>();
+
   data.forEach((r) => {
     const pagado = Number(r.monto_pagado ?? 0);
     const bono = Number(r.bono_transporte_pagado ?? 0);
@@ -236,20 +308,28 @@ export function aggregateNomina(
     totalPagado += pagado;
     bonoTransporteTotal += bono;
 
-    let grupo = 'Otros';
+    let grupoOriginal = 'Otros';
     if (agruparPor === 'semana') {
-      grupo = getWeekRangeLabel(r.semana_inicio);
+      grupoOriginal = getWeekRangeLabel(r.semana_inicio);
     } else if (agruparPor === 'mes') {
-      grupo = safeFormatDate(r.semana_inicio, 'MMMM yyyy');
+      grupoOriginal = safeFormatDate(r.semana_inicio, 'MMMM yyyy');
     } else if (agruparPor === 'area') {
-      grupo = r.area === 'mina' ? 'Mina' : r.area === 'planta' ? 'Molinos (Planta)' : r.area;
+      grupoOriginal = r.area === 'mina' ? 'Mina' : r.area === 'planta' ? 'Molinos (Planta)' : r.area;
     } else if (agruparPor === 'cargo') {
-      grupo = r.trabajador_cargo || 'Sin Cargo';
+      grupoOriginal = r.trabajador_cargo || 'Sin Cargo';
     } else if (agruparPor === 'trabajador') {
-      grupo = r.trabajador_nombre;
+      grupoOriginal = r.trabajador_nombre;
     }
 
-    const current = gruposMap.get(grupo) || {
+    const isStringGrouping = ['area', 'cargo', 'trabajador'].includes(agruparPor);
+    const grupoKey = isStringGrouping ? normalizeString(grupoOriginal) : grupoOriginal;
+
+    if (isStringGrouping) {
+      if (!rawNamesMap.has(grupoKey)) rawNamesMap.set(grupoKey, new Set());
+      rawNamesMap.get(grupoKey)!.add(grupoOriginal);
+    }
+
+    const current = gruposMap.get(grupoKey) || {
       trabajadores: new Set<string>(),
       montoPagado: 0,
       bonoTransporte: 0,
@@ -265,10 +345,10 @@ export function aggregateNomina(
     }
     current.semanaIds.add(r.semana_id);
 
-    gruposMap.set(grupo, current);
+    gruposMap.set(grupoKey, current);
   });
 
-  const rows = Array.from(gruposMap.entries()).map(([grupo, stats]) => {
+  const rows = Array.from(gruposMap.entries()).map(([grupoKey, stats]) => {
     // Calcular split proporcional por grupo si aplica
     let grupoPedro = 0;
     let grupoDarinel = 0;
@@ -289,9 +369,9 @@ export function aggregateNomina(
             .reduce((s, d) => s + d.monto_pagado, 0);
           const grupoSemanaPago = data
             .filter((d) => d.semana_id === wid && 
-              (agruparPor === 'area' ? (d.area === (grupo === 'Mina' ? 'mina' : grupo === 'Molinos (Planta)' ? 'planta' : grupo)) : 
-               agruparPor === 'cargo' ? d.trabajador_cargo === grupo : 
-               d.trabajador_nombre === grupo))
+              (agruparPor === 'area' ? (normalizeString(d.area) === normalizeString(grupoKey === 'mina' ? 'mina' : grupoKey === 'molinos (planta)' ? 'planta' : grupoKey)) : 
+               agruparPor === 'cargo' ? normalizeString(d.trabajador_cargo) === grupoKey : 
+               normalizeString(d.trabajador_nombre) === grupoKey))
             .reduce((s, d) => s + d.monto_pagado, 0);
 
           const ratio = totalSemanaPago > 0 ? grupoSemanaPago / totalSemanaPago : 0;
@@ -301,6 +381,14 @@ export function aggregateNomina(
         }
       }
     });
+
+    let grupo = grupoKey;
+    if (['area', 'cargo', 'trabajador'].includes(agruparPor)) {
+      const names = Array.from(rawNamesMap.get(grupoKey) || []);
+      grupo = getBestCanonicalName(names) || grupoKey;
+      if (grupoKey === 'mina') grupo = 'Mina';
+      if (grupoKey === 'planta' || grupoKey === 'molinos (planta)') grupo = 'Molinos (Planta)';
+    }
 
     return {
       grupo,
@@ -371,6 +459,8 @@ export function aggregateVoladuras(
     sinNovedad: number;
   }>();
 
+  const rawNamesMap = new Map<string, Set<string>>();
+
   data.forEach((r) => {
     const h = Number(r.huecos_cantidad ?? 0);
     const hp = Number(r.huecos_pies ?? 0);
@@ -383,16 +473,24 @@ export function aggregateVoladuras(
     arrozKgTotal += a;
     if (r.sin_novedad) sinNovedadCount++;
 
-    let grupo = 'Otros';
+    let grupoOriginal = 'Otros';
     if (agruparPor === 'dia') {
-      grupo = safeFormatDate(r.fecha, 'dd/MM/yyyy');
+      grupoOriginal = safeFormatDate(r.fecha, 'dd/MM/yyyy');
     } else if (agruparPor === 'semana') {
-      grupo = getWeekRangeLabel(r.fecha);
+      grupoOriginal = getWeekRangeLabel(r.fecha);
     } else if (agruparPor === 'mina') {
-      grupo = r.mina || 'Sin Especificar';
+      grupoOriginal = r.mina || 'Sin Especificar';
     }
 
-    const current = gruposMap.get(grupo) || {
+    const isStringGrouping = agruparPor === 'mina';
+    const grupoKey = isStringGrouping ? normalizeString(grupoOriginal) : grupoOriginal;
+
+    if (isStringGrouping) {
+      if (!rawNamesMap.has(grupoKey)) rawNamesMap.set(grupoKey, new Set());
+      rawNamesMap.get(grupoKey)!.add(grupoOriginal);
+    }
+
+    const current = gruposMap.get(grupoKey) || {
       disparos: 0,
       huecos: 0,
       huecosPies: 0,
@@ -410,11 +508,18 @@ export function aggregateVoladuras(
     current.arrozKg += a;
     if (r.sin_novedad) current.sinNovedad++;
 
-    gruposMap.set(grupo, current);
+    gruposMap.set(grupoKey, current);
   });
 
-  const rows = Array.from(gruposMap.entries()).map(([grupo, stats]) => {
+  const rows = Array.from(gruposMap.entries()).map(([grupoKey, stats]) => {
     const ratio = stats.chupis > 0 ? stats.huecos / stats.chupis : stats.huecos;
+    
+    let grupo = grupoKey;
+    if (agruparPor === 'mina') {
+      const names = Array.from(rawNamesMap.get(grupoKey) || []);
+      grupo = getBestCanonicalName(names) || grupoKey;
+    }
+
     return {
       grupo,
       disparos: stats.disparos,
@@ -578,6 +683,8 @@ export function aggregateExtraccion(
     eventos: number;
   }>();
 
+  const rawNamesMap = new Map<string, Set<string>>();
+
   data.forEach((r) => {
     const sacos = Number(r.sacos_extraidos ?? 0);
     const ev = r.eventos?.length ?? 0;
@@ -585,16 +692,24 @@ export function aggregateExtraccion(
     sacosTotal += sacos;
     eventosTotal += ev;
 
-    let grupo = 'Otros';
+    let grupoOriginal = 'Otros';
     if (agruparPor === 'dia') {
-      grupo = safeFormatDate(r.fecha, 'dd/MM/yyyy');
+      grupoOriginal = safeFormatDate(r.fecha, 'dd/MM/yyyy');
     } else if (agruparPor === 'semana') {
-      grupo = getWeekRangeLabel(r.fecha);
+      grupoOriginal = getWeekRangeLabel(r.fecha);
     } else if (agruparPor === 'mina') {
-      grupo = r.mina || 'Sin Especificar';
+      grupoOriginal = r.mina || 'Sin Especificar';
     }
 
-    const current = gruposMap.get(grupo) || {
+    const isStringGrouping = agruparPor === 'mina';
+    const grupoKey = isStringGrouping ? normalizeString(grupoOriginal) : grupoOriginal;
+
+    if (isStringGrouping) {
+      if (!rawNamesMap.has(grupoKey)) rawNamesMap.set(grupoKey, new Set());
+      rawNamesMap.get(grupoKey)!.add(grupoOriginal);
+    }
+
+    const current = gruposMap.get(grupoKey) || {
       reportes: 0,
       sacos: 0,
       eventos: 0,
@@ -604,10 +719,16 @@ export function aggregateExtraccion(
     current.sacos += sacos;
     current.eventos += ev;
 
-    gruposMap.set(grupo, current);
+    gruposMap.set(grupoKey, current);
   });
 
-  const rows = Array.from(gruposMap.entries()).map(([grupo, stats]) => {
+  const rows = Array.from(gruposMap.entries()).map(([grupoKey, stats]) => {
+    let grupo = grupoKey;
+    if (agruparPor === 'mina') {
+      const names = Array.from(rawNamesMap.get(grupoKey) || []);
+      grupo = getBestCanonicalName(names) || grupoKey;
+    }
+
     return {
       grupo,
       reportes: stats.reportes,
@@ -659,6 +780,8 @@ export function aggregateGastos(
     registrosCount: number;
   }>();
 
+  const rawNamesMap = new Map<string, Set<string>>();
+
   data.forEach((g) => {
     const monto = Number(g.monto ?? 0);
     totalGastado += monto;
@@ -668,18 +791,26 @@ export function aggregateGastos(
       mayorGastoDesc = `${g.descripcion || 'Gasto'} (${g.proveedor || 'Sin Proveedor'})`;
     }
 
-    let grupo = 'Otros';
+    let grupoOriginal = 'Otros';
     if (agruparPor === 'dia') {
-      grupo = safeFormatDate(g.fecha, 'dd/MM/yyyy');
+      grupoOriginal = safeFormatDate(g.fecha, 'dd/MM/yyyy');
     } else if (agruparPor === 'semana') {
-      grupo = getWeekRangeLabel(g.fecha);
+      grupoOriginal = getWeekRangeLabel(g.fecha);
     } else if (agruparPor === 'mes') {
-      grupo = safeFormatDate(g.fecha, 'MMMM yyyy');
+      grupoOriginal = safeFormatDate(g.fecha, 'MMMM yyyy');
     } else if (agruparPor === 'categoria') {
-      grupo = g.categorias_gasto?.nombre || 'Sin Categoría';
+      grupoOriginal = g.categorias_gasto?.nombre || 'Sin Categoría';
     }
 
-    const current = gruposMap.get(grupo) || {
+    const isStringGrouping = agruparPor === 'categoria';
+    const grupoKey = isStringGrouping ? normalizeString(grupoOriginal) : grupoOriginal;
+
+    if (isStringGrouping) {
+      if (!rawNamesMap.has(grupoKey)) rawNamesMap.set(grupoKey, new Set());
+      rawNamesMap.get(grupoKey)!.add(grupoOriginal);
+    }
+
+    const current = gruposMap.get(grupoKey) || {
       monto: 0,
       gastoMayor: 0,
       registrosCount: 0,
@@ -691,10 +822,16 @@ export function aggregateGastos(
       current.gastoMayor = monto;
     }
 
-    gruposMap.set(grupo, current);
+    gruposMap.set(grupoKey, current);
   });
 
-  const rows = Array.from(gruposMap.entries()).map(([grupo, stats]) => {
+  const rows = Array.from(gruposMap.entries()).map(([grupoKey, stats]) => {
+    let grupo = grupoKey;
+    if (agruparPor === 'categoria') {
+      const names = Array.from(rawNamesMap.get(grupoKey) || []);
+      grupo = getBestCanonicalName(names) || grupoKey;
+    }
+
     return {
       grupo,
       monto: Number(stats.monto.toFixed(2)),
