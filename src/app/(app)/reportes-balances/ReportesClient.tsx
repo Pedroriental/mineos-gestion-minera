@@ -9,7 +9,6 @@ import {
   fetchQuemadoReport,
   fetchExtraccionReport,
   fetchGastosReport,
-  fetchBalanceReport,
 } from '@/lib/actions/report-actions';
 import {
   aggregateProduccion,
@@ -18,7 +17,6 @@ import {
   aggregateQuemado,
   aggregateExtraccion,
   aggregateGastos,
-  aggregateBalance,
 } from '@/lib/reports/report-engine';
 import { downloadReportPDF } from '@/lib/reports/report-pdf-generator';
 import { downloadReportCSV } from '@/lib/reports/report-csv-generator';
@@ -216,11 +214,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
       return aggregateExtraccion(rawData, groupByExt);
     } else if (activeTab === 'gastos' && Array.isArray(rawData)) {
       return aggregateGastos(rawData, groupByGst);
-    } else if (activeTab === 'balance' && !Array.isArray(rawData) && rawData.produccion) {
-      return aggregateBalance(rawData, groupByBal, goldPriceInput);
+    } else if (activeTab === 'balance' && balancePayload) {
+      return balancePayload.aggregated;
     }
     return null;
-  }, [rawData, activeTab, groupByProd, groupByNom, groupByVol, groupByQuem, groupByExt, groupByGst, groupByBal, goldPriceInput, error]);
+  }, [rawData, balancePayload, activeTab, groupByProd, groupByNom, groupByVol, groupByQuem, groupByExt, groupByGst, error]);
 
   // ── 6. Download Handlers ──────────────────────────────────
   const handleDownloadPDF = () => {
@@ -736,24 +734,21 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
             {activeTab === 'balance' && (
               <div className="space-y-3">
-                {/* Gold Price parameter */}
                 <div className="flex flex-col gap-1.5">
                   <label className={cn(ui.fieldLabel, 'flex items-center gap-1')}>
-                    Precio oro (USD/g)
-                    <span title="Se usa para estimar ingresos brutos basados en gramos de oro puro recuperado.">
+                    Precio oro aplicado
+                    <span title="Definido en Reconciliación → Parámetros (biblioteca).">
                       <HelpCircle className="w-3 h-3 text-zinc-500 hover:text-zinc-300 cursor-pointer" />
                     </span>
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-sm text-zinc-500">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={goldPriceInput}
-                      onChange={(e) => setGoldPriceInput(parseFloat(e.target.value) || 0)}
-                      className="w-full rounded-lg border border-white/5 bg-zinc-900/40 pl-7 pr-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                    />
-                  </div>
+                  <p className="rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-zinc-200 tabular-nums">
+                    {balancePayload
+                      ? `$${balancePayload.precioOro.usdPorGramo.toFixed(2)}/g · ${balancePayload.precioOro.origenUi}`
+                      : '—'}
+                  </p>
+                  <p className="text-[10px] text-zinc-600">
+                    Cambiar en Reconciliación → Parámetros.
+                  </p>
                 </div>
 
                 {/* Agrupar */}
