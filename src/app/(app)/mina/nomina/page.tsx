@@ -22,7 +22,9 @@ export default async function MinaNominaPage() {
     .eq('area', area)
     .order('nombre_completo');
 
-  const personal = ((personalRows as Personal[]) || []).filter((p) => isPersonalVisibleInNomina(p, area));
+  const personal = ((personalRows as Personal[]) || []).filter((p) =>
+    isPersonalVisibleInNomina(p, area),
+  );
 
   const { data: masterRows } = await supabase
     .from('personal')
@@ -39,7 +41,7 @@ export default async function MinaNominaPage() {
   return (
     <NominaClient
       area={area}
-      data={(personal as Personal[]) || []}
+      data={personal}
       masterCatalog={(masterRows as Personal[]) || []}
       semanas={(semanas as NominaSemana[]) || []}
     />

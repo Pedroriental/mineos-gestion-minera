@@ -13,9 +13,5 @@ export default async function AdminTrabajadoresPage() {
     .select('*')
     .order('created_at', { ascending: false });
 
-  return (
-    <div>
-      <TrabajadoresRegistryClient trabajadores={(data as Personal[]) || []} />
-    </div>
-  );
+  return <TrabajadoresRegistryClient trabajadores={(data as Personal[]) || []} />;
 }
