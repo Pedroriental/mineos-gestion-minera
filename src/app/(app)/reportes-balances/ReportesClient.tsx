@@ -41,13 +41,21 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
+import { ReportesTabs } from '@/components/reportes/ReportesTabs';
+import { ReconciliacionPanel } from '@/components/reportes/ReconciliacionPanel';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
+import {
+  fetchBalanceReportAggregated,
+  type BalanceReportPayload,
+} from '@/lib/actions/reconciliation-actions';
+import { cn } from '@/lib/utils';
 
 interface ReportesClientProps {
   initialOptions: FilterOptions;
 }
 
 export default function ReportesClient({ initialOptions }: ReportesClientProps) {
-  const [activeTab, setActiveTab] = useState<ReportModule>('produccion');
+  const [activeTab, setActiveTab] = useState<ReportModule>('reconciliacion');
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -94,7 +102,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
   // Balance General
   const [groupByBal, setGroupByBal] = useState<'semana' | 'mes'>('semana');
-  const [goldPriceInput, setGoldPriceInput] = useState<number>(75.0); // Valor estimado p/gramo
+  const [balancePayload, setBalancePayload] = useState<BalanceReportPayload | null>(null);
 
   // ── 3. Data States ────────────────────────────────────────
   const [rawData, setRawData] = useState<any>(null);
@@ -102,10 +110,12 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
   // Limpiar datos al cambiar de pestaña para evitar agregaciones incorrectas de datos obsoletos
   useEffect(() => {
     setRawData(null);
+    setBalancePayload(null);
   }, [activeTab]);
 
   // ── 4. Trigger Data Fetching on filter changes ──────────
   useEffect(() => {
+    if (activeTab === 'reconciliacion') return;
     setError(null);
     startTransition(async () => {
       try {
@@ -151,9 +161,10 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
             proveedor: searchProveedor,
           });
         } else if (activeTab === 'balance') {
-          fetched = await fetchBalanceReport({
-            dateRange,
-          });
+          const payload = await fetchBalanceReportAggregated(dateRange, groupByBal);
+          setBalancePayload(payload);
+          setRawData({ ok: true });
+          return;
         }
         setRawData(fetched);
       } catch (err: any) {
@@ -186,6 +197,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
     selectedCategoriasGst,
     selectedTiposGst,
     searchProveedor,
+    groupByBal,
   ]);
 
   // ── 5. Run Aggregation logic via Engine ──────────────────
@@ -244,91 +256,53 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
     }
   };
 
-  // Tabs structure
-  const tabs = [
-    { id: 'produccion', label: 'Producción', icon: <Beaker className="w-4 h-4" /> },
-    { id: 'nomina', label: 'Nómina', icon: <Users className="w-4 h-4" /> },
-    { id: 'voladuras', label: 'Voladuras', icon: <Zap className="w-4 h-4" /> },
-    { id: 'quemado', label: 'Quemado', icon: <Flame className="w-4 h-4" /> },
-    { id: 'extraccion', label: 'Extracción', icon: <HardHat className="w-4 h-4" /> },
-    { id: 'gastos', label: 'Gastos', icon: <Receipt className="w-4 h-4" /> },
-    { id: 'balance', label: 'Balance General', icon: <Calculator className="w-4 h-4" /> },
-  ];
-
   return (
     <div className="space-y-6">
-      {/* HEADER SECTION */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between border-b border-white/5 pb-4">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-            📊 Centro de Reportes y Balances
-          </h1>
-          <p className="text-sm text-zinc-400">
-            Descarga reportes dinámicos de toda tu operación minera con filtros y algoritmos de agregación en tiempo real.
-          </p>
-        </div>
-      </div>
+      <ReportesTabs
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          setError(null);
+        }}
+      />
 
-      {/* TABS CONTAINER */}
-      <div className="flex flex-wrap gap-2 border-b border-white/5 pb-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id as ReportModule);
-              setError(null);
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 ${
-              activeTab === tab.id
-                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.05)]'
-                : 'text-zinc-400 hover:text-white border border-transparent hover:bg-white/5'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* MAIN CONTAINER */}
+      {activeTab === 'reconciliacion' ? (
+        <ReconciliacionPanel />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         {/* LEFT COLUMN: FILTERS (Glassmorphic Card) */}
-        <div className="lg:col-span-1 space-y-4 rounded-2xl border border-white/5 bg-zinc-950/25 p-5 backdrop-blur-xl">
-          <h3 className="text-xs font-extrabold uppercase tracking-widest text-zinc-500">
-            📅 Rango de Fechas
-          </h3>
+        <div className={ui.sidebar}>
+          <h3 className={ui.sectionTitle}>Rango de fechas</h3>
           <div className="space-y-2">
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-zinc-400">Desde</label>
+              <label className={ui.fieldLabel}>Desde</label>
               <input
                 type="date"
                 value={dateRange.from}
                 onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className={ui.input}
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-zinc-400">Hasta</label>
+              <label className={ui.fieldLabel}>Hasta</label>
               <input
                 type="date"
                 value={dateRange.to}
                 onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className={ui.input}
               />
             </div>
           </div>
 
           <div className="border-t border-white/5 pt-4 space-y-4">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-zinc-500">
-              ⚡ Filtros Dinámicos
-            </h3>
+            <h3 className={ui.sectionTitle}>Filtros</h3>
 
             {/* DYNAMIC COMPONENT-SPECIFIC FILTERS */}
             {activeTab === 'produccion' && (
               <div className="space-y-3">
                 {/* Molino */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Molino / Continuo</label>
+                  <label className={ui.fieldLabel}>Molino / Continuo</label>
                   <div className="flex flex-wrap gap-1">
                     {initialOptions.produccion.molinos.map((m) => (
                       <button
@@ -337,8 +311,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedMolinos, setSelectedMolinos, m)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
                           selectedMolinos.includes(m)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {m}
@@ -349,7 +323,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Material */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Material de Origen</label>
+                  <label className={ui.fieldLabel}>Material de Origen</label>
                   <div className="flex flex-wrap gap-1">
                     {initialOptions.produccion.materiales.map((mat) => (
                       <button
@@ -358,8 +332,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedMateriales, setSelectedMateriales, mat)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
                           selectedMateriales.includes(mat)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {mat}
@@ -370,7 +344,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Turno */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Turno Operativo</label>
+                  <label className={ui.fieldLabel}>Turno Operativo</label>
                   <div className="flex gap-1">
                     {['dia', 'noche'].map((t) => (
                       <button
@@ -379,8 +353,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTurnosProd, setSelectedTurnosProd, t)}
                         className={`flex-1 px-2.5 py-1 text-[11px] font-semibold capitalize rounded-lg border transition-all duration-150 ${
                           selectedTurnosProd.includes(t)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {t}
@@ -391,11 +365,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
-                  <label className="text-[11px] font-bold text-zinc-400">Agrupar Datos por</label>
+                  <label className={ui.fieldLabel}>Agrupar Datos por</label>
                   <select
                     value={groupByProd}
                     onChange={(e) => setGroupByProd(e.target.value as any)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                   >
                     <option value="dia">Por Día</option>
                     <option value="semana">Por Semana</option>
@@ -411,7 +385,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
               <div className="space-y-3">
                 {/* Area */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Área Operativa</label>
+                  <label className={ui.fieldLabel}>Área Operativa</label>
                   <div className="flex flex-wrap gap-1">
                     {['mina', 'planta', 'administracion', 'seguridad', 'transporte'].map((a) => (
                       <button
@@ -420,8 +394,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedAreasNom, setSelectedAreasNom, a)}
                         className={`px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full border transition-all duration-150 ${
                           selectedAreasNom.includes(a)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {a === 'planta' ? 'Molino' : a}
@@ -432,7 +406,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Cargo */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Cargos Específicos</label>
+                  <label className={ui.fieldLabel}>Cargos Específicos</label>
                   <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto pr-1">
                     {initialOptions.nomina.cargos.map((cg) => (
                       <button
@@ -441,8 +415,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedCargosNom, setSelectedCargosNom, cg)}
                         className={`px-2 py-0.5 text-[10px] rounded-md border transition-all duration-150 ${
                           selectedCargosNom.includes(cg)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {cg}
@@ -453,11 +427,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Trabajador */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Trabajador Singular</label>
+                  <label className={ui.fieldLabel}>Trabajador Singular</label>
                   <select
                     value={selectedWorkerId}
                     onChange={(e) => setSelectedWorkerId(e.target.value)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                   >
                     <option value="">-- Todos los Trabajadores --</option>
                     {initialOptions.nomina.personal.map((p) => (
@@ -470,11 +444,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
-                  <label className="text-[11px] font-bold text-zinc-400">Agrupar Nómina por</label>
+                  <label className={ui.fieldLabel}>Agrupar Nómina por</label>
                   <select
                     value={groupByNom}
                     onChange={(e) => setGroupByNom(e.target.value as any)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                   >
                     <option value="semana">Por Semana</option>
                     <option value="mes">Por Mes</option>
@@ -490,7 +464,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
               <div className="space-y-3">
                 {/* Minas */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Zonas de Mina</label>
+                  <label className={ui.fieldLabel}>Zonas de Mina</label>
                   <div className="flex flex-wrap gap-1">
                     {initialOptions.voladuras.minas.map((m) => (
                       <button
@@ -499,8 +473,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedMinasVol, setSelectedMinasVol, m)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
                           selectedMinasVol.includes(m)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {m}
@@ -511,7 +485,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Verticales */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Frentes Verticales</label>
+                  <label className={ui.fieldLabel}>Frentes Verticales</label>
                   <div className="flex flex-wrap gap-1">
                     {initialOptions.voladuras.verticales.map((vt) => (
                       <button
@@ -520,8 +494,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedVerticalesVol, setSelectedVerticalesVol, vt)}
                         className={`px-2 py-0.5 text-[11px] rounded-md border transition-all duration-150 ${
                           selectedVerticalesVol.includes(vt)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {vt}
@@ -532,7 +506,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Turno */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Turno de Disparo</label>
+                  <label className={ui.fieldLabel}>Turno de Disparo</label>
                   <div className="flex gap-1">
                     {['dia', 'noche'].map((t) => (
                       <button
@@ -541,8 +515,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTurnosVol, setSelectedTurnosVol, t)}
                         className={`flex-1 px-2.5 py-1 text-[11px] font-semibold capitalize rounded-lg border transition-all duration-150 ${
                           selectedTurnosVol.includes(t)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {t}
@@ -553,11 +527,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
-                  <label className="text-[11px] font-bold text-zinc-400">Agrupar Voladuras por</label>
+                  <label className={ui.fieldLabel}>Agrupar Voladuras por</label>
                   <select
                     value={groupByVol}
                     onChange={(e) => setGroupByVol(e.target.value as any)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                   >
                     <option value="dia">Por Día</option>
                     <option value="semana">Por Semana</option>
@@ -571,7 +545,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
               <div className="space-y-3">
                 {/* Turno */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Turno de Quemado</label>
+                  <label className={ui.fieldLabel}>Turno de Quemado</label>
                   <div className="flex gap-1">
                     {['dia', 'noche'].map((t) => (
                       <button
@@ -580,8 +554,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTurnosQuem, setSelectedTurnosQuem, t)}
                         className={`flex-1 px-2.5 py-1 text-[11px] font-semibold capitalize rounded-lg border transition-all duration-150 ${
                           selectedTurnosQuem.includes(t)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {t}
@@ -592,11 +566,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
-                  <label className="text-[11px] font-bold text-zinc-400">Agrupar por</label>
+                  <label className={ui.fieldLabel}>Agrupar por</label>
                   <select
                     value={groupByQuem}
                     onChange={(e) => setGroupByQuem(e.target.value as any)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                   >
                     <option value="dia">Por Día</option>
                     <option value="semana">Por Semana</option>
@@ -610,7 +584,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
               <div className="space-y-3">
                 {/* Minas */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Zonas de Mina</label>
+                  <label className={ui.fieldLabel}>Zonas de Mina</label>
                   <div className="flex flex-wrap gap-1">
                     {initialOptions.extraccion.minas.map((m) => (
                       <button
@@ -619,8 +593,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedMinasExt, setSelectedMinasExt, m)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
                           selectedMinasExt.includes(m)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {m}
@@ -631,7 +605,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Verticales */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Frentes Verticales</label>
+                  <label className={ui.fieldLabel}>Frentes Verticales</label>
                   <div className="flex flex-wrap gap-1">
                     {initialOptions.extraccion.verticales.map((vt) => (
                       <button
@@ -640,8 +614,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedVerticalesExt, setSelectedVerticalesExt, vt)}
                         className={`px-2 py-0.5 text-[11px] rounded-md border transition-all duration-150 ${
                           selectedVerticalesExt.includes(vt)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {vt}
@@ -652,7 +626,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Turno */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Turno Operativo</label>
+                  <label className={ui.fieldLabel}>Turno Operativo</label>
                   <div className="flex gap-1">
                     {['dia', 'noche'].map((t) => (
                       <button
@@ -661,8 +635,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTurnosExt, setSelectedTurnosExt, t)}
                         className={`flex-1 px-2.5 py-1 text-[11px] font-semibold capitalize rounded-lg border transition-all duration-150 ${
                           selectedTurnosExt.includes(t)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {t}
@@ -673,11 +647,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
-                  <label className="text-[11px] font-bold text-zinc-400">Agrupar por</label>
+                  <label className={ui.fieldLabel}>Agrupar por</label>
                   <select
                     value={groupByExt}
                     onChange={(e) => setGroupByExt(e.target.value as any)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                   >
                     <option value="dia">Por Día</option>
                     <option value="semana">Por Semana</option>
@@ -691,7 +665,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
               <div className="space-y-3">
                 {/* Categorías */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Categorías de Gastos</label>
+                  <label className={ui.fieldLabel}>Categorías de Gastos</label>
                   <div className="flex flex-wrap gap-1 max-h-[140px] overflow-y-auto pr-1">
                     {initialOptions.gastos.categorias.map((c) => (
                       <button
@@ -700,8 +674,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedCategoriasGst, setSelectedCategoriasGst, c.id)}
                         className={`px-2 py-0.5 text-[10px] rounded-md border transition-all duration-150 ${
                           selectedCategoriasGst.includes(c.id)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {c.nombre}
@@ -712,7 +686,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Tipo de Gasto */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Tipos Administrativos</label>
+                  <label className={ui.fieldLabel}>Tipos Administrativos</label>
                   <div className="flex flex-wrap gap-1">
                     {['mina', 'planta', 'general', 'transporte', 'seguridad', 'administrativo'].map((tp) => (
                       <button
@@ -721,8 +695,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTiposGst, setSelectedTiposGst, tp)}
                         className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md border transition-all duration-150 ${
                           selectedTiposGst.includes(tp)
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                            : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10'
+                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
+                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
                         }`}
                       >
                         {tp === 'planta' ? 'Molino' : tp}
@@ -733,23 +707,23 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                 {/* Proveedor / Factura buscador */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400">Buscar Proveedor / Factura</label>
+                  <label className={ui.fieldLabel}>Buscar Proveedor / Factura</label>
                   <input
                     type="text"
                     value={searchProveedor}
                     onChange={(e) => setSearchProveedor(e.target.value)}
                     placeholder="Escriba aquí..."
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className={ui.input}
                   />
                 </div>
 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
-                  <label className="text-[11px] font-bold text-zinc-400">Agrupar por</label>
+                  <label className={ui.fieldLabel}>Agrupar por</label>
                   <select
                     value={groupByGst}
                     onChange={(e) => setGroupByGst(e.target.value as any)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                   >
                     <option value="dia">Por Día</option>
                     <option value="semana">Por Semana</option>
@@ -764,10 +738,10 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
               <div className="space-y-3">
                 {/* Gold Price parameter */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-zinc-400 flex items-center gap-1">
-                    💰 Precio Oro p/Gramo (USD)
+                  <label className={cn(ui.fieldLabel, 'flex items-center gap-1')}>
+                    Precio oro (USD/g)
                     <span title="Se usa para estimar ingresos brutos basados en gramos de oro puro recuperado.">
-                      <HelpCircle className="w-3 h-3 text-zinc-500 hover:text-amber-500 cursor-pointer" />
+                      <HelpCircle className="w-3 h-3 text-zinc-500 hover:text-zinc-300 cursor-pointer" />
                     </span>
                   </label>
                   <div className="relative">
@@ -777,18 +751,18 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                       step="0.01"
                       value={goldPriceInput}
                       onChange={(e) => setGoldPriceInput(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-zinc-900/60 border border-white/10 rounded-xl pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      className="w-full rounded-lg border border-white/5 bg-zinc-900/40 pl-7 pr-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                     />
                   </div>
                 </div>
 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
-                  <label className="text-[11px] font-bold text-zinc-400">Agrupar Balance por</label>
+                  <label className={ui.fieldLabel}>Agrupar Balance por</label>
                   <select
                     value={groupByBal}
                     onChange={(e) => setGroupByBal(e.target.value as any)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
                   >
                     <option value="semana">Por Semana</option>
                     <option value="mes">Por Mes</option>
@@ -802,27 +776,21 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
         {/* RIGHT COLUMN: PREVIEW & DOWNLOADS */}
         <div className="lg:col-span-3 space-y-6">
           {/* PREVIEW CONTAINER */}
-          <div className="rounded-2xl border border-white/5 bg-zinc-950/40 p-5 backdrop-blur-xl space-y-6">
+          <div className={ui.previewPanel}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                🔎 Vista Previa de Datos
-                {isPending && <Loader2 className="w-4 h-4 animate-spin text-amber-500" />}
+              <h2 className={cn(ui.previewTitle, 'flex items-center gap-2')}>
+                Vista previa
+                {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />}
               </h2>
               {aggregated && aggregated.rows.length > 0 && (
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleDownloadPDF}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-2 text-xs font-semibold hover:bg-amber-500/20 transition-all duration-150 shadow-[0_0_15px_rgba(245,158,11,0.03)]"
-                  >
+                  <button type="button" onClick={handleDownloadPDF} className={ui.btnExport}>
                     <FileText className="w-3.5 h-3.5" />
-                    Descargar PDF
+                    PDF
                   </button>
-                  <button
-                    onClick={handleDownloadCSV}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-2 text-xs font-semibold hover:bg-emerald-500/20 transition-all duration-150 shadow-[0_0_15px_rgba(16,185,129,0.03)]"
-                  >
+                  <button type="button" onClick={handleDownloadCSV} className={ui.btnExport}>
                     <FileSpreadsheet className="w-3.5 h-3.5" />
-                    Descargar CSV
+                    CSV
                   </button>
                 </div>
               )}
@@ -830,7 +798,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
             {/* ERROR STATE */}
             {error && (
-              <div className="flex gap-3 items-center p-4 rounded-xl border border-red-500/20 bg-red-500/5 text-red-400">
+              <div className="flex gap-3 items-center p-4 rounded-xl border border-red-500/20 bg-red-500/5">
                 <AlertCircle className="w-5 h-5 shrink-0" />
                 <p className="text-sm font-semibold">{error}</p>
               </div>
@@ -838,18 +806,18 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
             {/* LOADING STATE */}
             {isPending && !aggregated && (
-              <div className="flex h-64 flex-col items-center justify-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
-                <p className="text-sm text-zinc-400">Cargando y procesando información...</p>
+              <div className={ui.emptyState}>
+                <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+                <p className="text-sm text-zinc-500">Cargando datos…</p>
               </div>
             )}
 
             {/* NO DATA STATE */}
             {!isPending && (!aggregated || aggregated.rows.length === 0) && !error && (
-              <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/5 py-12">
-                <HelpCircle className="h-10 w-10 text-zinc-600" />
-                <p className="text-sm font-bold text-zinc-400">No se encontraron registros</p>
-                <p className="text-xs text-zinc-500 text-center max-w-[280px]">
+              <div className={ui.emptyState}>
+                <HelpCircle className="h-8 w-8 text-zinc-600" />
+                <p className="text-sm font-medium text-zinc-400">No se encontraron registros</p>
+                <p className="text-xs text-zinc-600 text-center max-w-[280px]">
                   Prueba ampliando el rango de fechas o seleccionando menos filtros dinámicos.
                 </p>
               </div>
@@ -859,45 +827,45 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
             {aggregated && aggregated.rows.length > 0 && !error && (
               <div className="space-y-6">
                 {/* 1. KPIs Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {activeTab === 'produccion' && (
                     <>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Oro Recuperado</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">{aggregated.kpis.oroTotalGrams.toLocaleString()} g</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Oro Recuperado</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.oroTotalGrams.toLocaleString()} g</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Sacos Vaciados</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.sacosTotal.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Sacos Vaciados</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.sacosTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Toneladas</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.toneladasTotal.toLocaleString()} t</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Toneladas</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.toneladasTotal.toLocaleString()} t</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Tenor Promedio</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">{aggregated.kpis.tenorPromedioGpt.toFixed(2)} g/t</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Tenor Promedio</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.tenorPromedioGpt.toFixed(2)} g/t</p>
                       </div>
                     </>
                   )}
 
                   {activeTab === 'nomina' && (
                     <>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Total Nómina</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">${aggregated.kpis.totalPagado.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Total Nómina</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">${aggregated.kpis.totalPagado.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Bono Transporte</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">${aggregated.kpis.bonoTransporteTotal.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Bono Transporte</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">${aggregated.kpis.bonoTransporteTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Trabajadores</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.trabajadoresUnicos}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Trabajadores</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.trabajadoresUnicos}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Split Pedro/Dar/LaFe</p>
-                        <p className="text-[11px] font-bold text-amber-400 mt-1">
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Split Pedro/Dar/LaFe</p>
+                        <p className="text-[11px] font-bold mt-1">
                           ${aggregated.kpis.pedroTotal.toLocaleString()} / ${aggregated.kpis.darinelTotal.toLocaleString()} / ${aggregated.kpis.laFeTotal.toLocaleString()}
                         </p>
                       </div>
@@ -906,41 +874,41 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                   {activeTab === 'voladuras' && (
                     <>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Nro. Disparos</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">{aggregated.kpis.disparosCount}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Nro. Disparos</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.disparosCount}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Huecos</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.huecosTotal.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Huecos</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.huecosTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Chupis</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.chupisTotal.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Chupis</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.chupisTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Consumo Arroz</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">{aggregated.kpis.arrozKgTotal.toLocaleString()} kg</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Consumo Arroz</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.arrozKgTotal.toLocaleString()} kg</p>
                       </div>
                     </>
                   )}
 
                   {activeTab === 'quemado' && (
                     <>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Total Amalgama</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.amalgamaTotalG.toLocaleString()} g</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Total Amalgama</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.amalgamaTotalG.toLocaleString()} g</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Oro Puro</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">{aggregated.kpis.oroTotalG.toLocaleString()} g</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Oro Puro</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.oroTotalG.toLocaleString()} g</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Rendimiento</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">{aggregated.kpis.rendimientoOroPct.toFixed(2)}%</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Rendimiento</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.rendimientoOroPct.toFixed(2)}%</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Manto / Retorta</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Manto / Retorta</p>
                         <p className="text-xs font-bold text-zinc-300 mt-2">
                           M:{aggregated.kpis.mantoOroTotalG.toFixed(0)}g | R:{aggregated.kpis.retortaOroTotalG.toFixed(0)}g
                         </p>
@@ -950,21 +918,21 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                   {activeTab === 'extraccion' && (
                     <>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Reportes</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.reportesCount}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Reportes</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.reportesCount}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Sacos Extraídos</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">{aggregated.kpis.sacosTotal.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Sacos Extraídos</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.sacosTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Eventos / Novedades</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.eventosTotal}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Eventos / Novedades</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.eventosTotal}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Promedio/Reporte</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Promedio/Reporte</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">
                           {aggregated.kpis.reportesCount > 0 ? (aggregated.kpis.sacosTotal / aggregated.kpis.reportesCount).toFixed(0) : '0'}
                         </p>
                       </div>
@@ -973,21 +941,21 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                   {activeTab === 'gastos' && (
                     <>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Total Gastado</p>
-                        <p className="text-xl font-extrabold text-red-500 mt-1">${aggregated.kpis.totalGastado.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Total Gastado</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">${aggregated.kpis.totalGastado.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Gasto Promedio</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">${aggregated.kpis.promedioGasto.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Gasto Promedio</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">${aggregated.kpis.promedioGasto.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Nro. Transacciones</p>
-                        <p className="text-xl font-extrabold text-zinc-300 mt-1">{aggregated.kpis.registrosCount}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Nro. Transacciones</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.registrosCount}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Mayor Gasto Único</p>
-                        <p className="text-[11px] font-extrabold text-red-400 mt-1.5 truncate" title={aggregated.kpis.mayorGastoDesc}>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Mayor Gasto Único</p>
+                        <p className={cn(ui.kpiValueSmall, 'truncate')} title={aggregated.kpis.mayorGastoDesc}>
                           ${aggregated.kpis.mayorGastoMonto.toLocaleString()}
                         </p>
                       </div>
@@ -996,22 +964,22 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                   {activeTab === 'balance' && (
                     <>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Ingreso Total</p>
-                        <p className="text-xl font-extrabold text-emerald-500 mt-1">${aggregated.kpis.ingresoTotalUsd.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Ingreso Total</p>
+                        <p className={ui.kpiValueAccent}>${aggregated.kpis.ingresoTotalUsd.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Gasto Total</p>
-                        <p className="text-xl font-extrabold text-red-500 mt-1">${aggregated.kpis.gastoTotalUsd.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Gasto Total</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">${aggregated.kpis.gastoTotalUsd.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Utilidad Neta</p>
-                        <p className="text-xl font-extrabold text-amber-500 mt-1">${aggregated.kpis.rentabilidadUsd.toLocaleString()}</p>
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Utilidad Neta</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">${aggregated.kpis.rentabilidadUsd.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Margen % / Costo g</p>
-                        <p className="text-xs font-bold text-amber-400 mt-1.5">
-                          {aggregated.kpis.margenRentabilidadPct.toFixed(1)}% | ${aggregated.kpis.costoPorGramoOro.toFixed(0)}/g
+                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Margen % / Costo g</p>
+                        <p className={ui.kpiValueSmall}>
+                          {aggregated.kpis.margenRentabilidadPct.toFixed(1)}% · ${aggregated.kpis.costoPorGramoOro.toFixed(0)}/g
                         </p>
                       </div>
                     </>
@@ -1019,153 +987,150 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 </div>
 
                 {/* 2. Table Preview */}
-                <div className="overflow-x-auto rounded-xl border border-white/5 bg-zinc-950/20">
+                <div className={ui.tableWrap}>
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="border-b border-white/5 bg-white/[0.02] text-zinc-400 font-bold">
-                        <th className="p-3">Grupo / Periodo</th>
+                      <tr className={ui.tableHead}>
+                        <th className="p-2.5">Grupo / Periodo</th>
                         {activeTab === 'produccion' && (
                           <>
-                            <th className="p-3 text-right">Sacos</th>
-                            <th className="p-3 text-right">Toneladas</th>
-                            <th className="p-3 text-right text-amber-400">Oro (g)</th>
-                            <th className="p-3 text-right text-amber-400">Tenor (g/t)</th>
-                            <th className="p-3 text-right">Merma %</th>
+                            <th className="p-2.5 text-right">Sacos</th>
+                            <th className="p-2.5 text-right">Toneladas</th>
+                            <th className="p-2.5 text-right">Oro (g)</th>
+                            <th className="p-2.5 text-right">Tenor (g/t)</th>
+                            <th className="p-2.5 text-right">Merma %</th>
                           </>
                         )}
                         {activeTab === 'nomina' && (
                           <>
-                            <th className="p-3 text-right">Cant. Personal</th>
-                            <th className="p-3 text-right text-amber-400">Pago Nómina</th>
-                            <th className="p-3 text-right">Bono Transporte</th>
-                            <th className="p-3 text-right text-amber-500">Pedro</th>
-                            <th className="p-3 text-right text-amber-500">Darinel</th>
-                            <th className="p-3 text-right text-amber-500">La Fe</th>
+                            <th className="p-2.5 text-right">Cant. Personal</th>
+                            <th className="p-2.5 text-right">Pago Nómina</th>
+                            <th className="p-2.5 text-right">Bono Transporte</th>
+                            <th className="p-2.5 text-right">Pedro</th>
+                            <th className="p-2.5 text-right">Darinel</th>
+                            <th className="p-2.5 text-right">La Fe</th>
                           </>
                         )}
                         {activeTab === 'voladuras' && (
                           <>
-                            <th className="p-3 text-right">Disparos</th>
-                            <th className="p-3 text-right">Huecos</th>
-                            <th className="p-3 text-right">Pies Huecos</th>
-                            <th className="p-3 text-right">Chupis</th>
-                            <th className="p-3 text-right">Arroz (kg)</th>
-                            <th className="p-3 text-right text-amber-400">Ratio H/C</th>
+                            <th className="p-2.5 text-right">Disparos</th>
+                            <th className="p-2.5 text-right">Huecos</th>
+                            <th className="p-2.5 text-right">Pies Huecos</th>
+                            <th className="p-2.5 text-right">Chupis</th>
+                            <th className="p-2.5 text-right">Arroz (kg)</th>
+                            <th className="p-2.5 text-right">Ratio H/C</th>
                           </>
                         )}
                         {activeTab === 'quemado' && (
                           <>
-                            <th className="p-3 text-right">Procesos</th>
-                            <th className="p-3 text-right">Amalgama (g)</th>
-                            <th className="p-3 text-right text-amber-400">Oro Puro (g)</th>
-                            <th className="p-3 text-right text-amber-400">Rendimiento %</th>
-                            <th className="p-3 text-right">Nro Planchas</th>
+                            <th className="p-2.5 text-right">Procesos</th>
+                            <th className="p-2.5 text-right">Amalgama (g)</th>
+                            <th className="p-2.5 text-right">Oro Puro (g)</th>
+                            <th className="p-2.5 text-right">Rendimiento %</th>
+                            <th className="p-2.5 text-right">Nro Planchas</th>
                           </>
                         )}
                         {activeTab === 'extraccion' && (
                           <>
-                            <th className="p-3 text-right">Reportes</th>
-                            <th className="p-3 text-right text-amber-400">Sacos Extraídos</th>
-                            <th className="p-3 text-right">Cant. Eventos</th>
+                            <th className="p-2.5 text-right">Reportes</th>
+                            <th className="p-2.5 text-right">Sacos Extraídos</th>
+                            <th className="p-2.5 text-right">Cant. Eventos</th>
                           </>
                         )}
                         {activeTab === 'gastos' && (
                           <>
-                            <th className="p-3 text-right text-red-400">Total Gastado</th>
-                            <th className="p-3 text-right">Gasto Promedio</th>
-                            <th className="p-3 text-right text-red-300">Gasto Mayor</th>
-                            <th className="p-3 text-right">Transacciones</th>
+                            <th className="p-2.5 text-right">Total Gastado</th>
+                            <th className="p-2.5 text-right">Gasto Promedio</th>
+                            <th className="p-2.5 text-right text-red-300">Gasto Mayor</th>
+                            <th className="p-2.5 text-right">Transacciones</th>
                           </>
                         )}
                         {activeTab === 'balance' && (
                           <>
-                            <th className="p-3 text-right text-emerald-400">Ingresos Oro</th>
-                            <th className="p-3 text-right text-emerald-400">Ingresos Arenas</th>
-                            <th className="p-3 text-right text-emerald-500">Ingresos Total</th>
-                            <th className="p-3 text-right text-red-400">Gasto Nómina</th>
-                            <th className="p-3 text-right text-red-400">Gastos Ops</th>
-                            <th className="p-3 text-right text-amber-400">Utilidad Neta</th>
-                            <th className="p-3 text-right">Margen %</th>
+                            <th className="p-2.5 text-right">Ingresos Oro</th>
+                            <th className="p-2.5 text-right">Ingresos Arenas</th>
+                            <th className="p-2.5 text-right">Ingresos Total</th>
+                            <th className="p-2.5 text-right">Gasto Nómina</th>
+                            <th className="p-2.5 text-right">Gastos Ops</th>
+                            <th className="p-2.5 text-right">Utilidad Neta</th>
+                            <th className="p-2.5 text-right">Margen %</th>
                           </>
                         )}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5 text-zinc-300">
+                    <tbody className={ui.tableBody}>
                       {aggregated.rows.slice(0, 15).map((row: any, idx: number) => (
-                        <tr
-                          key={idx}
-                          className="hover:bg-white/[0.01] transition-colors"
-                        >
-                          <td className="p-3 font-semibold text-white">{row.grupo}</td>
+                        <tr key={idx} className={ui.tableRow}>
+                          <td className="p-2.5 font-medium text-zinc-200">{row.grupo}</td>
                           
                           {activeTab === 'produccion' && (
                             <>
-                              <td className="p-3 text-right">{row.sacos.toLocaleString()}</td>
-                              <td className="p-3 text-right">{row.toneladas.toLocaleString()} t</td>
-                              <td className="p-3 text-right text-amber-400 font-semibold">{row.oroGramos.toLocaleString()} g</td>
-                              <td className="p-3 text-right text-amber-400">{row.tenorGpt.toFixed(2)} g/t</td>
-                              <td className="p-3 text-right text-zinc-400">{row.mermaPct.toFixed(2)}%</td>
+                              <td className="p-2.5 text-right">{row.sacos.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">{row.toneladas.toLocaleString()} t</td>
+                              <td className="p-2.5 text-right font-semibold">{row.oroGramos.toLocaleString()} g</td>
+                              <td className="p-2.5 text-right">{row.tenorGpt.toFixed(2)} g/t</td>
+                              <td className="p-2.5 text-right text-zinc-400">{row.mermaPct.toFixed(2)}%</td>
                             </>
                           )}
 
                           {activeTab === 'nomina' && (
                             <>
-                              <td className="p-3 text-right">{row.trabajadoresCount}</td>
-                              <td className="p-3 text-right text-amber-400 font-semibold">${row.montoPagado.toLocaleString()}</td>
-                              <td className="p-3 text-right">${row.bonoTransporte.toLocaleString()}</td>
-                              <td className="p-3 text-right text-amber-400">${row.montoPedro.toLocaleString()}</td>
-                              <td className="p-3 text-right text-amber-400">${row.montoDarinel.toLocaleString()}</td>
-                              <td className="p-3 text-right text-amber-400">${row.montoLaFe.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">{row.trabajadoresCount}</td>
+                              <td className="p-2.5 text-right font-semibold">${row.montoPagado.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">${row.bonoTransporte.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">${row.montoPedro.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">${row.montoDarinel.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">${row.montoLaFe.toLocaleString()}</td>
                             </>
                           )}
 
                           {activeTab === 'voladuras' && (
                             <>
-                              <td className="p-3 text-right">{row.disparos}</td>
-                              <td className="p-3 text-right">{row.huecos.toLocaleString()}</td>
-                              <td className="p-3 text-right">{row.huecosPies.toLocaleString()} ft</td>
-                              <td className="p-3 text-right">{row.chupis.toLocaleString()}</td>
-                              <td className="p-3 text-right">{row.arrozKg.toLocaleString()} kg</td>
-                              <td className="p-3 text-right text-amber-400 font-semibold">{row.ratioHC.toFixed(2)}</td>
+                              <td className="p-2.5 text-right">{row.disparos}</td>
+                              <td className="p-2.5 text-right">{row.huecos.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">{row.huecosPies.toLocaleString()} ft</td>
+                              <td className="p-2.5 text-right">{row.chupis.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">{row.arrozKg.toLocaleString()} kg</td>
+                              <td className="p-2.5 text-right font-semibold">{row.ratioHC.toFixed(2)}</td>
                             </>
                           )}
 
                           {activeTab === 'quemado' && (
                             <>
-                              <td className="p-3 text-right">{row.quemadas}</td>
-                              <td className="p-3 text-right">{row.amalgamaG.toLocaleString()} g</td>
-                              <td className="p-3 text-right text-amber-400 font-semibold">{row.oroG.toLocaleString()} g</td>
-                              <td className="p-3 text-right text-amber-400">{row.rendimientoPct.toFixed(2)}%</td>
-                              <td className="p-3 text-right">{row.planchasCount}</td>
+                              <td className="p-2.5 text-right">{row.quemadas}</td>
+                              <td className="p-2.5 text-right">{row.amalgamaG.toLocaleString()} g</td>
+                              <td className="p-2.5 text-right font-semibold">{row.oroG.toLocaleString()} g</td>
+                              <td className="p-2.5 text-right">{row.rendimientoPct.toFixed(2)}%</td>
+                              <td className="p-2.5 text-right">{row.planchasCount}</td>
                             </>
                           )}
 
                           {activeTab === 'extraccion' && (
                             <>
-                              <td className="p-3 text-right">{row.reportes}</td>
-                              <td className="p-3 text-right text-amber-400 font-semibold">{row.sacos.toLocaleString()} sacos</td>
-                              <td className="p-3 text-right">{row.eventos}</td>
+                              <td className="p-2.5 text-right">{row.reportes}</td>
+                              <td className="p-2.5 text-right font-semibold">{row.sacos.toLocaleString()} sacos</td>
+                              <td className="p-2.5 text-right">{row.eventos}</td>
                             </>
                           )}
 
                           {activeTab === 'gastos' && (
                             <>
-                              <td className="p-3 text-right text-red-400 font-semibold">${row.monto.toLocaleString()}</td>
-                              <td className="p-3 text-right">${row.gastoPromedio.toLocaleString()}</td>
-                              <td className="p-3 text-right text-red-300">${row.gastoMayor.toLocaleString()}</td>
-                              <td className="p-3 text-right">{row.registrosCount}</td>
+                              <td className="p-2.5 text-right font-semibold">${row.monto.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">${row.gastoPromedio.toLocaleString()}</td>
+                              <td className="p-2.5 text-right text-red-300">${row.gastoMayor.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">{row.registrosCount}</td>
                             </>
                           )}
 
                           {activeTab === 'balance' && (
                             <>
-                              <td className="p-3 text-right text-emerald-400">${row.ingresosOro.toLocaleString()}</td>
-                              <td className="p-3 text-right text-emerald-400">${row.ingresosArenas.toLocaleString()}</td>
-                              <td className="p-3 text-right text-emerald-500 font-semibold">${row.ingresosTotal.toLocaleString()}</td>
-                              <td className="p-3 text-right text-red-400">${row.gastosNomina.toLocaleString()}</td>
-                              <td className="p-3 text-right text-red-400">${row.gastosOperativos.toLocaleString()}</td>
-                              <td className="p-3 text-right text-amber-400 font-semibold">${row.rentabilidad.toLocaleString()}</td>
-                              <td className="p-3 text-right font-medium text-amber-500">{row.margenPct.toFixed(1)}%</td>
+                              <td className="p-2.5 text-right">${row.ingresosOro.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">${row.ingresosArenas.toLocaleString()}</td>
+                              <td className="p-2.5 text-right font-semibold">${row.ingresosTotal.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">${row.gastosNomina.toLocaleString()}</td>
+                              <td className="p-2.5 text-right">${row.gastosOperativos.toLocaleString()}</td>
+                              <td className="p-2.5 text-right font-semibold">${row.rentabilidad.toLocaleString()}</td>
+                              <td className="p-2.5 text-right font-medium">{row.margenPct.toFixed(1)}%</td>
                             </>
                           )}
                         </tr>
@@ -1185,6 +1150,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

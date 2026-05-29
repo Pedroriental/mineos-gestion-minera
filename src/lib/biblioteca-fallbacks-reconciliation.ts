@@ -1,0 +1,56 @@
+import type { BibliotecaCategoriaCompleta } from '@/lib/types';
+
+export const BIBLIOTECA_FALLBACK_RECONCILIATION: BibliotecaCategoriaCompleta[] = [
+  {
+    id: 'fb-metas-prod',
+    slug: 'metas_produccion',
+    nombre: 'Metas de producción',
+    descripcion: 'Metas para reconciliación y cumplimiento',
+    modulo: 'operaciones',
+    orden: 200,
+    activo: true,
+    created_at: '',
+    updated_at: '',
+    variables: [
+      { id: 'mp1', categoria_id: 'fb-metas-prod', clave: 'meta_oro_g_dia', etiqueta: 'Meta oro (g/día)', valor: '15', unidad: 'g', descripcion: null, orden: 1, activo: true, metadata: { min: 0, max: 500 }, created_at: '', updated_at: '' },
+      { id: 'mp2', categoria_id: 'fb-metas-prod', clave: 'meta_sacos_dia', etiqueta: 'Meta sacos (día)', valor: '0', unidad: 'sacos', descripcion: null, orden: 2, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'mp3', categoria_id: 'fb-metas-prod', clave: 'meta_margen_pct', etiqueta: 'Meta margen %', valor: '10', unidad: '%', descripcion: null, orden: 3, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'mp4', categoria_id: 'fb-metas-prod', clave: 'meta_recovery_pct', etiqueta: 'Meta recovery %', valor: '60', unidad: '%', descripcion: null, orden: 4, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'mp5', categoria_id: 'fb-metas-prod', clave: 'meta_utilidad_min_usd', etiqueta: 'Utilidad mínima periodo USD', valor: '0', unidad: 'USD', descripcion: null, orden: 5, activo: true, metadata: {}, created_at: '', updated_at: '' },
+    ],
+  },
+  {
+    id: 'fb-tol-recon',
+    slug: 'tolerancias_reconciliacion',
+    nombre: 'Tolerancias reconciliación',
+    descripcion: 'Umbrales de desvío aceptable entre fuentes',
+    modulo: 'operaciones',
+    orden: 201,
+    activo: true,
+    created_at: '',
+    updated_at: '',
+    variables: [
+      { id: 'tr1', categoria_id: 'fb-tol-recon', clave: 'tol_sacos_mina_planta_pct', etiqueta: 'Tolerancia sacos mina→planta', valor: '8', unidad: '%', descripcion: null, orden: 1, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'tr2', categoria_id: 'fb-tol-recon', clave: 'tol_oro_planta_quemado_pct', etiqueta: 'Tolerancia oro planta→quemado', valor: '5', unidad: '%', descripcion: null, orden: 2, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'tr3', categoria_id: 'fb-tol-recon', clave: 'tol_nomina_vs_semanas_pct', etiqueta: 'Tolerancia nómina registros vs semanas', valor: '2', unidad: '%', descripcion: null, orden: 3, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'tr4', categoria_id: 'fb-tol-recon', clave: 'tol_rpc_ingreso_pct', etiqueta: 'Tolerancia ingreso motor vs RPC', valor: '3', unidad: '%', descripcion: null, orden: 4, activo: true, metadata: {}, created_at: '', updated_at: '' },
+    ],
+  },
+  {
+    id: 'fb-param-bal',
+    slug: 'parametros_balance',
+    nombre: 'Parámetros de balance',
+    descripcion: 'Precio oro y costos de referencia',
+    modulo: 'operaciones',
+    orden: 202,
+    activo: true,
+    created_at: '',
+    updated_at: '',
+    variables: [
+      { id: 'pb1', categoria_id: 'fb-param-bal', clave: 'precio_oro_fuente', etiqueta: 'Fuente precio oro', valor: 'cache', unidad: '', descripcion: 'cache o manual', orden: 1, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'pb2', categoria_id: 'fb-param-bal', clave: 'precio_oro_manual_usd', etiqueta: 'Precio oro manual USD/g', valor: '75', unidad: 'USD/g', descripcion: null, orden: 2, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'pb3', categoria_id: 'fb-param-bal', clave: 'meta_costo_por_gramo_usd', etiqueta: 'Meta costo por gramo USD', valor: '0', unidad: 'USD/g', descripcion: '0 = sin validar', orden: 3, activo: true, metadata: {}, created_at: '', updated_at: '' },
+      { id: 'pb4', categoria_id: 'fb-param-bal', clave: 'nomina_divisiones_json', etiqueta: 'Reparto nómina (JSON)', valor: '[]', unidad: '', descripcion: 'Partes con nombre y % que suman 100', orden: 4, activo: true, metadata: {}, created_at: '', updated_at: '' },
+    ],
+  },
+];

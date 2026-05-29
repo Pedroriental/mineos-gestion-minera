@@ -1,4 +1,4 @@
-import { parseISO, format, startOfWeek, startOfMonth } from 'date-fns';
+import { parseISO, format, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type {
   ReporteProduccion,
@@ -7,30 +7,12 @@ import type {
   ReporteQuemado,
   Gasto,
 } from '../types';
-import type { NominaReportRow, BalanceReportData } from '../actions/report-actions';
+import type { NominaReportRow } from '../actions/report-actions';
+import { aggregateBalance, type BalanceSummary } from '@/lib/reconciliation/aggregate-balance';
+import { safeFormatDate, getWeekRangeLabel } from '@/lib/reports/report-date-utils';
 
-// ── Helpers de Fechas ────────────────────────────────────────
-
-export function safeFormatDate(dateStr: string, pattern: string): string {
-  try {
-    const date = parseISO(dateStr);
-    return format(date, pattern, { locale: es });
-  } catch (e) {
-    return dateStr;
-  }
-}
-
-export function getWeekRangeLabel(dateStr: string): string {
-  try {
-    const date = parseISO(dateStr);
-    const start = startOfWeek(date, { weekStartsOn: 1 });
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return `${format(start, 'dd/MM')} al ${format(end, 'dd/MM/yyyy')}`;
-  } catch (e) {
-    return dateStr;
-  }
-}
+export { safeFormatDate, getWeekRangeLabel } from '@/lib/reports/report-date-utils';
+export { aggregateBalance, type BalanceSummary };
 
 /**
  * Normaliza una cadena de texto a un formato estándar en minúsculas y sin acentos.
@@ -855,130 +837,4 @@ export function aggregateGastos(
 
 // ── 7. Módulo: Balance General ──────────────────────────────
 
-export interface BalanceSummary {
-  kpis: {
-    ingresoOroUsd: number;     // Estimado oro a $75 por gramo
-    ingresoArenasUsd: number;
-    ingresoTotalUsd: number;
-    gastoNominaUsd: number;
-    gastoOperativoUsd: number;
-    gastoTotalUsd: number;
-    rentabilidadUsd: number;
-    margenRentabilidadPct: number;
-    costoPorGramoOro: number;
-  };
-  rows: {
-    grupo: string;
-    ingresosOro: number;
-    ingresosArenas: number;
-    ingresosTotal: number;
-    gastosNomina: number;
-    gastosOperativos: number;
-    gastosTotal: number;
-    rentabilidad: number;
-    margenPct: number;
-  }[];
-}
-
-export function aggregateBalance(
-  data: BalanceReportData,
-  agruparPor: 'semana' | 'mes' = 'semana',
-  goldPricePerGram: number = 75 // Valor estimado por defecto si no hay variable activa
-): BalanceSummary {
-  let oroTotalGrams = data.produccion.reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
-  let ingresoOroUsd = oroTotalGrams * goldPricePerGram;
-  let ingresoArenasUsd = data.ventasArenas.reduce((s, v) => s + Number(v.total_venta ?? 0), 0);
-  let ingresoTotalUsd = ingresoOroUsd + ingresoArenasUsd;
-
-  let gastoNominaUsd = data.nomina.reduce((s, r) => s + Number(r.monto_pagado ?? 0), 0);
-  let gastoOperativoUsd = data.gastos.reduce((s, r) => s + Number(r.monto ?? 0), 0);
-  let gastoTotalUsd = gastoNominaUsd + gastoOperativoUsd;
-
-  let rentabilidadUsd = ingresoTotalUsd - gastoTotalUsd;
-  let margenRentabilidadPct = ingresoTotalUsd > 0 ? (rentabilidadUsd / ingresoTotalUsd) * 100 : 0;
-  let costoPorGramoOro = oroTotalGrams > 0 ? gastoTotalUsd / oroTotalGrams : 0;
-
-  // Rejilla de series de tiempo agrupada
-  const gruposMap = new Map<string, {
-    oroGramos: number;
-    arenasUsd: number;
-    gastoNomina: number;
-    gastoOperativo: number;
-  }>();
-
-  // 1. Asignar producción
-  data.produccion.forEach((r) => {
-    const grupo = agruparPor === 'semana' ? getWeekRangeLabel(r.fecha) : safeFormatDate(r.fecha, 'MMMM yyyy');
-    const current = gruposMap.get(grupo) || { oroGramos: 0, arenasUsd: 0, gastoNomina: 0, gastoOperativo: 0 };
-    current.oroGramos += Number(r.oro_recuperado_g ?? 0);
-    gruposMap.set(grupo, current);
-  });
-
-  // 2. Asignar ventas arenas
-  data.ventasArenas.forEach((v) => {
-    const grupo = agruparPor === 'semana' ? getWeekRangeLabel(v.fecha) : safeFormatDate(v.fecha, 'MMMM yyyy');
-    const current = gruposMap.get(grupo) || { oroGramos: 0, arenasUsd: 0, gastoNomina: 0, gastoOperativo: 0 };
-    current.arenasUsd += Number(v.total_venta ?? 0);
-    gruposMap.set(grupo, current);
-  });
-
-  // 3. Asignar nómina
-  data.nomina.forEach((n) => {
-    const grupo = agruparPor === 'semana' ? getWeekRangeLabel(n.semana_inicio) : safeFormatDate(n.semana_inicio, 'MMMM yyyy');
-    const current = gruposMap.get(grupo) || { oroGramos: 0, arenasUsd: 0, gastoNomina: 0, gastoOperativo: 0 };
-    current.gastoNomina += Number(n.monto_pagado ?? 0);
-    gruposMap.set(grupo, current);
-  });
-
-  // 4. Asignar gastos operativos
-  data.gastos.forEach((g) => {
-    const grupo = agruparPor === 'semana' ? getWeekRangeLabel(g.fecha) : safeFormatDate(g.fecha, 'MMMM yyyy');
-    const current = gruposMap.get(grupo) || { oroGramos: 0, arenasUsd: 0, gastoNomina: 0, gastoOperativo: 0 };
-    current.gastoOperativo += Number(g.monto ?? 0);
-    gruposMap.set(grupo, current);
-  });
-
-  const rows = Array.from(gruposMap.entries()).map(([grupo, stats]) => {
-    const ingOro = stats.oroGramos * goldPricePerGram;
-    const ingTotal = ingOro + stats.arenasUsd;
-    const gstTotal = stats.gastoNomina + stats.gastoOperativo;
-    const rent = ingTotal - gstTotal;
-    const marg = ingTotal > 0 ? (rent / ingTotal) * 100 : 0;
-
-    return {
-      grupo,
-      ingresosOro: Number(ingOro.toFixed(2)),
-      ingresosArenas: Number(stats.arenasUsd.toFixed(2)),
-      ingresosTotal: Number(ingTotal.toFixed(2)),
-      gastosNomina: Number(stats.gastoNomina.toFixed(2)),
-      gastosOperativos: Number(stats.gastoOperativo.toFixed(2)),
-      gastosTotal: Number(gstTotal.toFixed(2)),
-      rentabilidad: Number(rent.toFixed(2)),
-      margenPct: Number(marg.toFixed(2)),
-    };
-  });
-
-  // Ordenar los grupos por fecha estimada de inicio
-  // Para ordenar "dd/MM al dd/MM/yyyy" o "MMMM yyyy", podemos hacer parse de la primera parte si fuese necesario, 
-  // pero el Map preserva el orden de inserción de las transacciones originales de producción y nómina, que ya están ordenadas.
-  // Solo en caso de que sea necesario, podríamos ordenar las filas.
-
-  return {
-    kpis: {
-      ingresoOroUsd: Number(ingresoOroUsd.toFixed(2)),
-      ingresoArenasUsd: Number(ingresoArenasUsd.toFixed(2)),
-      ingresoTotalUsd: Number(ingresoTotalUsd.toFixed(2)),
-      gastoNominaUsd: Number(gastoNominaUsd.toFixed(2)),
-      gastoOperativoUsd: Number(gastoOperativoUsd.toFixed(2)),
-      gastoTotalUsd: Number(gastoTotalUsd.toFixed(2)),
-      rentabilidadUsd: Number(rentabilidadUsd.toFixed(2)),
-      margenRentabilidadPct: Number(margenRentabilidadPct.toFixed(2)),
-      costoPorGramoOro: Number(costoPorGramoOro.toFixed(2)),
-    },
-    rows: rows.sort((a, b) => {
-      // Ordenar series temporales cronológicamente por la etiqueta de grupo
-      // Como las series pueden ser complicadas, una aproximación simple es útil
-      return a.grupo.localeCompare(b.grupo);
-    }),
-  };
-}
+// aggregateBalance → motor de reconciliación (re-export arriba)

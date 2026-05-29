@@ -9,7 +9,8 @@ export type ReportModule =
   | 'quemado'
   | 'extraccion'
   | 'gastos'
-  | 'balance';
+  | 'balance'
+  | 'reconciliacion';
 
 export interface DateRange {
   from: string; // 'YYYY-MM-DD'
