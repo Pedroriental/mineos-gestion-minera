@@ -24,6 +24,7 @@ export type ActionResult =
 // ── Paths a revalidar cuando cambia un gasto ──────────────────
 const REVALIDATE_PATHS = [
   '/admin/gastos',
+  '/admin/gastos/conceptos',
   '/operaciones/resumen',
   '/operaciones/costos',
   '/dashboard',
@@ -185,5 +186,75 @@ export async function getOrCreateCategoria(
   } catch (err) {
     console.error('[Action] getOrCreateCategoria Exception:', err);
     return { ok: false, message: 'Error interno del servidor' };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// CATALOGO DE CONCEPTOS — registrar, actualizar y eliminar
+// ─────────────────────────────────────────────────────────────
+
+export async function upsertGastoConcepto(raw: {
+  id?: string;
+  descripcion: string;
+  categoria_default_id?: string | null;
+  proveedor_sugerido?: string | null;
+  monto_sugerido?: number | null;
+  notas?: string | null;
+  activo?: boolean;
+}): Promise<ActionResult> {
+  try {
+    const descClean = raw.descripcion.trim();
+    if (!descClean || descClean.length < 3) {
+      return { ok: false, message: 'La descripción del concepto debe tener al menos 3 caracteres.' };
+    }
+
+    const supabase = await createServerClient();
+    const payload = {
+      descripcion: descClean,
+      categoria_default_id: raw.categoria_default_id || null,
+      proveedor_sugerido: raw.proveedor_sugerido || null,
+      monto_sugerido: raw.monto_sugerido || null,
+      notas: raw.notas || null,
+      activo: raw.activo !== false,
+    };
+
+    let error;
+    if (raw.id) {
+      ({ error } = await supabase.from('gasto_conceptos').update(payload).eq('id', raw.id));
+    } else {
+      ({ error } = await supabase.from('gasto_conceptos').insert(payload));
+    }
+
+    if (error) {
+      console.error('[Action] upsertGastoConcepto Supabase error:', error.message, error.code);
+      if (error.code === '23505' || error.message.toLowerCase().includes('unique constraint') || error.message.toLowerCase().includes('duplicate key')) {
+        return { ok: false, message: 'Ya existe un concepto registrado con esta misma descripción en el catálogo.' };
+      }
+      return { ok: false, message: `Error al guardar concepto: ${error.message}` };
+    }
+
+    revalidateAll();
+    return { ok: true, message: 'Concepto guardado correctamente en el catálogo' };
+  } catch (err) {
+    console.error('[Action] upsertGastoConcepto Exception:', err);
+    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
+  }
+}
+
+export async function deleteGastoConcepto(id: string): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    const { error } = await supabase.from('gasto_conceptos').delete().eq('id', id);
+
+    if (error) {
+      console.error('[Action] deleteGastoConcepto Supabase error:', error.message);
+      return { ok: false, message: `Error al eliminar del catálogo: ${error.message}` };
+    }
+
+    revalidateAll();
+    return { ok: true, message: 'Concepto eliminado del catálogo' };
+  } catch (err) {
+    console.error('[Action] deleteGastoConcepto Exception:', err);
+    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
   }
 }
