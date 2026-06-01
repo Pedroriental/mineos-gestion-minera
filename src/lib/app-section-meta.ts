@@ -22,6 +22,7 @@ import {
   Wrench,
   Zap,
   FileText,
+  Receipt,
 } from 'lucide-react';
 
 export type AppSectionMeta = {
@@ -53,6 +54,12 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     title: 'Gastos Operativos',
     description: 'Control de egresos y costos operacionales.',
     Icon: TrendingDown,
+    iconClassName: 'text-red-400',
+  },
+  '/admin/gastos/conceptos': {
+    title: 'Catálogo',
+    description: 'Catálogo central de conceptos de gasto operativo.',
+    Icon: Receipt,
     iconClassName: 'text-red-400',
   },
   '/admin/trabajadores': {
@@ -177,10 +184,22 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
   },
   '/operaciones/nomina-vista-previa': {
     title: 'Vista previa de Nómina',
-    description: 'Propuesta: reporte consolidado en tiempo real (no sustituye el cierre oficial).',
+    description: 'Reporte consolidado: archivo histórico + proyección de semanas abiertas.',
     Icon: Users,
     iconClassName: 'text-violet-400',
     titleClassName: 'text-violet-300',
+  },
+  '/operaciones/nomina-archivo': {
+    title: 'Archivo de Nóminas',
+    description: 'Periodos cerrados, importaciones históricas y consolidación multi-semana.',
+    Icon: FileText,
+    iconClassName: 'text-amber-400',
+  },
+  '/operaciones/nomina-importar': {
+    title: 'Importar Nómina Histórica',
+    description: 'Carga Excel/PDF multi-semana con inferencia automática de rotación.',
+    Icon: FileText,
+    iconClassName: 'text-emerald-400',
   },
   '/plataforma/datos-fiscales': {
     title: 'Datos Fiscales',

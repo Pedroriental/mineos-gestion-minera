@@ -121,7 +121,7 @@ export function AppCombobox({
           maxHeight: menuPos.maxHeight,
           top: menuPos.top,
           bottom: menuPos.bottom,
-          zIndex: 200,
+          zIndex: 10000,
         }}
       >
         {filtered.map((opt, index) => {

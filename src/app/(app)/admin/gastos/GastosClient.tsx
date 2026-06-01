@@ -20,7 +20,7 @@ import type { Gasto, CategoriaGasto } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria } from '@/lib/actions/gastos';
+import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto } from '@/lib/actions/gastos';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppCombobox } from '@/components/ui/AppCombobox';
 import { getGastoColumns, gastoGlobalFilter } from './columns';
@@ -31,6 +31,7 @@ interface GastosClientProps {
   data:       Gasto[];
   categorias: CategoriaGasto[];
   registradoPorLabels: Record<string, string>;
+  conceptos?: any[];
 }
 
 const EMPTY_FORM = {
@@ -41,6 +42,7 @@ const EMPTY_FORM = {
   proveedor:          '',
   factura_referencia: '',
   notas:              '',
+  guardar_en_catalogo: false,
 };
 
 const fmt = (n: number) =>
@@ -75,7 +77,7 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 }
 
 // ─────────────────────────────────────────────────────────────
-export default function GastosClient({ data, categorias, registradoPorLabels }: GastosClientProps) {
+export default function GastosClient({ data, categorias, registradoPorLabels, conceptos }: GastosClientProps) {
   const { user }  = useAuth();
   const canEdit   = useCanEdit();
   const [isPending, startTransition] = useTransition();
@@ -113,6 +115,10 @@ export default function GastosClient({ data, categorias, registradoPorLabels }: 
     () => categorias.map((c) => ({ value: c.nombre, label: c.nombre })),
     [categorias],
   );
+
+  const conceptOptions = useMemo(() => {
+    return (conceptos || []).map((c) => ({ value: c.descripcion, label: c.descripcion }));
+  }, [conceptos]);
 
   const categoriasDisponibles = useMemo(() => {
     const set = new Set<string>();
@@ -484,6 +490,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels }: 
       proveedor:          item.proveedor          || '',
       factura_referencia: item.factura_referencia || '',
       notas:              item.notas              || '',
+      guardar_en_catalogo: false,
     });
     setShowModal(true);
   }
@@ -501,6 +508,16 @@ export default function GastosClient({ data, categorias, registradoPorLabels }: 
       // Resolver (o crear) la categoría por nombre
       const catResult = await getOrCreateCategoria(form.categoria_nombre);
       if (!catResult.ok) { setFormError(catResult.message); return; }
+
+      // Si se marcó "guardar en catálogo"
+      if (form.guardar_en_catalogo) {
+        await upsertGastoConcepto({
+          descripcion: form.descripcion,
+          categoria_default_id: catResult.id,
+          proveedor_sugerido: form.proveedor || null,
+          monto_sugerido: null,
+        });
+      }
 
       const payload = {
         fecha: form.fecha, categoria_id: catResult.id, descripcion: form.descripcion,
@@ -958,6 +975,44 @@ export default function GastosClient({ data, categorias, registradoPorLabels }: 
         )}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className="input-label">Descripción / Nombre *</label>
+            <AppCombobox
+              value={form.descripcion}
+              onChange={(value) => {
+                const matched = (conceptos || []).find((c) => c.descripcion === value);
+                if (matched) {
+                  const catName = matched.categorias_gasto?.nombre || '';
+                  setForm({
+                    ...form,
+                    descripcion: value,
+                    categoria_nombre: catName || form.categoria_nombre,
+                    proveedor: matched.proveedor_sugerido || form.proveedor,
+                    monto: matched.monto_sugerido ? String(matched.monto_sugerido) : form.monto,
+                  });
+                } else {
+                  setForm({ ...form, descripcion: value });
+                }
+                setFormError(null);
+              }}
+              options={conceptOptions}
+              placeholder="Escribe o selecciona un concepto..."
+            />
+          </div>
+          {!editItem && (
+            <div className="md:col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="gasto-guardar-catalogo"
+                checked={form.guardar_en_catalogo}
+                onChange={(e) => setForm({ ...form, guardar_en_catalogo: e.target.checked })}
+                className="h-4 w-4 rounded border-zinc-800 bg-zinc-950 text-amber-500 focus:ring-amber-500/50"
+              />
+              <label htmlFor="gasto-guardar-catalogo" className="text-xs text-white/70 select-none cursor-pointer">
+                Guardar este concepto en el catálogo para futuros registros
+              </label>
+            </div>
+          )}
           <div>
             <label className="input-label">Fecha *</label>
             <input
@@ -969,27 +1024,21 @@ export default function GastosClient({ data, categorias, registradoPorLabels }: 
           </div>
           <div>
             <label className="input-label">Categoría *</label>
-            <AppCombobox
+            <select
               value={form.categoria_nombre}
-              onChange={(v) => {
-                setForm({ ...form, categoria_nombre: v });
-                setFormError(null);
-              }}
-              options={categoriaOptions}
-              placeholder="Escribe o selecciona una categoría..."
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="input-label">Descripción *</label>
-            <input
-              value={form.descripcion}
-              onChange={e => {
-                setForm({ ...form, descripcion: e.target.value });
+              onChange={(e) => {
+                setForm({ ...form, categoria_nombre: e.target.value });
                 setFormError(null);
               }}
               className="input-field"
-              placeholder="Ej: Compra de combustible"
-            />
+            >
+              <option value="">Selecciona una categoría...</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.nombre}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="input-label">Monto (USD) *</label>
@@ -1012,6 +1061,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels }: 
               value={form.proveedor}
               onChange={e => setForm({ ...form, proveedor: e.target.value })}
               className="input-field"
+              placeholder="Ej: Gasolinera El Faro"
             />
           </div>
           <div>
@@ -1020,6 +1070,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels }: 
               value={form.factura_referencia}
               onChange={e => setForm({ ...form, factura_referencia: e.target.value })}
               className="input-field"
+              placeholder="Ej: F-12345"
             />
           </div>
           <div className="md:col-span-2">
@@ -1028,6 +1079,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels }: 
               value={form.notas}
               onChange={e => setForm({ ...form, notas: e.target.value })}
               className="input-field"
+              placeholder="Notas aclaratorias sobre el gasto..."
             />
           </div>
         </div>

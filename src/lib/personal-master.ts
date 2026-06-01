@@ -20,9 +20,8 @@ export const ESTADO_LABORAL_LABEL: Record<string, string> = {
   DESPEDIDO: 'Retirado',
   REENGANCHADO: 'Reenganchado',
   INACTIVO: 'Inactivo',
-};
-
-export function getEstadoLaboral(p: Pick<Personal, 'estado_laboral' | 'activo'>): string {
+  HISTORICO: 'Histórico',
+};export function getEstadoLaboral(p: Pick<Personal, 'estado_laboral' | 'activo'>): string {
   return (p.estado_laboral || (p.activo ? 'ACTIVO' : 'INACTIVO')) as string;
 }
 
@@ -33,7 +32,7 @@ export function isPersonalVisibleInNomina(
 ): boolean {
   if (p.area !== area) return false;
   const estado = getEstadoLaboral(p);
-  if (estado === 'DESPEDIDO' || estado === 'INACTIVO') return false;
+  if (estado === 'DESPEDIDO' || estado === 'INACTIVO' || estado === 'HISTORICO') return false;
   if (p.estatus && p.estatus !== 'ACTIVO') return false;
   return true;
 }

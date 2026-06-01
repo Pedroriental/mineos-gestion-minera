@@ -19,8 +19,8 @@ import type { Gasto, CategoriaGasto } from '@/lib/types';
 export default async function GastosPage() {
   const supabase = await createServerClient();
 
-  // Fetch en paralelo — ambas queries en el servidor
-  const [gastosRes, catsRes] = await Promise.all([
+  // Fetch en paralelo — queries en el servidor
+  const [gastosRes, catsRes, conceptosRes] = await Promise.all([
     supabase
       .from('gastos')
       .select('*, categorias_gasto(nombre, tipo)')
@@ -31,10 +31,16 @@ export default async function GastosPage() {
       .select('*')
       .eq('activo', true)
       .order('nombre'),
+    supabase
+      .from('gasto_conceptos')
+      .select('*, categorias_gasto(id, nombre)')
+      .eq('activo', true)
+      .order('descripcion'),
   ]);
 
   const data:       Gasto[]         = (gastosRes.data as Gasto[])        ?? [];
   const categorias: CategoriaGasto[] = (catsRes.data  as CategoriaGasto[]) ?? [];
+  const conceptos:  any[]           = (conceptosRes.data as any[])       ?? [];
 
   const registradoPorLabels = await resolveRegistradoPorLabels(
     data.map(g => g.registrado_por),
@@ -45,6 +51,7 @@ export default async function GastosPage() {
       data={data}
       categorias={categorias}
       registradoPorLabels={registradoPorLabels}
+      conceptos={conceptos}
     />
   );
 }

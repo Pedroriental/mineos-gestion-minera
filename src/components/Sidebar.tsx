@@ -49,7 +49,15 @@ const navigation: NavSection[] = [
     title: 'Administración',
     items: [
       { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', icon: <BookOpen className="w-4 h-4" /> },
-      { label: 'Gastos',     href: '/admin/gastos',     icon: <Receipt className="w-4 h-4" /> },
+      {
+        label: 'Gastos',
+        href: '#',
+        icon: <Receipt className="w-4 h-4" />,
+        subItems: [
+          { label: 'Registros de Gastos', href: '/admin/gastos' },
+          { label: 'Catálogo', href: '/admin/gastos/conceptos' },
+        ],
+      },
       { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
       { label: 'Compras',    href: '/admin/compras',    icon: <ShoppingCart className="w-4 h-4" /> },
       {
@@ -207,7 +215,9 @@ function NavItemWithSubmenu({
         <div className="overflow-hidden">
         <div className="mt-0.5 space-y-0 pb-0.5">
           {subItems.map((sub) => {
-            const subActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
+            const subActive = sub.href === '/admin/gastos'
+              ? (pathname === '/admin/gastos' || (pathname.startsWith('/admin/gastos/') && !pathname.startsWith('/admin/gastos/conceptos')))
+              : (pathname === sub.href || pathname.startsWith(sub.href + '/'));
             return (
               <button
                 key={sub.href}
