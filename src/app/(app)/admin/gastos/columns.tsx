@@ -21,6 +21,14 @@ export function formatGastoFecha(iso: string): string {
   return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
 }
 
+export function parseDescripcion(desc: string) {
+  const match = /(.*)\s+\(Cant:\s*(.*?)\)$/.exec(desc || '');
+  if (match) {
+    return { cleanDesc: match[1], cantidad: match[2] };
+  }
+  return { cleanDesc: desc || '', cantidad: '—' };
+}
+
 function SortIcon({ direction }: { direction: 'asc' | 'desc' | false }) {
   if (direction === 'asc') {
     return <ArrowUp className="gastos-sort-icon gastos-sort-icon--active ml-1.5 h-3 w-3" />;
@@ -82,14 +90,36 @@ export function getGastoColumns({
           Descripción
         </span>
       ),
-      cell: (info) => (
-        <span
-          className="gastos-td block max-w-full truncate text-[11px] font-medium"
-          title={info.getValue()}
-        >
-          {info.getValue()}
+      cell: (info) => {
+        const { cleanDesc } = parseDescripcion(info.getValue());
+        return (
+          <span
+            className="gastos-td block max-w-full truncate text-[11px] font-medium"
+            title={cleanDesc}
+          >
+            {cleanDesc}
+          </span>
+        );
+      },
+      enableSorting: false,
+    }),
+
+    helper.accessor('descripcion', {
+      id: 'cantidad',
+      meta: { align: 'center' },
+      header: () => (
+        <span className="gastos-th text-[10px] font-bold uppercase tracking-wide text-center w-full block">
+          Cantidad
         </span>
       ),
+      cell: (info) => {
+        const { cantidad } = parseDescripcion(info.getValue());
+        return (
+          <span className="gastos-td block text-center max-w-full truncate text-[11px] opacity-80" title={cantidad !== '—' ? cantidad : undefined}>
+            {cantidad}
+          </span>
+        );
+      },
       enableSorting: false,
     }),
 

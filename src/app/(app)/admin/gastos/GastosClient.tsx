@@ -13,18 +13,18 @@ import {
 import {
   DollarSign, Plus, Search, X, Loader2, AlertCircle,
   Download, Tag, FileText, ChevronLeft, ChevronRight,
-  Receipt, Wallet, BarChart3, FileDown, Calendar,
+  Receipt, Wallet, BarChart3, FileDown, Calendar, Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Gasto, CategoriaGasto } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto } from '@/lib/actions/gastos';
+import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto, createGastosBulk } from '@/lib/actions/gastos';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppCombobox } from '@/components/ui/AppCombobox';
 import { AppSelect } from '@/components/ui/AppSelect';
-import { getGastoColumns, gastoGlobalFilter } from './columns';
+import { getGastoColumns, gastoGlobalFilter, parseDescripcion } from './columns';
 import { GastoDetailCard } from './GastoDetailCard';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -35,16 +35,21 @@ interface GastosClientProps {
   conceptos?: any[];
 }
 
-const EMPTY_FORM = {
+const EMPTY_BASE_INFO = {
   fecha:              new Date().toISOString().split('T')[0],
-  categoria_nombre:   '',
-  descripcion:        '',
-  monto:              '',
   proveedor:          '',
   factura_referencia: '',
   notas:              '',
-  guardar_en_catalogo: false,
 };
+
+const createEmptyItem = () => ({
+  id:                 Date.now().toString() + Math.random().toString(),
+  categoria_nombre:   '',
+  descripcion:        '',
+  cantidad:           '',
+  monto:              '',
+  guardar_en_catalogo: false,
+});
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -85,8 +90,11 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
 
   const [showModal, setShowModal] = useState(false);
   const [editItem,  setEditItem]  = useState<Gasto | null>(null);
-  const [form,      setForm]      = useState(EMPTY_FORM);
+  const [baseInfo,  setBaseInfo]  = useState(EMPTY_BASE_INFO);
+  const [items,     setItems]     = useState([createEmptyItem()]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isGlobalAmount, setIsGlobalAmount] = useState(false);
+  const [globalAmount, setGlobalAmount] = useState('');
   const [sorting,   setSorting]   = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(''); 
@@ -264,13 +272,15 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   // ── Exportación CSV ───────────────────────────────────────
   function exportToCSV() {
     const rows    = table.getFilteredRowModel().rows;
-    const headers = ['Fecha', 'Descripcion', 'Categoria', 'Proveedor', 'Ref. Factura', 'Monto USD'];
+    const headers = ['Fecha', 'Descripcion', 'Cantidad', 'Categoria', 'Proveedor', 'Ref. Factura', 'Monto USD'];
     const escape  = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
     const lines   = rows.map(row => {
       const g = row.original;
+      const { cleanDesc, cantidad } = parseDescripcion(g.descripcion);
       return [
         g.fecha,
-        escape(g.descripcion),
+        escape(cleanDesc),
+        escape(cantidad !== '—' ? cantidad : ''),
         g.categorias_gasto?.nombre || '',
         g.proveedor || '',
         g.factura_referencia || '',
@@ -436,15 +446,19 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
 
     autoTable(doc, {
       startY: curY,
-      head: [['FECHA', 'DESCRIPCION', 'CATEGORIA', 'PROVEEDOR', 'REF. FACTURA', 'MONTO USD']],
-      body: gastos.map(g => [
-        g.fecha,
-        g.descripcion,
-        g.categorias_gasto?.nombre || '-',
-        g.proveedor || '-',
-        g.factura_referencia || '-',
-        fmt(Number(g.monto)),
-      ]),
+      head: [['FECHA', 'DESCRIPCION', 'CANTIDAD', 'CATEGORIA', 'PROVEEDOR', 'REF. FACTURA', 'MONTO USD']],
+      body: gastos.map(g => {
+        const { cleanDesc, cantidad } = parseDescripcion(g.descripcion);
+        return [
+          g.fecha,
+          cleanDesc,
+          cantidad !== '—' ? cantidad : '',
+          g.categorias_gasto?.nombre || '-',
+          g.proveedor || '-',
+          g.factura_referencia || '-',
+          fmt(Number(g.monto)),
+        ];
+      }),
       foot: [['', '', '', '', 'TOTAL PERIODO', fmt(totalAmount)]],
       styles:             { fontSize: 7.5, cellPadding: 2.5, textColor: [200, 200, 215] as [number,number,number] },
       headStyles:         { fillColor: [18, 18, 22] as [number,number,number], textColor: [218, 165, 32] as [number,number,number], fontStyle: 'bold' as const, fontSize: 7, cellPadding: 3 },
@@ -479,20 +493,31 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   }
 
   // ── Modal helpers ─────────────────────────────────────────
-  function resetForm() { setForm(EMPTY_FORM); setEditItem(null); setFormError(null); }
+  function resetForm() { 
+    setBaseInfo(EMPTY_BASE_INFO); 
+    setItems([createEmptyItem()]);
+    setEditItem(null); 
+    setFormError(null); 
+    setIsGlobalAmount(false);
+    setGlobalAmount('');
+  }
   function openNew()   { resetForm(); setShowModal(true); }
   function openEdit(item: Gasto) {
     setEditItem(item);
-    setForm({
+    setBaseInfo({
       fecha:              item.fecha,
-      categoria_nombre:   item.categorias_gasto?.nombre || '',
-      descripcion:        item.descripcion,
-      monto:              String(item.monto),
       proveedor:          item.proveedor          || '',
       factura_referencia: item.factura_referencia || '',
       notas:              item.notas              || '',
-      guardar_en_catalogo: false,
     });
+    setItems([{
+      id:                 item.id,
+      categoria_nombre:   item.categorias_gasto?.nombre || '',
+      descripcion:        item.descripcion,
+      cantidad:           '', // Default empty for edit
+      monto:              String(item.monto),
+      guardar_en_catalogo: false,
+    }]);
     setShowModal(true);
   }
   function closeModal() { setShowModal(false); resetForm(); }
@@ -500,34 +525,89 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   // ── Mutaciones ────────────────────────────────────────────
   function handleSave() {
     setFormError(null);
-    const montoNum = parseFloat(form.monto);
-    if (!form.categoria_nombre.trim())                       { setFormError('Escribe una categoría.'); return; }
-    if (!form.descripcion.trim())                            { setFormError('La descripción es obligatoria.'); return; }
-    if (!form.monto || isNaN(montoNum) || montoNum <= 0)     { setFormError('El monto debe ser mayor que cero.'); return; }
+    if (!baseInfo.fecha) { setFormError('La fecha es obligatoria.'); return; }
+    if (items.length === 0) { setFormError('Debes agregar al menos un ítem.'); return; }
+
+    if (isGlobalAmount) {
+      const globalNum = parseFloat(globalAmount);
+      if (!globalAmount || isNaN(globalNum) || globalNum <= 0) { setFormError('Monto global inválido.'); return; }
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (!it.categoria_nombre.trim()) { setFormError(`El ítem ${i + 1} necesita una categoría.`); return; }
+        if (!it.descripcion.trim()) { setFormError(`La descripción es obligatoria en el ítem ${i + 1}.`); return; }
+      }
+    } else {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const montoNum = parseFloat(it.monto);
+        if (!it.categoria_nombre.trim()) { setFormError(`El ítem ${i + 1} necesita una categoría.`); return; }
+        if (!it.descripcion.trim()) { setFormError(`La descripción es obligatoria en el ítem ${i + 1}.`); return; }
+        if (!it.monto || isNaN(montoNum) || montoNum <= 0) { setFormError(`Monto inválido en el ítem ${i + 1}.`); return; }
+      }
+    }
 
     startTransition(async () => {
-      // Resolver (o crear) la categoría por nombre
-      const catResult = await getOrCreateCategoria(form.categoria_nombre);
-      if (!catResult.ok) { setFormError(catResult.message); return; }
+      // Create payloads
+      const payloads = [];
 
-      // Si se marcó "guardar en catálogo"
-      if (form.guardar_en_catalogo) {
-        await upsertGastoConcepto({
-          descripcion: form.descripcion,
-          categoria_default_id: catResult.id,
-          proveedor_sugerido: form.proveedor || null,
-          monto_sugerido: null,
+      if (isGlobalAmount) {
+        let globalDesc = items.map(it => {
+          let d = it.descripcion;
+          if (it.cantidad && it.cantidad.trim() !== '') {
+            d += ` (Cant: ${it.cantidad})`;
+          }
+          return d;
+        }).join(' + ');
+
+        const catResult = await getOrCreateCategoria(items[0].categoria_nombre);
+        if (!catResult.ok) { setFormError(catResult.message); return; }
+
+        payloads.push({
+          fecha: baseInfo.fecha, 
+          categoria_id: catResult.id, 
+          descripcion: globalDesc,
+          monto: parseFloat(globalAmount), 
+          proveedor: baseInfo.proveedor || null,
+          factura_referencia: baseInfo.factura_referencia || null, 
+          notas: baseInfo.notas || null,
+          registrado_por: user?.id || null,
+          ...(editItem ? { id: editItem.id } : {}),
         });
+
+      } else {
+        for (const it of items) {
+          const catResult = await getOrCreateCategoria(it.categoria_nombre);
+          if (!catResult.ok) { setFormError(catResult.message); return; }
+
+          if (it.guardar_en_catalogo) {
+            await upsertGastoConcepto({
+              descripcion: it.descripcion,
+              categoria_default_id: catResult.id,
+              proveedor_sugerido: baseInfo.proveedor || null,
+              monto_sugerido: null,
+            });
+          }
+
+          let desc = it.descripcion;
+          if (it.cantidad && it.cantidad.trim() !== '') {
+            desc = `${it.descripcion} (Cant: ${it.cantidad})`;
+          }
+
+          payloads.push({
+            fecha: baseInfo.fecha, 
+            categoria_id: catResult.id, 
+            descripcion: desc,
+            monto: parseFloat(it.monto), 
+            proveedor: baseInfo.proveedor || null,
+            factura_referencia: baseInfo.factura_referencia || null, 
+            notas: baseInfo.notas || null,
+            registrado_por: user?.id || null,
+            ...(editItem ? { id: editItem.id } : {}),
+          });
+        }
       }
 
-      const payload = {
-        fecha: form.fecha, categoria_id: catResult.id, descripcion: form.descripcion,
-        monto: montoNum, proveedor: form.proveedor || null,
-        factura_referencia: form.factura_referencia || null, notas: form.notas || null,
-        registrado_por: user?.id || null,
-        ...(editItem ? { id: editItem.id } : {}),
-      };
-      const result = editItem ? await updateGasto(payload) : await createGasto(payload);
+      const result = editItem ? await updateGasto(payloads[0]) : await createGastosBulk(payloads);
       if (result.ok) { toast.success(result.message); closeModal(); }
       else           { setFormError(result.message); toast.error(result.message); }
     });
@@ -559,7 +639,9 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
           <div className="grid shrink-0 grid-cols-2 gap-2">
             <div className="app-surface-card gastos-kpi-card gastos-kpi-card--total relative col-span-2 overflow-hidden p-3">
               <div className="gastos-kpi-glow gastos-kpi-glow--total" aria-hidden />
-              <p className="relative mb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">Total Gastado</p>
+              <p className="relative mb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
+                {selectedMonth ? `Total Gastado (${new Date(selectedMonth + '-02').toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })})` : 'Total Gastado (General)'}
+              </p>
               <p className="gastos-kpi-value gastos-kpi-value--total relative text-2xl font-black leading-none">{fmtShort(totalGastos)}</p>
               <p className="relative mt-0.5 text-[11px] text-[var(--dashboard-text-muted)]">{numRegistros} registros</p>
             </div>
@@ -588,42 +670,31 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
               Filtros
             </p>
             <div className="flex flex-col gap-3">
-            {meses.length > 0 && (
-              <div
-                className="gastos-page__filter-scroll gastos-page__filter-scroll--months"
-                role="region"
-                aria-label="Filtrar por mes"
-                title="Desplaza horizontalmente para ver más meses"
-              >
-                <div className="gastos-page__filter-scroll-inner gastos-page__filter-scroll-inner--months">
-                  <Calendar className="gastos-icon-muted h-3 w-3 shrink-0" aria-hidden />
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedMonth(''); setSelectedCategory(''); }}
-                    className={`${filterPillClass(selectedMonth === '', 'month')} shrink-0`}
-                  >
-                    Todos
-                  </button>
-                  {meses.map(mes => {
-                    const [year, month] = mes.split('-');
-                    const label = new Date(Number(year), Number(month) - 1).toLocaleDateString('es-ES', {
-                      month: 'short',
-                      year: '2-digit',
-                    });
-                    return (
-                      <button
-                        key={mes}
-                        type="button"
-                        onClick={() => { setSelectedMonth(mes === selectedMonth ? '' : mes); setSelectedCategory(''); }}
-                        className={`${filterPillClass(selectedMonth === mes, 'month')} shrink-0 capitalize`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)] flex items-center gap-1.5">
+                  <Calendar className="h-3 w-3" aria-hidden /> Mes
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      setSelectedMonth(e.target.value);
+                      setSelectedCategory('');
+                    }}
+                    className="flex-1 rounded-md border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] px-2 py-1 text-xs text-[var(--dashboard-text)] outline-none focus:border-[var(--dashboard-accent)]/50"
+                  />
+                  {selectedMonth && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedMonth(''); setSelectedCategory(''); }}
+                      className="rounded-md border border-[var(--dashboard-border)] px-2 py-1 text-xs text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors"
+                    >
+                      Limpiar
+                    </button>
+                  )}
                 </div>
               </div>
-            )}
             {categoriasDisponibles.length > 1 && (
               <div
                 className="gastos-page__filter-scroll gastos-page__filter-scroll--categories"
@@ -768,11 +839,12 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
             )}
           </div>
 
-          <div ref={tableBodyRef} className="gastos-page__table-body relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-            <table className="gastos-table w-full border-collapse">
+          <div ref={tableBodyRef} className="gastos-page__table-body relative min-h-0 flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
+            <table className="gastos-table w-full min-w-[55rem] border-collapse">
               <colgroup>
                 <col style={{ width: '5.75rem' }} />
                 <col />
+                <col style={{ width: '4.5rem' }} />
                 <col style={{ width: '6.75rem' }} />
                 <col style={{ width: '5.25rem' }} />
                 <col style={{ width: '5.25rem' }} />
@@ -863,44 +935,46 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
                 )}
               </tbody>
             </table>
+          </div>
 
-            {detailGasto && (
-              <div className="gastos-detail-overlay absolute inset-0 z-20 flex">
-                <button
-                  type="button"
-                  className="gastos-overlay-backdrop absolute inset-0 backdrop-blur-[1px]"
-                  onClick={() => setDetailId(null)}
-                  aria-label="Cerrar detalle"
-                />
-                <div className="relative z-10 m-auto flex max-h-[calc(100%-1.5rem)] w-full max-w-2xl items-center justify-center p-3 pointer-events-none">
-                  <div
-                    className="gastos-detail-popover pointer-events-auto max-h-full w-full overflow-y-auto"
-                    onClick={(e) => e.stopPropagation()}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="Detalle del gasto"
-                  >
-                    <GastoDetailCard
-                      gasto={detailGasto}
-                      registradoPor={
-                        registradoPorLabels[detailGasto.registrado_por] ?? 'Usuario desconocido'
-                      }
-                      onClose={() => setDetailId(null)}
-                      onEdit={() => {
-                        setDetailId(null);
-                        openEdit(detailGasto);
-                      }}
-                      canEdit={canEdit}
-                    />
-                  </div>
+          {detailGasto && (
+            <div className="gastos-detail-overlay absolute inset-0 z-20 flex">
+              <button
+                type="button"
+                className="gastos-overlay-backdrop absolute inset-0 backdrop-blur-[1px]"
+                onClick={() => setDetailId(null)}
+                aria-label="Cerrar detalle"
+              />
+              <div className="relative z-10 m-auto flex max-h-[calc(100%-1.5rem)] w-full max-w-2xl items-center justify-center p-3 pointer-events-none">
+                <div
+                  className="gastos-detail-popover pointer-events-auto max-h-full w-full overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Detalle del gasto"
+                >
+                  <GastoDetailCard
+                    gasto={detailGasto}
+                    registradoPor={
+                      registradoPorLabels[detailGasto.registrado_por] ?? 'Usuario desconocido'
+                    }
+                    onClose={() => setDetailId(null)}
+                    onEdit={() => {
+                      setDetailId(null);
+                      openEdit(detailGasto);
+                    }}
+                    canEdit={canEdit}
+                  />
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="gastos-page__table-footer gastos-footer-bar flex shrink-0 items-center justify-between px-3 py-1.5">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="gastos-footer-label text-[9px] uppercase tracking-wider">Total visible</span>
+              <span className="gastos-footer-label text-[9px] uppercase tracking-wider">
+                {selectedMonth ? `Total (${new Date(selectedMonth + '-02').toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })})` : 'Total visible'}
+              </span>
               <span className="gastos-amount text-xs">
                 {fmt(table.getFilteredRowModel().rows.reduce((s, r) => s + Number(r.original.monto), 0))}
               </span>
@@ -946,11 +1020,11 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
         </div>
       </div>
 
-      <PageFormModal open={showModal} onClose={closeModal}>
+      <PageFormModal open={showModal} onClose={closeModal} panelClassName="sm:max-w-5xl">
         <div className="mb-4 flex justify-center sm:hidden">
           <div className="h-1 w-8 rounded-full bg-zinc-700" />
         </div>
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10">
               <Wallet className="h-4 w-4 text-red-400" />
@@ -975,109 +1049,219 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className="input-label">Descripción / Nombre *</label>
-            <AppCombobox
-              value={form.descripcion}
-              onChange={(value) => {
-                const matched = (conceptos || []).find((c) => c.descripcion === value);
-                if (matched) {
-                  const catName = matched.categorias_gasto?.nombre || '';
-                  setForm({
-                    ...form,
-                    descripcion: value,
-                    categoria_nombre: catName || form.categoria_nombre,
-                    proveedor: matched.proveedor_sugerido || form.proveedor,
-                    monto: matched.monto_sugerido ? String(matched.monto_sugerido) : form.monto,
-                  });
-                } else {
-                  setForm({ ...form, descripcion: value });
-                }
-                setFormError(null);
-              }}
-              options={conceptOptions}
-              placeholder="Escribe o selecciona un concepto..."
-            />
-          </div>
-          {!editItem && (
-            <div className="md:col-span-2 flex items-center gap-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[16rem_1fr]">
+          {/* Columna Izquierda: Datos Generales */}
+          <div className="flex flex-col gap-4 rounded-xl border border-[var(--dashboard-border)] bg-black/20 p-4">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)]">
+              Datos Generales
+            </h3>
+            {!editItem && (
+              <div>
+                <label className="flex items-center gap-2 mb-1 mt-1 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isGlobalAmount}
+                    onChange={(e) => setIsGlobalAmount(e.target.checked)}
+                    className="rounded border-[var(--dashboard-border)] bg-black/20 text-[var(--dashboard-accent)] focus:ring-[var(--dashboard-accent)] h-4 w-4"
+                  />
+                  <span className="text-[11px] font-medium text-white/80 leading-tight">Factura de monto global <br/><span className="text-[9px] text-white/40">(Ítems sin precio detallado)</span></span>
+                </label>
+              </div>
+            )}
+            {isGlobalAmount && !editItem && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                <label className="input-label text-[var(--dashboard-accent)]">Monto Total (USD) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={globalAmount}
+                  onChange={e => setGlobalAmount(e.target.value)}
+                  className="input-field border-[var(--dashboard-accent)]/50 focus:border-[var(--dashboard-accent)] bg-[var(--dashboard-accent)]/5"
+                  placeholder="Total de la factura"
+                  autoFocus
+                />
+              </div>
+            )}
+            <div>
+              <label className="input-label">Fecha *</label>
               <input
-                type="checkbox"
-                id="gasto-guardar-catalogo"
-                checked={form.guardar_en_catalogo}
-                onChange={(e) => setForm({ ...form, guardar_en_catalogo: e.target.checked })}
-                className="h-4 w-4 rounded border-zinc-800 bg-zinc-950 text-amber-500 focus:ring-amber-500/50"
+                type="date"
+                value={baseInfo.fecha}
+                onChange={e => setBaseInfo({ ...baseInfo, fecha: e.target.value })}
+                className="input-field"
               />
-              <label htmlFor="gasto-guardar-catalogo" className="text-xs text-white/70 select-none cursor-pointer">
-                Guardar este concepto en el catálogo para futuros registros
-              </label>
             </div>
-          )}
-          <div>
-            <label className="input-label">Fecha *</label>
-            <input
-              type="date"
-              value={form.fecha}
-              onChange={e => setForm({ ...form, fecha: e.target.value })}
-              className="input-field"
-            />
+            <div>
+              <label className="input-label">Proveedor</label>
+              <input
+                value={baseInfo.proveedor}
+                onChange={e => setBaseInfo({ ...baseInfo, proveedor: e.target.value })}
+                className="input-field"
+                placeholder="Ej: Gasolinera El Faro"
+              />
+            </div>
+            <div>
+              <label className="input-label">Ref. Factura</label>
+              <input
+                value={baseInfo.factura_referencia}
+                onChange={e => setBaseInfo({ ...baseInfo, factura_referencia: e.target.value })}
+                className="input-field"
+                placeholder="Ej: F-12345"
+              />
+            </div>
+            <div>
+              <label className="input-label">Notas</label>
+              <textarea
+                value={baseInfo.notas}
+                onChange={e => setBaseInfo({ ...baseInfo, notas: e.target.value })}
+                className="input-field min-h-[4.5rem] resize-none"
+                placeholder="Notas aclaratorias sobre el bloque de gastos..."
+              />
+            </div>
           </div>
-          <div>
-            <label className="input-label">Categoría *</label>
-            <AppSelect
-              value={form.categoria_nombre}
-              onChange={(val) => {
-                setForm({ ...form, categoria_nombre: val });
-                setFormError(null);
-              }}
-              options={[
-                { value: '', label: 'Selecciona una categoría...' },
-                ...categorias.map((c) => ({ value: c.nombre, label: c.nombre })),
-              ]}
-            />
-          </div>
-          <div>
-            <label className="input-label">Monto (USD) *</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={form.monto}
-              onChange={e => {
-                setForm({ ...form, monto: e.target.value });
-                setFormError(null);
-              }}
-              className="input-field"
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <label className="input-label">Proveedor</label>
-            <input
-              value={form.proveedor}
-              onChange={e => setForm({ ...form, proveedor: e.target.value })}
-              className="input-field"
-              placeholder="Ej: Gasolinera El Faro"
-            />
-          </div>
-          <div>
-            <label className="input-label">Ref. Factura</label>
-            <input
-              value={form.factura_referencia}
-              onChange={e => setForm({ ...form, factura_referencia: e.target.value })}
-              className="input-field"
-              placeholder="Ej: F-12345"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="input-label">Notas</label>
-            <input
-              value={form.notas}
-              onChange={e => setForm({ ...form, notas: e.target.value })}
-              className="input-field"
-              placeholder="Notas aclaratorias sobre el gasto..."
-            />
+
+          {/* Columna Derecha: Ítems */}
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)]">
+                Lista de Ítems
+              </h3>
+              {!editItem && (
+                <button
+                  type="button"
+                  onClick={() => setItems([...items, createEmptyItem()])}
+                  className="btn-secondary flex items-center gap-1 py-1 px-2.5 text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Agregar Ítem
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {items.map((it, idx) => (
+                <div key={it.id} className="relative rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] p-4 pr-12 shadow-sm transition-colors hover:border-white/10">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                    <div className="sm:col-span-12">
+                      <label className="input-label">Descripción / Nombre *</label>
+                      <AppCombobox
+                        value={it.descripcion}
+                        onChange={(value) => {
+                          const matched = (conceptos || []).find((c) => c.descripcion === value);
+                          const newItems = [...items];
+                          if (matched) {
+                            newItems[idx] = {
+                              ...it,
+                              descripcion: value,
+                              categoria_nombre: matched.categorias_gasto?.nombre || it.categoria_nombre,
+                              monto: matched.monto_sugerido ? String(matched.monto_sugerido) : it.monto,
+                            };
+                            if (!baseInfo.proveedor && matched.proveedor_sugerido) {
+                              setBaseInfo({ ...baseInfo, proveedor: matched.proveedor_sugerido });
+                            }
+                          } else {
+                            newItems[idx] = { ...it, descripcion: value };
+                          }
+                          setItems(newItems);
+                          setFormError(null);
+                        }}
+                        options={conceptOptions}
+                        placeholder="Escribe o selecciona un concepto..."
+                      />
+                    </div>
+                    <div className="sm:col-span-5">
+                      <label className="input-label">Categoría *</label>
+                      <AppSelect
+                        value={it.categoria_nombre}
+                        onChange={(val) => {
+                          const newItems = [...items];
+                          newItems[idx].categoria_nombre = val;
+                          setItems(newItems);
+                          setFormError(null);
+                        }}
+                        options={[
+                          { value: '', label: 'Selecciona una categoría...' },
+                          ...categorias.map((c) => ({ value: c.nombre, label: c.nombre })),
+                        ]}
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="input-label">Cantidad</label>
+                      <input
+                        type="text"
+                        value={it.cantidad}
+                        onChange={e => {
+                          const newItems = [...items];
+                          newItems[idx].cantidad = e.target.value;
+                          setItems(newItems);
+                        }}
+                        className="input-field"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                    {!isGlobalAmount && (
+                      <div className="sm:col-span-4 animate-in fade-in duration-200">
+                        <label className="input-label">Monto (USD) *</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={it.monto}
+                          onChange={e => {
+                            const newItems = [...items];
+                            newItems[idx].monto = e.target.value;
+                            setItems(newItems);
+                            setFormError(null);
+                          }}
+                          className="input-field"
+                          placeholder="Total ($)"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {!editItem && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`cat-${it.id}`}
+                        checked={it.guardar_en_catalogo}
+                        onChange={(e) => {
+                          const newItems = [...items];
+                          newItems[idx].guardar_en_catalogo = e.target.checked;
+                          setItems(newItems);
+                        }}
+                        className="h-3.5 w-3.5 rounded border-zinc-800 bg-zinc-950 text-amber-500 focus:ring-amber-500/50"
+                      />
+                      <label htmlFor={`cat-${it.id}`} className="text-[10px] text-white/50 select-none cursor-pointer">
+                        Guardar concepto en catálogo
+                      </label>
+                    </div>
+                  )}
+
+                  {!editItem && items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newItems = items.filter((_, i) => i !== idx);
+                        setItems(newItems);
+                      }}
+                      className="absolute right-3 top-4 rounded-md p-1.5 text-red-500/50 hover:bg-red-500/10 hover:text-red-400"
+                      title="Eliminar ítem"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {items.length > 0 && !editItem && (
+              <div className="mt-2 text-right">
+                <span className="text-[11px] font-bold text-[var(--dashboard-text-muted)]">
+                  Total de Factura: <span className="text-white text-sm">{fmtShort(items.reduce((acc, it) => acc + (parseFloat(it.monto) || 0), 0))}</span>
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

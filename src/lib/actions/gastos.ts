@@ -79,6 +79,49 @@ export async function createGasto(raw: unknown): Promise<ActionResult> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// CREATE BULK — Registrar múltiples gastos a la vez
+// ─────────────────────────────────────────────────────────────
+export async function createGastosBulk(raws: unknown[]): Promise<ActionResult> {
+  try {
+    const parsedArray = z.array(GastoSchema).safeParse(raws);
+
+    if (!parsedArray.success) {
+      const fieldErrors = parsedArray.error.flatten().fieldErrors as Record<string, string[]>;
+      const firstError = Object.values(fieldErrors).flat()[0] ?? 'Datos inválidos en uno de los registros';
+      return { ok: false, message: firstError, fieldErrors };
+    }
+
+    const data = parsedArray.data;
+    if (data.length === 0) return { ok: false, message: 'No hay gastos para registrar' };
+
+    const supabase = await createServerClient();
+    const rowsToInsert = data.map(g => ({
+      fecha:               g.fecha,
+      categoria_id:        g.categoria_id,
+      descripcion:         g.descripcion,
+      monto:               g.monto,
+      proveedor:           g.proveedor   || null,
+      factura_referencia:  g.factura_referencia || null,
+      notas:               g.notas       || null,
+      registrado_por:      g.registrado_por    || null,
+    }));
+
+    const { error } = await supabase.from('gastos').insert(rowsToInsert);
+
+    if (error) {
+      console.error('[Action] createGastosBulk Supabase error:', error.message);
+      return { ok: false, message: `Error al guardar lote: ${error.message}` };
+    }
+
+    revalidateAll();
+    return { ok: true, message: `${data.length} gasto(s) registrado(s) correctamente` };
+  } catch (err) {
+    console.error('[Action] createGastosBulk Exception:', err);
+    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // UPDATE — Actualizar gasto existente
 // ─────────────────────────────────────────────────────────────
 export async function updateGasto(raw: unknown): Promise<ActionResult> {

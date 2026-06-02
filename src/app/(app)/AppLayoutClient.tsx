@@ -247,7 +247,7 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
               </button>
 
               <Suspense fallback={<div className="hidden h-8 w-[27.5rem] max-w-[42vw] animate-pulse rounded-lg bg-[var(--dashboard-card-muted)] sm:block" />}>
-                <GlobalDateRangePicker />
+                {!pathname.startsWith('/admin/gastos') && <GlobalDateRangePicker />}
               </Suspense>
 
               <button
