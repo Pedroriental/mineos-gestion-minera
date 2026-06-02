@@ -32,6 +32,7 @@ import {
   X,
   XCircle,
   FileSpreadsheet,
+  Archive,
 } from 'lucide-react';
 
 export interface PreNominaRowState {
@@ -594,6 +595,7 @@ export function NominaMobileMoreSheet({
   canEdit,
   hasData,
   onImport,
+  onArchivo,
   onPdf,
   onCsv,
   onExcel,
@@ -604,13 +606,17 @@ export function NominaMobileMoreSheet({
   canEdit: boolean;
   hasData: boolean;
   onImport: () => void;
+  onArchivo?: () => void;
   onPdf: () => void;
   onCsv: () => void;
   onExcel?: () => void;
   onBorrar: () => void;
 }) {
   const items = [
-    { label: 'Importar nómina', icon: Upload, onClick: onImport, needsEdit: true },
+    { label: 'Importar planilla / roster', icon: Upload, onClick: onImport, needsEdit: true },
+    ...(onArchivo
+      ? [{ label: 'Archivo de periodos', icon: Archive, onClick: onArchivo, needsEdit: false }]
+      : []),
     ...(onExcel
       ? [{ label: 'Vista Excel (propuesta)', icon: FileSpreadsheet, onClick: onExcel, needsEdit: false }]
       : []),

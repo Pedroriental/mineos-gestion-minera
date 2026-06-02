@@ -160,6 +160,8 @@ export interface PreNominaRow {
   esSemanaLibre: boolean;
   bonoTransporte: number;
   total: number;
+  bonificaciones?: number;
+  totalVales?: number;
   estadoAsistencia?: 'trabajada' | 'libre' | 'no_laborado';
   diasTrabajados?: number;
   salarioBaseCalculado?: number;
@@ -189,6 +191,20 @@ export interface Gasto {
   updated_at: string;
   categorias_gasto?: CategoriaGasto;
 }
+
+export interface GastoConcepto {
+  id: string;
+  descripcion: string;
+  categoria_default_id?: string | null;
+  proveedor_sugerido?: string | null;
+  monto_sugerido?: number | null;
+  notas?: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+  categorias_gasto?: CategoriaGasto;
+}
+
 
 export interface InventarioItem {
   id: string;

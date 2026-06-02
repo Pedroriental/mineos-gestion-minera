@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:classic": "next dev",
     "dev:clean": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\" && next dev --turbopack",
     "build": "next build",
     "start": "next start",
@@ -14,6 +15,8 @@
     "supabase:check": "supabase db query --linked \"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'biblioteca_categorias') AS biblioteca, EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fiscal_entidades') AS fiscal;\"",
     "supabase:migrate:plataforma": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-plataforma.ps1",
     "supabase:migrate:nomina": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-nomina.ps1",
+    "supabase:migrate:nomina-archive": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-nomina-archive.ps1",
+    "test:nomina": "npx tsx --test src/lib/nomina/nomina-engine.test.ts src/lib/nomina/nomina-preview.test.ts",
     "supabase:migrate:reconciliation": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-reconciliation.ps1",
     "test:reconciliation": "npx tsx --test src/lib/reconciliation/reconciliation-engine.test.ts"
   },

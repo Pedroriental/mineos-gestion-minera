@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase-server';
-import NominaClient from '@/components/nomina/NominaClient';
+import NominaWorkspace from '@/components/nomina/NominaWorkspace';
 import { isPersonalVisibleInNomina } from '@/lib/personal-master';
 import type { Personal, NominaSemana } from '@/lib/types';
 
@@ -35,7 +35,7 @@ export default async function AdminNominaPage() {
     .order('semana_inicio', { ascending: false });
 
   return (
-    <NominaClient
+    <NominaWorkspace
       area={area}
       data={personal}
       masterCatalog={(masterRows as Personal[]) || []}

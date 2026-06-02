@@ -30,10 +30,12 @@ export const NOVEDAD_TURNO_PREVIEW_LABEL: Record<NominaNovedadTurno, string> = {
 };
 
 export function parseNovedadTurno(value: unknown): NominaNovedadTurno {
-  if (value === 'REPOSO' || value === 'VACACIONES' || value === 'AUSENCIA' || value === 'OTRO') {
-    return value;
+  if (!value) return 'ACTIVO';
+  const val = String(value).trim().toUpperCase();
+  if (val === 'REPOSO' || val === 'VACACIONES' || val === 'AUSENCIA' || val === 'OTRO') {
+    return val;
   }
-  if (value === 'RETIRADO' || value === 'DESPEDIDO' || value === 'INACTIVO') return 'AUSENCIA';
+  if (val === 'RETIRADO' || val === 'DESPEDIDO' || val === 'INACTIVO') return 'AUSENCIA';
   return 'ACTIVO';
 }
 

@@ -1,6 +1,11 @@
 import { loadBibliotecaCompleta } from '@/lib/actions/biblioteca-variables';
 import { variableDisplayLabel } from '@/lib/biblioteca-metadata';
 import { FALLBACK_BIBLIOTECA_CATALOGO } from '@/lib/biblioteca-fallbacks';
+import {
+  DEFAULT_NOMINA_DIVISIONES,
+  parseNominaDivisionesJson,
+  type NominaDivisionParam,
+} from '@/lib/reconciliation/nomina-divisiones';
 import type { BibliotecaCategoriaCompleta, BibliotecaVariable } from '@/lib/types';
 
 export type BibliotecaSelectOption = { value: string; label: string };
@@ -22,6 +27,8 @@ export type BibliotecaAppSnapshot = {
   asignacionSuggestions: string[];
   minaSuggestions: string[];
   molinoSuggestions: string[];
+  /** Reparto % de nómina (Biblioteca → parametros_balance.nomina_divisiones_json) */
+  nominaDivisiones: NominaDivisionParam[];
 };
 
 const AREA_KEYS = ['mina', 'planta', 'administracion', 'seguridad', 'transporte'] as const;
@@ -153,6 +160,20 @@ export function buildBibliotecaAppSnapshot(
   const minaSuggestions = (findCategory(catalog, 'minas')?.variables || []).map((v) => varValue(v));
   const molinoSuggestions = (findCategory(catalog, 'molinos')?.variables || []).map((v) => varValue(v));
 
+  let nominaDivisiones: NominaDivisionParam[] = [];
+  for (const cat of catalog) {
+    for (const v of cat.variables) {
+      if (v.clave === 'nomina_divisiones_json') {
+        nominaDivisiones = parseNominaDivisionesJson(v.valor);
+        break;
+      }
+    }
+    if (nominaDivisiones.length) break;
+  }
+  if (!nominaDivisiones.length && !fromDatabase) {
+    nominaDivisiones = DEFAULT_NOMINA_DIVISIONES;
+  }
+
   return {
     fromDatabase,
     options,
@@ -168,6 +189,7 @@ export function buildBibliotecaAppSnapshot(
     asignacionSuggestions,
     minaSuggestions,
     molinoSuggestions,
+    nominaDivisiones,
   };
 }
 

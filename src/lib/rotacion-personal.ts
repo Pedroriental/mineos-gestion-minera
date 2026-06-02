@@ -71,8 +71,7 @@ export function tieneEsquemaConRotacion(esquema: string): boolean {
   return esquema !== 'FIJO_SEMANAL' && esquema !== 'MOLINO_FIJO';
 }
 
-/** En nómina activa de Mina o Molino (no solo en base maestra). */
-export function estaEnNominaMinaOMolino(p: Pick<Personal, 'area' | 'estado_laboral' | 'activo'>): boolean {
+export function estaEnNominaMinaOMolino(p: Pick<Personal, 'area' | 'estado_laboral' | 'activo' | 'estatus'>): boolean {
   if (p.area !== 'mina' && p.area !== 'planta') return false;
   return isPersonalVisibleInNomina(p, p.area);
 }
@@ -92,7 +91,7 @@ export function esSemanaRotacionLibre(
 
 /** Fuera de nómina mina/molino y en semana libre de rotación → vacaciones automáticas. */
 export function debeMarcarVacacionesPorRotacion(
-  p: Pick<Personal, 'area' | 'estado_laboral' | 'activo' | 'esquema_rotacion' | 'rotacion_inicio_fecha' | 'observacion_estado'>,
+  p: Pick<Personal, 'area' | 'estado_laboral' | 'activo' | 'esquema_rotacion' | 'rotacion_inicio_fecha' | 'observacion_estado' | 'estatus'>,
   weekStart: string,
 ): boolean {
   if (p.estado_laboral === 'DESPEDIDO' || p.estado_laboral === 'REPOSO') return false;
@@ -107,16 +106,37 @@ export function debeMarcarVacacionesPorRotacion(
   return esSemanaRotacionLibre(p, weekStart);
 }
 
-export function getWeekStart(d = new Date()): string {
-  const date = new Date(d);
-  const day = date.getDay();
+export function getWeekStart(d: Date | string | number = new Date()): string {
+  let date: Date;
+  if (typeof d === 'string') {
+    const parts = d.split('-');
+    if (parts.length === 3) {
+      const yyyy = parseInt(parts[0], 10);
+      const mm = parseInt(parts[1], 10) - 1;
+      const dd = parseInt(parts[2], 10);
+      date = new Date(yyyy, mm, dd);
+    } else {
+      date = new Date(d);
+    }
+  } else {
+    date = new Date(d);
+  }
+
+  const day = date.getDay(); // día local (0=Dom, 1=Lun…)
   const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  return date.toISOString().split('T')[0];
+  const result = new Date(date);
+  result.setDate(diff);
+
+  // Usar componentes locales en vez de toISOString() para evitar el desfase UTC:
+  const yyyy = result.getFullYear();
+  const mm = String(result.getMonth() + 1).padStart(2, '0');
+  const dd = String(result.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
+/** Fuera de nómina mina/molino y en semana libre de rotación → vacaciones automáticas. */
 export function debeQuitarVacacionesAuto(
-  p: Pick<Personal, 'area' | 'estado_laboral' | 'activo' | 'esquema_rotacion' | 'rotacion_inicio_fecha' | 'observacion_estado'>,
+  p: Pick<Personal, 'area' | 'estado_laboral' | 'activo' | 'esquema_rotacion' | 'rotacion_inicio_fecha' | 'observacion_estado' | 'estatus'>,
   weekStart: string,
 ): boolean {
   if (p.estado_laboral !== 'VACACIONES') return false;

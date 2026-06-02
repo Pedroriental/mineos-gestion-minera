@@ -2,9 +2,10 @@
 
 import type { NominaPreviewReport } from '@/lib/nomina-preview';
 import {
-  splitByDivisiones,
-  type PreviewDivision,
-} from '@/lib/nomina-preview-divisiones';
+  splitNominaByDivisiones,
+  formatNominaDivisionLabel,
+  type NominaDivisionParam,
+} from '@/lib/reconciliation/nomina-divisiones';
 
 function fmtMoney(n: number) {
   return n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,7 +25,7 @@ const AREA_LABEL: Record<string, string> = {
 
 type Props = {
   report: NominaPreviewReport;
-  divisiones?: PreviewDivision[];
+  divisiones?: NominaDivisionParam[];
 };
 
 export default function NominaPreviewReport({
@@ -33,18 +34,24 @@ export default function NominaPreviewReport({
 }: Props) {
   const detailColSpan = 5 + report.weekColumns.length;
   const summaryCols = 2 + divisiones.length;
-  const grandSplits = splitByDivisiones(report.grandTotal, divisiones);
+  const grandSplits = splitNominaByDivisiones(report.grandTotal, divisiones);
 
   return (
     <div className="nomina-preview-report nomina-preview-report--light flex flex-col gap-6 text-[13px] text-slate-900">
-      <p className="text-[11px] leading-snug text-slate-600">
-        <span className="font-semibold text-slate-800">Leyenda:</span>{' '}
-        <span className="text-emerald-700">● cerrado</span> = semana procesada en nómina;{' '}
-        <span className="text-amber-700">sin marca</span> = estimado según rotación y sueldos
-        actuales. Columnas de detalle = semanas lun–dom del rango. A la derecha del resumen,
-        las columnas Parte 1…N (si las activas) reparten cada total; al editar un % el resto
-        se ajusta a 100.
-      </p>
+      <div className="text-[11px] leading-snug text-slate-600">
+        <details className="group">
+          <summary className="inline cursor-pointer list-none font-medium text-slate-700 marker:content-none [&::-webkit-details-marker]:hidden">
+            Leyenda
+            <span className="ml-1 text-slate-400 group-open:hidden">▸</span>
+            <span className="ml-1 hidden text-slate-400 group-open:inline">▾</span>
+          </summary>
+          <p className="mt-1 text-slate-600">
+            <span className="text-emerald-700">● cerrado</span> = semana procesada;{' '}
+            <span className="text-amber-700">sin marca</span> = estimado por rotación. Las columnas Parte
+            reparten cada total según el % configurado en Ajustes.
+          </p>
+        </details>
+      </div>
 
       <div className="overflow-x-auto rounded-md border-2 border-slate-800 bg-white shadow-sm">
         <table className="w-full min-w-[320px] border-collapse text-center">
@@ -71,22 +78,19 @@ export default function NominaPreviewReport({
               <th className="border border-slate-600 bg-[#b4d4f0] px-3 py-1.5 text-xs font-bold text-slate-900">
                 Total Nóminas (USD)
               </th>
-              {divisiones.map((d, i) => (
+              {divisiones.map((d) => (
                 <th
                   key={d.id}
                   className="min-w-[4.5rem] border border-slate-600 bg-[#dceaf8] px-2 py-1.5 text-xs font-bold text-slate-900"
                 >
-                  <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-600">
-                    Parte {i + 1}
-                  </div>
-                  <div className="mt-0.5 tabular-nums text-[11px] text-slate-800">{d.porcentaje}%</div>
+                  {formatNominaDivisionLabel(d.porcentaje)}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {report.summary.map((row) => {
-              const splits = splitByDivisiones(row.total, divisiones);
+              const splits = splitNominaByDivisiones(row.total, divisiones);
               return (
                 <tr key={row.id} className="bg-white">
                   <td className="border border-slate-400 px-3 py-1.5 text-left font-medium text-slate-800">
@@ -95,12 +99,12 @@ export default function NominaPreviewReport({
                   <td className="border border-slate-400 px-3 py-1.5 text-right tabular-nums font-semibold text-amber-800">
                     {fmtMoney(row.total)}
                   </td>
-                  {splits.map((amt, i) => (
+                  {splits.map((part) => (
                     <td
-                      key={divisiones[i]?.id ?? i}
+                      key={part.id}
                       className="border border-slate-400 bg-slate-50/60 px-2 py-1.5 text-right tabular-nums text-slate-800"
                     >
-                      {fmtMoney(amt)}
+                      {fmtMoney(part.montoUsd)}
                     </td>
                   ))}
                 </tr>
@@ -111,12 +115,12 @@ export default function NominaPreviewReport({
               <td className="border border-slate-600 px-3 py-2 text-right tabular-nums text-amber-900">
                 {fmtMoney(report.grandTotal)}
               </td>
-              {grandSplits.map((amt, i) => (
+              {grandSplits.map((part) => (
                 <td
-                  key={divisiones[i]?.id ?? i}
+                  key={part.id}
                   className="border border-slate-600 bg-amber-100/50 px-2 py-2 text-right tabular-nums text-slate-900"
                 >
-                  {fmtMoney(amt)}
+                  {fmtMoney(part.montoUsd)}
                 </td>
               ))}
             </tr>
@@ -164,7 +168,9 @@ export default function NominaPreviewReport({
                 <th className="min-w-[8rem] border border-slate-600 px-2 py-1.5 text-left">
                   Observaciones
                 </th>
-                <th className="border border-slate-600 px-2 py-1.5 text-right">Total Nóminas (USD)</th>
+                <th className="border border-slate-600 px-2 py-1.5 text-right">
+                  {report.weekColumns.length > 1 ? 'Total Rotación (USD)' : 'Total Nómina (USD)'}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -178,54 +184,85 @@ export default function NominaPreviewReport({
                   </td>
                 </tr>
               ) : (
-                section.rows.map((row) => (
-                  <tr key={row.personal.id} className="bg-white hover:bg-slate-50">
-                    <td className="border border-slate-300 px-2 py-1.5 font-medium text-slate-900">
-                      {row.personal.nombre_completo}
-                    </td>
-                    <td className="border border-slate-300 px-2 py-1.5 tabular-nums text-slate-700">
-                      {row.personal.cedula || '—'}
-                    </td>
-                    <td className="border border-slate-300 px-2 py-1.5 text-slate-600">
-                      {fmtDate(row.personal.fecha_ingreso || '')}
+                <>
+                  {section.rows.map((row) => (
+                    <tr key={row.personal.id} className="bg-white hover:bg-slate-50">
+                      <td className="border border-slate-300 px-2 py-1.5 font-medium text-slate-900">
+                        {row.personal.nombre_completo}
+                      </td>
+                      <td className="border border-slate-300 px-2 py-1.5 tabular-nums text-slate-700">
+                        {row.personal.cedula || '—'}
+                      </td>
+                      <td className="border border-slate-300 px-2 py-1.5 text-slate-600">
+                        {fmtDate(row.personal.fecha_ingreso || '')}
+                      </td>
+                      {report.weekColumns.map((w) => {
+                        const cell = row.weeks[w.weekStart];
+                        const isLibre = cell?.estado === 'libre';
+                        const isCerrada = cell?.source === 'cerrada';
+                        return (
+                          <td
+                            key={w.weekStart}
+                            className={`border border-slate-300 px-2 py-1.5 text-right tabular-nums ${
+                              isLibre ? 'text-sky-700' : 'text-slate-800'
+                            }`}
+                            title={
+                              cell
+                                ? `${cell.estado} · ${
+                                    isCerrada
+                                      ? 'Registrado al cerrar nómina'
+                                      : 'Calculado (semana aún no cerrada)'
+                                  }`
+                                : ''
+                            }
+                          >
+                            {cell && cell.amount > 0 ? fmtMoney(cell.amount) : '—'}
+                            {isCerrada ? (
+                              <span className="ml-1 text-[9px] text-emerald-600" title="Cerrada">
+                                ●
+                              </span>
+                            ) : null}
+                          </td>
+                        );
+                      })}
+                      <td className="max-w-[14rem] border border-slate-300 px-2 py-1.5 text-left text-[11px] leading-snug text-slate-600">
+                        {row.observaciones}
+                      </td>
+                      <td className="border border-slate-300 px-2 py-1.5 text-right font-bold tabular-nums text-amber-800">
+                        {fmtMoney(row.total)}
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Fila de Cierre Semanal Vertical */}
+                  <tr className="bg-slate-50 font-bold border-t border-slate-300">
+                    <td
+                      colSpan={3}
+                      className="border border-slate-300 px-2 py-1.5 text-left text-slate-700 font-bold"
+                    >
+                      Cierre Semanal (USD)
                     </td>
                     {report.weekColumns.map((w) => {
-                      const cell = row.weeks[w.weekStart];
-                      const isLibre = cell?.estado === 'libre';
-                      const isCerrada = cell?.source === 'cerrada';
+                      const weekTotal = section.rows.reduce(
+                        (sum, r) => sum + (r.weeks[w.weekStart]?.amount || 0),
+                        0,
+                      );
                       return (
                         <td
                           key={w.weekStart}
-                          className={`border border-slate-300 px-2 py-1.5 text-right tabular-nums ${
-                            isLibre ? 'text-sky-700' : 'text-slate-800'
-                          }`}
-                          title={
-                            cell
-                              ? `${cell.estado} · ${
-                                  isCerrada
-                                    ? 'Registrado al cerrar nómina'
-                                    : 'Calculado (semana aún no cerrada)'
-                                }`
-                              : ''
-                          }
+                          className="border border-slate-300 px-2 py-1.5 text-right tabular-nums text-slate-800"
                         >
-                          {cell && cell.amount > 0 ? fmtMoney(cell.amount) : '—'}
-                          {isCerrada ? (
-                            <span className="ml-1 text-[9px] text-emerald-600" title="Cerrada">
-                              ●
-                            </span>
-                          ) : null}
+                          {weekTotal > 0 ? fmtMoney(weekTotal) : '—'}
                         </td>
                       );
                     })}
-                    <td className="max-w-[14rem] border border-slate-300 px-2 py-1.5 text-left text-[11px] leading-snug text-slate-600">
-                      {row.observaciones}
+                    <td className="border border-slate-300 px-2 py-1.5 text-left text-slate-400">
+                      —
                     </td>
-                    <td className="border border-slate-300 px-2 py-1.5 text-right font-bold tabular-nums text-amber-800">
-                      {fmtMoney(row.total)}
+                    <td className="border border-slate-300 px-2 py-1.5 text-right tabular-nums text-amber-900 font-extrabold bg-amber-50/20">
+                      {fmtMoney(section.sectionTotal)}
                     </td>
                   </tr>
-                ))
+                </>
               )}
               <tr className="bg-slate-100 font-bold">
                 <td

@@ -57,6 +57,7 @@ export interface ReconciliationParams {
   precioOroFuente: 'cache' | 'manual';
   precioOroManualUsd: number;
   metaCostoPorGramoUsd: number;
+  nominaDivisiones: NominaDivisionParam[];
 }
 
 export const DEFAULT_RECONCILIATION_PARAMS: ReconciliationParams = {

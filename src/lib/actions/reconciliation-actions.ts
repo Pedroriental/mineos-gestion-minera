@@ -239,7 +239,7 @@ export async function saveReconciliationParams(
         clave: row.clave,
         etiqueta: row.etiqueta,
         valor: row.valor,
-        unidad: row.unidad || null,
+        unidad: row.unidad || undefined,
         orden: existing?.orden ?? 0,
         metadata: existing?.metadata ?? {},
       });

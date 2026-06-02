@@ -10,6 +10,7 @@ import {
   validateDistribucion,
   type DistribucionParte,
 } from '@/lib/nomina-distribucion';
+import { buildPersonalSnapshot } from '@/lib/nomina/types';
 import type { NominaVale, PreNominaRow, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
 
 export type ActionResult =
@@ -298,6 +299,7 @@ export async function procesarCierreNominaV3Action(payload: {
         total_trabajadores: rows.length,
         total_pagado: totalNomina,
         registrado_por: userId || null,
+        origen: 'cierre_v3',
       }, { onConflict: 'semana_inicio,area' })
       .select('id')
       .maybeSingle();
@@ -326,6 +328,10 @@ export async function procesarCierreNominaV3Action(payload: {
         salario_base_calculado: r.salarioBaseCalculado ?? null,
         novedad_turno: r.novedadTurno ?? 'ACTIVO',
         novedad_turno_obs: (r.novedadTurnoObs ?? '').trim(),
+        bonificaciones: Number(r.bonificaciones) || 0,
+        total_vales: Number(r.totalVales) || 0,
+        personal_snapshot: buildPersonalSnapshot(r.personal),
+        origen: 'cierre_v3',
       };
     });
     const { error: regError } = await supabase.from('nomina_registros').insert(registros);
@@ -354,11 +360,11 @@ export async function procesarCierreNominaV3Action(payload: {
     const personalIds = rows.map(r => r.personal.id);
     await supabase
       .from('nomina_vales')
-      .update({ estado: 'COBRADO' })
+      .update({ estado: 'COBRADO', semana_id: semanaId })
       .in('personal_id', personalIds)
       .eq('estado', 'PENDIENTE');
 
-    // 7. Registrar en gastos
+    // 7. Registrar en gastos y vincular semana
     const { data: catRow } = await supabase
       .from('categorias_gasto')
       .select('id')
@@ -367,7 +373,7 @@ export async function procesarCierreNominaV3Action(payload: {
       .maybeSingle();
 
     if (catRow) {
-      await supabase.from('gastos').insert({
+      const { data: gastoRow } = await supabase.from('gastos').insert({
         fecha: fechaHoy,
         categoria_id: catRow.id,
         descripcion: `Nómina ${area.toUpperCase()} ${inicio} al ${fin} — ${rows.length} trabajadores`,
@@ -375,7 +381,11 @@ export async function procesarCierreNominaV3Action(payload: {
         proveedor: 'Nómina interna',
         notas: `Cierre V3: ${cierrePayload.lineas.map((l) => `${l.nombre} ${l.porcentaje}% ($${l.neto})`).join(' · ')}`,
         registrado_por: userId || null,
-      });
+      }).select('id').maybeSingle();
+
+      if (gastoRow?.id) {
+        await supabase.from('nomina_semanas').update({ gasto_id: gastoRow.id }).eq('id', semanaId);
+      }
     }
 
     // Registrar auditoría de cierre

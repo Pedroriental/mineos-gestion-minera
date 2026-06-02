@@ -148,7 +148,7 @@ export function AppSelect({
           maxHeight: menuPos.maxHeight,
           top: menuPos.top,
           bottom: menuPos.bottom,
-          zIndex: 200,
+          zIndex: 10000,
         }}
       >
         {options.map((opt, index) => {

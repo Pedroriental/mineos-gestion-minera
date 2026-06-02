@@ -1,5 +1,9 @@
 /** Reparto de totales de nómina entre beneficiarios (socios, cuentas, etc.). */
 
+import {
+  formatNominaDivisionLabel,
+} from '@/lib/reconciliation/nomina-divisiones';
+
 export type DistribucionParte = {
   id: string;
   nombre: string;
@@ -15,16 +19,16 @@ export type DistribucionLinea = DistribucionParte & {
 export const DISTRIBUCION_STORAGE_KEY = 'mineos-nomina-distribucion-v1';
 
 export const DEFAULT_DISTRIBUCION_PARTES: DistribucionParte[] = [
-  { id: 'pedro', nombre: 'Pedro Guajiro', porcentaje: 33.33, pagoDirecto: 0 },
-  { id: 'darinel', nombre: 'Darinel Riasco', porcentaje: 33.33, pagoDirecto: 0 },
-  { id: 'la_fe', nombre: 'Molinos La Fé', porcentaje: 33.34, pagoDirecto: 0 },
+  { id: 'pedro', nombre: '33,33%', porcentaje: 33.33, pagoDirecto: 0 },
+  { id: 'darinel', nombre: '33,33%', porcentaje: 33.33, pagoDirecto: 0 },
+  { id: 'la_fe', nombre: '33,34%', porcentaje: 33.34, pagoDirecto: 0 },
 ];
 
-export function createDistribucionParte(nombre = 'Nuevo beneficiario'): DistribucionParte {
+export function createDistribucionParte(porcentaje = 0): DistribucionParte {
   return {
     id: `parte_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    nombre,
-    porcentaje: 0,
+    nombre: formatNominaDivisionLabel(porcentaje),
+    porcentaje,
     pagoDirecto: 0,
   };
 }
@@ -95,12 +99,15 @@ export function loadDistribucionFromStorage(): DistribucionParte[] {
     if (!raw) return [...DEFAULT_DISTRIBUCION_PARTES];
     const parsed = JSON.parse(raw) as DistribucionParte[];
     if (!Array.isArray(parsed) || !parsed.length) return [...DEFAULT_DISTRIBUCION_PARTES];
-    return parsed.map((p) => ({
-      id: String(p.id),
-      nombre: String(p.nombre),
-      porcentaje: Number(p.porcentaje) || 0,
-      pagoDirecto: Number(p.pagoDirecto) || 0,
-    }));
+    return parsed.map((p) => {
+      const porcentaje = Number(p.porcentaje) || 0;
+      return {
+        id: String(p.id),
+        nombre: formatNominaDivisionLabel(porcentaje),
+        porcentaje,
+        pagoDirecto: Number(p.pagoDirecto) || 0,
+      };
+    });
   } catch {
     return [...DEFAULT_DISTRIBUCION_PARTES];
   }

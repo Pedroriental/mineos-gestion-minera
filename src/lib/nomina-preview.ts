@@ -6,8 +6,14 @@ import {
   parseISO,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getGrupoNominaKey } from '@/lib/personal-master';
-import { predictWeekPay, type EstadoAsistenciaNomina } from '@/lib/nomina-calculo';
+import { getGrupoNominaKey, normalizeAreaDetalle } from '@/lib/personal-master';
+import {
+  cleanSectionName,
+  inferAreaFromSection,
+  resolveSectionMeta,
+} from '@/lib/nomina/section-resolver';
+import { buildArchiveMap, resolveNominaCell } from '@/lib/nomina/engine';
+import type { EstadoAsistenciaNomina } from '@/lib/nomina-calculo';
 import {
   NOVEDAD_TURNO_LABEL,
   NOVEDAD_TURNO_PREVIEW_LABEL,
@@ -16,6 +22,7 @@ import {
   type NominaNovedadTurno,
 } from '@/lib/nomina-novedad-turno';
 import { getWeekStart } from '@/lib/rotacion-personal';
+import type { PersonalSnapshot, ParsedNominaPeriod } from '@/lib/nomina/types';
 import type { Personal } from '@/lib/types';
 
 export type NominaPreviewPeriodKind = 'day' | 'days' | 'week' | 'weeks' | 'long';
@@ -102,6 +109,8 @@ export type NominaRegistroCerrado = {
   salario_base_calculado?: number | null;
   novedad_turno?: string | null;
   novedad_turno_obs?: string | null;
+  personal_snapshot?: PersonalSnapshot | null;
+  periodo_id?: string | null;
 };
 
 function getWeekEnd(weekStart: string): string {
@@ -230,13 +239,31 @@ function buildObservaciones(
   for (const n of novedadesSemana) {
     if (!hasNovedadTurno(n.novedad, n.obs)) continue;
     const label = NOVEDAD_TURNO_LABEL[n.novedad] || n.novedad;
-    parts.push(n.obs.trim() ? `${label}: ${n.obs.trim()}` : label);
+    let part = '';
+    if (n.obs.trim()) {
+      if (n.novedad === 'ACTIVO') {
+        part = n.obs.trim();
+      } else if (n.obs.trim().toLowerCase() === label.toLowerCase()) {
+        part = label;
+      } else {
+        part = `${label}: ${n.obs.trim()}`;
+      }
+    } else {
+      part = label;
+    }
+    if (part && !parts.includes(part)) {
+      parts.push(part);
+    }
   }
 
   const librePagada = Object.values(weeks).some((w) => w.estado === 'libre' && w.amount > 0);
   const noLaborado = Object.values(weeks).some((w) => w.estado === 'no_laborado');
+  const hasAbsenceNovelty = novedadesSemana.some(
+    (n) => n.novedad === 'REPOSO' || n.novedad === 'VACACIONES' || n.novedad === 'AUSENCIA',
+  );
+
   if (librePagada) parts.push('Semana libre');
-  if (noLaborado) parts.push('No laborado');
+  if (noLaborado && !hasAbsenceNovelty) parts.push('No laborado');
   return parts.length ? parts.join(' · ') : '—';
 }
 
@@ -248,7 +275,9 @@ export function buildNominaPreviewNovedadesDesdeRegistros(
 ): NominaPreviewNovedad[] {
   const { start, end } = normalizePreviewRange(rangeStart, rangeEnd);
   const weekSet = new Set(listWeekStartsInRange(start, end));
-  const items: NominaPreviewNovedad[] = [];
+  
+  // Agrupar por clave: `${personal_id}|${tipo}|${detalle}`
+  const groupedMap = new Map<string, NominaPreviewNovedad>();
 
   for (const r of registros) {
     if (!weekSet.has(r.semana_inicio)) continue;
@@ -257,21 +286,31 @@ export function buildNominaPreviewNovedadesDesdeRegistros(
     if (!hasNovedadTurno(novedad, obs)) continue;
 
     const p = personalById.get(r.personal_id);
-    items.push({
-      id: `${r.personal_id}|${r.semana_inicio}`,
-      fecha: r.semana_inicio,
-      nombre: p?.nombre_completo || 'Trabajador',
-      cedula: p?.cedula || '—',
-      area: p?.area || r.area,
-      tipo: NOVEDAD_TURNO_PREVIEW_LABEL[novedad] || novedad,
-      detalle: obs || '—',
-    });
+    const nombre = p?.nombre_completo || 'Trabajador';
+    const cedula = p?.cedula || '—';
+    const area = p?.area || r.area;
+    const tipo = NOVEDAD_TURNO_PREVIEW_LABEL[novedad] || novedad;
+    const detalle = obs || '—';
+
+    const groupKey = `${r.personal_id}|${tipo}|${detalle}`;
+    if (!groupedMap.has(groupKey)) {
+      groupedMap.set(groupKey, {
+        id: groupKey,   // ← Usar groupKey como id: siempre único por trabajador+tipo+detalle
+        fecha: r.semana_inicio,
+        nombre,
+        cedula,
+        area,
+        tipo,
+        detalle,
+      });
+    }
   }
 
-  return items.sort(
+  return [...groupedMap.values()].sort(
     (a, b) =>
-      (a.fecha || '').localeCompare(b.fecha || '') ||
-      a.nombre.localeCompare(b.nombre, 'es'),
+      a.area.localeCompare(b.area) ||
+      a.nombre.localeCompare(b.nombre, 'es') ||
+      (a.fecha || '').localeCompare(b.fecha || '')
   );
 }
 
@@ -280,7 +319,151 @@ function isAdminCargo(cargo: string): boolean {
   return c.includes('administr') || c.includes('oficina') || c.includes('contab');
 }
 
-export function resolvePreviewSection(p: Personal): { id: string; title: string; subtitle: string } {
+export type NominaPreviewImportSection = {
+  id: string;
+  title: string;
+};
+
+function previewSectionSource(p: Personal): string {
+  const area = p.area || 'mina';
+  const detalle = (p.area_detalle || '').trim();
+  const normalizedDetalle = detalle ? normalizeAreaDetalle(detalle, area) : null;
+  if (normalizedDetalle) return normalizedDetalle;
+
+  const cargo = (p.cargo || '').trim();
+  if (cargo) {
+    const normalizedCargo = normalizeAreaDetalle(cargo, area);
+    if (normalizedCargo) return normalizedCargo;
+    return cargo;
+  }
+
+  return detalle || cargo;
+}
+
+function findImportSectionSpec(
+  snapshot: PersonalSnapshot | null | undefined,
+  importSectionOrder?: NominaPreviewImportSection[],
+): NominaPreviewImportSection | undefined {
+  if (!snapshot || !importSectionOrder?.length) return undefined;
+
+  if (snapshot.section_id) {
+    const byId = importSectionOrder.find((s) => s.id === snapshot.section_id);
+    if (byId) return byId;
+  }
+
+  const title = (snapshot.section_title || '').trim();
+  if (title) {
+    const byTitle = importSectionOrder.find(
+      (s) => s.title.toLowerCase() === title.toLowerCase(),
+    );
+    if (byTitle) return byTitle;
+  }
+
+  const det = (snapshot.area_detalle || '').trim();
+  if (det && det.toLowerCase() !== 'general') {
+    const detLower = det.toLowerCase();
+    return importSectionOrder.find(
+      (s) =>
+        s.title.toLowerCase() === detLower ||
+        s.title.toLowerCase().includes(detLower) ||
+        detLower.includes(s.title.toLowerCase()),
+    );
+  }
+
+  return undefined;
+}
+
+function resolveWorkerPreviewSection(
+  p: Personal,
+  snapshot: PersonalSnapshot | null | undefined,
+  importSectionOrder?: NominaPreviewImportSection[],
+): { id: string; title: string; subtitle: string } {
+  const importSpec = findImportSectionSpec(snapshot, importSectionOrder);
+  if (importSpec) {
+    return { id: importSpec.id, title: importSpec.title, subtitle: '' };
+  }
+
+  const enriched: Personal = snapshot
+    ? {
+        ...p,
+        cargo: snapshot.cargo || p.cargo,
+        area: (snapshot.area as Personal['area']) || p.area,
+        area_detalle: snapshot.area_detalle || p.area_detalle,
+      }
+    : p;
+
+  return resolvePreviewSectionFromPersonal(enriched);
+}
+
+function collectImportPreviewPeople(
+  personal: Personal[],
+  registrosCerrados: NominaRegistroCerrado[],
+  weekSet: Set<string>,
+  personalSnapshots: Record<string, PersonalSnapshot | null | undefined>,
+): Personal[] {
+  const personalById = new Map(personal.map((p) => [p.id, p]));
+  const ids = new Set<string>();
+  for (const r of registrosCerrados) {
+    if (weekSet.has(r.semana_inicio)) ids.add(r.personal_id);
+  }
+
+  return [...ids]
+    .map((id) => {
+      const existing = personalById.get(id);
+      const snap =
+        personalSnapshots[id] ??
+        registrosCerrados.find((r) => r.personal_id === id && r.personal_snapshot)?.personal_snapshot ??
+        null;
+
+      if (snap && existing) {
+        return {
+          ...existing,
+          cedula: snap.cedula || existing.cedula,
+          nombre_completo: snap.nombre_completo || existing.nombre_completo,
+          cargo: snap.cargo || existing.cargo,
+          area: (snap.area as Personal['area']) || existing.area,
+          area_detalle: snap.area_detalle || existing.area_detalle,
+        };
+      }
+      if (snap) {
+        return {
+          id,
+          cedula: snap.cedula,
+          nombre_completo: snap.nombre_completo,
+          cargo: snap.cargo,
+          area: snap.area as Personal['area'],
+          area_detalle: snap.area_detalle,
+          salario_base: snap.salario_base,
+          salario_libre: snap.salario_libre,
+          bono_transporte: snap.bono_transporte,
+          esquema_rotacion: snap.esquema_rotacion,
+          rotacion_inicio_fecha: snap.rotacion_inicio_fecha,
+          fecha_ingreso: existing?.fecha_ingreso ?? null,
+          estatus: 'ACTIVO',
+        } as Personal;
+      }
+      return existing ?? null;
+    })
+    .filter((p): p is Personal => p != null);
+}
+
+/** Reconstruye la sección como en la planilla importada (Molinos, Mina, vertical, etc.). */
+export function resolvePreviewSectionFromPersonal(p: Personal): {
+  id: string;
+  title: string;
+  subtitle: string;
+} {
+  const source = previewSectionSource(p);
+  if (source) {
+    const inferredArea = inferAreaFromSection(source);
+    const cargo = cleanSectionName(source);
+    const meta = resolveSectionMeta(inferredArea, cargo);
+    return { id: meta.id, title: meta.title, subtitle: meta.subtitle };
+  }
+  return resolvePreviewSectionLegacy(p);
+}
+
+function resolvePreviewSectionLegacy(p: Personal): { id: string; title: string; subtitle: string } {
   const cargo = (p.cargo || '').trim();
   if (p.area === 'planta') {
     if (isAdminCargo(cargo)) {
@@ -318,18 +501,48 @@ export function resolvePreviewSection(p: Personal): { id: string; title: string;
   };
 }
 
-const SECTION_ORDER = [
-  'planta_admin',
-  'planta_operativos',
-  'admin_mina',
-  'mina__',
-];
+export function resolvePreviewSection(p: Personal): { id: string; title: string; subtitle: string } {
+  return resolvePreviewSectionFromPersonal(p);
+}
 
-function sectionSortKey(id: string): number {
-  const idx = SECTION_ORDER.findIndex((p) => id.startsWith(p.replace('__', '')) || id === p);
+const LEGACY_SECTION_ORDER = ['planta_admin', 'planta_operativos', 'admin_mina'];
+
+function buildImportSectionOrderIndex(
+  importSectionOrder?: NominaPreviewImportSection[],
+): Map<string, number> {
+  const map = new Map<string, number>();
+  importSectionOrder?.forEach((s, i) => map.set(s.id, i));
+  return map;
+}
+
+function sectionSortKey(id: string, importOrder: Map<string, number>): number {
+  const fromImport = importOrder.get(id);
+  if (fromImport !== undefined) return fromImport;
+  const idx = LEGACY_SECTION_ORDER.indexOf(id);
   if (idx >= 0) return idx;
   if (id.startsWith('mina__')) return 10;
   return 99;
+}
+
+function applyImportSectionOrder(
+  sectionMap: Map<string, NominaPreviewSection>,
+  importSectionOrder?: NominaPreviewImportSection[],
+): void {
+  if (!importSectionOrder?.length) return;
+  for (const spec of importSectionOrder) {
+    const existing = sectionMap.get(spec.id);
+    if (existing) {
+      if (spec.title) existing.title = spec.title;
+      continue;
+    }
+    sectionMap.set(spec.id, {
+      id: spec.id,
+      title: spec.title,
+      subtitle: '',
+      rows: [],
+      sectionTotal: 0,
+    });
+  }
 }
 
 export function buildNominaPreviewReport(input: {
@@ -338,8 +551,21 @@ export function buildNominaPreviewReport(input: {
   rangeEnd: string;
   registrosCerrados: NominaRegistroCerrado[];
   valesPorPersonal?: Record<string, number>;
+  /** Si false, solo filas con nómina cerrada/archivada en el rango (sin proyección por rotación). */
+  allowProjection?: boolean;
+  /** Orden y títulos de secciones del periodo importado (metadata.sectionTotals). */
+  importSectionOrder?: NominaPreviewImportSection[];
+  /** Snapshots del import histórico por personal_id (para reconstruir secciones). */
+  personalSnapshots?: Record<string, PersonalSnapshot | null | undefined>;
 }): NominaPreviewReport {
-  const { personal, registrosCerrados, valesPorPersonal = {} } = input;
+  const {
+    personal,
+    registrosCerrados,
+    valesPorPersonal = {},
+    allowProjection = false,
+    importSectionOrder,
+    personalSnapshots = {},
+  } = input;
   const { start: rangeStart, end: rangeEnd } = normalizePreviewRange(
     input.rangeStart,
     input.rangeEnd,
@@ -374,20 +600,49 @@ export function buildNominaPreviewReport(input: {
       ? periodMeta.label
       : `Sin semanas de nómina entre ${format(parseISO(rangeStart), 'dd/MM/yyyy')} y ${format(parseISO(rangeEnd), 'dd/MM/yyyy')}`;
 
+  // Mapa de registros cerrados por (personal_id | semana_inicio | area).
+  // Se indexa también por área del snapshot para tolerar que el área del personal
+  // haya cambiado desde que se cerró la nómina (p. ej. traslado de Mina a Planta).
   const cerradoMap = new Map<string, NominaRegistroCerrado>();
   for (const r of registrosCerrados) {
     if (!weekSet.has(r.semana_inicio)) continue;
+    // Clave con área del registro (la más fiable)
     cerradoMap.set(`${r.personal_id}|${r.semana_inicio}|${r.area}`, r);
+    // Clave con área del snapshot (si existe y difiere del área del registro)
+    const snapArea = r.personal_snapshot?.area;
+    if (snapArea && snapArea !== r.area) {
+      cerradoMap.set(`${r.personal_id}|${r.semana_inicio}|${snapArea}`, r);
+    }
+    // Clave sin área — solo si aún no existe (evita sobrescritura por registros multi-área)
+    if (!cerradoMap.has(`${r.personal_id}|${r.semana_inicio}`)) {
+      cerradoMap.set(`${r.personal_id}|${r.semana_inicio}`, r);
+    }
+  }
+  const archive = buildArchiveMap(registrosCerrados);
+  const lastOpenWeekStart = weekStarts[weekStarts.length - 1];
+  const importArchiveMode = Boolean(importSectionOrder?.length);
+  const peopleToProcess = importArchiveMode
+    ? collectImportPreviewPeople(personal, registrosCerrados, weekSet, personalSnapshots)
+    : personal;
+
+  const closedWeeksByArea = new Set<string>();
+  for (const r of registrosCerrados) {
+    closedWeeksByArea.add(`${r.semana_inicio}|${r.area}`);
   }
 
   const sectionMap = new Map<string, NominaPreviewSection>();
   let closedCells = 0;
   let calculatedCells = 0;
 
-  for (const p of personal) {
-    if (p.estatus && p.estatus !== 'ACTIVO') continue;
+  for (const p of peopleToProcess) {
+    const hasRegistroInRange = registrosCerrados.some(
+      (r) => r.personal_id === p.id && weekSet.has(r.semana_inicio),
+    );
+    if (!allowProjection && !hasRegistroInRange) continue;
+    if (p.estatus && p.estatus !== 'ACTIVO' && !hasRegistroInRange) continue;
     if (p.fecha_ingreso && p.fecha_ingreso > rangeEnd) continue;
-    const meta = resolvePreviewSection(p);
+    const snap = personalSnapshots[p.id];
+    const meta = resolveWorkerPreviewSection(p, snap, importSectionOrder);
     if (!sectionMap.has(meta.id)) {
       sectionMap.set(meta.id, {
         id: meta.id,
@@ -410,10 +665,12 @@ export function buildNominaPreviewReport(input: {
         continue;
       }
 
-      const closed = cerradoMap.get(`${p.id}|${w.weekStart}|${p.area}`);
+      const closed =
+        cerradoMap.get(`${p.id}|${w.weekStart}|${p.area}`) ??
+        cerradoMap.get(`${p.id}|${w.weekStart}`);
       if (closed) {
         const estado =
-          closed.estado_asistencia ??
+          (closed.estado_asistencia as EstadoAsistenciaNomina | undefined) ??
           (closed.es_semana_libre ? 'libre' : 'trabajada');
         weeks[w.weekStart] = {
           amount: Number(closed.monto_pagado),
@@ -427,14 +684,24 @@ export function buildNominaPreviewReport(input: {
         });
         closedCells += 1;
       } else {
-        const vales = valesPorPersonal[p.id] || 0;
-        const pred = predictWeekPay(p, w.weekStart, w.weekStart === weekStarts[weekStarts.length - 1] ? vales : 0);
+        const vales =
+          w.weekStart === lastOpenWeekStart ? valesPorPersonal[p.id] || 0 : 0;
+        const resolved = resolveNominaCell({
+          personal: p,
+          weekStart: w.weekStart,
+          area: p.area,
+          archive,
+          valesDeduccion: vales,
+          allowProjection,
+          isWeekClosed: closedWeeksByArea.has(`${w.weekStart}|${p.area}`),
+        });
         weeks[w.weekStart] = {
-          amount: pred.amount,
-          estado: pred.estado,
-          source: pred.source,
+          amount: resolved.amount,
+          estado: resolved.estado,
+          source: resolved.source === 'archivo' ? 'cerrada' : 'calculada',
         };
-        calculatedCells += 1;
+        if (resolved.source === 'archivo') closedCells += 1;
+        else calculatedCells += 1;
       }
       total += weeks[w.weekStart].amount;
     }
@@ -447,13 +714,21 @@ export function buildNominaPreviewReport(input: {
     });
   }
 
+  applyImportSectionOrder(sectionMap, importSectionOrder);
+  const importOrderIndex = buildImportSectionOrderIndex(importSectionOrder);
+
   const sections = [...sectionMap.values()]
+    .filter((s) => s.rows.length > 0)
     .map((s) => {
       s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
       s.sectionTotal = s.rows.reduce((n, r) => n + r.total, 0);
       return s;
     })
-    .sort((a, b) => sectionSortKey(a.id) - sectionSortKey(b.id) || a.title.localeCompare(b.title, 'es'));
+    .sort(
+      (a, b) =>
+        sectionSortKey(a.id, importOrderIndex) - sectionSortKey(b.id, importOrderIndex) ||
+        a.title.localeCompare(b.title, 'es'),
+    );
 
   const summary = sections.map((s) => ({
     id: s.id,
@@ -482,5 +757,94 @@ export function buildNominaPreviewReport(input: {
     novedades,
     grandTotal,
     stats: { closedCells, calculatedCells },
+  };
+}
+
+/** Sin nómina cerrada/archivada en el rango — no mostrar matriz (salvo proyección explícita). */
+export function isNominaPreviewEmpty(input: {
+  report: NominaPreviewReport;
+  includeProjection?: boolean;
+}): boolean {
+  const { report, includeProjection = false } = input;
+
+  if (report.weekColumns.length === 0) return true;
+  if (report.stats.closedCells > 0) return false;
+  if (includeProjection && report.grandTotal > 0) return false;
+  return true;
+}
+
+export function buildPreviewReportFromParsed(period: ParsedNominaPeriod): NominaPreviewReport {
+  const periodMeta = formatPreviewPeriodLabel(period.rangeStart, period.rangeEnd);
+  
+  const weekColumns: NominaPreviewWeekCol[] = period.weekColumns.map((w) => ({
+    weekStart: w.weekStart,
+    weekEnd: w.weekEnd,
+    displayStart: w.weekStart,
+    displayEnd: w.weekEnd,
+    header: w.header,
+    isPartialInRange: !!w.isPartialInRange,
+  }));
+
+  const sections: NominaPreviewSection[] = period.sections.map((section) => {
+    const rows: NominaPreviewWorkerRow[] = section.rows
+      .filter((r) => r._valid)
+      .map((r) => {
+        const weeks: Record<string, NominaPreviewWeekCell> = {};
+        for (const weekStart of Object.keys(r.weeks)) {
+          const cell = r.weeks[weekStart];
+          weeks[weekStart] = {
+            amount: cell.amount,
+            estado: cell.estado || (cell.amount <= 0 ? 'no_laborado' : 'trabajada'),
+            source: 'cerrada',
+          };
+        }
+        
+        return {
+          personal: {
+            id: r.cedula,
+            cedula: r.cedula,
+            nombre_completo: r.nombre_completo,
+            cargo: r.cargo,
+            area: section.area || 'mina',
+            area_detalle: section.areaDetalle || section.title,
+            fecha_ingreso: r.fecha_ingreso,
+            estatus: 'ACTIVO',
+          } as unknown as Personal,
+          weeks,
+          total: r.total,
+          observaciones: r.observaciones || '—',
+        };
+      });
+
+    return {
+      id: section.id,
+      title: section.title,
+      subtitle: section.subtitle || '',
+      rows,
+      sectionTotal: section.sectionTotal,
+    };
+  });
+
+  const summary = sections.map((s) => ({
+    id: s.id,
+    label: s.title.replace(/^Semanas Mina Belén — /, 'Nóminas ').replace(/^Semanas Molinos — /, 'Nómina '),
+    total: s.sectionTotal,
+  }));
+
+  return {
+    periodLabel: periodMeta.label,
+    periodKind: periodMeta.kind,
+    rangeDays: periodMeta.rangeDays,
+    rangeStart: period.rangeStart,
+    rangeEnd: period.rangeEnd,
+    weekColumns,
+    summary,
+    sections,
+    novedades: [], // En vista previa de importación no hay novedades todavía
+    grandTotal: period.grandTotal,
+    stats: {
+      closedCells: period.flatCells.length,
+      calculatedCells: 0,
+    },
   };
 }

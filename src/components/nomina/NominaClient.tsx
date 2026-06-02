@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition, useMemo, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { 
@@ -10,7 +10,7 @@ import {
   Search, Factory, Shield, Truck, Briefcase, Edit2, Receipt, 
   Printer, X, Users, Wallet, ChevronRight, FileText, Download,
   TrendingUp, TrendingDown, RotateCcw, Clipboard,
-  Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet
+  Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet, Archive
 } from 'lucide-react';
 
 import { getGrupoNominaKey } from '@/lib/personal-master';
@@ -18,6 +18,9 @@ import { PersonalQuickAssignModal } from '@/components/nomina/PersonalQuickAssig
 import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
 import NominaTrabajadorModal from '@/components/nomina/NominaTrabajadorModal';
 import { NominaVistaPreviaModal } from '@/components/nomina/NominaVistaPreviaModal';
+import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
+import type { NominaImportResult } from '@/components/nomina/NominaImportWizard';
+import { NominaArchivoModal } from '@/components/nomina/NominaArchivoModal';
 import {
   hasNovedadTurno,
   nominaNovedadDraftKey,
@@ -28,7 +31,10 @@ import {
 } from '@/lib/nomina-novedad-turno';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import NominaDistribucionPanel from '@/components/nomina/NominaDistribucionPanel';
-import { useNominaDistribucion } from '@/hooks/use-nomina-distribucion';
+import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config';
+import { NominaImportModal } from '@/components/nomina/NominaImportModal';
+import { resolveNominaTemporalContext, resolveWorkingWeek, formatTemporalContextHint } from '@/lib/nomina/temporal-context';
+import { getWeekEnd, getWeekStart } from '@/lib/nomina/week-utils';
 import { distribucionFromCierreLegacy } from '@/lib/nomina-distribucion';
 import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
 import {
@@ -41,8 +47,8 @@ import {
   type EstadoAsistenciaNomina,
 } from '@/lib/nomina-calculo';
 import { useBiblioteca } from '@/contexts/biblioteca-context';
+import { buildPersonalSnapshot } from '@/lib/nomina/types';
 import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
-import type { EmpleadoParseado } from '@/lib/parse-nomina-file';
 
 import { 
   revertirSemanaAction,
@@ -79,21 +85,7 @@ import {
 } from '@/components/nomina/nomina-mobile';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function getWeekStart(d = new Date()): string {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  return date.toISOString().split('T')[0];
-}
-
-function getWeekEnd(d = new Date()): string {
-  const start = new Date(getWeekStart(d));
-  start.setDate(start.getDate() + 6);
-  return start.toISOString().split('T')[0];
-}
-
-function fmtDate(iso: string): string {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const [y, m, day] = iso.split('-');
   return `${day}/${m}/${y}`;
@@ -245,6 +237,8 @@ export default function NominaClient({
   area,
 }: NominaClientProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const canEdit = useCanEdit();
   const biblioteca = useBiblioteca();
@@ -257,7 +251,12 @@ export default function NominaClient({
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showExcelPreview, setShowExcelPreview] = useState(false);
+  // Import modal (roster / planilla semana)
   const [showImport, setShowImport] = useState(false);
+  const [showArchivo, setShowArchivo] = useState(false);
+  const [previewInitialRange, setPreviewInitialRange] = useState<NominaPreviewRange | null>(null);
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
+  const [archivoRefreshKey, setArchivoRefreshKey] = useState(0);
   const [showProcesarModal, setShowProcesarModal] = useState(false);
   const [showBorrarModal, setShowBorrarModal] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
@@ -291,15 +290,36 @@ export default function NominaClient({
     esquema_rotacion: 'FIJO_SEMANAL', rotacion_inicio_fecha: '',
   });
 
-  const [weekRange, setWeekRange] = useState({ inicio: getWeekStart(), fin: getWeekEnd() });
+  const temporalCtx = useMemo(() => resolveNominaTemporalContext(semanas), [semanas]);
+
+  const [weekRange, setWeekRange] = useState(() => {
+    const w = resolveWorkingWeek(semanas);
+    return { inicio: w.inicio, fin: w.fin };
+  });
   const [procesadoOk, setProcesadoOk] = useState<string | null>(null);
-  // Import
-  const [importTab, setImportTab] = useState<'excel' | 'pdf'>('excel');
-  const [parsedEmps, setParsedEmps] = useState<EmpleadoParseado[]>([]);
-  const [importingState, setImportingState] = useState(false);
-  const [importResult, setImportResult] = useState<{ nuevos: number; actualizados: number } | null>(null);
-  const [parseError, setParseError] = useState<string | null>(null);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+
+  function handleNominaImported(result?: NominaImportResult) {
+    router.refresh();
+    setPreviewRefreshKey((k) => k + 1);
+    setArchivoRefreshKey((k) => k + 1);
+    
+    // Para cargas históricas o cualquier importación, ya no alteramos la semana de trabajo
+    // del workspace de fondo ni forzamos a que la Vista Previa se inicialice en el rango histórico.
+    // La Vista Previa siempre se abrirá mostrando la semana de trabajo actual por defecto,
+    // y el usuario podrá buscar periodos anteriores por su respectivo intervalo.
+    setPreviewInitialRange(null);
+    setShowExcelPreview(true);
+  }
+
+  useEffect(() => {
+    const tool = searchParams.get('tool');
+    if (!tool) return;
+    if (tool === 'historico' || tool === 'import') setShowImport(true);
+    else if (tool === 'archivo') setShowArchivo(true);
+    else if (tool === 'vista') setShowExcelPreview(true);
+    router.replace(pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
 
   // ── Load trend data for sparklines ──────────────────────────────────────
   useEffect(() => {
@@ -456,7 +476,7 @@ export default function NominaClient({
   };
 
   const totalSemana = useMemo(() => preNominaRows.reduce((s, r) => s + r.total, 0), [preNominaRows]);
-  const distribucion = useNominaDistribucion(totalSemana);
+  const distribucion = useNominaDivisionesConfig(totalSemana);
 
   const novedadesTurnoSemana = useMemo(
     () =>
@@ -684,6 +704,8 @@ export default function NominaClient({
         esSemanaLibre: r.esSemanaLibre,
         bonoTransporte: r.bonoTransporte,
         total: r.total,
+        bonificaciones: r.bonificaciones,
+        totalVales: r.totalVales,
         estadoAsistencia: r.estadoAsistencia,
         diasTrabajados: r.diasTrabajados,
         salarioBaseCalculado: r.salarioBaseCalculado,
@@ -724,66 +746,6 @@ export default function NominaClient({
         await registrarAuditAction('BORRAR_TODO_PERSONAL', 'personal', area, `Todos los trabajadores de ${area} desactivados`, user?.id, user?.email);
         setShowBorrarModal(false);
       } else alert(res.message);
-    });
-  }
-
-  // ── Import ──────────────────────────────────────────────────────────────
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setParseError(null); setParsedEmps([]); setImportingState(true);
-    try {
-      if (importTab === 'excel') {
-        const { parseExcelNomina, detectWeekRangeFromExcel } = await import('@/lib/parse-nomina-file');
-        const XLSX = await import('xlsx');
-        const arrayBuffer = await file.arrayBuffer();
-        const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: false });
-        const detected = detectWeekRangeFromExcel(wb);
-        if (detected.inicio && detected.fin) setWeekRange({ inicio: detected.inicio, fin: detected.fin });
-        const all = await parseExcelNomina(file, weekRange.inicio || undefined);
-        const emps = all.filter(e => e.area === area);
-        if (emps.length === 0) setParseError(`No se detectaron empleados de ${area}.`);
-        else setParsedEmps(emps);
-      } else {
-        const { parsePdfNomina, detectWeekRange } = await import('@/lib/parse-nomina-file');
-        const pdfjsLib = await import('pdfjs-dist');
-        (pdfjsLib as any).GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-        const ab = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-        let textForDetection = '';
-        for (let pg = 1; pg <= Math.min(2, pdf.numPages); pg++) {
-          const page = await pdf.getPage(pg);
-          const content = await page.getTextContent();
-          textForDetection += content.items.map((it) => ('str' in it ? it.str : '')).join(' ') + '\n';
-        }
-        const detected = detectWeekRange(textForDetection);
-        if (detected.inicio && detected.fin) setWeekRange({ inicio: detected.inicio, fin: detected.fin });
-        const all = await parsePdfNomina(file, weekRange.inicio || undefined);
-        const emps = all.filter(e => e.area === area);
-        if (emps.length === 0) setParseError(`No se detectaron empleados de ${area}.`);
-        else setParsedEmps(emps);
-      }
-    } catch (err) { setParseError(err instanceof Error ? err.message : 'Error procesando archivo.'); }
-    finally { setImportingState(false); e.target.value = ''; }
-  }
-
-  const importDiffs = useMemo(() => {
-    return parsedEmps.map(parsed => {
-      const match = data.find(p => p.cedula === parsed.cedula);
-      let status: 'nuevo' | 'cambio' | 'identico' = 'nuevo';
-      let delta = 0;
-      if (match) { status = Number(match.salario_base) === Number(parsed.salario_semanal) ? 'identico' : 'cambio'; delta = Number(parsed.salario_semanal) - Number(match.salario_base); }
-      return { parsed, status, oldSal: match?.salario_base, delta };
-    });
-  }, [parsedEmps, data]);
-
-  function handleImportConfirm() {
-    const valid = parsedEmps.filter(e => e._valid);
-    if (valid.length === 0) return alert('No hay empleados válidos.');
-    startTransition(async () => {
-      const { importarPersonalAction } = await import('@/lib/actions/nomina');
-      const res = await importarPersonalAction(valid, area);
-      if (res.ok) setImportResult(res.data); else alert(res.message);
     });
   }
 
@@ -843,8 +805,16 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
       <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className="nomina-page__toolbar-btn bg-amber-600 hover:bg-amber-500 text-black font-bold h-9 px-3 rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-40 text-xs">
         <Plus className="w-3.5 h-3.5 shrink-0" /> Trabajador
       </button>
-      <button onClick={() => setShowImport(true)} disabled={!canEdit} title="Importar" className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5">
-        <Upload className="w-3.5 h-3.5 shrink-0 text-zinc-400" /> Importar
+      <button onClick={() => setShowImport(true)} disabled={!canEdit} title="Importar planilla o roster (detecta histórico / semana actual)" className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5 border border-emerald-500/25 text-emerald-200/90 hover:bg-emerald-500/10">
+        <Upload className="w-3.5 h-3.5 shrink-0" /> Importar
+      </button>
+      <button
+        type="button"
+        onClick={() => setShowArchivo(true)}
+        title="Periodos archivados y consolidación"
+        className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5"
+      >
+        <Archive className="w-3.5 h-3.5 shrink-0 text-zinc-400" /> Archivo
       </button>
       <button
         type="button"
@@ -1056,6 +1026,23 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                   <p className="text-[11px] text-white/50">{preNominaRows.length} activos · <span className="font-bold text-amber-400">{fmtMoney(totalSemana)}</span></p>
                 </div>
                 {procesadoOk && <div className="mt-2.5 flex items-center gap-2 text-xs text-emerald-400 font-bold"><CheckCircle2 className="w-3.5 h-3.5" />{procesadoOk}</div>}
+              </div>
+            )}
+            {weekRange.inicio !== temporalCtx.workingWeekStart && (
+              <div className="rounded-xl border border-sky-500/25 bg-sky-500/5 px-3 py-2.5">
+                <p className="text-[10px] leading-snug text-sky-200/90">{formatTemporalContextHint(temporalCtx)}</p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setWeekRange({
+                      inicio: temporalCtx.workingWeekStart,
+                      fin: temporalCtx.workingWeekEnd,
+                    })
+                  }
+                  className="mt-2 text-[10px] font-bold uppercase tracking-wide text-sky-400 hover:text-sky-300"
+                >
+                  Ir a semana de curso
+                </button>
               </div>
             )}
             {prevSemana && Math.abs(weekDeltaPct) > 15 && (
@@ -1412,6 +1399,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         canEdit={canEdit}
         hasData={data.length > 0}
         onImport={() => setShowImport(true)}
+        onArchivo={() => setShowArchivo(true)}
         onPdf={handlePrintReport}
         onCsv={handleExportCSV}
         onExcel={() => {
@@ -1462,7 +1450,49 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         onAssigned={() => router.refresh()}
       />
 
-      <NominaVistaPreviaModal open={showExcelPreview} onClose={() => setShowExcelPreview(false)} />
+      <NominaVistaPreviaModal
+        open={showExcelPreview}
+        onClose={() => {
+          setShowExcelPreview(false);
+          setPreviewInitialRange(null);
+        }}
+        initialRange={previewInitialRange}
+        refreshKey={previewRefreshKey}
+        activeWeek={
+          weekRange.inicio
+            ? { semana_inicio: weekRange.inicio, semana_fin: weekRange.fin }
+            : undefined
+        }
+        activeRegistros={preNominaRows.map((row) => ({
+          personal_id: row.personal.id,
+          semana_inicio: weekRange.inicio,
+          area: area,
+          monto_pagado: row.total,
+          es_semana_libre: row.esSemanaLibre,
+          estado_asistencia: row.estadoAsistencia,
+          dias_trabajados: row.diasTrabajados,
+          salario_base_calculado: row.salarioBaseCalculado,
+          novedad_turno: row.novedadTurno ? JSON.stringify(row.novedadTurno) : null,
+          novedad_turno_obs: row.novedadTurnoObs,
+          personal_snapshot: buildPersonalSnapshot(row.personal),
+          periodo_id: null,
+        }))}
+      />
+
+      <NominaArchivoModal
+        open={showArchivo}
+        onClose={() => setShowArchivo(false)}
+        userId={user?.id}
+        refreshKey={archivoRefreshKey}
+        onImport={() => {
+          setShowArchivo(false);
+          setShowImport(true);
+        }}
+        onPeriodDeleted={() => {
+          setArchivoRefreshKey((k) => k + 1);
+          setPreviewRefreshKey((k) => k + 1);
+        }}
+      />
 
       <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-xl">
             <button type="button" onClick={() => setShowModal(false)} className="absolute right-5 top-5 rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white sm:right-6 sm:top-6" aria-label="Cerrar"><X className="w-5 h-5" /></button>
@@ -1557,52 +1587,16 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
             </PageFormModalFooter>
       </PageFormModal>
 
-      <PageFormModal
+      <NominaImportModal
         open={showImport}
-        onClose={() => {
-          setShowImport(false);
-          setParsedEmps([]);
-          setImportResult(null);
-        }}
-        panelClassName="sm:max-w-2xl"
-      >
-            <button type="button" onClick={() => { setShowImport(false); setParsedEmps([]); setImportResult(null); }} className="absolute right-5 top-5 text-white/40 hover:text-white sm:right-6 sm:top-6" aria-label="Cerrar"><X className="w-5 h-5" /></button>
-            <h3 className="page-form-modal-title mb-6 pr-10 text-xl font-bold tracking-wide text-white/90">Importar Nómina</h3>
-            {!parsedEmps.length ? (
-              <div className="space-y-4">
-                <div className="flex gap-2 mb-4 bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-fit">
-                  <button onClick={() => setImportTab('excel')} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${importTab === 'excel' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'text-white/40 border border-transparent hover:text-white/70'}`}>Excel</button>
-                  <button onClick={() => setImportTab('pdf')} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${importTab === 'pdf' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'text-white/40 border border-transparent hover:text-white/70'}`}>PDF</button>
-                </div>
-                <div className="border-2 border-dashed border-zinc-800 hover:border-amber-500/50 bg-zinc-900/10 rounded-xl p-10 text-center relative transition-all group">
-                  <input type="file" accept={importTab === 'excel' ? '.xlsx,.xls' : '.pdf'} onChange={handleFile} disabled={importingState} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                  {importingState ? (<div className="flex flex-col items-center gap-3"><Loader2 className="w-10 h-10 text-amber-500 animate-spin" /><span className="text-white/60 text-sm font-semibold">Parseando archivo...</span></div>) : (<div className="flex flex-col items-center gap-3"><Upload className="w-10 h-10 text-zinc-650 group-hover:text-amber-500 transition-colors" /><span className="text-white/60 text-sm font-semibold">Arrastra tu reporte aquí</span></div>)}
-                </div>
-                {parseError && <p className="text-red-400 text-xs bg-red-500/10 p-2.5 rounded-xl border border-red-500/20">{parseError}</p>}
-                <button onClick={() => setShowImport(false)} className="btn-secondary w-full mt-4 flex justify-center text-xs font-bold uppercase py-3">Cerrar</button>
-              </div>
-            ) : (
-              <div>
-                <p className="text-xs text-white/50 mb-4">{parsedEmps.length} trabajadores de <strong className="text-amber-500">{area.toUpperCase()}</strong></p>
-                <div className="max-h-64 overflow-y-auto border border-zinc-800 rounded-xl mb-4 bg-zinc-950/50">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-zinc-900 sticky top-0 border-b border-zinc-800 z-10 text-[10px] text-white/40 uppercase tracking-widest"><tr><th className="p-3">Nombre</th><th className="p-3">Cédula</th><th className="p-3">Cargo</th><th className="p-3 text-right">Sueldo</th><th className="p-3 text-center">Estado</th></tr></thead>
-                    <tbody className="divide-y divide-zinc-800/30 text-white/80">
-                      {importDiffs.map((diff, i) => (
-                        <tr key={i}><td className="p-3 font-semibold">{diff.parsed.nombre_completo}</td><td className="p-3 text-white/40">{diff.parsed.cedula}</td><td className="p-3 text-white/50">{diff.parsed.cargo}</td><td className="p-3 text-right text-amber-500 font-bold">{fmtMoney(diff.parsed.salario_semanal)}</td>
-                        <td className="p-3 text-center">{diff.status === 'nuevo' && <span className="px-2 py-0.5 text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold rounded uppercase">NUEVO</span>}{diff.status === 'cambio' && <span className="px-2 py-0.5 text-[8px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-bold rounded uppercase">AJUSTE ({diff.delta > 0 ? '+' : ''}{diff.delta})</span>}{diff.status === 'identico' && <span className="px-2 py-0.5 text-[8px] bg-zinc-850 text-zinc-400 border border-zinc-850 font-bold rounded uppercase">OK</span>}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {importResult && (<div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center mb-4"><CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" /><p className="text-emerald-300 font-semibold uppercase tracking-widest text-xs">¡Importación Exitosa!</p><p className="text-[10px] text-emerald-400/70 mt-1">{importResult.nuevos} nuevos, {importResult.actualizados} actualizados.</p></div>)}
-                <div className="flex gap-3 mt-4">
-                  <button onClick={() => { setParsedEmps([]); setImportResult(null); }} className="btn-secondary flex-1 flex justify-center text-xs font-bold py-2.5">Otro Archivo</button>
-                  {!importResult && <button onClick={handleImportConfirm} disabled={isPending} className="btn-primary flex-1 flex justify-center text-xs font-bold py-2.5">{isPending ? 'IMPORTANDO...' : 'CONFIRMAR'}</button>}
-                </div>
-              </div>
-            )}
-      </PageFormModal>
+        onClose={() => setShowImport(false)}
+        area={area}
+        data={data}
+        weekStart={weekRange.inicio}
+        canEdit={canEdit}
+        onWeekDetected={(inicio, fin) => setWeekRange({ inicio, fin })}
+        onImported={handleNominaImported}
+      />
 
       <PageFormModal open={showBorrarModal} onClose={() => setShowBorrarModal(false)} panelClassName="max-w-sm text-center">
             <AlertTriangle className="mx-auto mb-4 h-12 w-12 animate-bounce text-red-500" />

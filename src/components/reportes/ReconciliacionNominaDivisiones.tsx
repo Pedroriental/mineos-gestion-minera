@@ -5,6 +5,7 @@ import {
   applyNominaDivisionPorcentaje,
   createNominaDivision,
   DEFAULT_NOMINA_DIVISIONES,
+  formatNominaDivisionLabel,
   rebalanceNominaDivisionesIgual,
   splitNominaByDivisiones,
   sumNominaDivisionesPct,
@@ -42,9 +43,7 @@ export function ReconciliacionNominaDivisiones({
     }
     if (n === divisiones.length) return;
     if (n > divisiones.length) {
-      const added = Array.from({ length: n - divisiones.length }, (_, i) =>
-        createNominaDivision(`Parte ${divisiones.length + i + 1}`, 0),
-      );
+      const added = Array.from({ length: n - divisiones.length }, () => createNominaDivision(0));
       onChange(rebalanceNominaDivisionesIgual([...divisiones, ...added]));
       return;
     }
@@ -95,7 +94,7 @@ export function ReconciliacionNominaDivisiones({
             onClick={() => onChange([...DEFAULT_NOMINA_DIVISIONES])}
             className="text-[11px] font-medium text-zinc-400 hover:text-zinc-200 underline-offset-2 hover:underline"
           >
-            Usar plantilla Pedro / Darinel / La Fé
+            Usar plantilla 33 / 33 / 34 %
           </button>
         )}
         {divisiones.length > 0 && (
@@ -112,19 +111,11 @@ export function ReconciliacionNominaDivisiones({
 
       {divisiones.length > 0 && (
         <div className="space-y-2">
-          {divisiones.map((d) => (
-            <div key={d.id} className="grid grid-cols-[1fr_5rem] gap-2">
-              <input
-                type="text"
-                value={d.nombre}
-                onChange={(e) =>
-                  onChange(
-                    divisiones.map((x) => (x.id === d.id ? { ...x, nombre: e.target.value } : x)),
-                  )
-                }
-                placeholder="Nombre de la parte"
-                className={inputClass}
-              />
+          {divisiones.map((d, i) => (
+            <div key={d.id} className="grid grid-cols-[1fr_5rem] gap-2 items-center">
+              <span className="text-sm font-medium text-zinc-300">
+                Parte {i + 1} · {formatNominaDivisionLabel(d.porcentaje)}
+              </span>
               <label className="flex items-center gap-1">
                 <input
                   type="number"
@@ -163,8 +154,7 @@ export function ReconciliacionNominaDivisiones({
                 className="flex justify-between gap-2 text-[11px] text-zinc-300 tabular-nums"
               >
                 <span className="truncate">
-                  {s.nombre}{' '}
-                  <span className="text-zinc-500">({s.porcentaje}%)</span>
+                  {formatNominaDivisionLabel(s.porcentaje)}
                 </span>
                 <span className="font-medium shrink-0">${s.montoUsd.toLocaleString('es')}</span>
               </li>

@@ -158,135 +158,63 @@ export async function importarPersonalAction(rawEmps: unknown, area: string): Pr
   }
 }
 
+/**
+ * @deprecated V1 — ZOMBI. No usar. Usa `procesarCierreNominaV3Action` de `nomina-v3.ts`.
+ * Esta función es un no-op seguro que devuelve error inmediatamente.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function procesarNominaSemanaAction(
-  userId: string,
-  area: string,
-  inicio: string,
-  fin: string
+  _userId: string,
+  _area: string,
+  _inicio: string,
+  _fin: string,
 ): Promise<ActionResult> {
-  try {
-    const supabase = await createServerClient();
-    
-    // 1. Get active workers for the area
-    const { data: trabajadores } = await supabase.from('personal').select('*').eq('activo', true).eq('area', area);
-    if (!trabajadores || trabajadores.length === 0) {
-      return { ok: false, message: 'No hay trabajadores activos registrados en esta área.' };
-    }
-
-    const totalNomina = trabajadores.reduce((s, p) => s + Number(p.salario_base), 0);
-    const fechaHoy = new Date().toISOString().split('T')[0];
-
-    // 2. Check if already exists
-    const { data: existe } = await supabase
-      .from('nomina_semanas')
-      .select('id')
-      .eq('semana_inicio', inicio)
-      .eq('area', area)
-      .maybeSingle();
-
-    if (existe) {
-      // If we want to strictly prevent double processing from the server side without prompt:
-      // return { ok: false, message: 'Esta semana ya fue procesada.' };
-      // The previous implementation used upsert, so we will do the same but the UI handled the warning.
-    }
-
-    // 3. Create payments
-    const pagos = trabajadores.map((p) => ({
-      personal_id: p.id,
-      fecha_pago: fechaHoy,
-      periodo_inicio: inicio,
-      periodo_fin: fin,
-      salario_base: p.salario_base,
-      bonificaciones: 0,
-      deducciones: 0,
-      total_pagado: p.salario_base,
-      metodo_pago: 'nomina_semanal',
-      observaciones: `Nómina ${area} ${inicio} al ${fin}`,
-      registrado_por: userId || null,
-    }));
-
-    // We should delete existing payments for this week/area before inserting if replacing
-    // But standard is upsert on `nomina_semanas`. To keep it safe, let's just insert.
-    const { error: pagosError } = await supabase.from('nomina_pagos').insert(pagos);
-    if (pagosError) return { ok: false, message: `Error al registrar pagos: ${pagosError.message}` };
-
-    // 4. Create gasto
-    let gastoId: string | null = null;
-    const { data: catRow } = await supabase.from('categorias_gasto').select('id').ilike('nombre', '%nomina%').limit(1).maybeSingle();
-    if (catRow) {
-      const { data: gastoRow } = await supabase.from('gastos').insert({
-        fecha: fechaHoy,
-        categoria_id: catRow.id,
-        descripcion: `Nómina ${area.toUpperCase()} ${inicio} al ${fin} — ${trabajadores.length} trabajadores`,
-        monto: totalNomina,
-        proveedor: 'Nómina interna',
-        notas: `Procesado automáticamente desde módulo Nómina ${area}.`,
-        registrado_por: userId || null,
-      }).select('id').maybeSingle();
-      gastoId = gastoRow?.id ?? null;
-    }
-
-    // 5. Create or update nomina_semanas
-    const { error: semanaError } = await supabase.from('nomina_semanas').upsert({
-      semana_inicio: inicio,
-      semana_fin: fin,
-      total_trabajadores: trabajadores.length,
-      total_pagado: totalNomina,
-      area: area,
-      registrado_por: userId || null,
-      ...(gastoId ? { gasto_id: gastoId } : {}),
-    }, { onConflict: 'semana_inicio,area' });
-
-    if (semanaError) return { ok: false, message: `Error al registrar la semana: ${semanaError.message}` };
-
-    const { data: semData } = await supabase
-      .from('nomina_semanas')
-      .select('id')
-      .eq('semana_inicio', inicio)
-      .eq('area', area)
-      .maybeSingle();
-    const semanaId = semData?.id || '';
-
-    // Registrar auditoría de procesamiento de nómina
-    await registrarAuditAction(
-      'PROCESAR_NOMINA',
-      'nomina_semanas',
-      semanaId,
-      `Nómina simple procesada para ${area.toUpperCase()} del ${inicio} al ${fin}. Total: $${totalNomina.toFixed(2)} (${trabajadores.length} trabajadores).`,
-      userId
-    );
-
-    revalidateAll();
-    return { ok: true, message: `Nómina procesada: ${trabajadores.length} trabajadores.`, data: { total: totalNomina, count: trabajadores.length } };
-  } catch (err) {
-    console.error('[Action] procesarNominaSemanaAction Exception:', err);
-    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
-  }
+  console.error('[DEPRECATED] procesarNominaSemanaAction (V1). Usar procesarCierreNominaV3Action.');
+  return { ok: false, message: '[DEPRECATED] Usar procesarCierreNominaV3Action.' };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
+    const semanaId = semana.id as string;
 
-    await supabase.from('nomina_pagos').delete().eq('periodo_inicio', semana.semana_inicio);
+    const { data: valesRows } = await supabase
+      .from('nomina_vales')
+      .select('id')
+      .eq('semana_id', semanaId);
+
+    if (valesRows?.length) {
+      await supabase
+        .from('nomina_vales')
+        .update({ estado: 'PENDIENTE', semana_id: null })
+        .eq('semana_id', semanaId);
+    } else {
+      await supabase.from('nomina_vales').update({ semana_id: null }).eq('semana_id', semanaId);
+    }
+
+    await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);
+    await supabase.from('nomina_cierres').delete().eq('semana_id', semanaId);
+
     if (semana.gasto_id) {
       await supabase.from('gastos').delete().eq('id', semana.gasto_id);
     }
-    const { error } = await supabase.from('nomina_semanas').delete().eq('id', semana.id);
+
+    await supabase.from('nomina_pagos').delete().eq('periodo_inicio', semana.semana_inicio);
+
+    const { error } = await supabase.from('nomina_semanas').delete().eq('id', semanaId);
 
     if (error) {
       console.error('[Action] revertirSemanaAction Supabase error:', error.message);
       return { ok: false, message: `Error al revertir: ${error.message}` };
     }
 
-    // Registrar auditoría de reversión
     await registrarAuditAction(
       'REVERTIR_NOMINA',
       'nomina_semanas',
-      semana.id,
-      `Nómina revertida para ${semana.area?.toUpperCase()} de la semana ${semana.semana_inicio}. Monto que se eliminó: $${Number(semana.total_pagado || 0).toFixed(2)}.`,
-      undefined
+      semanaId,
+      `Nómina revertida para ${semana.area?.toUpperCase()} de la semana ${semana.semana_inicio}. Monto eliminado: $${Number(semana.total_pagado || 0).toFixed(2)}.`,
+      undefined,
     );
 
     revalidateAll();

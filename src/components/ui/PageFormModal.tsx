@@ -106,7 +106,6 @@ export function PageFormModal({
           align === 'bottom' && 'rounded-t-2xl sm:rounded-2xl',
           panelClassName,
         )}
-        onMouseDown={(e) => e.stopPropagation()}
       >
         {children}
       </div>

@@ -69,7 +69,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
 
   const nominaPlantaUsd = sumNominaArea('planta');
   const nominaMinaUsd = sumNominaArea('mina');
-  const nominaAdminUsd = sumNominaArea('admin');
+  const nominaAdminUsd = sumNominaArea('administracion');
   const nominaTotalUsd = nominaPlantaUsd + nominaMinaUsd + nominaAdminUsd;
   const semanasNomina = (nominaSemanas ?? []).length;
   const valorOroPlantaUsd = rent.oro_planta_g * rent.precio_usd_gramo;

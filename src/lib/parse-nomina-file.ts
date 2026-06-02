@@ -1,5 +1,9 @@
 import * as XLSX from 'xlsx';
-
+import { inferAreaFromSection } from '@/lib/nomina/section-resolver';
+import {
+  inferAreaFromBanner,
+  isNominaSectionHeader,
+} from '@/lib/nomina/section-headers';
 export interface EmpleadoParseado {
   nombre_completo: string;
   cedula: string;
@@ -161,45 +165,8 @@ export function detectWeekRangeFromExcel(workbook: import('xlsx').WorkBook): Wee
 
 
 // ── Detección de área desde el nombre de la sección ──────────────────────────
-export function inferArea(
-  sectionName: string
-): EmpleadoParseado['area'] {
-  const lower = sectionName.toLowerCase();
-  
-  // 1. Transporte
-  if (lower.includes('transporte') || lower.includes('chofer') || lower.includes('volque')) {
-    return 'transporte';
-  }
-
-  // 2. Seguridad
-  if (lower.includes('seguridad') || lower.includes('vigilancia') || lower.includes('sereno')) {
-    return 'seguridad';
-  }
-
-  // 3. Planta / Molino (Molino La Fé)
-  if (
-    lower.includes('molino') || 
-    lower.includes('planta') || 
-    lower.includes('grupo') || 
-    lower.includes('mixto') || 
-    lower.includes('la fe') || 
-    lower.includes('la fé')
-  ) {
-    return 'planta';
-  }
-
-  // 4. Mina (explicit check)
-  if (lower.includes('mina') || lower.includes('vertical') || lower.includes('belen') || lower.includes('belén')) {
-    return 'mina';
-  }
-
-  // 5. Administración (generic fallback for administrative sections)
-  if (lower.includes('administra')) {
-    return 'administracion';
-  }
-
-  // Default fallback
-  return 'mina';
+export function inferArea(sectionName: string): EmpleadoParseado['area'] {
+  return inferAreaFromSection(sectionName);
 }
 
 
@@ -236,6 +203,19 @@ function isCedula(cell: unknown): boolean {
   return CI_WITH_DOTS.test(s) || CI_PLAIN.test(s);
 }
 
+function toTitleCase(name: string): string {
+  if (!name) return '';
+  return name
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => {
+      if (!word) return '';
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
 // ── Detectar si una celda es una fecha DD/MM/YYYY ────────────────────────────
 const DATE_REGEX = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
@@ -261,28 +241,11 @@ function isAmount(cell: unknown): boolean {
   return !isNaN(n) && n > 0;
 }
 
-// ── Keywords que identifican una fila de header de sección ───────────────────
-const SECTION_KEYWORDS = [
-  'administrativos molinos',
-  'administrativos mina',
-  'administrativo molinos',
-  'administrativo mina',
-  'nómina administrativo',
-  'nomina administrativo',
-  'molinos-grupo',
-  'molinos grupo',
-  'semanas mina',
-  'semanas molinos',
-  'cocinera',
-  'tecnico',
-  'técnico',
-  'operador',
-  'transporte',
-  'seguridad',
-  'vertical',
-];
+// ── Keywords delegados a section-headers ─────────────────────────────────────
+function isSectionHeader(firstText: string, rowText?: string): boolean {
+  return isNominaSectionHeader(firstText) || (rowText ? isNominaSectionHeader(rowText) : false);
+}
 
-// ── Detectar filas que deben ignorarse (totales, sub-headers, etc.) ──────────
 const SKIP_PATTERNS = [
   /^nombres?$/i,
   /^c\.?i\.?$/i,
@@ -297,11 +260,6 @@ const SKIP_PATTERNS = [
   /^acumulado/i,
   /^aportes/i,
 ];
-
-function isSectionHeader(firstText: string): boolean {
-  const lower = firstText.toLowerCase();
-  return SECTION_KEYWORDS.some((kw) => lower.includes(kw));
-}
 
 function shouldSkipRow(text: string): boolean {
   return SKIP_PATTERNS.some((p) => p.test(text.trim()));
@@ -366,9 +324,9 @@ export function parseExcelNomina(file: File, semanaInicio?: string): Promise<Emp
             if (shouldSkipRow(firstCell)) continue;
 
             // Check if section header
-            if (isSectionHeader(firstCell)) {
-              currentSection = firstCell;
-              currentArea = inferArea(firstCell);
+            if (isSectionHeader(firstCell, rowText)) {
+              currentSection = rowText.length > firstCell.length ? rowText : firstCell;
+              currentArea = inferAreaFromSection(currentSection);
               activeWeekColIdx = -1; // Reset para la nueva sección
               continue;
             }
@@ -403,6 +361,7 @@ export function parseExcelNomina(file: File, semanaInicio?: string): Promise<Emp
             }
             nombre = nombre.trim();
             if (!nombre || shouldSkipRow(nombre)) continue;
+            nombre = toTitleCase(nombre);
 
             if (ciIdx < 0 && dateIdx >= 0) {
               ciValue = `SC-${nombre.replace(/[^A-Za-z0-9]/g, '').substring(0,8).toUpperCase()}`;
@@ -472,20 +431,6 @@ export function parseExcelNomina(file: File, semanaInicio?: string): Promise<Emp
 }
 
 // ── SECCIÓN DE KEYWORDS PARA PDF ─────────────────────────────────────────────
-const SECTION_PATTERNS_PDF = [
-  /n[oó]mina\s+administrativ/i,
-  /semanas?\s+mina/i,
-  /semanas?\s+molinos/i,
-  /administrativ[ao]s?\s+mina/i,
-  /administrativ[ao]s?\s+molinos/i,
-  /cocinera/i,
-  /t[eé]cnico\s+operador/i,
-  /transporte/i,
-  /seguridad/i,
-  /vertical\s+\d/i,
-  /grupo\s*\(mixto\)/i,
-];
-
 const SKIP_LINES_PDF = [
   /^nombres?\s*$/i,
   /^c\.?i\.?\s*$/i,
@@ -504,8 +449,9 @@ const SKIP_LINES_PDF = [
 const CI_REGEX_PDF = /\b(\d{1,2}\.\d{3}\.\d{3})\b/;
 
 function isSectionHeaderPDF(line: string): boolean {
-  if (/\d{2}\/\d{2}\/\d{4}/.test(line) || CI_REGEX_PDF.test(line)) return false;
-  return SECTION_PATTERNS_PDF.some((p) => p.test(line.trim()));
+  if (/\d{1,2}\.\d{3}\.\d{3}/.test(line)) return false;
+  if (/\d{2}\/\d{2}\/\d{4}/.test(line) && !isNominaSectionHeader(line)) return false;
+  return isNominaSectionHeader(line);
 }
 
 function shouldSkipLinePDF(line: string): boolean {
@@ -549,17 +495,15 @@ function parseEmployeeLine(
     /^Semanas?\s+Mina\s+Belen\s*-\s*Vertical\s+1PD\s*/i,
     /^Semanas?\s+Mina\s+Belen\s*-\s*Vertical\s+2\s*/i,
     /^N[oó]minas?\s+Administrativos?\s+Mina\s*/i,
-    /^(N[oó]minas?|Semanas?)\s+Mina\s+Belen\s*-\s*/i
+    /^Semanas?\s+Molinos\s*[-–]\s*/i,
+    /^N[oó]minas?\s+Administrativos?\s+Molinos\s*/i,
+    /^(N[oó]minas?|Semanas?)\s+Mina\s+Belen\s*-\s*/i,
   ];
 
   for (const headerRegex of knownHeaders) {
     namePart = namePart.replace(headerRegex, '');
   }
   namePart = namePart.trim();
-
-  SECTION_PATTERNS_PDF.forEach(p => {
-    namePart = namePart.replace(p, '').trim();
-  });
 
   if (!namePart || namePart.length < 2) return null;
   if (shouldSkipLinePDF(namePart)) return null;
@@ -614,7 +558,7 @@ function parseEmployeeLine(
   if (salario <= 0) return null;
 
   return {
-    nombre_completo: namePart.replace(/\s+/g, ' ').trim(),
+    nombre_completo: toTitleCase(namePart),
     cedula: ciRaw.replace(/\./g, ''),
     cargo: cleanSectionName(currentSection),
     area: inferArea(currentSection),
@@ -699,6 +643,15 @@ export async function parsePdfNomina(file: File, semanaInicio?: string): Promise
     }
 
     if (isSectionHeaderPDF(trimmed)) {
+      currentSection = trimmed;
+      sectionWeeks = [];
+      activeWeekIdxInPDF = -1;
+      lastUnusedText = '';
+      continue;
+    }
+
+    const bannerArea = inferAreaFromBanner(trimmed);
+    if (bannerArea) {
       currentSection = trimmed;
       sectionWeeks = [];
       activeWeekIdxInPDF = -1;

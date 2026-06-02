@@ -2,14 +2,24 @@
 
 export type NominaDivisionParam = {
   id: string;
+  /** Etiqueta derivada del porcentaje (p. ej. "33,33%"). */
   nombre: string;
   porcentaje: number;
 };
 
+export function formatNominaDivisionLabel(porcentaje: number): string {
+  const pct = Number(porcentaje) || 0;
+  return `${pct.toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
+}
+
+export function syncNominaDivisionNombre(d: NominaDivisionParam): NominaDivisionParam {
+  return { ...d, nombre: formatNominaDivisionLabel(d.porcentaje) };
+}
+
 export const DEFAULT_NOMINA_DIVISIONES: NominaDivisionParam[] = [
-  { id: 'pedro', nombre: 'Pedro Guajiro', porcentaje: 33.33 },
-  { id: 'darinel', nombre: 'Darinel Riasco', porcentaje: 33.33 },
-  { id: 'la_fe', nombre: 'Molinos La Fé', porcentaje: 33.34 },
+  { id: 'parte_1', nombre: '33,33%', porcentaje: 33.33 },
+  { id: 'parte_2', nombre: '33,33%', porcentaje: 33.33 },
+  { id: 'parte_3', nombre: '33,34%', porcentaje: 33.34 },
 ];
 
 export function sumNominaDivisionesPct(divisiones: NominaDivisionParam[]): number {
@@ -25,9 +35,6 @@ export function validateNominaDivisiones(divisiones: NominaDivisionParam[]): {
 } {
   if (!divisiones.length) return { ok: true, sum: 0 };
   for (const d of divisiones) {
-    if (!d.nombre.trim()) {
-      return { ok: false, sum: sumNominaDivisionesPct(divisiones), message: 'Cada parte debe tener nombre.' };
-    }
     if (d.porcentaje < 0) {
       return { ok: false, sum: sumNominaDivisionesPct(divisiones), message: 'Los porcentajes no pueden ser negativos.' };
     }
@@ -44,11 +51,14 @@ export function parseNominaDivisionesJson(raw: string | null | undefined): Nomin
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed) || !parsed.length) return [];
-    return parsed.map((d, i) => ({
-      id: String((d as NominaDivisionParam).id || `parte_${i}`),
-      nombre: String((d as NominaDivisionParam).nombre || `Parte ${i + 1}`),
-      porcentaje: Number((d as NominaDivisionParam).porcentaje) || 0,
-    }));
+    return parsed.map((d, i) => {
+      const porcentaje = Number((d as NominaDivisionParam).porcentaje) || 0;
+      return syncNominaDivisionNombre({
+        id: String((d as NominaDivisionParam).id || `parte_${i + 1}`),
+        nombre: formatNominaDivisionLabel(porcentaje),
+        porcentaje,
+      });
+    });
   } catch {
     return [];
   }
@@ -56,11 +66,14 @@ export function parseNominaDivisionesJson(raw: string | null | undefined): Nomin
 
 export function serializeNominaDivisionesJson(divisiones: NominaDivisionParam[]): string {
   return JSON.stringify(
-    divisiones.map((d) => ({
-      id: d.id,
-      nombre: d.nombre.trim(),
-      porcentaje: Number(d.porcentaje) || 0,
-    })),
+    divisiones.map((d) => {
+      const porcentaje = Number(d.porcentaje) || 0;
+      return {
+        id: d.id,
+        nombre: formatNominaDivisionLabel(porcentaje),
+        porcentaje,
+      };
+    }),
   );
 }
 
@@ -83,7 +96,7 @@ export function rebalanceNominaDivisionesIgual(divisiones: NominaDivisionParam[]
   return divisiones.map((d, i) => {
     const pct = i === n - 1 ? parseFloat(rest.toFixed(2)) : base;
     rest = parseFloat((rest - pct).toFixed(2));
-    return { ...d, porcentaje: pct };
+    return syncNominaDivisionNombre({ ...d, porcentaje: pct });
   });
 }
 
@@ -106,13 +119,15 @@ export function applyNominaDivisionPorcentaje(
   );
   const remainder = parseFloat((100 - othersExceptAbsorb).toFixed(2));
   const absorbed = parseFloat(Math.min(100, Math.max(0, remainder)).toFixed(2));
-  return updated.map((d, i) => (i === absorbIdx ? { ...d, porcentaje: absorbed } : d));
+  return updated
+    .map((d, i) => (i === absorbIdx ? { ...d, porcentaje: absorbed } : d))
+    .map(syncNominaDivisionNombre);
 }
 
-export function createNominaDivision(nombre = '', porcentaje = 0): NominaDivisionParam {
-  return {
+export function createNominaDivision(porcentaje = 0): NominaDivisionParam {
+  return syncNominaDivisionNombre({
     id: `div_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-    nombre,
+    nombre: formatNominaDivisionLabel(porcentaje),
     porcentaje,
-  };
+  });
 }
