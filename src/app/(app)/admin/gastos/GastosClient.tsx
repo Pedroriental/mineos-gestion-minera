@@ -23,6 +23,7 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto } from '@/lib/actions/gastos';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppCombobox } from '@/components/ui/AppCombobox';
+import { AppSelect } from '@/components/ui/AppSelect';
 import { getGastoColumns, gastoGlobalFilter } from './columns';
 import { GastoDetailCard } from './GastoDetailCard';
 
@@ -1024,21 +1025,17 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
           </div>
           <div>
             <label className="input-label">Categoría *</label>
-            <select
+            <AppSelect
               value={form.categoria_nombre}
-              onChange={(e) => {
-                setForm({ ...form, categoria_nombre: e.target.value });
+              onChange={(val) => {
+                setForm({ ...form, categoria_nombre: val });
                 setFormError(null);
               }}
-              className="input-field"
-            >
-              <option value="">Selecciona una categoría...</option>
-              {categorias.map((c) => (
-                <option key={c.id} value={c.nombre}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: 'Selecciona una categoría...' },
+                ...categorias.map((c) => ({ value: c.nombre, label: c.nombre })),
+              ]}
+            />
           </div>
           <div>
             <label className="input-label">Monto (USD) *</label>

@@ -21,6 +21,7 @@ import { NominaVistaPreviaModal } from '@/components/nomina/NominaVistaPreviaMod
 import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
 import type { NominaImportResult } from '@/components/nomina/NominaImportWizard';
 import { NominaArchivoModal } from '@/components/nomina/NominaArchivoModal';
+import { AppSelect } from '@/components/ui/AppSelect';
 import {
   hasNovedadTurno,
   nominaNovedadDraftKey,
@@ -1534,13 +1535,14 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                   </div>
                   <div className="pt-3 border-t border-zinc-800 space-y-3">
                     <div className="flex items-center gap-2"><RotateCcw className="w-3.5 h-3.5 text-cyan-400" /><label className="input-label !mb-0">Esquema de Rotación</label></div>
-                    <select value={form.esquema_rotacion} onChange={e => setForm({...form, esquema_rotacion: e.target.value as Personal['esquema_rotacion']})} className="input-field">
-                      {esquemaOpciones.map((code) => (
-                        <option key={code} value={code}>
-                          {biblioteca.esquemaLabels[code] || code}
-                        </option>
-                      ))}
-                    </select>
+                    <AppSelect
+                      value={form.esquema_rotacion}
+                      onChange={(val) => setForm({ ...form, esquema_rotacion: val as Personal['esquema_rotacion'] })}
+                      options={esquemaOpciones.map((code) => ({
+                        value: code,
+                        label: biblioteca.esquemaLabels[code] || code,
+                      }))}
+                    />
                     {(form.esquema_rotacion === 'MINA_2X1' || form.esquema_rotacion === 'MOLINO_ROTATIVO' || form.esquema_rotacion === 'MINA_ROTATIVA_3G' || form.esquema_rotacion === 'MOLINO_15X15') && (
                       <div className="space-y-1"><label className="input-label">Fecha Inicio Ciclo</label><input type="date" value={form.rotacion_inicio_fecha} onChange={e => setForm({...form, rotacion_inicio_fecha: e.target.value})} className="input-field" /><p className="text-[10px] text-white/30">Primera semana laboral del trabajador.</p></div>
                     )}

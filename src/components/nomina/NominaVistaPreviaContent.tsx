@@ -5,6 +5,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { Calendar, Printer, RefreshCw, X, Archive } from 'lucide-react';
 import NominaPreviewReport from '@/components/nomina/NominaPreviewReport';
 import NominaPreviewOptionsMenu from '@/components/nomina/NominaPreviewOptionsMenu';
+import { AppSelect } from '@/components/ui/AppSelect';
 import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config';
 import { getValesPendientesBulkAction } from '@/lib/actions/nomina-v3';
 import {
@@ -389,33 +390,32 @@ export default function NominaVistaPreviaContent({
               {archivedPeriods.length > 0 ? (
                 <div className="flex min-w-0 max-w-[240px] flex-1 items-center gap-1.5 sm:flex-none">
                   <Archive className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
-                  <select
+                  <AppSelect
                     value={periodoId ?? ''}
-                    onChange={(e) => {
-                      if (!e.target.value) {
+                    onChange={(val) => {
+                      if (!val) {
                         clearPeriodFilter();
                         return;
                       }
-                      const p = archivedPeriods.find((x) => x.id === e.target.value);
+                      const p = archivedPeriods.find((x) => x.id === val);
                       if (p) applyPeriodRange(p);
                     }}
-                    className="h-9 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none focus:border-amber-400"
-                    aria-label="Periodo archivado"
-                  >
-                    {/* Primera opción dinámica: muestra el rango activo o "Semana en curso" */}
-                    <option value="">
-                      {periodoId
-                        ? 'Semana en curso'
-                        : rangeStart && rangeEnd
-                          ? `${format(parseISO(rangeStart), 'dd/MM')} — ${format(parseISO(rangeEnd), 'dd/MM/yyyy')}`
-                          : 'Semana en curso'}
-                    </option>
-                    {archivedPeriods.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label} (${p.totalUsd.toLocaleString('es', { minimumFractionDigits: 0 })})
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      {
+                        value: '',
+                        label: periodoId
+                          ? 'Semana en curso'
+                          : rangeStart && rangeEnd
+                            ? `${format(parseISO(rangeStart), 'dd/MM')} — ${format(parseISO(rangeEnd), 'dd/MM/yyyy')}`
+                            : 'Semana en curso',
+                      },
+                      ...archivedPeriods.map((p) => ({
+                        value: p.id,
+                        label: `${p.label} (${p.totalUsd.toLocaleString('es', { minimumFractionDigits: 0 })})`,
+                      })),
+                    ]}
+                    className="min-w-[170px] flex-1 text-xs"
+                  />
                 </div>
               ) : null}
 

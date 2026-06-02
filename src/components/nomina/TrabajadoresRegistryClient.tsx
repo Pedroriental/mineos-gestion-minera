@@ -24,6 +24,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { AppSelect } from '@/components/ui/AppSelect';
 import { useBiblioteca, useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
 import { areaNominaLabel, getAsignacionNomina, getUbicacionLaboralLabel } from '@/lib/personal-master';
@@ -973,35 +974,33 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
           </div>
           <div>
             <label className="input-label">Nómina (módulo)</label>
-            <select
-              className="input-field"
+            <AppSelect
               value={form.area}
-              onChange={(e) => {
-                const area = e.target.value as FormState['area'];
+              onChange={(val) => {
+                const area = val as FormState['area'];
                 setForm((p) => ({
                   ...p,
                   area,
                   ubicacion_laboral: biblioteca.ubicacionDefaultPorArea[area] || p.ubicacion_laboral,
                 }));
               }}
-            >
-              {areaOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              options={areaOptions}
+            />
             <p className="mt-1 text-[10px] text-white/35">Define en qué nómina semanal aparece el trabajador.</p>
           </div>
           <div>
             <label className="input-label">Estado Inicial</label>
-            <select className="input-field" value={form.estado_laboral} onChange={(e) => setForm((p) => ({ ...p, estado_laboral: e.target.value as EstadoLaboral }))}>
-              <option value="ACTIVO">Activo</option>
-              <option value="REPOSO">Reposo</option>
-              <option value="VACACIONES">Vacaciones</option>
-              <option value="DESPEDIDO">Despedido</option>
-              <option value="REENGANCHADO">Reenganchado</option>
-            </select>
+            <AppSelect
+              value={form.estado_laboral}
+              onChange={(val) => setForm((p) => ({ ...p, estado_laboral: val as EstadoLaboral }))}
+              options={[
+                { value: 'ACTIVO', label: 'Activo' },
+                { value: 'REPOSO', label: 'Reposo' },
+                { value: 'VACACIONES', label: 'Vacaciones' },
+                { value: 'DESPEDIDO', label: 'Despedido' },
+                { value: 'REENGANCHADO', label: 'Reenganchado' },
+              ]}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="input-label">Observación General</label>

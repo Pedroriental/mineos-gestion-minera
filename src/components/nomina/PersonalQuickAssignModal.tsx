@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { PageFormModal } from '@/components/ui/PageFormModal';
+import { AppSelect } from '@/components/ui/AppSelect';
 import {
   areaNominaLabel,
   getAsignacionNomina,
@@ -407,11 +408,10 @@ export function PersonalQuickAssignModal({
             </div>
             <div className="col-span-2">
               <label className="input-label">Esquema de rotación</label>
-              <select
-                className="input-field"
+              <AppSelect
                 value={form.esquema_rotacion}
-                onChange={(e) => {
-                  const esquema = e.target.value as Personal['esquema_rotacion'];
+                onChange={(val) => {
+                  const esquema = val as Personal['esquema_rotacion'];
                   setForm((p) => ({
                     ...p,
                     esquema_rotacion: esquema,
@@ -420,13 +420,11 @@ export function PersonalQuickAssignModal({
                       : '',
                   }));
                 }}
-              >
-                {esquemaOpciones.map((e) => (
-                  <option key={e} value={e}>
-                    {biblioteca.esquemaLabels[e] || e}
-                  </option>
-                ))}
-              </select>
+                options={esquemaOpciones.map((e) => ({
+                  value: e,
+                  label: biblioteca.esquemaLabels[e] || e,
+                }))}
+              />
             </div>
             {tieneEsquemaConRotacion(form.esquema_rotacion) && (
               <div className="col-span-2">

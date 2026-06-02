@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { upsertGastoConcepto, deleteGastoConcepto, getOrCreateCategoria } from '@/lib/actions/gastos';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { AppSelect } from '@/components/ui/AppSelect';
 
 interface ConceptosClientProps {
   conceptos: GastoConcepto[];
@@ -713,21 +714,17 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
                 </button>
               </div>
             ) : (
-              <select
+              <AppSelect
                 value={form.categoria_id}
-                onChange={(e) => {
-                  setForm({ ...form, categoria_id: e.target.value });
+                onChange={(val) => {
+                  setForm({ ...form, categoria_id: val });
                   setFormError(null);
                 }}
-                className="input-field"
-              >
-                <option value="">Selecciona la categoría...</option>
-                {categorias.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: '', label: 'Selecciona la categoría...' },
+                  ...categorias.map((c) => ({ value: c.id, label: c.nombre })),
+                ]}
+              />
             )}
           </div>
           <div>
