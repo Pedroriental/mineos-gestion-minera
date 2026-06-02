@@ -165,7 +165,14 @@ export function AppSelect({
                 isHighlighted && 'app-select__option--active',
               )}
               onMouseEnter={() => setHighlightIndex(index)}
-              onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                pick(opt.value);
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(opt.value);
+              }}
               onClick={() => pick(opt.value)}
             >
               {opt.label}

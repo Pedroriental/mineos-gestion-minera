@@ -287,7 +287,14 @@ export function PersonalQuickAssignModal({
                   <li key={person.id}>
                     <button
                       type="button"
-                      onMouseDown={(e) => e.preventDefault()}
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        pickPerson(person);
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pickPerson(person);
+                      }}
                       onClick={() => pickPerson(person)}
                       className={`flex w-full flex-col rounded-md px-3 py-2 text-left ${
                         index === highlight ? 'bg-amber-500/15' : 'hover:bg-white/[0.06]'
