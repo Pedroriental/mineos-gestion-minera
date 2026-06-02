@@ -257,18 +257,8 @@ export function NominaArchivoModal({ open, onClose, userId, onImport, onPeriodDe
                   className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-3 py-2 text-xs text-white"
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="date"
-                    value={consolidateStart}
-                    onChange={(e) => setConsolidateStart(e.target.value)}
-                    className="rounded-lg border border-white/5 bg-zinc-900/40 px-2 py-2 text-xs text-white"
-                  />
-                  <input
-                    type="date"
-                    value={consolidateEnd}
-                    onChange={(e) => setConsolidateEnd(e.target.value)}
-                    className="rounded-lg border border-white/5 bg-zinc-900/40 px-2 py-2 text-xs text-white"
-                  />
+                  <AppDatePicker value={consolidateStart} onChange={(val) => setConsolidateStart(e.target.value)} />
+                  <AppDatePicker value={consolidateEnd} onChange={(val) => setConsolidateEnd(e.target.value)} />
                 </div>
                 <button
                   type="button"
@@ -310,6 +300,7 @@ export function NominaArchivoModal({ open, onClose, userId, onImport, onPeriodDe
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Eliminar import vacío
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
                 </button>
               ) : null}
             </div>

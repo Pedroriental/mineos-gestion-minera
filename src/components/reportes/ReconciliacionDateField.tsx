@@ -2,6 +2,8 @@
 
 import { useRef } from 'react';
 
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
+
 type Props = {
   label: string;
   value: string;
@@ -41,16 +43,9 @@ export function ReconciliacionDateField({ label, value, onChange }: Props) {
         }}
         className="relative w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-900/60 px-2 py-1 transition-colors hover:border-white/20"
       >
-        <input
-          ref={inputRef}
-          type="date"
+        <AppDatePicker
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onClick={(e) => {
-            e.stopPropagation();
-            openPicker();
-          }}
-          className="reconciliacion-date-input relative z-[1] w-full min-w-0 cursor-pointer border-0 bg-transparent p-0 text-xs leading-tight text-white outline-none"
+          onChange={onChange}
         />
       </div>
     </div>

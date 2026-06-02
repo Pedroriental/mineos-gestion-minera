@@ -8,6 +8,7 @@ import { Plus, X, Loader2, Edit2, Shield } from 'lucide-react';
 import type { MejoraSeguridad } from '@/lib/types';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import EmptyState from '@/components/EmptyState';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
@@ -174,7 +175,7 @@ export default function SeguridadPage() {
               <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div><label className="input-label">Fecha</label><input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} className="input-field" /></div>
+              <div><label className="input-label">Fecha</label><AppDatePicker value={form.fecha} onChange={val => setForm({ ...form, fecha: val })} /></div>
               <div>
                 <label className="input-label">Tipo *</label>
                 <AppSelect

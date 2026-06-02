@@ -28,6 +28,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { columns } from './columns';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 const QUEMADO_PAGE_MAX = 12;
 const QUEMADO_PAGE_BUTTONS_MAX = 5;
@@ -644,7 +645,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
               </h3>
               <div>
                 <label className="input-label">Fecha *</label>
-                <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="input-field" />
+                <AppDatePicker value={form.fecha} onChange={(val) => set('fecha', e.target.value)} />
               </div>
               <div>
                 <label className="input-label">Turno *</label>

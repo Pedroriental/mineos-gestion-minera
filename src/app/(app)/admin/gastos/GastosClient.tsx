@@ -25,6 +25,8 @@ import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGast
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppCombobox } from '@/components/ui/AppCombobox';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { AppMonthPicker } from '@/components/ui/AppMonthPicker';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { getGastoColumns, gastoGlobalFilter, parseDescripcion } from './columns';
 import { GastoDetailCard } from './GastoDetailCard';
 
@@ -691,26 +693,14 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
                 <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)] flex items-center gap-1.5">
                   <Calendar className="h-3 w-3" aria-hidden /> Mes
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="month"
+                  <AppMonthPicker
                     value={selectedMonth}
-                    onChange={(e) => {
-                      setSelectedMonth(e.target.value);
+                    onChange={(val) => {
+                      setSelectedMonth(val);
                       setSelectedCategory('');
                     }}
-                    className="flex-1 rounded-md border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] px-2 py-1 text-xs text-[var(--dashboard-text)] outline-none focus:border-[var(--dashboard-accent)]/50"
+                    placeholder="Filtrar por mes..."
                   />
-                  {selectedMonth && (
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedMonth(''); setSelectedCategory(''); }}
-                      className="rounded-md border border-[var(--dashboard-border)] px-2 py-1 text-xs text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors"
-                    >
-                      Limpiar
-                    </button>
-                  )}
-                </div>
               </div>
             {categoriasDisponibles.length > 1 && (
               <div
@@ -1103,11 +1093,9 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
             )}
             <div>
               <label className="input-label">Fecha *</label>
-              <input
-                type="date"
+              <AppDatePicker
                 value={baseInfo.fecha}
-                onChange={e => setBaseInfo({ ...baseInfo, fecha: e.target.value })}
-                className="input-field"
+                onChange={val => setBaseInfo({ ...baseInfo, fecha: val })}
               />
             </div>
             <div>

@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCloseOnRouteChange } from '@/hooks/useCloseOnRouteChange';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 export default function GlobalDateRangePicker() {
   const router = useRouter();

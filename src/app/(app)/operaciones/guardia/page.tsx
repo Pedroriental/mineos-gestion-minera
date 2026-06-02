@@ -12,6 +12,7 @@ import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModa
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 import type { LibroGuardia } from '@/lib/types';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 export default function LibroGuardiaPage() {
   const allTurnos = useTurnoOptions();
@@ -134,8 +135,7 @@ export default function LibroGuardiaPage() {
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-4">
-            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-              className="input-field !py-1.5 !px-3 !text-base font-semibold !w-auto !border-purple-400/30" />
+            <AppDatePicker value={selectedDate} onChange={(val) => setSelectedDate(e.target.value)} />
             <span className="text-sm text-white/40 capitalize hidden sm:block">{fmtDateDisplay(selectedDate)}</span>
             {isToday && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-400/25">
@@ -296,7 +296,7 @@ export default function LibroGuardiaPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               {/* Row 1 */}
-              <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} className="input-field" /></div>
+              <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={val => setForm({ ...form, fecha: val })} /></div>
               <div>
                 <label className="input-label">Turno *</label>
                 <AppSelect

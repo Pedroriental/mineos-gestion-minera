@@ -64,6 +64,7 @@ export function NominaArchivoPanel({
     const ok = await confirmDialog({
       title: 'Eliminar importación',
       message: `¿Eliminar el import "${periodo.label}"?\n\nSe borrarán las semanas y registros de este import. Los trabajadores no se eliminan.`,
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
       variant: 'danger'
     });
     if (!ok) return;
@@ -179,18 +180,8 @@ export function NominaArchivoPanel({
           className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-3 py-2 text-sm text-white"
         />
         <div className="grid grid-cols-2 gap-2">
-          <input
-            type="date"
-            value={consolidateStart}
-            onChange={(e) => setConsolidateStart(e.target.value)}
-            className="rounded-lg border border-white/5 bg-zinc-900/40 px-3 py-2 text-sm text-white"
-          />
-          <input
-            type="date"
-            value={consolidateEnd}
-            onChange={(e) => setConsolidateEnd(e.target.value)}
-            className="rounded-lg border border-white/5 bg-zinc-900/40 px-3 py-2 text-sm text-white"
-          />
+          <AppDatePicker value={consolidateStart} onChange={(val) => setConsolidateStart(e.target.value)} />
+          <AppDatePicker value={consolidateEnd} onChange={(val) => setConsolidateEnd(e.target.value)} />
         </div>
         <button
           type="button"

@@ -9,6 +9,7 @@ import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
@@ -160,7 +161,7 @@ export default function ProcesamientoPage() {
               <button type="button" onClick={() => setShowModal(false)} className="rounded-xl p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div><label className="input-label">Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} className="input-field" /></div>
+              <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={val => setForm({ ...form, fecha: val })} /></div>
               <div>
                 <label className="input-label">Proceso *</label>
                 <AppSelect

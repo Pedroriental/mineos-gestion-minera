@@ -4,6 +4,7 @@ import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
 import { PageFormModal } from '@/components/ui/PageFormModal';
 import { cn } from '@/lib/utils';
 import { NOMINA_DIAS_POR_SEMANA } from '@/lib/nomina-calculo';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import type { NominaNovedadTurno } from '@/lib/nomina-novedad-turno';
 import type { NominaSemana, NominaVale, Personal } from '@/lib/types';
 import {
@@ -199,16 +200,13 @@ export function NominaMobileStatusCard({
           <Calendar className={cn('h-3.5 w-3.5 shrink-0', cerrada ? 'text-emerald-400' : 'text-amber-500')} />
           <div className="min-w-0 flex-1">
             <span className="block text-[8px] font-bold uppercase text-white/35">Desde</span>
-            <input
-              type="date"
+            <AppDatePicker
               value={weekRange.inicio}
-              onChange={(e) => {
-                const newInicio = e.target.value;
-                const d = new Date(newInicio);
+              onChange={(val) => {
+                const d = new Date(val);
                 d.setDate(d.getDate() + 6);
-                setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] });
+                setWeekRange({ inicio: val, fin: d.toISOString().split('T')[0] });
               }}
-              className="nomina-page__date-input w-full cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none"
             />
           </div>
         </label>
@@ -216,11 +214,9 @@ export function NominaMobileStatusCard({
           <Calendar className={cn('h-3.5 w-3.5 shrink-0', cerrada ? 'text-emerald-400' : 'text-amber-500')} />
           <div className="min-w-0 flex-1">
             <span className="block text-[8px] font-bold uppercase text-white/35">Hasta</span>
-            <input
-              type="date"
+            <AppDatePicker
               value={weekRange.fin}
-              onChange={(e) => setWeekRange((prev) => ({ ...prev, fin: e.target.value }))}
-              className="nomina-page__date-input w-full cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none"
+              onChange={(val) => setWeekRange((prev) => ({ ...prev, fin: val }))}
             />
           </div>
         </label>

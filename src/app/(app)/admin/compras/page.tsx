@@ -9,6 +9,7 @@ import { AppSelect } from '@/components/ui/AppSelect';
 import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import type { CompraProgramada } from '@/lib/types';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
@@ -160,7 +161,7 @@ export default function ComprasPage() {
               <div className="col-span-1 md:col-span-2"><label className="input-label">Descripción *</label><input value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} className="input-field" placeholder="Ej: Brocas de perforación 2.5''" /></div>
               <div><label className="input-label">Cantidad *</label><input type="number" step="0.001" value={form.cantidad_requerida} onChange={e => setForm({ ...form, cantidad_requerida: e.target.value })} className="input-field" /></div>
               <div><label className="input-label">Unidad *</label><input value={form.unidad_medida} onChange={e => setForm({ ...form, unidad_medida: e.target.value })} className="input-field" placeholder="kg, unidades..." /></div>
-              <div><label className="input-label">Fecha Requerida *</label><input type="date" value={form.fecha_requerida} onChange={e => setForm({ ...form, fecha_requerida: e.target.value })} className="input-field" /></div>
+              <div><label className="input-label">Fecha Requerida *</label><AppDatePicker value={form.fecha_requerida} onChange={val => setForm({ ...form, fecha_requerida: val })} /></div>
               <div>
                 <label className="input-label">Prioridad</label>
                 <AppSelect

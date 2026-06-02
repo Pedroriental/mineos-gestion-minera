@@ -39,6 +39,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { ReportesTabs } from '@/components/reportes/ReportesTabs';
 import { ReconciliacionPanel } from '@/components/reportes/ReconciliacionPanel';
 import { reportesUi as ui } from '@/components/reportes/reportes-ui';

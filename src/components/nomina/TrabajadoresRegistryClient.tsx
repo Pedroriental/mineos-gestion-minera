@@ -35,6 +35,7 @@ import {
   updateTrabajadorEstadoAction,
 } from '@/lib/actions/trabajadores-registry';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 type EstadoLaboral = 'ACTIVO' | 'DESPEDIDO' | 'REPOSO' | 'VACACIONES' | 'REENGANCHADO';
 
@@ -1040,11 +1041,11 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
             <>
               <div>
                 <label className="input-label">Inicio</label>
-                <input className="input-field" type="date" value={estadoModal.inicio} onChange={(e) => onEstadoInicioChange(e.target.value)} />
+                <AppDatePicker value={estadoModal.inicio} onChange={(val) => onEstadoInicioChange(val)} />
               </div>
               <div>
                 <label className="input-label">Fin</label>
-                <input className="input-field" type="date" value={estadoModal.fin} onChange={(e) => onEstadoFinChange(e.target.value)} />
+                <AppDatePicker value={estadoModal.fin} onChange={(val) => onEstadoFinChange(val)} />
               </div>
               <div>
                 <label className="input-label">Duración (días)</label>
