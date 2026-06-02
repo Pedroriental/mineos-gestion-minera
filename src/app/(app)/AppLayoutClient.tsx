@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 import { Suspense } from 'react';
 import GlobalDateRangePicker from '@/components/ui/GlobalDateRangePicker';
 import { getAppSectionMeta } from '@/lib/app-section-meta';
+import { getSystemAlerts } from '@/lib/actions/system-alerts';
+import type { DashboardAlert } from '@/lib/dashboard-alerts';
 
 const AppSearchModal = dynamic(
   () => import('@/components/app/AppSearchModal').then((m) => m.AppSearchModal),
@@ -28,36 +30,17 @@ const AppSearchModal = dynamic(
 function BellPanel({
   onClose,
   onNavigate,
+  alerts,
 }: {
   onClose: () => void;
   onNavigate: (href: string) => void;
+  alerts: DashboardAlert[];
 }) {
-  const quickLinks = [
-    {
-      label: 'Resumen Ejecutivo',
-      href: '/operaciones/resumen',
-      icon: <BookOpen className="w-4 h-4" />,
-      desc: 'Ver KPIs del período',
-    },
-    {
-      label: 'Libro de Guardia',
-      href: '/operaciones/guardia',
-      icon: <ClipboardList className="w-4 h-4" />,
-      desc: 'Registros de turno',
-    },
-    {
-      label: 'Dashboard',
-      href: '/dashboard',
-      icon: <LayoutGrid className="w-4 h-4" />,
-      desc: 'Vista general',
-    },
-  ];
-
   return (
-    <div className="app-popover w-72 overflow-hidden rounded-xl shadow-2xl">
+    <div className="app-popover w-80 overflow-hidden rounded-xl shadow-2xl">
       <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">
-          Acceso Rápido
+          Centro de Notificaciones
         </span>
         <button
           onClick={onClose}
@@ -66,29 +49,36 @@ function BellPanel({
           &times;
         </button>
       </div>
-      <div className="p-1.5">
-        {quickLinks.map((l) => (
-          <button
-            key={l.href}
-            onClick={() => {
-              onNavigate(l.href);
-              onClose();
-            }}
-            className="app-popover-item w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors"
-          >
-            <span className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 flex-shrink-0">
-              {l.icon}
+      <div className="max-h-[300px] overflow-y-auto p-1.5">
+        {alerts.length > 0 ? (
+          alerts.map((alert) => (
+            <button
+              key={alert.id}
+              onClick={() => {
+                onNavigate(alert.href);
+                onClose();
+              }}
+              className="app-popover-item w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors"
+            >
+              <span className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 flex-shrink-0">
+                <BellRing className="w-4 h-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-zinc-200">{alert.title}</p>
+                <p className="text-[11px] text-zinc-500 truncate">Atención requerida</p>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-zinc-700 ml-auto flex-shrink-0" />
+            </button>
+          ))
+        ) : (
+          <div className="px-4 py-8 flex flex-col items-center justify-center text-center">
+            <span className="w-12 h-12 rounded-full bg-zinc-800/50 flex items-center justify-center mb-3 text-zinc-600">
+              <BellRing className="w-5 h-5" />
             </span>
-            <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-zinc-300 truncate">{l.label}</p>
-              <p className="text-[11px] text-zinc-600 truncate">{l.desc}</p>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 text-zinc-700 ml-auto flex-shrink-0" />
-          </button>
-        ))}
-      </div>
-      <div className="px-4 py-2.5 border-t border-zinc-800/60">
-        <p className="text-[10px] text-zinc-600 text-center">Sin notificaciones nuevas</p>
+            <p className="text-[13px] text-zinc-400 font-medium">Todo está en orden</p>
+            <p className="text-[11px] text-zinc-600">No tienes notificaciones pendientes</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -105,7 +95,13 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
   const [searchOpen,    setSearchOpen]    = useState(false);
   const [bellOpen,      setBellOpen]      = useState(false);
   const [bellCoords,    setBellCoords]    = useState({ top: 56, right: 56 });
+  const [alerts,        setAlerts]        = useState<DashboardAlert[]>([]);
 
+  useEffect(() => {
+    if (user && !isGuest) {
+      getSystemAlerts().then(setAlerts).catch(console.error);
+    }
+  }, [user, isGuest, pathname]); // Re-fetch on nav
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
   const sectionMeta = getAppSectionMeta(pathname);
@@ -266,13 +262,16 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
                 ref={bellBtnRef}
                 onClick={openBell}
                 className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-xl border transition-all',
+                  'relative flex h-8 w-8 items-center justify-center rounded-xl border transition-all',
                   bellOpen
                     ? 'border-[var(--dashboard-accent)]/35 bg-[var(--dashboard-accent-soft)] text-[var(--dashboard-accent)]'
                     : 'border-[var(--dashboard-border)] bg-[var(--dashboard-card-muted)] text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)]',
                 )}
               >
                 <BellRing className="w-4 h-4" />
+                {alerts.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 border-2 border-[var(--dashboard-header-bg)]" />
+                )}
               </button>
             </div>
           </header>
@@ -302,7 +301,7 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
       )}
       {bellOpen && (
         <div style={{ position: 'fixed', top: bellCoords.top, right: bellCoords.right, zIndex: 9000 }}>
-          <BellPanel onClose={() => setBellOpen(false)} onNavigate={handleNav} />
+          <BellPanel onClose={() => setBellOpen(false)} onNavigate={handleNav} alerts={alerts} />
         </div>
       )}
 

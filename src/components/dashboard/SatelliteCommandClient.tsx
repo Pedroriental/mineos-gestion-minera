@@ -36,7 +36,6 @@ export default function SatelliteCommandClient({
           globalData={globalData}
           activeNodes={activeNodes}
           totalNodes={locations.length}
-          alerts={globalData.notifications ?? []}
         />
 
         <div className="dashboard-command-main">

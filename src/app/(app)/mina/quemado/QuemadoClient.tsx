@@ -605,7 +605,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
         </div>
       </div>
 
-      <PageFormModal open={showModal} onClose={() => { setShowModal(false); setFormError(null); }} panelClassName="sm:max-w-2xl">
+      <PageFormModal open={showModal} onClose={() => { setShowModal(false); setFormError(null); }} panelClassName="quemado-page__modal sm:max-w-[72rem] sm:p-5">
         <div className="mb-4 -mt-1 flex justify-center sm:hidden">
           <div className="h-1 w-8 rounded-full bg-[var(--dashboard-border)]" />
         </div>
@@ -629,132 +629,136 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
           </div>
         )}
 
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <label className="input-label">Fecha *</label>
-              <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="input-field min-h-[44px]" />
-            </div>
-            <div>
-              <label className="input-label">Turno *</label>
-              <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={turnoOptions} />
-            </div>
-            <div>
-              <label className="input-label">N° Quemada</label>
-              <input value={form.numero_quemada} onChange={(e) => set('numero_quemada', e.target.value)} className="input-field min-h-[44px]" placeholder="001" />
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-orange-400" />
-                <span className="text-sm font-semibold text-orange-400">Planchas</span>
-                <div className="hidden h-px w-24 flex-1 bg-orange-400/20 sm:block" />
+        <div className="voladuras-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+          <section className="voladuras-page__modal-col flex flex-col gap-4">
+            <div className="flex flex-col gap-2.5">
+              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-amber-400">
+                <span>📍 Identificación</span>
+                <span className="h-px flex-1 bg-amber-400/20" />
+              </h3>
+              <div>
+                <label className="input-label">Fecha *</label>
+                <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="input-field" />
               </div>
-              <button
-                type="button"
-                onClick={addPlancha}
-                className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-orange-400/20 bg-orange-500/10 px-3 py-1.5 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/20"
-              >
-                <Plus className="h-3.5 w-3.5" /> Agregar
-              </button>
+              <div>
+                <label className="input-label">Turno *</label>
+                <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={turnoOptions} />
+              </div>
+              <div>
+                <label className="input-label">N° Quemada</label>
+                <input value={form.numero_quemada} onChange={(e) => set('numero_quemada', e.target.value)} className="input-field" placeholder="001" />
+              </div>
+              <div>
+                <label className="input-label">Responsable</label>
+                <input value={form.responsable} onChange={(e) => set('responsable', e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Observaciones</label>
+                <textarea value={form.observaciones} onChange={(e) => set('observaciones', e.target.value)} className="input-field" rows={2} />
+              </div>
             </div>
-            <div className="space-y-3">
-              {planchas.map((p, i) => (
-                <div key={i} className="app-detail-panel rounded-xl p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-white/70">Plancha {i + 1}</span>
-                    {planchas.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePlancha(i)}
-                        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 text-white/30 hover:bg-red-500/10 hover:text-red-400"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="input-label">Amalgama (g)</label>
-                      <input type="number" step="0.01" value={p.amalgama_g} onChange={(e) => updatePlancha(i, 'amalgama_g', e.target.value)} className="input-field min-h-[44px]" placeholder="60.81" />
-                    </div>
-                    <div>
-                      <label className="input-label text-amber-400">Oro Recup. (g Au)</label>
-                      <input type="number" step="0.01" value={p.oro_recuperado_g} onChange={(e) => updatePlancha(i, 'oro_recuperado_g', e.target.value)} className="input-field min-h-[44px]" placeholder="24.62" />
-                    </div>
-                  </div>
+          </section>
+
+          <section className="voladuras-page__modal-col flex flex-col gap-4">
+            <div className="flex flex-col gap-2.5">
+              <h3 className="produccion-page__modal-col-title flex items-center justify-between gap-2 text-sm font-semibold text-orange-400">
+                <div className="flex items-center gap-2">
+                  <span>🥞 Planchas</span>
+                  <span className="h-px w-8 bg-orange-400/20" />
                 </div>
-              ))}
+                <button
+                  type="button"
+                  onClick={addPlancha}
+                  className="flex items-center gap-1.5 rounded-lg border border-orange-400/20 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/20"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Agregar
+                </button>
+              </h3>
+              <div className="space-y-3">
+                {planchas.map((p, i) => (
+                  <div key={i} className="app-detail-panel rounded-xl p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-white/70">Plancha {i + 1}</span>
+                      {planchas.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePlancha(i)}
+                          className="rounded-lg p-1.5 text-white/30 hover:bg-red-500/10 hover:text-red-400"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="input-label text-[10px]">Amalgama (g)</label>
+                        <input type="number" step="0.01" value={p.amalgama_g} onChange={(e) => updatePlancha(i, 'amalgama_g', e.target.value)} className="input-field min-h-[36px]" placeholder="60.81" />
+                      </div>
+                      <div>
+                        <label className="input-label text-[10px] text-amber-400">Oro Recup.</label>
+                        <input type="number" step="0.01" value={p.oro_recuperado_g} onChange={(e) => updatePlancha(i, 'oro_recuperado_g', e.target.value)} className="input-field min-h-[36px]" placeholder="24.62" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-sm font-semibold text-blue-400">🔧 Manto. Área Raspado</span>
-              <div className="h-px flex-1 bg-blue-400/20" />
-            </div>
-            <div className="app-detail-panel grid grid-cols-2 gap-3 rounded-xl p-4">
-              <div>
-                <label className="input-label">Amalgama (g)</label>
-                <input type="number" step="0.01" value={form.manto_amalgama_g} onChange={(e) => set('manto_amalgama_g', e.target.value)} className="input-field min-h-[44px]" placeholder="1.19" />
+          <section className="voladuras-page__modal-col flex flex-col gap-4">
+            <div className="flex flex-col gap-2.5">
+              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-blue-400">
+                <span>🔧 Manto y ⚗️ Retorta</span>
+                <span className="h-px flex-1 bg-blue-400/20" />
+              </h3>
+              <div className="app-detail-panel grid grid-cols-2 gap-3 rounded-xl p-3">
+                <div className="col-span-2">
+                  <span className="text-xs font-semibold text-blue-400">Manto. Área Raspado</span>
+                </div>
+                <div>
+                  <label className="input-label text-[10px]">Amalgama (g)</label>
+                  <input type="number" step="0.01" value={form.manto_amalgama_g} onChange={(e) => set('manto_amalgama_g', e.target.value)} className="input-field min-h-[36px]" placeholder="1.19" />
+                </div>
+                <div>
+                  <label className="input-label text-[10px] text-amber-400">Oro Recup.</label>
+                  <input type="number" step="0.01" value={form.manto_oro_g} onChange={(e) => set('manto_oro_g', e.target.value)} className="input-field min-h-[36px]" placeholder="0.43" />
+                </div>
               </div>
-              <div>
-                <label className="input-label text-amber-400">Oro Recup. (g Au)</label>
-                <input type="number" step="0.01" value={form.manto_oro_g} onChange={(e) => set('manto_oro_g', e.target.value)} className="input-field min-h-[44px]" placeholder="0.43" />
-              </div>
-            </div>
-          </div>
 
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-sm font-semibold text-purple-400">⚗️ Retorta</span>
-              <div className="h-px flex-1 bg-purple-400/20" />
+              <div className="app-detail-panel rounded-xl p-3">
+                 <span className="text-xs font-semibold text-purple-400 mb-2 block">Retorta</span>
+                 <label className="input-label text-[10px] text-amber-400">Oro Recuperado (g Au)</label>
+                 <input type="number" step="0.01" value={form.retorta_oro_g} onChange={(e) => set('retorta_oro_g', e.target.value)} className="input-field min-h-[36px]" placeholder="0.33" />
+              </div>
             </div>
-            <div className="app-detail-panel max-w-xs rounded-xl p-4">
-              <label className="input-label text-amber-400">Oro Recuperado (g Au)</label>
-              <input type="number" step="0.01" value={form.retorta_oro_g} onChange={(e) => set('retorta_oro_g', e.target.value)} className="input-field min-h-[44px]" placeholder="0.33" />
-            </div>
-          </div>
 
-          <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Calculator className="h-4 w-4 text-amber-400" />
-              <span className="text-sm font-semibold text-amber-400">Totales (calculados)</span>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">Total Amalgama</p>
-                <p className="text-lg font-bold text-white/80">
-                  {fmtN(formAmalgama)} <span className="text-xs text-white/40">g</span>
-                </p>
+            <div className="mt-2 rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Calculator className="h-3.5 w-3.5 text-amber-400" />
+                <span className="text-xs font-semibold text-amber-400">Totales (calculados)</span>
               </div>
-              <div className="border-x border-amber-400/10 text-center">
-                <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">Total Au Recup.</p>
-                <p className="text-lg font-bold text-amber-400">
-                  {fmtN(formOro)} <span className="text-xs">g Au</span>
-                </p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <p className="mb-0.5 text-[9px] uppercase tracking-wider text-white/40">Total Amalgama</p>
+                  <p className="text-base font-bold text-white/80">
+                    {fmtN(formAmalgama)} <span className="text-[10px] text-white/40">g</span>
+                  </p>
+                </div>
+                <div className="border-x border-amber-400/10 text-center">
+                  <p className="mb-0.5 text-[9px] uppercase tracking-wider text-white/40">Total Au</p>
+                  <p className="text-base font-bold text-amber-400">
+                    {fmtN(formOro)} <span className="text-[10px]">g</span>
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="mb-0.5 text-[9px] uppercase tracking-wider text-white/40">Merma</p>
+                  <p className="text-base font-bold text-orange-400">
+                    {formAmalgama > 0 ? `${(((formAmalgama - formOro) / formAmalgama) * 100).toFixed(1)}%` : '—'}
+                  </p>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">Merma</p>
-                <p className="text-lg font-bold text-orange-400">
-                  {formAmalgama > 0 ? `${(((formAmalgama - formOro) / formAmalgama) * 100).toFixed(1)}%` : '—'}
-                </p>
-              </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="input-label">Responsable</label>
-              <input value={form.responsable} onChange={(e) => set('responsable', e.target.value)} className="input-field min-h-[44px]" />
-            </div>
-            <div>
-              <label className="input-label">Observaciones</label>
-              <input value={form.observaciones} onChange={(e) => set('observaciones', e.target.value)} className="input-field min-h-[44px]" />
-            </div>
-          </div>
+          </section>
         </div>
 
         <PageFormModalFooter className="flex-col-reverse sm:flex-row">

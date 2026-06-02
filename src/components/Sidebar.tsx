@@ -98,14 +98,6 @@ const navigation: NavSection[] = [
       { label: 'Quemado',       href: '/mina/quemado',         icon: <Flame className="w-4 h-4" /> },
     ],
   },
-  {
-    id: 'ops',
-    title: 'Operaciones',
-    items: [
-      { label: 'Libro de Guardia',  href: '/operaciones/guardia', icon: <ClipboardList className="w-4 h-4" /> },
-      { label: 'Control de Leyes',  href: '/operaciones/leyes',   icon: <TestTube2 className="w-4 h-4" /> },
-    ],
-  },
 ];
 
 type SidebarVariant = 'default' | 'dashboard';

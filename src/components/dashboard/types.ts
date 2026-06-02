@@ -27,6 +27,5 @@ export interface GlobalData {
   monthlyExpenses: number;
   criticalInventory: number;
   activePersonnel: number;
-  notifications: DashboardAlert[];
   balancesPlanchas: PlanchaBalance[];
 }

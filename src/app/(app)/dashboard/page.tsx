@@ -158,17 +158,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       personalCountByArea[area] = (personalCountByArea[area] ?? 0) + 1;
     }
 
-    const notifications = buildDashboardAlerts({
-      inventario: inventarioRows,
-      voladuras: volRes?.data ?? [],
-      nominaSemanas: nominaSemanasRes.data ?? [],
-      personalCountByArea,
-      valesPendientes: (valesPendientesRes.data ?? []).map((v: any) => ({
-        id: v.id,
-        monto: v.monto,
-        personal: Array.isArray(v.personal) ? v.personal[0] : v.personal,
-      })),
-    });
+    // Removed alerts fetching
 
     const balancesPlanchas = computePlanchaBalances(reportesProd, planchaLines);
 
@@ -179,7 +169,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       monthlyExpenses,
       criticalInventory,
       activePersonnel,
-      notifications,
       balancesPlanchas,
     };
 
