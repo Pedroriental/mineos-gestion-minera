@@ -5,9 +5,16 @@ import { createServerClient } from '@/lib/supabase-server';
 import { PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import type { PreNominaRow } from '@/lib/types';
 import { registrarAuditAction } from './nomina-v3';
+import { z } from 'zod';
+import {
+  PersonalV2Schema,
+  PersonalV2UpdateSchema,
+  CierreNominaV2Schema,
+  PersonalEstatusUpdateSchema,
+} from '@/lib/validations/nomina-v2';
 
 export type ActionResult =
-  | { ok: true;  message: string; data?: any }
+  | { ok: true; message: string; data?: any }
   | { ok: false; message: string };
 
 function revalidateAll() {
@@ -19,24 +26,31 @@ export async function updatePersonalEstatusAction(
   id: string,
   estatus: 'ACTIVO' | 'LIQUIDADO' | 'INACTIVO'
 ): Promise<ActionResult> {
+  const parsed = PersonalEstatusUpdateSchema.safeParse({ id, estatus });
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+
   try {
     const supabase = await createServerClient();
-    const activo = estatus === 'ACTIVO';
-    const patch: Record<string, unknown> = { estatus, activo };
-    if (estatus === 'ACTIVO') {
+    const { id: validId, estatus: validEstatus } = parsed.data;
+    const activo = validEstatus === 'ACTIVO';
+    const patch: Record<string, unknown> = { estatus: validEstatus, activo };
+    if (validEstatus === 'ACTIVO') {
       patch.estado_laboral = 'ACTIVO';
       patch.despido_fecha = null;
       patch.despido_causa = null;
-    } else if (estatus === 'LIQUIDADO') {
+    } else if (validEstatus === 'LIQUIDADO') {
       patch.estado_laboral = 'DESPEDIDO';
       patch.despido_fecha = new Date().toISOString().split('T')[0];
     }
 
-    const { error } = await supabase.from('personal').update(patch).eq('id', id);
+    const { error } = await supabase.from('personal').update(patch).eq('id', validId);
 
     if (error) return { ok: false, message: error.message };
     revalidateAll();
-    return { ok: true, message: `Trabajador marcado como ${estatus}.` };
+    return { ok: true, message: `Trabajador marcado como ${validEstatus}.` };
   } catch (e) {
     return { ok: false, message: 'Error interno del servidor.' };
   }
@@ -55,26 +69,38 @@ export async function upsertPersonalV2Action(raw: {
   bono_transporte: number;
   fecha_ingreso: string;
 }): Promise<ActionResult> {
+  const schema = raw.id ? PersonalV2UpdateSchema : PersonalV2Schema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+
   try {
     const supabase = await createServerClient();
-    const payload = {
-      ...raw,
+    const payload: Record<string, unknown> = {
+      ...parsed.data,
       activo: true,
-      estatus: 'ACTIVO' as const,
+      estatus: 'ACTIVO',
     };
 
+    const parsedId = 'id' in parsed.data ? parsed.data.id : undefined;
+
     let error;
-    if (raw.id) {
-      const { id, ...data } = payload;
-      ({ error } = await supabase.from('personal').update(data).eq('id', raw.id));
+    if (parsedId) {
+      delete payload.id;
+      ({ error } = await supabase.from('personal').update(payload).eq('id', parsedId));
     } else {
-      const { id, ...data } = payload;
-      ({ error } = await supabase.from('personal').insert(data));
+      delete payload.id;
+      ({ error } = await supabase.from('personal').insert(payload));
     }
 
     if (error) return { ok: false, message: error.message };
     revalidateAll();
-    return { ok: true, message: raw.id ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
+    return {
+      ok: true,
+      message: 'id' in parsed.data ? 'Trabajador actualizado.' : 'Trabajador registrado.',
+    };
   } catch (e) {
     return { ok: false, message: 'Error interno del servidor.' };
   }
@@ -91,9 +117,14 @@ export async function procesarCierreNominaV2Action(payload: {
   pctDarinel: number;
   pctLaFe: number;
 }): Promise<ActionResult> {
-  const { userId, area, inicio, fin, rows, pctPedro, pctDarinel, pctLaFe } = payload;
+  const parsed = CierreNominaV2Schema.safeParse(payload);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
 
-  // Validar que sumen 100
+  const { userId, area, inicio, fin, rows, pctPedro, pctDarinel, pctLaFe } = parsed.data;
+
   if (Math.abs(pctPedro + pctDarinel + pctLaFe - 100) > 0.01) {
     return { ok: false, message: 'Los porcentajes deben sumar exactamente 100%.' };
   }
@@ -104,7 +135,6 @@ export async function procesarCierreNominaV2Action(payload: {
 
     const totalNomina = rows.reduce((s, r) => s + r.total, 0);
 
-    // 1. Upsert nomina_semanas
     const { data: semanaRow, error: semanaError } = await supabase
       .from('nomina_semanas')
       .upsert({
@@ -123,10 +153,8 @@ export async function procesarCierreNominaV2Action(payload: {
     const semanaId = semanaRow?.id;
     if (!semanaId) return { ok: false, message: 'No se pudo obtener el ID de la semana.' };
 
-    // 2. Eliminar registros anteriores de esa semana
     await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);
 
-    // 3. Insertar registros individuales
     const registros = rows.map((r) => ({
       semana_id: semanaId,
       personal_id: r.personal.id,
@@ -138,7 +166,6 @@ export async function procesarCierreNominaV2Action(payload: {
     const { error: regError } = await supabase.from('nomina_registros').insert(registros);
     if (regError) return { ok: false, message: `Error registros: ${regError.message}` };
 
-    // 4. Upsert cierre con aportes de socios
     const montoPedro = parseFloat(((pctPedro / 100) * totalNomina).toFixed(2));
     const montoDarinel = parseFloat(((pctDarinel / 100) * totalNomina).toFixed(2));
     const montoLaFe = parseFloat(((pctLaFe / 100) * totalNomina).toFixed(2));
@@ -158,7 +185,6 @@ export async function procesarCierreNominaV2Action(payload: {
 
     if (cierreError) return { ok: false, message: `Error cierre: ${cierreError.message}` };
 
-    // 5. Registrar en gastos para que aparezca en el Resumen Ejecutivo
     const { data: catRow } = await supabase
       .from('categorias_gasto')
       .select('id')
@@ -178,7 +204,6 @@ export async function procesarCierreNominaV2Action(payload: {
       });
     }
 
-    // Registrar auditoría de cierre V2
     await registrarAuditAction(
       'CIERRE_NOMINA_V2',
       'nomina_semanas',

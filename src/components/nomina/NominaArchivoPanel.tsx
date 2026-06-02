@@ -10,6 +10,7 @@ import {
   listNominaPeriodosAction,
 } from '@/lib/actions/nomina-actions';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 export function NominaArchivoPanel({
   userId,
@@ -29,6 +30,7 @@ export function NominaArchivoPanel({
   const [consolidateStart, setConsolidateStart] = useState('');
   const [consolidateEnd, setConsolidateEnd] = useState('');
   const [consolidateLabel, setConsolidateLabel] = useState('');
+  const confirmDialog = useConfirm();
 
   function refresh() {
     setLoading(true);
@@ -57,11 +59,13 @@ export function NominaArchivoPanel({
     });
   }
 
-  function handleDeleteImport(periodo: NominaPeriodoSummary) {
+  async function handleDeleteImport(periodo: NominaPeriodoSummary) {
     if (periodo.origen !== 'import_historico') return;
-    const ok = window.confirm(
-      `¿Eliminar el import "${periodo.label}"?\n\nSe borrarán las semanas y registros de este import. Los trabajadores no se eliminan.`,
-    );
+    const ok = await confirmDialog({
+      title: 'Eliminar importación',
+      message: `¿Eliminar el import "${periodo.label}"?\n\nSe borrarán las semanas y registros de este import. Los trabajadores no se eliminan.`,
+      variant: 'danger'
+    });
     if (!ok) return;
     startTransition(async () => {
       const res = await eliminarImportNominaAction({ periodoId: periodo.id, userId });

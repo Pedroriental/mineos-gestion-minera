@@ -28,6 +28,7 @@ import type {
   FiscalTextoCategoria,
   FiscalTextoLegal,
 } from '@/lib/types';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 type Tab = 'entidades' | 'textos' | 'parametros';
 
@@ -79,6 +80,7 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
   const [search, setSearch] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const confirmDialog = useConfirm();
 
   const [entidadModal, setEntidadModal] = useState(false);
   const [entidadForm, setEntidadForm] = useState({
@@ -319,8 +321,12 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
                     <button
                       type="button"
                       disabled={isPending}
-                      onClick={() => {
-                        if (!confirm('¿Eliminar esta entidad y sus datos vinculados?')) return;
+                      onClick={async () => {
+                        if (!(await confirmDialog({
+                          title: 'Eliminar entidad',
+                          message: '¿Eliminar esta entidad y sus datos vinculados?',
+                          variant: 'danger'
+                        }))) return;
                         run(() => deleteFiscalEntidadAction(e.id));
                       }}
                       className="rounded-lg border border-red-500/20 p-2 text-red-300/80 hover:bg-red-500/10"
@@ -473,8 +479,12 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
                   <button
                     type="button"
                     disabled={isPending}
-                    onClick={() => {
-                      if (!confirm('¿Eliminar este texto?')) return;
+                    onClick={async () => {
+                      if (!(await confirmDialog({
+                        title: 'Eliminar texto',
+                        message: '¿Eliminar este texto?',
+                        variant: 'danger'
+                      }))) return;
                       run(() => deleteFiscalTextoAction(t.id));
                     }}
                     className="rounded-lg border border-red-500/20 p-2 text-red-300/80 hover:bg-red-500/10"

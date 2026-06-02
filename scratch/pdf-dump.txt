@@ -1,0 +1,272 @@
+RAW_LINES 113
+RAW [0]: Molinos La Fé - Mina Belen
+RAW [1]: Nominas
+RAW [2]: Semana del 04 MAYO al 24 MAYO 2026
+RAW [3]: Nomina Administrativo Molinos 325,00
+RAW [4]: Nómina Molinos 1.334,00   1.659,00   4.021,86
+RAW [5]: Nomina Administrativo Mina 650,00
+RAW [6]: Nóminas Mina Belen 5.257,16   5.907,16
+RAW [7]: Total Nomina 7.566,16   3544,296   2362,864
+RAW [8]: Nómina Administrativos Molinos
+RAW [9]: Semana
+RAW [10]: T o t a l
+RAW [11]: Fecha de trabajada
+RAW [12]: Nombres   C.I.   Nóminas
+RAW [13]: Ingreso Del 18 MAYO
+RAW [14]: (USD)
+RAW [15]: al 24 Mayo
+RAW [16]: Márquez Pedro   9.933.498   03/09/2025   0   200,00
+RAW [17]: Julio Girón   13.963.679   14/10/2025   125   125,00
+RAW [18]: 125,00   325,00
+RAW [19]: Nómina Administrativos Mina
+RAW [20]: Semana Semana
+RAW [21]: Semana libre   T o t a l
+RAW [22]: Fecha de Trabajada Trabajada
+RAW [23]: Nombres   C.I.   Nóminas
+RAW [24]: Ingreso Del 04 MAYO Del 11 MAYO Del 18 MAYO
+RAW [25]: (USD)
+RAW [26]: al 10 MAYO al 17 MAYO al 24 Mayo
+RAW [27]: RENNY JOSUE DIAZ   21.669.002   24/02/2026   125   125   125   375,00
+RAW [28]: ALEXANDER VILLASMIL   26.718.922   150   150,00
+RAW [29]: Cedeño Alexander   25.391.898   06/11/2025   125   125,00
+RAW [30]: 125,00   125,00   400,00   650,00
+RAW [31]: Semanas Molinos- Grupo ( mixto)
+RAW [32]: Semana
+RAW [33]: Semana Libre   T o t a l
+RAW [34]: Fecha de trabajada
+RAW [35]: Nombres   C.I.   Nóminas
+RAW [36]: Ingreso Del 11 MAYO Del 18 MAYO
+RAW [37]: al 17 MAYO al 24 Mayo (USD)
+RAW [38]: Ugas Jhonaiker   21.110.966   14/10/2025   75,00   75,00   150,00
+RAW [39]: Abhaam Fajardo   31.262.481   18/05/2026   85,00   85,00
+RAW [40]: Vidal Jose   19.534.051   22/09/2025   150,00   150,00   300,00
+RAW [41]: David Salazar   28.279.820   20/05/2026   54,00   54,00
+RAW [42]: Sebastian Delgado   33.009.367   24/03/2026   75,00   75,00   150,00
+RAW [43]: Pérez Haber   28.541.114   04/09/2025   85,00   85,00   170,00
+RAW [44]: Edgar Maita   28.291.349   18/05/2026   75,00   75,00
+RAW [45]: Pateti Roberto   17.590.930   03/03/2026   100,00   100,00   200,00
+RAW [46]: Enrrique Cano   19.143.988   04/09/2025   150,00   150,00
+RAW [47]: 485,00   849,00   1.334,00
+RAW [48]: Semanas Mina Belen - Vertical 1PD
+RAW [49]: 1ra semana 2da semana
+RAW [50]: Semana Libre   T o t a l
+RAW [51]: Fecha de trabajada trabajada
+RAW [52]: Nombres   C.I.   Nóminas
+RAW [53]: Ingreso Del 04 MAYO Del 11 MAYO Del 18 MAYO
+RAW [54]: al 10 MAYO al 17 MAYO al 24 Mayo (USD)
+RAW [55]: MOYSES PARIA   26.829.768   20/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [56]: ALEJANDRO MUÑOZ   2.968.940   11/05/2026   100,00   100,00   200,00   salen libre
+RAW [57]: JUNIOR GUACARAN   30.331.677   19/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [58]: ELVIS YEPEZ   32.961.039   30/03/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [59]: CARLOS H. GUACARAN   12.874.652   20/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [60]: OMAR ORTIZ   24.838.771   19/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [61]: JOSE GUACARAN   25.277.853   19/02/2026   150,00   150,00   150,00   450,00   salen libre
+RAW [62]: CRISTIAN ROJAS   25.678.743   20/04/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [63]: 750,00   850,00   850,00   2.450,00
+RAW [64]: Molinos La Fé - Mina Belen
+RAW [65]: Nominas
+RAW [66]: Semanas Mina Belen - Vertical 2
+RAW [67]: 1ra semana 2da semana
+RAW [68]: Semana Libre   T o t a l
+RAW [69]: Fecha de trabajada trabajada
+RAW [70]: Nombres   C.I.   Nóminas
+RAW [71]: Ingreso Del 04 MAYO Del 11 MAYO Del 18 MAYO
+RAW [72]: al 10 MAYO al 17 MAYO al 24 Mayo (USD)
+RAW [73]: JERSSON LEREICO   32.414.717   10/05/2026   0,00   28,57   28,57   RETIRADO
+RAW [74]: AMADOR CAMACHO   36.483.324   14/05/2026   0,00   57,17   100,00   157,17   Salen libre
+RAW [75]: OSCAR GARCÍA   36.483.326   06/04/2026   100,00   100,00   100,00   300,00   Salen libre
+RAW [76]: DELIO MUÑOZ   31.032.453   20/04/2026   100,00   100,00   100,00   300,00   Salen libre
+RAW [77]: ANYERBIS GONZALEZ   28.557.971   11/05/2026   0,00   100,00   100,00   200,00   Salen libre
+RAW [78]: LUIZ YANEZ   31.353.775   18/05/2026   0,00   0,00   100,00   100,00   Salen libre
+RAW [79]: JYMMY MUJICA   17.337.354   20/02/2026   100,00   100,00   100,00   300,00   Salen libre
+RAW [80]: ALFREDO MENDEZ   28.374.511   20/04/2026   100,00   100,00   100,00   300,00   Salen libre
+RAW [81]: CARLOS VALENTINO
+RAW [82]: 31.248.515   20/02/2026   150,00   150,00   150,00   450,00   Salen libre
+RAW [83]: TORRES
+RAW [84]: JHON ANDER MENDOZA   25.003.215   14/05/2026   0,00   14,28   0,00   14,28   RETIRADO
+RAW [85]: 550,00   750,02   850,00   2.150,02
+RAW [86]: Semanas Mina Belen - Cocinera
+RAW [87]: Fecha de Semana Semana
+RAW [88]: C.I.   Semana Libre   T o t a l
+RAW [89]: Ingreso   trabajada trabajada
+RAW [90]: Nombres Nóminas
+RAW [91]: Del 04 MAYO Del 11 MAYO Del 18 MAYO (USD)
+RAW [92]: al 10 MAYO al 17 MAYO al 24 Mayo
+RAW [93]: ANGELA UZCATEGUI   22.354.574   11/05/2026   0,00   100,00   100,00   200,00
+RAW [94]: 0,00   100,00   100,00   200,00
+RAW [95]: Semanas Mina Belen - Tecnico Operador Compresor
+RAW [96]: Semana T o t a l
+RAW [97]: Fecha de trabajada
+RAW [98]: Nombres   C.I.   Nóminas
+RAW [99]: Ingreso Del 18 MAYO
+RAW [100]: al 24 Mayo (USD)
+RAW [101]: Lugo A, Dixon Antonio   7.776.964   16/02/2026   100,00   100,00
+RAW [102]: 100,00   100,00
+RAW [103]: Semanas Mina Belen - Tecnico AYUDANTE BARRENADOR
+RAW [104]: Semana Semana T o t a l
+RAW [105]: Fecha de trabajada trabajada
+RAW [106]: Nombres   C.I.   Nóminas
+RAW [107]: Ingreso Del 11 MAYO Del 18 MAYO
+RAW [108]: al 17 MAYO al 24 Mayo (USD)
+RAW [109]: MARIO GUTIERREZ   26.662.599   13/05/2026   107,14   150,00   257,14   107,14286
+RAW [110]: 107,14   150,00   257,14
+RAW [111]: El trabajador Enio Mrtinez   25392130   enviado a su casa accidente laboral, se paga la semana de trabajo.
+RAW [112]: USD   100
+PREPRO_LINES 91
+PREPRO [0]: Molinos La Fé - Mina Belen
+PREPRO [1]: Nominas
+PREPRO [2]: Semana del 04 MAYO al 24 MAYO 2026
+PREPRO [3]: Nomina Administrativo Molinos 325,00
+PREPRO [4]: Nómina Molinos 1.334,00   1.659,00   4.021,86
+PREPRO [5]: Nomina Administrativo Mina 650,00
+PREPRO [6]: Nóminas Mina Belen 5.257,16   5.907,16
+PREPRO [7]: Total Nomina 7.566,16   3544,296   2362,864
+PREPRO [8]: Nómina Administrativos Molinos
+PREPRO [9]: Semana
+PREPRO [10]: Fecha de trabajada
+PREPRO [11]: Nombres   C.I.   Nóminas Ingreso Del 18 MAYO (USD) al 24 Mayo
+PREPRO [12]: Márquez Pedro   9.933.498   03/09/2025   0   200,00
+PREPRO [13]: Julio Girón   13.963.679   14/10/2025   125   125,00
+PREPRO [14]: 125,00   325,00
+PREPRO [15]: Nómina Administrativos Mina
+PREPRO [16]: Semana Semana
+PREPRO [17]: Semana libre   T o t a l
+PREPRO [18]: Fecha de Trabajada Trabajada
+PREPRO [19]: Nombres   C.I.   Nóminas Ingreso Del 04 MAYO Del 11 MAYO Del 18 MAYO (USD) al 10 MAYO al 17 MAYO al 24 Mayo
+PREPRO [20]: RENNY JOSUE DIAZ   21.669.002   24/02/2026   125   125   125   375,00
+PREPRO [21]: ALEXANDER VILLASMIL   26.718.922   150   150,00
+PREPRO [22]: Cedeño Alexander   25.391.898   06/11/2025   125   125,00
+PREPRO [23]: 125,00   125,00   400,00   650,00
+PREPRO [24]: Semanas Molinos- Grupo ( mixto)
+PREPRO [25]: Semana
+PREPRO [26]: Semana Libre   T o t a l
+PREPRO [27]: Fecha de trabajada
+PREPRO [28]: Nombres   C.I.   Nóminas Ingreso Del 11 MAYO Del 18 MAYO al 17 MAYO al 24 Mayo (USD)
+PREPRO [29]: Ugas Jhonaiker   21.110.966   14/10/2025   75,00   75,00   150,00
+PREPRO [30]: Abhaam Fajardo   31.262.481   18/05/2026   85,00   85,00
+PREPRO [31]: Vidal Jose   19.534.051   22/09/2025   150,00   150,00   300,00
+PREPRO [32]: David Salazar   28.279.820   20/05/2026   54,00   54,00
+PREPRO [33]: Sebastian Delgado   33.009.367   24/03/2026   75,00   75,00   150,00
+PREPRO [34]: Pérez Haber   28.541.114   04/09/2025   85,00   85,00   170,00
+PREPRO [35]: Edgar Maita   28.291.349   18/05/2026   75,00   75,00
+PREPRO [36]: Pateti Roberto   17.590.930   03/03/2026   100,00   100,00   200,00
+PREPRO [37]: Enrrique Cano   19.143.988   04/09/2025   150,00   150,00
+PREPRO [38]: 485,00   849,00   1.334,00
+PREPRO [39]: Semanas Mina Belen - Vertical 1PD
+PREPRO [40]: 1ra semana 2da semana
+PREPRO [41]: Semana Libre   T o t a l
+PREPRO [42]: Fecha de trabajada trabajada
+PREPRO [43]: Nombres   C.I.   Nóminas Ingreso Del 04 MAYO Del 11 MAYO Del 18 MAYO al 10 MAYO al 17 MAYO al 24 Mayo (USD)
+PREPRO [44]: MOYSES PARIA   26.829.768   20/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [45]: ALEJANDRO MUÑOZ   2.968.940   11/05/2026   100,00   100,00   200,00   salen libre
+PREPRO [46]: JUNIOR GUACARAN   30.331.677   19/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [47]: ELVIS YEPEZ   32.961.039   30/03/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [48]: CARLOS H. GUACARAN   12.874.652   20/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [49]: OMAR ORTIZ   24.838.771   19/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [50]: JOSE GUACARAN   25.277.853   19/02/2026   150,00   150,00   150,00   450,00   salen libre
+PREPRO [51]: CRISTIAN ROJAS   25.678.743   20/04/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [52]: 750,00   850,00   850,00   2.450,00
+PREPRO [53]: Molinos La Fé - Mina Belen
+PREPRO [54]: Nominas
+PREPRO [55]: Semanas Mina Belen - Vertical 2
+PREPRO [56]: 1ra semana 2da semana
+PREPRO [57]: Semana Libre   T o t a l
+PREPRO [58]: Fecha de trabajada trabajada
+PREPRO [59]: Nombres   C.I.   Nóminas Ingreso Del 04 MAYO Del 11 MAYO Del 18 MAYO al 10 MAYO al 17 MAYO al 24 Mayo (USD)
+PREPRO [60]: JERSSON LEREICO   32.414.717   10/05/2026   0,00   28,57   28,57   RETIRADO
+PREPRO [61]: AMADOR CAMACHO   36.483.324   14/05/2026   0,00   57,17   100,00   157,17   Salen libre
+PREPRO [62]: OSCAR GARCÍA   36.483.326   06/04/2026   100,00   100,00   100,00   300,00   Salen libre
+PREPRO [63]: DELIO MUÑOZ   31.032.453   20/04/2026   100,00   100,00   100,00   300,00   Salen libre
+PREPRO [64]: ANYERBIS GONZALEZ   28.557.971   11/05/2026   0,00   100,00   100,00   200,00   Salen libre
+PREPRO [65]: LUIZ YANEZ   31.353.775   18/05/2026   0,00   0,00   100,00   100,00   Salen libre
+PREPRO [66]: JYMMY MUJICA   17.337.354   20/02/2026   100,00   100,00   100,00   300,00   Salen libre
+PREPRO [67]: ALFREDO MENDEZ   28.374.511   20/04/2026   100,00   100,00   100,00   300,00   Salen libre
+PREPRO [68]: CARLOS VALENTINO 31.248.515   20/02/2026   150,00   150,00   150,00   450,00   Salen libre
+PREPRO [69]: TORRES JHON ANDER MENDOZA   25.003.215   14/05/2026   0,00   14,28   0,00   14,28   RETIRADO
+PREPRO [70]: 550,00   750,02   850,00   2.150,02
+PREPRO [71]: Semanas Mina Belen - Cocinera
+PREPRO [72]: Fecha de Semana Semana
+PREPRO [73]: C.I.   Semana Libre   T o t a l
+PREPRO [74]: Ingreso   trabajada trabajada
+PREPRO [75]: Nombres Nóminas
+PREPRO [76]: Del 04 MAYO Del 11 MAYO Del 18 MAYO (USD) al 10 MAYO al 17 MAYO al 24 Mayo
+PREPRO [77]: ANGELA UZCATEGUI   22.354.574   11/05/2026   0,00   100,00   100,00   200,00
+PREPRO [78]: 0,00   100,00   100,00   200,00
+PREPRO [79]: Semanas Mina Belen - Tecnico Operador Compresor
+PREPRO [80]: Semana T o t a l
+PREPRO [81]: Fecha de trabajada
+PREPRO [82]: Nombres   C.I.   Nóminas Ingreso Del 18 MAYO al 24 Mayo (USD)
+PREPRO [83]: Lugo A, Dixon Antonio   7.776.964   16/02/2026   100,00   100,00
+PREPRO [84]: 100,00   100,00
+PREPRO [85]: Semanas Mina Belen - Tecnico AYUDANTE BARRENADOR
+PREPRO [86]: Semana Semana T o t a l
+PREPRO [87]: Fecha de trabajada trabajada
+PREPRO [88]: Nombres   C.I.   Nóminas Ingreso Del 11 MAYO Del 18 MAYO al 17 MAYO al 24 Mayo (USD)
+PREPRO [89]: MARIO GUTIERREZ   26.662.599   13/05/2026   107,14   150,00   257,14   107,14286
+PREPRO [90]: 107,14   150,00   257,14 El trabajador Enio Mrtinez   25392130   enviado a su casa accidente laboral, se paga la semana de trabajo. USD   100
+{
+  "rangeStart": "2026-05-04",
+  "rangeEnd": "2026-05-24",
+  "weeks": 3,
+  "workers": 31,
+  "grandTotal": 6990.71,
+  "warnings": [],
+  "sections": [
+    {
+      "title": "Nómina Administrativos Molinos",
+      "area": "planta",
+      "rows": 2,
+      "weekCols": 1,
+      "total": 325
+    },
+    {
+      "title": "Nómina Administrativos Mina",
+      "area": "administracion",
+      "rows": 3,
+      "weekCols": 1,
+      "total": 650
+    },
+    {
+      "title": "Semanas Molinos — Grupo operativo",
+      "area": "planta",
+      "rows": 8,
+      "weekCols": 1,
+      "total": 1280
+    },
+    {
+      "title": "Semanas Mina Belén — Vertical 1PD",
+      "area": "mina",
+      "rows": 8,
+      "weekCols": 1,
+      "total": 2450
+    },
+    {
+      "title": "Semanas Mina Belén — Vertical 2",
+      "area": "mina",
+      "rows": 7,
+      "weekCols": 1,
+      "total": 1878.57
+    },
+    {
+      "title": "Semanas Mina Belén — Cocinera",
+      "area": "mina",
+      "rows": 1,
+      "weekCols": 3,
+      "total": 200
+    },
+    {
+      "title": "Semanas Mina Belén — Tecnico Operador Compresor",
+      "area": "mina",
+      "rows": 1,
+      "weekCols": 1,
+      "total": 100
+    },
+    {
+      "title": "Semanas Mina Belén — Tecnico AYUDANTE BARRENADOR",
+      "area": "mina",
+      "rows": 1,
+      "weekCols": 1,
+      "total": 107.14
+    }
+  ]
+}

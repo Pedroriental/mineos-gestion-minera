@@ -17,11 +17,20 @@ function revalidateAll() {
   PERSONAL_SYNC_PATHS.forEach((p) => revalidatePath(p));
 }
 
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
 async function saveOptionalFile(
   file: File | null,
   prefix: string,
 ): Promise<string | null> {
   if (!file || file.size <= 0) return null;
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`El archivo excede el límite de 5 MB (${(file.size / 1024 / 1024).toFixed(1)} MB).`);
+  }
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    throw new Error(`Tipo de archivo no permitido: ${file.type || 'desconocido'}. Use imágenes o PDF.`);
+  }
   const clean = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const ext = path.extname(clean) || '.bin';
   const fileName = `${prefix}_${randomUUID()}${ext}`;
@@ -120,10 +129,16 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       existingAreaDetalle = (current?.area_detalle as string | null) ?? null;
     }
 
-    const docCedulaFile = formData.get('doc_cedula') as File | null;
-    const fotoCarnetFile = formData.get('foto_carnet') as File | null;
-    const docCedulaUrl = (await saveOptionalFile(docCedulaFile, 'cedula')) ?? existingDoc;
-    const fotoCarnetUrl = (await saveOptionalFile(fotoCarnetFile, 'carnet')) ?? existingFoto;
+    let docCedulaUrl = existingDoc;
+    let fotoCarnetUrl = existingFoto;
+    try {
+      const docCedulaFile = formData.get('doc_cedula') as File | null;
+      const fotoCarnetFile = formData.get('foto_carnet') as File | null;
+      docCedulaUrl = (await saveOptionalFile(docCedulaFile, 'cedula')) ?? existingDoc;
+      fotoCarnetUrl = (await saveOptionalFile(fotoCarnetFile, 'carnet')) ?? existingFoto;
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : 'Error al subir archivo.' };
+    }
 
     const payloadBase = {
       cedula,

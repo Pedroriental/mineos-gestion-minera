@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 
-export type ExcelMatrix = any[][];
+export type CellValue = string | number | boolean | null | undefined;
+export type ExcelMatrix = CellValue[][];
 
 export interface ExcelParseResult {
   sheetName: string;

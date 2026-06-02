@@ -18,7 +18,6 @@ import { cn } from '@/lib/utils';
 import { Suspense } from 'react';
 import GlobalDateRangePicker from '@/components/ui/GlobalDateRangePicker';
 import { getAppSectionMeta } from '@/lib/app-section-meta';
-import { getSystemAlerts } from '@/lib/actions/system-alerts';
 import type { DashboardAlert } from '@/lib/dashboard-alerts';
 
 const AppSearchModal = dynamic(
@@ -84,24 +83,23 @@ function BellPanel({
   );
 }
 
-export default function AppLayoutClient({ children }: { children: React.ReactNode }) {
+export default function AppLayoutClient({
+  children,
+  alerts: initialAlerts = [],
+}: {
+  children: React.ReactNode;
+  alerts?: DashboardAlert[];
+}) {
   const { user, loading, isGuest, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const router   = useRouter();
   const pathname = usePathname();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [searchOpen,    setSearchOpen]    = useState(false);
   const [bellOpen,      setBellOpen]      = useState(false);
   const [bellCoords,    setBellCoords]    = useState({ top: 56, right: 56 });
-  const [alerts,        setAlerts]        = useState<DashboardAlert[]>([]);
-
-  useEffect(() => {
-    if (user && !isGuest) {
-      getSystemAlerts().then(setAlerts).catch(console.error);
-    }
-  }, [user, isGuest, pathname]); // Re-fetch on nav
+  const [alerts,        setAlerts]        = useState<DashboardAlert[]>(initialAlerts);
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
   const sectionMeta = getAppSectionMeta(pathname);
@@ -252,7 +250,7 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
 
               <button
                 onClick={toggleTheme}
-                title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
                 className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card-muted)] text-[var(--dashboard-text-muted)] transition-all hover:text-[var(--dashboard-text)]"
               >
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -261,6 +259,9 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
               <button
                 ref={bellBtnRef}
                 onClick={openBell}
+                aria-label={bellOpen ? 'Cerrar notificaciones' : 'Abrir notificaciones'}
+                aria-expanded={bellOpen}
+                aria-controls="bell-panel"
                 className={cn(
                   'relative flex h-8 w-8 items-center justify-center rounded-xl border transition-all',
                   bellOpen
@@ -300,7 +301,7 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
         />
       )}
       {bellOpen && (
-        <div style={{ position: 'fixed', top: bellCoords.top, right: bellCoords.right, zIndex: 9000 }}>
+        <div id="bell-panel" role="dialog" aria-modal="true" aria-label="Centro de notificaciones" style={{ position: 'fixed', top: bellCoords.top, right: bellCoords.right, zIndex: 9000 }}>
           <BellPanel onClose={() => setBellOpen(false)} onNavigate={handleNav} alerts={alerts} />
         </div>
       )}

@@ -18,6 +18,8 @@ type AppSelectProps = {
   className?: string;
   disabled?: boolean;
   id?: string;
+  theme?: 'light' | 'dark';
+  menuClassName?: string;
 };
 
 const MENU_MAX_H = 224;
@@ -30,6 +32,8 @@ export function AppSelect({
   className,
   disabled,
   id: idProp,
+  theme,
+  menuClassName,
 }: AppSelectProps) {
   const autoId = useId();
   const id = idProp ?? autoId;
@@ -140,7 +144,8 @@ export function AppSelect({
         id={`${id}-menu`}
         role="listbox"
         aria-labelledby={id}
-        className={cn('app-select__menu app-select__menu--portal', menuPos.dropUp && 'app-select__menu--up')}
+        data-theme={theme}
+        className={cn('app-select__menu app-select__menu--portal', menuPos.dropUp && 'app-select__menu--up', menuClassName)}
         style={{
           position: 'fixed',
           left: menuPos.left,
@@ -183,7 +188,7 @@ export function AppSelect({
     ) : null;
 
   return (
-    <div ref={rootRef} className={cn('app-select', className)}>
+    <div ref={rootRef} className={cn('app-select', className)} data-theme={theme}>
       <button
         id={id}
         type="button"

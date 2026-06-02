@@ -10,6 +10,7 @@ import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 
 const emptyForm = {
@@ -32,6 +33,7 @@ export default function ArenasPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const confirmDialog = useConfirm();
 
   const f = (k: keyof typeof emptyForm, v: string) => setForm(p => ({ ...p, [k]: v }));
 
@@ -78,7 +80,11 @@ export default function ArenasPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta venta?')) return;
+    if (!(await confirmDialog({
+      title: 'Eliminar venta',
+      message: '¿Eliminar esta venta?',
+      variant: 'danger'
+    }))) return;
     await supabase.from('venta_arenas').delete().eq('id', id);
     loadData();
   };

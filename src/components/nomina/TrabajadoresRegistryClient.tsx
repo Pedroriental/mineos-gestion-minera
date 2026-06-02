@@ -24,6 +24,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useBiblioteca, useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
@@ -432,8 +433,12 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
 
     startTransition(async () => {
       const res = await upsertTrabajadorRegistroAction(fd);
-      if (!res.ok) return alert(res.message);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
       closeModal();
+      toast.success(res.message);
     });
   }
 
@@ -446,7 +451,8 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
           estado_laboral: 'ACTIVO',
           observacion_estado: '',
         });
-        if (!res.ok) alert(res.message);
+        if (!res.ok) toast.error(res.message);
+        else toast.success('Estado actualizado exitosamente');
       });
       return;
     }
@@ -485,21 +491,25 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
       estadoModal.nextEstado === 'DESPEDIDO' &&
       (!estadoModal.despidoFecha || !estadoModal.despidoCausa.trim())
     ) {
-      alert('Para despido debes indicar fecha y causa.');
+      toast.error('Para despido debes indicar fecha y causa.');
       return;
     }
     if (
       estadoModal.nextEstado === 'REENGANCHADO' &&
       (!estadoModal.reengancheFecha || !estadoModal.reengancheCargo.trim())
     ) {
-      alert('Para reenganchado debes indicar fecha de reintegro y cargo.');
+      toast.error('Para reenganchado debes indicar fecha de reintegro y cargo.');
       return;
     }
 
     startTransition(async () => {
       const res = await updateTrabajadorEstadoAction(payload);
-      if (!res.ok) return alert(res.message);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
       setEstadoModal(emptyEstadoModal());
+      toast.success(res.message);
     });
   }
 

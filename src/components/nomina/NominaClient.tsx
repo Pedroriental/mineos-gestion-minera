@@ -12,6 +12,8 @@ import {
   TrendingUp, TrendingDown, RotateCcw, Clipboard,
   Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet, Archive
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 import { getGrupoNominaKey } from '@/lib/personal-master';
 import { PersonalQuickAssignModal } from '@/components/nomina/PersonalQuickAssignModal';
@@ -238,6 +240,7 @@ export default function NominaClient({
   area,
 }: NominaClientProps) {
   const router = useRouter();
+  const confirmDialog = useConfirm();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -684,20 +687,32 @@ export default function NominaClient({
     });
   }
 
-  function handleDelete(id: string) {
-    if (!confirm('¿Desactivar este trabajador del sistema?')) return;
+  async function handleDelete(id: string) {
+    if (!(await confirmDialog({
+      title: 'Desactivar trabajador',
+      message: '¿Desactivar este trabajador del sistema?',
+      variant: 'danger'
+    }))) return;
     startTransition(async () => {
       await updatePersonalEstatusAction(id, 'INACTIVO');
       await registrarAuditAction('DESACTIVAR_PERSONAL', 'personal', id, `Desactivado por ${user?.email}`, user?.id, user?.email);
     });
   }
 
-  function handleProcesarNomina() {
-    if (preNominaRows.length === 0) return alert('No hay trabajadores activos.');
-    if (!distribucion.validation.ok) {
-      return alert(distribucion.validation.message ?? 'Revisa la distribución de pagos.');
+  async function handleProcesarNomina() {
+    if (preNominaRows.length === 0) {
+      toast.error('No hay trabajadores activos.');
+      return;
     }
-    if (semanaActual && !confirm('La semana ya fue procesada. ¿Deseas sobreescribirla?')) return;
+    if (!distribucion.validation.ok) {
+      toast.error(distribucion.validation.message ?? 'Revisa la distribución de pagos.');
+      return;
+    }
+    if (semanaActual && !(await confirmDialog({
+      title: 'Sobreescribir nómina',
+      message: 'La semana ya fue procesada. ¿Deseas sobreescribirla?',
+      variant: 'warning'
+    }))) return;
     setProcesadoOk(null);
     startTransition(async () => {
       const formattedRows = preNominaRows.map((r) => ({
@@ -726,17 +741,21 @@ export default function NominaClient({
         distribucion.saveAsDefault();
         await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
         setProcesadoOk(`✓ ${res.message}`); setShowProcesarModal(false);
-      } else alert(res.message);
+      } else toast.error(res.message);
     });
   }
 
-  function handleRevertirSemana(sem: NominaSemana) {
-    if (!confirm(`⚠ ¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}?`)) return;
+  async function handleRevertirSemana(sem: NominaSemana) {
+    if (!(await confirmDialog({
+      title: 'Revertir nómina',
+      message: `¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}?`,
+      variant: 'danger'
+    }))) return;
     startTransition(async () => {
       const res = await revertirSemanaAction(sem);
       if (res.ok) {
         await registrarAuditAction('REVERTIR_NOMINA', 'nomina_semanas', sem.id, `Revertida: ${fmtDate(sem.semana_inicio)} a ${fmtDate(sem.semana_fin)}`, user?.id, user?.email);
-      } else alert(sem.notas || 'Error al revertir');
+      } else toast.error(sem.notas || 'Error al revertir');
     });
   }
 
@@ -746,7 +765,8 @@ export default function NominaClient({
       if (res.ok) {
         await registrarAuditAction('BORRAR_TODO_PERSONAL', 'personal', area, `Todos los trabajadores de ${area} desactivados`, user?.id, user?.email);
         setShowBorrarModal(false);
-      } else alert(res.message);
+        toast.success('Todos los trabajadores desactivados.');
+      } else toast.error(res.message);
     });
   }
 

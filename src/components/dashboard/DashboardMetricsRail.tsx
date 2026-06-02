@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import {
   BatteryCharging,
   Flame,
@@ -17,7 +18,7 @@ type DashboardMetricsRailProps = {
 };
 
 /** Indicadores consolidados en columna lateral (sustituye la lista de nodos). */
-export function DashboardMetricsRail({ globalData, activeNodes }: DashboardMetricsRailProps) {
+export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalData, activeNodes }: DashboardMetricsRailProps) {
   return (
     <aside className="dashboard-metrics-rail" aria-labelledby="dashboard-kpi-heading">
       <div className="dashboard-metrics-rail__head">
@@ -92,4 +93,4 @@ export function DashboardMetricsRail({ globalData, activeNodes }: DashboardMetri
       </div>
     </aside>
   );
-}
+});

@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight, AlertCircle, Gem, Search, LineChart, Scale, Layers,
 } from 'lucide-react';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import EmptyState from '@/components/EmptyState';
@@ -80,6 +81,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   const [editItem, setEditItem] = useState<ReporteQuemado | null>(null);
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
+  const confirmDialog = useConfirm();
 
   const emptyForm = {
     fecha: selectedDate,
@@ -131,8 +133,12 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
     setShowModal(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('¿Eliminar este reporte de quemado?')) return;
+  const handleDelete = async (id: string) => {
+    if (!(await confirmDialog({
+      title: 'Eliminar reporte',
+      message: '¿Eliminar este reporte de quemado?',
+      variant: 'danger'
+    }))) return;
     startTransition(async () => {
       await deleteQuemado(id);
     });

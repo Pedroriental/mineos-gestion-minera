@@ -6,10 +6,10 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { createExtraccion, updateExtraccion, deleteExtraccion } from '@/lib/actions/extraccion';
 import type { ReporteExtraccion, EventoExtraccion } from '@/lib/types';
 import {
-  Loader2, Pickaxe, Plus, X, Download, AlertCircle, Search, Package, Zap, Clock, BarChart3,
-  ChevronLeft, ChevronRight,
+  Loader2, Pickaxe, Plus, X, Download, AlertCircle, Search, Package, Zap, Clock, BarChart3, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import EmptyState from '@/components/EmptyState';
@@ -98,6 +98,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const confirmDialog = useConfirm();
 
   const initialData = data.registros;
 
@@ -385,8 +386,12 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('¿Eliminar este reporte de extracción?')) return;
+  const handleDelete = async (id: string) => {
+    if (!(await confirmDialog({
+      title: 'Eliminar reporte',
+      message: '¿Eliminar este reporte de extracción?',
+      variant: 'danger'
+    }))) return;
     startTransition(async () => {
       await deleteExtraccion(id);
     });

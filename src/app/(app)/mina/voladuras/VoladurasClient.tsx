@@ -13,6 +13,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import EmptyState from '@/components/EmptyState';
@@ -89,6 +90,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
   const [editItem, setEditItem] = useState<ReporteVoladura | null>(null);
   const [pausas, setPausas] = useState<PausaBarrenado[]>([]);
   const [isPending, startTransition] = useTransition();
+  const confirmDialog = useConfirm();
 
   const emptyForm = {
     fecha: selectedDate,
@@ -313,8 +315,12 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('¿Eliminar este reporte de voladura?')) return;
+  const handleDelete = async (id: string) => {
+    if (!(await confirmDialog({
+      title: 'Eliminar reporte',
+      message: '¿Eliminar este reporte de voladura?',
+      variant: 'danger'
+    }))) return;
     startTransition(async () => {
       await deleteVoladura(id);
     });

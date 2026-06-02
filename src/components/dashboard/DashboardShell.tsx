@@ -1,11 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 
 /**
  * Contenedor de scroll del dashboard (el encabezado vive en el topbar global).
  */
-export function DashboardShell({ children }: { children: ReactNode }) {
+export const DashboardShell = memo(function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <div className="dashboard-shell flex min-h-0 flex-1 flex-col">
       <div className="dashboard-scroll" role="region" aria-label="Contenido del dashboard">
@@ -13,4 +13,4 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
-}
+});

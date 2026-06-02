@@ -110,6 +110,7 @@ export function buildImportCommitPayload(
   }
 
   const semanaMap = new Map<string, ImportCommitSemana>();
+  const sectionMap = new Map(period.sections.map((s) => [s.id, s]));
 
   // Mapa cedula -> área real para usarlo al construir semanas
   const areaBySection = new Map<string, Personal['area']>();
@@ -122,7 +123,7 @@ export function buildImportCommitPayload(
   }
 
   for (const flat of period.flatCells) {
-    const section = period.sections.find((s) => s.id === flat.sectionId);
+    const section = sectionMap.get(flat.sectionId);
     if (!section) continue;
     const personal = personalMap.get(flat.worker.cedula);
     if (!personal) continue;

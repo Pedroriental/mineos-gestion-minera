@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { SimpleSparkline } from './SimpleSparkline';
 
 type SolidMetricCardProps = {
@@ -18,7 +18,7 @@ type SolidMetricCardProps = {
 };
 
 /** Tarjeta KPI con fondo sólido y borde del sistema de diseño global. */
-export function SolidMetricCard({
+export const SolidMetricCard = memo(function SolidMetricCard({
   label,
   value,
   unit,
@@ -90,4 +90,4 @@ export function SolidMetricCard({
       ) : null}
     </article>
   );
-}
+});

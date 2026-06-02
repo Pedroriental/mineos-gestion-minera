@@ -2,15 +2,22 @@
 
 import { createServerClient } from '@/lib/supabase-server';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+import { ExtraccionSchema, ExtraccionUpdateSchema } from '@/lib/validations/extraccion';
 import type { ReporteExtraccion } from '@/lib/types';
 
-export async function createExtraccion(data: Partial<ReporteExtraccion>) {
+export async function createExtraccion(raw: Partial<ReporteExtraccion>) {
   try {
-    const supabase = await createServerClient();
+    const parsed = ExtraccionSchema.safeParse(raw);
+    if (!parsed.success) {
+      const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+      return { ok: false, message: msg, error: parsed.error };
+    }
 
+    const supabase = await createServerClient();
     const { error } = await supabase
       .from('reportes_extraccion')
-      .insert(data);
+      .insert(parsed.data);
 
     if (error) {
       console.error('Error creating extraccion:', error);
@@ -19,19 +26,23 @@ export async function createExtraccion(data: Partial<ReporteExtraccion>) {
 
     revalidatePath('/mina/extraccion');
     return { ok: true, message: 'Reporte registrado exitosamente' };
-  } catch (err: any) {
+  } catch (err) {
     console.error('Exception creating extraccion:', err);
-    return { ok: false, message: err.message || 'Error desconocido' };
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    return { ok: false, message };
   }
 }
 
-export async function updateExtraccion(data: Partial<ReporteExtraccion> & { id: string }) {
+export async function updateExtraccion(raw: Partial<ReporteExtraccion> & { id: string }) {
   try {
+    const parsed = ExtraccionUpdateSchema.safeParse(raw);
+    if (!parsed.success) {
+      const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+      return { ok: false, message: msg, error: parsed.error };
+    }
+
     const supabase = await createServerClient();
-
-    // No queremos actualizar el id ni quien lo registró
-    const { id, registrado_por, ...payload } = data;
-
+    const { id, registrado_por, ...payload } = parsed.data;
     const { error } = await supabase
       .from('reportes_extraccion')
       .update(payload)
@@ -44,16 +55,21 @@ export async function updateExtraccion(data: Partial<ReporteExtraccion> & { id: 
 
     revalidatePath('/mina/extraccion');
     return { ok: true, message: 'Reporte actualizado exitosamente' };
-  } catch (err: any) {
+  } catch (err) {
     console.error('Exception updating extraccion:', err);
-    return { ok: false, message: err.message || 'Error desconocido' };
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    return { ok: false, message };
   }
 }
 
 export async function deleteExtraccion(id: string) {
   try {
-    const supabase = await createServerClient();
+    const uuidParsed = z.string().uuid('ID inválido').safeParse(id);
+    if (!uuidParsed.success) {
+      return { ok: false, message: 'ID de reporte inválido' };
+    }
 
+    const supabase = await createServerClient();
     const { error } = await supabase
       .from('reportes_extraccion')
       .delete()
@@ -66,8 +82,9 @@ export async function deleteExtraccion(id: string) {
 
     revalidatePath('/mina/extraccion');
     return { ok: true, message: 'Reporte eliminado' };
-  } catch (err: any) {
+  } catch (err) {
     console.error('Exception deleting extraccion:', err);
-    return { ok: false, message: err.message || 'Error desconocido' };
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    return { ok: false, message };
   }
 }

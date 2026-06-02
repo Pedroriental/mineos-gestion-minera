@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from 'sonner';
+
 import { useMemo, useState, useTransition } from 'react';
 import {
   Upload,
@@ -229,14 +231,19 @@ export function NominaImportModal({
 
   function handleImportConfirm() {
     const valid = parsedEmps.filter((e) => e._valid);
-    if (valid.length === 0) return alert('No hay empleados válidos.');
+    if (valid.length === 0) {
+      toast.error('No hay empleados válidos.');
+      return;
+    }
     startTransition(async () => {
       const { importarPersonalAction } = await import('@/lib/actions/nomina');
       const res = await importarPersonalAction(valid, area);
       if (res.ok) {
         setImportResult(res.data);
         onImported?.();
-      } else alert(res.message);
+      } else {
+        toast.error(res.message);
+      }
     });
   }
 

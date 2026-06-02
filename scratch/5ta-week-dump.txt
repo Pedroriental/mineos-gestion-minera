@@ -1,0 +1,297 @@
+=== EXCEL RESULTS ===
+Grand Total: 7424.99
+Workers Count: 34
+Section: "Nómina Administrativos Molinos" (Rows: 2, Total: 325)
+  - Márquez Pedro (C.I. 9933498, Total: 200, Valid: true, Error: undefined)
+  - Julio Girón (C.I. 13963679, Total: 125, Valid: true, Error: undefined)
+Section: "Nómina Administrativos Mina" (Rows: 3, Total: 650)
+  - Rafael Diaz (C.I. SC-RAFAELDI, Total: 375, Valid: true, Error: undefined)
+  - Alexander Villasmil (C.I. 26718922, Total: 150, Valid: true, Error: undefined)
+  - Cedeño Alexander (C.I. 25391898, Total: 125, Valid: true, Error: undefined)
+Section: "Semanas Molinos — Grupo operativo" (Rows: 9, Total: 1100)
+  - Ugas Jhonaiker (C.I. 21110966, Total: 105, Valid: true, Error: undefined)
+  - Abhaam Fajardo (C.I. 31262481, Total: 115, Valid: true, Error: undefined)
+  - Vidal Jose (C.I. 19534051, Total: 170, Valid: true, Error: undefined)
+  - David Salazar (C.I. 28279820, Total: 105, Valid: true, Error: undefined)
+  - Sebastian Delgado (C.I. 33009367, Total: 105, Valid: true, Error: undefined)
+  - Pérez Haber (C.I. 28541114, Total: 115, Valid: true, Error: undefined)
+  - Edgar Maita (C.I. 28291349, Total: 105, Valid: true, Error: undefined)
+  - Pateti Roberto (C.I. 17590930, Total: 130, Valid: true, Error: undefined)
+  - Enrrique Cano (C.I. 19143988, Total: 150, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Vertical 1PD" (Rows: 8, Total: 2350)
+  - Oswaldo Jose Guacaran (C.I. 30501619, Total: 300, Valid: true, Error: undefined)
+  - Endre Jose Lerico (C.I. 32414550, Total: 300, Valid: true, Error: undefined)
+  - Jose Ortega (C.I. 27506725, Total: 300, Valid: true, Error: undefined)
+  - Jirson Guacaran (C.I. 29506725, Total: 300, Valid: true, Error: undefined)
+  - Ronaldo Ventura Guacaran (C.I. 29687521, Total: 300, Valid: true, Error: undefined)
+  - Wilson Jose Guacaran (C.I. 30737215, Total: 450, Valid: true, Error: undefined)
+  - Jose Guacaran (C.I. 19126407, Total: 200, Valid: true, Error: undefined)
+  - Alex Romero (C.I. 30516729, Total: 200, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Vertical 2" (Rows: 9, Total: 2164.28)
+  - Jose Parra (C.I. 18802744, Total: 300, Valid: true, Error: undefined)
+  - Rolandi Núñez (C.I. 33226193, Total: 300, Valid: true, Error: undefined)
+  - Geordanys Diaz (C.I. 33774655, Total: 300, Valid: true, Error: undefined)
+  - Luis Bolivar (C.I. 30120288, Total: 114.28, Valid: true, Error: undefined)
+  - Raul Fuentes (C.I. 8878018, Total: 300, Valid: true, Error: undefined)
+  - Juan Bermudez (C.I. 24481149, Total: 200, Valid: true, Error: undefined)
+  - Francisco Barrios (C.I. 31248604, Total: 450, Valid: true, Error: undefined)
+  - Enio Martinez (C.I. 25392130, Total: 0, Valid: true, Error: undefined)
+  - Gadiel Alvarez (C.I. 21011827, Total: 200, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Cocinera" (Rows: 1, Total: 300)
+  - Nurbelis Bonilla (C.I. 25266422, Total: 300, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Tecnico Operador Compresor 85.714286" (Rows: 1, Total: 85.71)
+  - Edgar Sanchez (C.I. 30205973, Total: 85.71, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Tecnico AYUDANTE BARRENADOR 107.14286" (Rows: 1, Total: 450)
+  - Yosi Lereico (C.I. 25552939, Total: 450, Valid: true, Error: undefined)
+
+=== PDF RAW LINES ===
+RAW [0]: Molinos La Fé - Mina Belen
+RAW [1]: Nominas
+RAW [2]: Semana del 11 MAYO al 31 MAYO 2026
+RAW [3]: Nomina Administrativo Molinos 325,00
+RAW [4]: Nómina Molinos 1.100,00   1.425,00   3.825,00
+RAW [5]: Nomina Administrativo Mina 650,00
+RAW [6]: Nóminas Mina Belen 5.349,99   5.999,99
+RAW [7]: Total Nomina 7.424,99   3599,994   2399,996
+RAW [8]: Nómina Administrativos Molinos
+RAW [9]: Semana
+RAW [10]: T o t a l
+RAW [11]: Fecha de trabajada
+RAW [12]: Nombres   C.I.   Nóminas
+RAW [13]: Ingreso Del 25 MAYO
+RAW [14]: (USD)
+RAW [15]: al 31 Mayo
+RAW [16]: Márquez Pedro   9.933.498   03/09/2025   200   200,00
+RAW [17]: Julio Girón   13.963.679   14/10/2025   125   125,00
+RAW [18]: 325,00   325,00
+RAW [19]: Nómina Administrativos Mina
+RAW [20]: Semana Semana
+RAW [21]: Semana libre   T o t a l
+RAW [22]: Fecha de Trabajada Trabajada
+RAW [23]: Nombres   C.I.   Nóminas
+RAW [24]: Ingreso Del 11 MAYO Del 18 MAYO Del 25 MAYO
+RAW [25]: (USD)
+RAW [26]: al 17 MAYO al 24 Mayo al 31 Mayo
+RAW [27]: Rafael Diaz   27/01/2026   125   125   125   375,00
+RAW [28]: ALEXANDER VILLASMIL   26.718.922   150   150,00
+RAW [29]: Cedeño Alexander   25.391.898   06/11/2025   125   125,00
+RAW [30]: 125,00   125,00   400,00   650,00
+RAW [31]: Semanas Molinos- Grupo ( mixto)
+RAW [32]: Semana
+RAW [33]: Semana Libre   T o t a l
+RAW [34]: Fecha de trabajada
+RAW [35]: Nombres   C.I.   Nóminas
+RAW [36]: Ingreso Del 18 MAYO Del 25 MAYO
+RAW [37]: al 24 Mayo al 31 Mayo (USD)
+RAW [38]: Ugas Jhonaiker   21.110.966   14/10/2025   30,00   75,00   105,00
+RAW [39]: Abhaam Fajardo   31.262.481   18/05/2026   30,00   85,00   115,00
+RAW [40]: Vidal Jose   19.534.051   22/09/2025   20,00   150,00   170,00
+RAW [41]: David Salazar   28.279.820   20/05/2026   30,00   75,00   105,00
+RAW [42]: Sebastian Delgado   33.009.367   24/03/2026   30,00   75,00   105,00
+RAW [43]: Pérez Haber   28.541.114   04/09/2025   30,00   85,00   115,00
+RAW [44]: Edgar Maita   28.291.349   18/05/2026   30,00   75,00   105,00
+RAW [45]: Pateti Roberto   17.590.930   03/03/2026   30,00   100,00   130,00
+RAW [46]: Enrrique Cano   19.143.988   04/09/2025   150,00   150,00
+RAW [47]: 230,00   870,00   1.100,00
+RAW [48]: Semanas Mina Belen - Vertical 1PD
+RAW [49]: 1ra semana 2da semana
+RAW [50]: Semana Libre   T o t a l
+RAW [51]: Fecha de trabajada trabajada
+RAW [52]: Nombres   C.I.   Nóminas
+RAW [53]: Ingreso Del 11 MAYO Del 18 MAYO Del 25 MAYO
+RAW [54]: al 17 MAYO al 24 Mayo al 31 Mayo (USD)
+RAW [55]: OSWALDO JOSE GUACARAN   30.501.619   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [56]: ENDRE JOSE LERICO   32.414.550   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [57]: JOSE ORTEGA   27.506.725   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [58]: JIRSON GUACARAN   29.506.725   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [59]: RONALDO VENTURA GUACARAN   29.687.521   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+RAW [60]: WILSON JOSE GUACARAN   30.737.215   03/02/2026   150,00   150,00   150,00   450,00   salen libre
+RAW [61]: JOSE GUACARAN   19.126.407   18/05/2026   0,00   100,00   100,00   200,00   salen libre
+RAW [62]: Alex Romero   30.516.729   18/05/2026   0,00   100,00   100,00   200,00   salen libre
+RAW [63]: 650,00   850,00   850,00   2.350,00
+RAW [64]: Molinos La Fé - Mina Belen
+RAW [65]: Nominas
+RAW [66]: Semanas Mina Belen - Vertical 2
+RAW [67]: 1ra semana 2da semana
+RAW [68]: Semana Libre   T o t a l
+RAW [69]: Fecha de trabajada trabajada
+RAW [70]: Nombres   C.I.   Nóminas
+RAW [71]: Ingreso Del 11 MAYO Del 18 MAYO Del 25 MAYO
+RAW [72]: al 17 MAYO al 24 Mayo al 31 Mayo (USD)
+RAW [73]: JOSE PARRA   18.802.744   03/02/2026   100,00   100,00   100,00   300,00   Salen libre
+RAW [74]: ROLANDI NÚÑEZ   33.226.193   23/02/2026   100,00   100,00   100,00   300,00   Salen libre
+RAW [75]: GEORDANYS DIAZ   33.774.655   23/02/2026   100,00   100,00   100,00   300,00   Salen libre
+RAW [76]: LUIS BOLIVAR   30.120.288   23/02/2026   100,00   14,28   0,00   114,28   retirado
+RAW [77]: RAUL FUENTES   8.878.018   05/02/2026   100,00   100,00   100,00   300,00   Salen libre
+RAW [78]: JUAN BERMUDEZ   24.481.149   18/05/2026   0,00   100,00   100,00   200,00   Salen libre
+RAW [79]: Francisco Barrios   31.248.604   27/04/2026   150,00   150,00   150,00   450,00   Salen libre
+RAW [80]: Enio Martinez   25.392.130   20/05/2026   0,00   0,00   0,00   0,00   reposo
+RAW [81]: Gadiel Alvarez   21.011.827   18/05/2026   0,00   100,00   100,00   200,00   Salen libre
+RAW [82]: 650,00   764,28   750,00   2.164,28
+RAW [83]: Semanas Mina Belen - Cocinera
+RAW [84]: Semana Semana
+RAW [85]: Semana Libre   T o t a l
+RAW [86]: Fecha de trabajada trabajada
+RAW [87]: Nombres C.I. Nóminas
+RAW [88]: Ingreso
+RAW [89]: Del 11 MAYO Del 18 MAYO Del 25 MAYO (USD)
+RAW [90]: al 17 MAYO al 24 Mayo al 31 Mayo
+RAW [91]: NURBELIS BONILLA   25.266.422   16/02/2026   100,00   100,00   100,00   300,00
+RAW [92]: 100,00   100,00   100,00   300,00
+RAW [93]: Semanas Mina Belen - Tecnico Operador Compresor
+RAW [94]: Semana T o t a l
+RAW [95]: Fecha de trabajada
+RAW [96]: Nombres   C.I.   Nóminas
+RAW [97]: Ingreso Del 25 MAYO
+RAW [98]: al 31 Mayo (USD)
+RAW [99]: EDGAR SANCHEZ   30.205.973   26/05/2026   85,71   85,71   85,714286
+RAW [100]: 85,71   85,71
+RAW [101]: Semanas Mina Belen - Tecnico AYUDANTE BARRENADOR
+RAW [102]: Semana Semana
+RAW [103]: Semana Libre   T o t a l
+RAW [104]: Fecha de trabajada trabajada
+RAW [105]: Nombres   C.I.   Nóminas
+RAW [106]: Ingreso Del 11 MAYO Del 18 MAYO Del 25 MAYO
+RAW [107]: al 17 MAYO al 24 Mayo al 31 Mayo (USD)
+RAW [108]: YOSI Lereico   25.552.939   17/03/2026   150,00   150,00   150,00   450,00   107,14286
+RAW [109]: 150,00   150,00   150,00   450,00
+
+=== PDF PREPRO LINES ===
+PREPRO [0]: Molinos La Fé - Mina Belen
+PREPRO [1]: Nominas
+PREPRO [2]: Semana del 11 MAYO al 31 MAYO 2026
+PREPRO [3]: Nomina Administrativo Molinos 325,00
+PREPRO [4]: Nómina Molinos 1.100,00   1.425,00   3.825,00
+PREPRO [5]: Nomina Administrativo Mina 650,00
+PREPRO [6]: Nóminas Mina Belen 5.349,99   5.999,99
+PREPRO [7]: Total Nomina 7.424,99   3599,994   2399,996
+PREPRO [8]: Nómina Administrativos Molinos
+PREPRO [9]: Semana
+PREPRO [10]: Fecha de trabajada
+PREPRO [11]: Nombres   C.I.   Nóminas Ingreso Del 25 MAYO (USD) al 31 Mayo
+PREPRO [12]: Márquez Pedro   9.933.498   03/09/2025   200   200,00
+PREPRO [13]: Julio Girón   13.963.679   14/10/2025   125   125,00
+PREPRO [14]: 325,00   325,00
+PREPRO [15]: Nómina Administrativos Mina
+PREPRO [16]: Semana Semana
+PREPRO [17]: Semana libre   T o t a l
+PREPRO [18]: Fecha de Trabajada Trabajada
+PREPRO [19]: Nombres   C.I.   Nóminas Ingreso Del 11 MAYO Del 18 MAYO Del 25 MAYO (USD) al 17 MAYO al 24 Mayo al 31 Mayo
+PREPRO [20]: Rafael Diaz   27/01/2026   125   125   125   375,00
+PREPRO [21]: ALEXANDER VILLASMIL   26.718.922   150   150,00
+PREPRO [22]: Cedeño Alexander   25.391.898   06/11/2025   125   125,00
+PREPRO [23]: 125,00   125,00   400,00   650,00
+PREPRO [24]: Semanas Molinos- Grupo ( mixto)
+PREPRO [25]: Semana
+PREPRO [26]: Semana Libre   T o t a l
+PREPRO [27]: Fecha de trabajada
+PREPRO [28]: Nombres   C.I.   Nóminas Ingreso Del 18 MAYO Del 25 MAYO al 24 Mayo al 31 Mayo (USD)
+PREPRO [29]: Ugas Jhonaiker   21.110.966   14/10/2025   30,00   75,00   105,00
+PREPRO [30]: Abhaam Fajardo   31.262.481   18/05/2026   30,00   85,00   115,00
+PREPRO [31]: Vidal Jose   19.534.051   22/09/2025   20,00   150,00   170,00
+PREPRO [32]: David Salazar   28.279.820   20/05/2026   30,00   75,00   105,00
+PREPRO [33]: Sebastian Delgado   33.009.367   24/03/2026   30,00   75,00   105,00
+PREPRO [34]: Pérez Haber   28.541.114   04/09/2025   30,00   85,00   115,00
+PREPRO [35]: Edgar Maita   28.291.349   18/05/2026   30,00   75,00   105,00
+PREPRO [36]: Pateti Roberto   17.590.930   03/03/2026   30,00   100,00   130,00
+PREPRO [37]: Enrrique Cano   19.143.988   04/09/2025   150,00   150,00
+PREPRO [38]: 230,00   870,00   1.100,00
+PREPRO [39]: Semanas Mina Belen - Vertical 1PD
+PREPRO [40]: 1ra semana 2da semana
+PREPRO [41]: Semana Libre   T o t a l
+PREPRO [42]: Fecha de trabajada trabajada
+PREPRO [43]: Nombres   C.I.   Nóminas Ingreso Del 11 MAYO Del 18 MAYO Del 25 MAYO al 17 MAYO al 24 Mayo al 31 Mayo (USD)
+PREPRO [44]: OSWALDO JOSE GUACARAN   30.501.619   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [45]: ENDRE JOSE LERICO   32.414.550   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [46]: JOSE ORTEGA   27.506.725   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [47]: JIRSON GUACARAN   29.506.725   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [48]: RONALDO VENTURA GUACARAN   29.687.521   03/02/2026   100,00   100,00   100,00   300,00   salen libre
+PREPRO [49]: WILSON JOSE GUACARAN   30.737.215   03/02/2026   150,00   150,00   150,00   450,00   salen libre
+PREPRO [50]: JOSE GUACARAN   19.126.407   18/05/2026   0,00   100,00   100,00   200,00   salen libre
+PREPRO [51]: Alex Romero   30.516.729   18/05/2026   0,00   100,00   100,00   200,00   salen libre
+PREPRO [52]: 650,00   850,00   850,00   2.350,00
+PREPRO [53]: Molinos La Fé - Mina Belen
+PREPRO [54]: Nominas
+PREPRO [55]: Semanas Mina Belen - Vertical 2
+PREPRO [56]: 1ra semana 2da semana
+PREPRO [57]: Semana Libre   T o t a l
+PREPRO [58]: Fecha de trabajada trabajada
+PREPRO [59]: Nombres   C.I.   Nóminas Ingreso Del 11 MAYO Del 18 MAYO Del 25 MAYO al 17 MAYO al 24 Mayo al 31 Mayo (USD)
+PREPRO [60]: JOSE PARRA   18.802.744   03/02/2026   100,00   100,00   100,00   300,00   Salen libre
+PREPRO [61]: ROLANDI NÚÑEZ   33.226.193   23/02/2026   100,00   100,00   100,00   300,00   Salen libre
+PREPRO [62]: GEORDANYS DIAZ   33.774.655   23/02/2026   100,00   100,00   100,00   300,00   Salen libre
+PREPRO [63]: LUIS BOLIVAR   30.120.288   23/02/2026   100,00   14,28   0,00   114,28   retirado
+PREPRO [64]: RAUL FUENTES   8.878.018   05/02/2026   100,00   100,00   100,00   300,00   Salen libre
+PREPRO [65]: JUAN BERMUDEZ   24.481.149   18/05/2026   0,00   100,00   100,00   200,00   Salen libre
+PREPRO [66]: Francisco Barrios   31.248.604   27/04/2026   150,00   150,00   150,00   450,00   Salen libre
+PREPRO [67]: Enio Martinez   25.392.130   20/05/2026   0,00   0,00   0,00   0,00   reposo 650,00   764,28   750,00   2.164,28
+PREPRO [68]: Gadiel Alvarez   21.011.827   18/05/2026   0,00   100,00   100,00   200,00   Salen libre
+PREPRO [69]: 
+PREPRO [70]: Semanas Mina Belen - Cocinera
+PREPRO [71]: Semana Semana
+PREPRO [72]: Semana Libre   T o t a l
+PREPRO [73]: Fecha de trabajada trabajada
+PREPRO [74]: Nombres C.I. Nóminas
+PREPRO [75]: Ingreso
+PREPRO [76]: Del 11 MAYO Del 18 MAYO Del 25 MAYO (USD) al 17 MAYO al 24 Mayo al 31 Mayo
+PREPRO [77]: NURBELIS BONILLA   25.266.422   16/02/2026   100,00   100,00   100,00   300,00
+PREPRO [78]: 100,00   100,00   100,00   300,00
+PREPRO [79]: Semanas Mina Belen - Tecnico Operador Compresor
+PREPRO [80]: Semana T o t a l
+PREPRO [81]: Fecha de trabajada
+PREPRO [82]: Nombres   C.I.   Nóminas Ingreso Del 25 MAYO al 31 Mayo (USD)
+PREPRO [83]: EDGAR SANCHEZ   30.205.973   26/05/2026   85,71   85,71   85,714286
+PREPRO [84]: 85,71   85,71
+PREPRO [85]: Semanas Mina Belen - Tecnico AYUDANTE BARRENADOR
+PREPRO [86]: Semana Semana
+PREPRO [87]: Semana Libre   T o t a l
+PREPRO [88]: Fecha de trabajada trabajada
+PREPRO [89]: Nombres   C.I.   Nóminas Ingreso Del 11 MAYO Del 18 MAYO Del 25 MAYO al 17 MAYO al 24 Mayo al 31 Mayo (USD)
+PREPRO [90]: YOSI Lereico   25.552.939   17/03/2026   150,00   150,00   150,00   450,00   107,14286
+PREPRO [91]: 150,00   150,00   150,00   450,00
+
+=== PDF RESULTS (Tolerance Y) ===
+Grand Total: 7424.99
+Workers Count: 34
+Section: "Nómina Administrativos Molinos" (Rows: 2, Total: 325)
+  - Márquez Pedro (C.I. 9933498, Total: 200, Valid: true, Error: undefined)
+  - Julio Girón (C.I. 13963679, Total: 125, Valid: true, Error: undefined)
+Section: "Nómina Administrativos Mina" (Rows: 3, Total: 650)
+  - Rafael Diaz (C.I. SC-RAFAELDI, Total: 375, Valid: true, Error: undefined)
+  - Alexander Villasmil (C.I. 26718922, Total: 150, Valid: true, Error: undefined)
+  - Cedeño Alexander (C.I. 25391898, Total: 125, Valid: true, Error: undefined)
+Section: "Semanas Molinos — Grupo operativo" (Rows: 9, Total: 1100)
+  - Ugas Jhonaiker (C.I. 21110966, Total: 105, Valid: true, Error: undefined)
+  - Abhaam Fajardo (C.I. 31262481, Total: 115, Valid: true, Error: undefined)
+  - Vidal Jose (C.I. 19534051, Total: 170, Valid: true, Error: undefined)
+  - David Salazar (C.I. 28279820, Total: 105, Valid: true, Error: undefined)
+  - Sebastian Delgado (C.I. 33009367, Total: 105, Valid: true, Error: undefined)
+  - Pérez Haber (C.I. 28541114, Total: 115, Valid: true, Error: undefined)
+  - Edgar Maita (C.I. 28291349, Total: 105, Valid: true, Error: undefined)
+  - Pateti Roberto (C.I. 17590930, Total: 130, Valid: true, Error: undefined)
+  - Enrrique Cano (C.I. 19143988, Total: 150, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Vertical 1PD" (Rows: 8, Total: 2350)
+  - Oswaldo Jose Guacaran (C.I. 30501619, Total: 300, Valid: true, Error: undefined)
+  - Endre Jose Lerico (C.I. 32414550, Total: 300, Valid: true, Error: undefined)
+  - Jose Ortega (C.I. 27506725, Total: 300, Valid: true, Error: undefined)
+  - Jirson Guacaran (C.I. 29506725, Total: 300, Valid: true, Error: undefined)
+  - Ronaldo Ventura Guacaran (C.I. 29687521, Total: 300, Valid: true, Error: undefined)
+  - Wilson Jose Guacaran (C.I. 30737215, Total: 450, Valid: true, Error: undefined)
+  - Jose Guacaran (C.I. 19126407, Total: 200, Valid: true, Error: undefined)
+  - Alex Romero (C.I. 30516729, Total: 200, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Vertical 2" (Rows: 9, Total: 2164.28)
+  - Jose Parra (C.I. 18802744, Total: 300, Valid: true, Error: undefined)
+  - Rolandi Núñez (C.I. 33226193, Total: 300, Valid: true, Error: undefined)
+  - Geordanys Diaz (C.I. 33774655, Total: 300, Valid: true, Error: undefined)
+  - Luis Bolivar (C.I. 30120288, Total: 114.28, Valid: true, Error: undefined)
+  - Raul Fuentes (C.I. 8878018, Total: 300, Valid: true, Error: undefined)
+  - Juan Bermudez (C.I. 24481149, Total: 200, Valid: true, Error: undefined)
+  - Francisco Barrios (C.I. 31248604, Total: 450, Valid: true, Error: undefined)
+  - Enio Martinez (C.I. 25392130, Total: 0, Valid: true, Error: undefined)
+  - Gadiel Alvarez (C.I. 21011827, Total: 200, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Cocinera" (Rows: 1, Total: 300)
+  - Nurbelis Bonilla (C.I. 25266422, Total: 300, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Tecnico Operador Compresor" (Rows: 1, Total: 85.71)
+  - Edgar Sanchez (C.I. 30205973, Total: 85.71, Valid: true, Error: undefined)
+Section: "Semanas Mina Belén — Tecnico AYUDANTE BARRENADOR" (Rows: 1, Total: 450)
+  - Yosi Lereico (C.I. 25552939, Total: 450, Valid: true, Error: undefined)

@@ -1,3 +1,5 @@
+import type { CellValue } from '@/lib/nomina/excel-parser';
+
 /**
  * MineOS - Motor Aritmético de Auditoría y Conciliación de Nóminas
  * 
@@ -63,7 +65,7 @@ const KEYWORDS_NETO = ['neto', 'a pagar', 'total neto', 'neto cobrar', 'pagar', 
 /**
  * Normaliza un string removiendo tildes, minúsculas y caracteres especiales para comparaciones flexibles.
  */
-function cleanText(text: any): string {
+function cleanText(text: CellValue): string {
   if (text === null || text === undefined) return '';
   return String(text)
     .toLowerCase()
@@ -76,7 +78,7 @@ function cleanText(text: any): string {
 /**
  * Escanea la matriz para autodetectar la fila de encabezados y mapear los índices de las columnas críticas.
  */
-export function autodetectColumns(matrix: any[][], log: string[]): ColumnMapping {
+export function autodetectColumns(matrix: CellValue[][], log: string[]): ColumnMapping {
   const mapping: ColumnMapping = {
     identificadorIdx: -1,
     nombreIdx: -1,
@@ -128,7 +130,7 @@ export function autodetectColumns(matrix: any[][], log: string[]): ColumnMapping
 /**
  * Parsea un número de forma ultra segura de cualquier celda, removiendo símbolos monetarios y separadores de miles.
  */
-function parseNumericCell(cell: any): number {
+function parseNumericCell(cell: CellValue): number {
   if (cell === null || cell === undefined || cell === '') return 0;
   if (typeof cell === 'number') return cell;
 
@@ -148,7 +150,7 @@ function parseNumericCell(cell: any): number {
  * @param nombreArchivo Nombre referencial del archivo original.
  * @returns Reporte detallado de auditoría de nómina.
  */
-export function auditNominaMatrix(matrix: any[][], nombreArchivo: string): AuditReport {
+export function auditNominaMatrix(matrix: CellValue[][], nombreArchivo: string): AuditReport {
   const log: string[] = [];
   log.push(`Iniciando pipeline de auditoría para archivo: ${nombreArchivo}`);
 

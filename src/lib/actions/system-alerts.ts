@@ -23,13 +23,15 @@ export async function getSystemAlerts(): Promise<DashboardAlert[]> {
     supabase
       .from('inventario_items')
       .select('id, nombre, stock_actual, stock_minimo')
-      .eq('activo', true),
-    supabase.from('nomina_semanas').select('area, semana_inicio'),
-    supabase.from('personal').select('area').eq('activo', true).in('area', ['planta', 'mina', 'administracion']),
+      .eq('activo', true)
+      .limit(500),
+    supabase.from('nomina_semanas').select('area, semana_inicio').limit(200),
+    supabase.from('personal').select('area').eq('activo', true).in('area', ['planta', 'mina', 'administracion']).limit(500),
     supabase
       .from('nomina_vales')
       .select('id, monto, personal:personal_id(area)')
-      .eq('estado', 'PENDIENTE'),
+      .eq('estado', 'PENDIENTE')
+      .limit(500),
     supabase
       .from('reportes_voladuras')
       .select('id, mina, fecha, sin_novedad')

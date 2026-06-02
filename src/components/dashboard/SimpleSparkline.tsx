@@ -1,12 +1,14 @@
 'use client';
 
+import { memo } from 'react';
+
 type SimpleSparklineProps = {
   values: number[];
   variant?: 'accent' | 'danger' | 'neutral';
 };
 
 /** Sparkline SVG ultra-ligero (sin dependencias de gráficos). */
-export function SimpleSparkline({ values, variant = 'accent' }: SimpleSparklineProps) {
+export const SimpleSparkline = memo(function SimpleSparkline({ values, variant = 'accent' }: SimpleSparklineProps) {
   const w = 120;
   const h = 36;
   const max = Math.max(...values, 1);
@@ -45,4 +47,4 @@ export function SimpleSparkline({ values, variant = 'accent' }: SimpleSparklineP
       />
     </svg>
   );
-}
+});

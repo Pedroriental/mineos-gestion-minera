@@ -35,6 +35,7 @@ import {
   needsUbicacionReset,
   normalizeDestino,
 } from './destino';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 const INVENTARIO_PAGE_MAX = 50;
 const INVENTARIO_PAGE_BUTTONS_MAX = 5;
@@ -91,6 +92,7 @@ export default function InventarioClient() {
   const [showMovModal, setShowMovModal] = useState(false);
   const [editItem, setEditItem] = useState<InventarioItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const confirmDialog = useConfirm();
 
   const [itemForm, setItemForm] = useState(EMPTY_ITEM_FORM);
   const [movForm, setMovForm] = useState(EMPTY_MOV_FORM);
@@ -252,10 +254,14 @@ export default function InventarioClient() {
   };
 
   const handleDeleteItem = useCallback(async (item: InventarioItem) => {
-    if (!confirm(`¿Eliminar el item "${item.nombre}"? Se desactivará y dejará de aparecer en el inventario.`)) return;
+    if (!(await confirmDialog({
+      title: 'Eliminar item',
+      message: `¿Eliminar el item "${item.nombre}"? Se desactivará y dejará de aparecer en el inventario.`,
+      variant: 'danger'
+    }))) return;
     await supabase.from('inventario_items').update({ activo: false }).eq('id', item.id);
     loadData();
-  }, [loadData]);
+  }, [loadData, confirmDialog]);
 
   const columns = useMemo(
     () =>

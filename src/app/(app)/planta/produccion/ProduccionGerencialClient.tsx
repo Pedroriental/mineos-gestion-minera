@@ -11,6 +11,7 @@ import {
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useBiblioteca, useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
@@ -113,6 +114,7 @@ export default function ProduccionGerencialClient({
   const [formError, setFormError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingBalance, setIsExportingBalance] = useState(false);
+  const confirmDialog = useConfirm();
 
   const initialData = data.registros;
 
@@ -228,8 +230,12 @@ export default function ProduccionGerencialClient({
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('¿Eliminar este registro de producción?')) return;
+  const handleDelete = async (id: string) => {
+    if (!(await confirmDialog({
+      title: 'Eliminar reporte',
+      message: '¿Eliminar este registro de producción?',
+      variant: 'danger'
+    }))) return;
     startTransition(async () => {
       await deleteProduccion(id);
     });

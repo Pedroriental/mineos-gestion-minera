@@ -24,6 +24,7 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { upsertGastoConcepto, deleteGastoConcepto, getOrCreateCategoria } from '@/lib/actions/gastos';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 interface ConceptosClientProps {
   conceptos: GastoConcepto[];
@@ -56,6 +57,7 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
   const [globalFilter, setGlobalFilter] = useState('');
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: CONCEPTOS_PAGE_MAX });
   const tableBodyRef = useRef<HTMLDivElement>(null);
+  const confirmDialog = useConfirm();
 
   // Filtro de categorías en la barra lateral
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
@@ -338,8 +340,12 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
   }
 
   function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este concepto del catálogo? Esta acción no afectará tus gastos registrados.')) return;
     startTransition(async () => {
+      if (!(await confirmDialog({
+        title: 'Eliminar concepto',
+        message: '¿Eliminar este concepto del catálogo? Esta acción no afectará tus gastos registrados.',
+        variant: 'danger'
+      }))) return;
       const result = await deleteGastoConcepto(id);
       if (result.ok) {
         toast.success(result.message);

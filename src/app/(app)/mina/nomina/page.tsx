@@ -20,7 +20,8 @@ export default async function MinaNominaPage() {
     .from('personal')
     .select('*')
     .eq('area', area)
-    .order('nombre_completo');
+    .order('nombre_completo')
+    .limit(500);
 
   const personal = ((personalRows as Personal[]) || []).filter((p) =>
     isPersonalVisibleInNomina(p, area),
@@ -29,14 +30,16 @@ export default async function MinaNominaPage() {
   const { data: masterRows } = await supabase
     .from('personal')
     .select('*')
-    .order('nombre_completo');
+    .order('nombre_completo')
+    .limit(700);
 
   // Obtener historial de semanas procesadas
   const { data: semanas } = await supabase
     .from('nomina_semanas')
     .select('*')
     .eq('area', area)
-    .order('semana_inicio', { ascending: false });
+    .order('semana_inicio', { ascending: false })
+    .limit(200);
 
   return (
     <NominaWorkspace

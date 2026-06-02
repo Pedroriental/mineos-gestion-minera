@@ -2,6 +2,19 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
+import { z } from 'zod';
+import {
+  FiscalEntidadSchema,
+  FiscalEntidadUpdateSchema,
+  FiscalRepresentanteSchema,
+  FiscalRepresentanteUpdateSchema,
+  FiscalCuentaBancariaSchema,
+  FiscalCuentaBancariaUpdateSchema,
+  FiscalTextoLegalSchema,
+  FiscalTextoLegalUpdateSchema,
+  FiscalParametroSchema,
+  FiscalParametroUpdateSchema,
+} from '@/lib/validations/datos-fiscales';
 import type {
   FiscalCuentaBancaria,
   FiscalEntidad,
@@ -27,94 +40,83 @@ async function clearEmisorPrincipal(supabase: Awaited<ReturnType<typeof createSe
   await q;
 }
 
-export async function upsertFiscalEntidadAction(raw: {
-  id?: string;
-  nombre_comercial: string;
-  razon_social: string;
-  rif: string;
-  direccion_fiscal: string;
-  direccion_operativa?: string;
-  ciudad?: string;
-  estado_region?: string;
-  codigo_postal?: string;
-  pais?: string;
-  telefono?: string;
-  email?: string;
-  sitio_web?: string;
-  actividad_economica?: string;
-  es_emisor_principal?: boolean;
-  notas?: string;
-}): Promise<FiscalActionResult> {
-  try {
-    if (!raw.nombre_comercial.trim() || !raw.razon_social.trim() || !raw.rif.trim() || !raw.direccion_fiscal.trim()) {
-      return { ok: false, message: 'Razón social, RIF y dirección fiscal son obligatorios.' };
-    }
+export async function upsertFiscalEntidadAction(raw: Record<string, unknown>): Promise<FiscalActionResult> {
+  const schema = raw.id ? FiscalEntidadUpdateSchema : FiscalEntidadSchema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
 
+  try {
     const supabase = await createServerClient();
+    const data = parsed.data;
     const payload = {
-      nombre_comercial: raw.nombre_comercial.trim(),
-      razon_social: raw.razon_social.trim(),
-      rif: raw.rif.trim(),
-      direccion_fiscal: raw.direccion_fiscal.trim(),
-      direccion_operativa: raw.direccion_operativa?.trim() || null,
-      ciudad: raw.ciudad?.trim() || null,
-      estado_region: raw.estado_region?.trim() || null,
-      codigo_postal: raw.codigo_postal?.trim() || null,
-      pais: raw.pais?.trim() || 'Venezuela',
-      telefono: raw.telefono?.trim() || null,
-      email: raw.email?.trim() || null,
-      sitio_web: raw.sitio_web?.trim() || null,
-      actividad_economica: raw.actividad_economica?.trim() || null,
-      es_emisor_principal: !!raw.es_emisor_principal,
-      notas: raw.notas?.trim() || null,
+      nombre_comercial: data.nombre_comercial.trim(),
+      razon_social: data.razon_social.trim(),
+      rif: data.rif.trim(),
+      direccion_fiscal: data.direccion_fiscal.trim(),
+      direccion_operativa: data.direccion_operativa?.trim() || null,
+      ciudad: data.ciudad?.trim() || null,
+      estado_region: data.estado_region?.trim() || null,
+      codigo_postal: data.codigo_postal?.trim() || null,
+      pais: data.pais?.trim() || 'Venezuela',
+      telefono: data.telefono?.trim() || null,
+      email: data.email?.trim() || null,
+      sitio_web: data.sitio_web?.trim() || null,
+      actividad_economica: data.actividad_economica?.trim() || null,
+      es_emisor_principal: !!data.es_emisor_principal,
+      notas: data.notas?.trim() || null,
       activo: true,
     };
 
+    const id: string | undefined = 'id' in data ? (data as any).id : undefined;
+
     if (payload.es_emisor_principal) {
-      await clearEmisorPrincipal(supabase, raw.id);
+      await clearEmisorPrincipal(supabase, id);
     }
 
-    const { error } = raw.id
-      ? await supabase.from('fiscal_entidades').update(payload).eq('id', raw.id)
+    const { error } = id
+      ? await supabase.from('fiscal_entidades').update(payload).eq('id', id)
       : await supabase.from('fiscal_entidades').insert(payload);
 
     if (error) return { ok: false, message: error.message };
     revalidateAll();
-    return { ok: true, message: raw.id ? 'Entidad actualizada.' : 'Entidad registrada.' };
+    return { ok: true, message: id ? 'Entidad actualizada.' : 'Entidad registrada.' };
   } catch {
     return { ok: false, message: 'No se pudo guardar la entidad.' };
   }
 }
 
-export async function upsertFiscalRepresentanteAction(raw: {
-  id?: string;
-  entidad_id: string;
-  nombre_completo: string;
-  cedula?: string;
-  cargo?: string;
-  telefono?: string;
-  email?: string;
-  es_principal?: boolean;
-}): Promise<FiscalActionResult> {
+export async function upsertFiscalRepresentanteAction(raw: Record<string, unknown>): Promise<FiscalActionResult> {
+  const schema = raw.id ? FiscalRepresentanteUpdateSchema : FiscalRepresentanteSchema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+
   try {
     const supabase = await createServerClient();
-    if (raw.es_principal) {
+    const data = parsed.data;
+    if (data.es_principal) {
       await supabase
         .from('fiscal_representantes')
         .update({ es_principal: false })
-        .eq('entidad_id', raw.entidad_id);
+        .eq('entidad_id', data.entidad_id);
     }
     const payload = {
-      entidad_id: raw.entidad_id,
-      nombre_completo: raw.nombre_completo.trim(),
-      cedula: raw.cedula?.trim() || null,
-      cargo: raw.cargo?.trim() || 'Representante Legal',
-      telefono: raw.telefono?.trim() || null,
-      email: raw.email?.trim() || null,
-      es_principal: !!raw.es_principal,
+      entidad_id: data.entidad_id,
+      nombre_completo: data.nombre_completo.trim(),
+      cedula: data.cedula?.trim() || null,
+      cargo: data.cargo?.trim() || 'Representante Legal',
+      telefono: data.telefono?.trim() || null,
+      email: data.email?.trim() || null,
+      es_principal: !!data.es_principal,
     };
-    const { error } = raw.id
-      ? await supabase.from('fiscal_representantes').update(payload).eq('id', raw.id)
+    const id: string | undefined = 'id' in data ? (data as any).id : undefined;
+    const { error } = id
+      ? await supabase.from('fiscal_representantes').update(payload).eq('id', id)
       : await supabase.from('fiscal_representantes').insert(payload);
     if (error) return { ok: false, message: error.message };
     revalidateAll();
@@ -124,35 +126,35 @@ export async function upsertFiscalRepresentanteAction(raw: {
   }
 }
 
-export async function upsertFiscalCuentaAction(raw: {
-  id?: string;
-  entidad_id: string;
-  banco: string;
-  tipo_cuenta?: string;
-  numero_cuenta: string;
-  titular?: string;
-  moneda?: string;
-  es_principal?: boolean;
-}): Promise<FiscalActionResult> {
+export async function upsertFiscalCuentaAction(raw: Record<string, unknown>): Promise<FiscalActionResult> {
+  const schema = raw.id ? FiscalCuentaBancariaUpdateSchema : FiscalCuentaBancariaSchema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+
   try {
     const supabase = await createServerClient();
-    if (raw.es_principal) {
+    const data = parsed.data;
+    if (data.es_principal) {
       await supabase
         .from('fiscal_cuentas_bancarias')
         .update({ es_principal: false })
-        .eq('entidad_id', raw.entidad_id);
+        .eq('entidad_id', data.entidad_id);
     }
     const payload = {
-      entidad_id: raw.entidad_id,
-      banco: raw.banco.trim(),
-      tipo_cuenta: raw.tipo_cuenta?.trim() || 'Corriente',
-      numero_cuenta: raw.numero_cuenta.trim(),
-      titular: raw.titular?.trim() || null,
-      moneda: raw.moneda?.trim() || 'USD',
-      es_principal: !!raw.es_principal,
+      entidad_id: data.entidad_id,
+      banco: data.banco.trim(),
+      tipo_cuenta: data.tipo_cuenta?.trim() || 'Corriente',
+      numero_cuenta: data.numero_cuenta.trim(),
+      titular: data.titular?.trim() || null,
+      moneda: data.moneda?.trim() || 'USD',
+      es_principal: !!data.es_principal,
     };
-    const { error } = raw.id
-      ? await supabase.from('fiscal_cuentas_bancarias').update(payload).eq('id', raw.id)
+    const id: string | undefined = 'id' in data ? (data as any).id : undefined;
+    const { error } = id
+      ? await supabase.from('fiscal_cuentas_bancarias').update(payload).eq('id', id)
       : await supabase.from('fiscal_cuentas_bancarias').insert(payload);
     if (error) return { ok: false, message: error.message };
     revalidateAll();
@@ -162,25 +164,28 @@ export async function upsertFiscalCuentaAction(raw: {
   }
 }
 
-export async function upsertFiscalTextoAction(raw: {
-  id?: string;
-  slug: string;
-  titulo: string;
-  categoria: FiscalTextoLegal['categoria'];
-  contenido: string;
-}): Promise<FiscalActionResult> {
+export async function upsertFiscalTextoAction(raw: Record<string, unknown>): Promise<FiscalActionResult> {
+  const schema = raw.id ? FiscalTextoLegalUpdateSchema : FiscalTextoLegalSchema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+
   try {
     const supabase = await createServerClient();
-    const slug = raw.slug.trim().toLowerCase().replace(/\s+/g, '_');
+    const data = parsed.data;
+    const slug = data.slug.trim().toLowerCase().replace(/\s+/g, '_');
     const payload = {
       slug,
-      titulo: raw.titulo.trim(),
-      categoria: raw.categoria,
-      contenido: raw.contenido,
+      titulo: data.titulo.trim(),
+      categoria: data.categoria,
+      contenido: data.contenido,
       activo: true,
     };
-    const { error } = raw.id
-      ? await supabase.from('fiscal_textos_legales').update(payload).eq('id', raw.id)
+    const id: string | undefined = 'id' in data ? (data as any).id : undefined;
+    const { error } = id
+      ? await supabase.from('fiscal_textos_legales').update(payload).eq('id', id)
       : await supabase.from('fiscal_textos_legales').insert(payload);
     if (error) return { ok: false, message: error.message };
     revalidateAll();
@@ -190,24 +195,27 @@ export async function upsertFiscalTextoAction(raw: {
   }
 }
 
-export async function upsertFiscalParametroAction(raw: {
-  id?: string;
-  clave: string;
-  etiqueta: string;
-  valor: string;
-  grupo: FiscalParametro['grupo'];
-}): Promise<FiscalActionResult> {
+export async function upsertFiscalParametroAction(raw: Record<string, unknown>): Promise<FiscalActionResult> {
+  const schema = raw.id ? FiscalParametroUpdateSchema : FiscalParametroSchema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+
   try {
     const supabase = await createServerClient();
-    const clave = raw.clave.trim().toLowerCase().replace(/\s+/g, '_');
+    const data = parsed.data;
+    const clave = data.clave.trim().toLowerCase().replace(/\s+/g, '_');
     const payload = {
       clave,
-      etiqueta: raw.etiqueta.trim(),
-      valor: raw.valor,
-      grupo: raw.grupo,
+      etiqueta: data.etiqueta.trim(),
+      valor: data.valor,
+      grupo: data.grupo,
     };
-    const { error } = raw.id
-      ? await supabase.from('fiscal_parametros').update(payload).eq('id', raw.id)
+    const id: string | undefined = 'id' in data ? (data as any).id : undefined;
+    const { error } = id
+      ? await supabase.from('fiscal_parametros').update(payload).eq('id', id)
       : await supabase.from('fiscal_parametros').insert(payload);
     if (error) return { ok: false, message: error.message };
     revalidateAll();
@@ -218,6 +226,9 @@ export async function upsertFiscalParametroAction(raw: {
 }
 
 export async function deleteFiscalEntidadAction(id: string): Promise<FiscalActionResult> {
+  const parsed = z.string().uuid('ID inválido').safeParse(id);
+  if (!parsed.success) return { ok: false, message: 'ID de entidad inválido' };
+
   const supabase = await createServerClient();
   const { error } = await supabase.from('fiscal_entidades').delete().eq('id', id);
   if (error) return { ok: false, message: error.message };
@@ -226,6 +237,9 @@ export async function deleteFiscalEntidadAction(id: string): Promise<FiscalActio
 }
 
 export async function deleteFiscalTextoAction(id: string): Promise<FiscalActionResult> {
+  const parsed = z.string().uuid('ID inválido').safeParse(id);
+  if (!parsed.success) return { ok: false, message: 'ID de texto inválido' };
+
   const supabase = await createServerClient();
   const { error } = await supabase.from('fiscal_textos_legales').delete().eq('id', id);
   if (error) return { ok: false, message: error.message };

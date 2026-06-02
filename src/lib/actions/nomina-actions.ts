@@ -7,6 +7,7 @@ import { mapPeriodoRow, validateImportTotals } from '@/lib/nomina/archive';
 import { buildImportCommitPayload, type ImportCommitPayload } from '@/lib/nomina/import-commit';
 import { buildImportFidelityReport } from '@/lib/nomina/import-fidelity';
 import type { InferredWorkerProfile, NominaPeriodoSummary, ParsedNominaPeriod } from '@/lib/nomina/types';
+import type { Personal } from '@/lib/types';
 import { registrarAuditAction } from '@/lib/actions/nomina-v3';
 import { loadBibliotecaCompleta, upsertBibliotecaVariableAction } from '@/lib/actions/biblioteca-variables';
 import {
@@ -76,7 +77,7 @@ function normalizeName(name: string): string {
     .trim();
 }
 
-export async function getPersonalMapAction(): Promise<{ ok: boolean; data?: any[] }> {
+export async function getPersonalMapAction(): Promise<{ ok: boolean; data?: Pick<Personal, 'id' | 'cedula' | 'nombre_completo' | 'estado_laboral' | 'despido_causa' | 'observacion_estado'>[] }> {
   try {
     const supabase = await createServerClient();
     const { data } = await supabase.from('personal').select('id, cedula, nombre_completo, estado_laboral, despido_causa, observacion_estado');
@@ -97,18 +98,12 @@ export async function importarNominaHistoricaAction(input: {
     const supabase = await createServerClient();
     const { period, profiles, userId, label, toleranceUsd = 0.05 } = input;
 
-    const computedTotal = period.grandTotal;
-    const validation = validateImportTotals(period.grandTotal, computedTotal, toleranceUsd);
-    if (!validation.ok) {
-      return { ok: false, message: validation.message ?? 'Totales no cuadran' };
-    }
-
     const { data: personalRows } = await supabase.from('personal').select('*');
     const existingByCedula = new Map(
-      (personalRows || []).map((p: any) => [p.cedula, p]),
+      (personalRows || []).map((p: Personal) => [p.cedula, p]),
     );
     const existingByName = new Map(
-      (personalRows || []).map((p: any) => [normalizeName(p.nombre_completo), p]),
+      (personalRows || []).map((p: Personal) => [normalizeName(p.nombre_completo), p]),
     );
 
     const commitPlan = buildImportCommitPayload(period, profiles, {
@@ -116,6 +111,15 @@ export async function importarNominaHistoricaAction(input: {
       userId,
       existingPersonal: existingByCedula as Map<string, import('@/lib/types').Personal>,
     });
+
+    const computedTotal = commitPlan.semanas.reduce(
+      (sum, s) => sum + s.registros.reduce((sub, r) => sub + Number(r.monto_pagado), 0),
+      0,
+    );
+    const validation = validateImportTotals(period.grandTotal, computedTotal, toleranceUsd);
+    if (!validation.ok) {
+      return { ok: false, message: validation.message ?? 'Totales no cuadran' };
+    }
 
     const newWorkersRegistered: string[] = [];
 

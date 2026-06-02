@@ -12,6 +12,7 @@ import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 export default function EquiposPage() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export default function EquiposPage() {
 
   const emptyForm = { codigo: '', nombre: '', tipo: 'compresor' as Equipo['tipo'], ubicacion: '', estado: 'operativo' as Equipo['estado'], horas_operacion: '', observaciones: '' };
   const [form, setForm] = useState(emptyForm);
+  const confirmDialog = useConfirm();
 
   const { begin, isStale } = useAsyncGuard();
 
@@ -53,7 +55,11 @@ export default function EquiposPage() {
 
   const handleDelete = async (e: React.MouseEvent, id: string, nombre: string) => {
     e.stopPropagation();
-    if (!confirm(`¿Eliminar el equipo "${nombre}"? El equipo será desactivado y ya no aparecerá en la lista.`)) return;
+    if (!(await confirmDialog({
+      title: 'Eliminar equipo',
+      message: `¿Eliminar el equipo "${nombre}"? El equipo será desactivado y ya no aparecerá en la lista.`,
+      variant: 'danger'
+    }))) return;
     await supabase.from('equipos').update({ activo: false }).eq('id', id);
     loadData();
   };

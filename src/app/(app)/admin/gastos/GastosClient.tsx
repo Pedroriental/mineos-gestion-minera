@@ -15,6 +15,7 @@ import {
   Download, Tag, FileText, ChevronLeft, ChevronRight,
   Receipt, Wallet, BarChart3, FileDown, Calendar, Trash2,
 } from 'lucide-react';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { toast } from 'sonner';
 import type { Gasto, CategoriaGasto } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
@@ -87,6 +88,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   const { user }  = useAuth();
   const canEdit   = useCanEdit();
   const [isPending, startTransition] = useTransition();
+  const confirmDialog = useConfirm();
 
   const [showModal, setShowModal] = useState(false);
   const [editItem,  setEditItem]  = useState<Gasto | null>(null);
@@ -575,14 +577,25 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
         });
 
       } else {
+        // Resolver categorías: deduplicar nombres y resolver en paralelo
+        const uniqueCats = [...new Set(items.map((it) => it.categoria_nombre))];
+        const catResults = await Promise.all(
+          uniqueCats.map((name) => getOrCreateCategoria(name)),
+        );
+        const catMap = new Map<string, string>();
+        for (let i = 0; i < uniqueCats.length; i++) {
+          const r = catResults[i];
+          if (!r.ok) { setFormError(r.message); return; }
+          catMap.set(uniqueCats[i], r.id);
+        }
+
         for (const it of items) {
-          const catResult = await getOrCreateCategoria(it.categoria_nombre);
-          if (!catResult.ok) { setFormError(catResult.message); return; }
+          const categoriaId = catMap.get(it.categoria_nombre)!;
 
           if (it.guardar_en_catalogo) {
             await upsertGastoConcepto({
               descripcion: it.descripcion,
-              categoria_default_id: catResult.id,
+              categoria_default_id: categoriaId,
               proveedor_sugerido: baseInfo.proveedor || null,
               monto_sugerido: null,
             });
@@ -595,7 +608,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
 
           payloads.push({
             fecha: baseInfo.fecha, 
-            categoria_id: catResult.id, 
+            categoria_id: categoriaId, 
             descripcion: desc,
             monto: parseFloat(it.monto), 
             proveedor: baseInfo.proveedor || null,
@@ -613,8 +626,12 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
     });
   }
 
-  function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este gasto?')) return;
+  async function handleDelete(id: string) {
+    if (!(await confirmDialog({
+      title: 'Eliminar gasto',
+      message: '¿Eliminar este gasto? Esta acción no se puede deshacer.',
+      variant: 'danger'
+    }))) return;
     startTransition(async () => {
       const result = await deleteGasto(id);
       if (result.ok) {
@@ -1036,6 +1053,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
           <button
             type="button"
             onClick={closeModal}
+            aria-label="Cerrar formulario"
             className="rounded-lg p-1.5 text-white/40 hover:bg-white/[0.06]"
           >
             <X className="h-5 w-5" />

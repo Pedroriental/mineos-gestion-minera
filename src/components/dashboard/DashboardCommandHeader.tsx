@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import Link from 'next/link';
 import { Activity, AlertTriangle, ChevronRight, Gem, Users, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,7 +12,7 @@ type DashboardCommandHeaderProps = {
   totalNodes: number;
 };
 
-export function DashboardCommandHeader({
+export const DashboardCommandHeader = memo(function DashboardCommandHeader({
   globalData,
   activeNodes,
   totalNodes,
@@ -86,4 +87,4 @@ export function DashboardCommandHeader({
       </div>
     </header>
   );
-}
+});

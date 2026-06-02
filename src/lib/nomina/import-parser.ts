@@ -195,7 +195,7 @@ const SPANISH_DATE_RE = new RegExp(`(\\d{1,2})\\s+(?:de\\s+)?${SPANISH_MONTH}`, 
 
 function inferYearFromNominaLines(lines: string[]): string {
   for (const l of lines.slice(0, 40)) {
-    const y = l.match(/\b(202\d)\b/);
+    const y = l.match(/\b(20\d{2})\b/);
     if (y) return y[1];
   }
   return new Date().getFullYear().toString();
@@ -1322,7 +1322,13 @@ export function parseExcelNominaMatrix(
   return period;
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
 export async function parseNominaMatrixFromFile(file: File): Promise<ParsedNominaPeriod> {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`Archivo demasiado grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Máximo: 50 MB.`);
+  }
+
   const name = file.name.toLowerCase();
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
     const arrayBuffer = await file.arrayBuffer();

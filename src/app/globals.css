@@ -84,6 +84,14 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
 }
 
+/* Make native date/time/month pickers use dark theme popups */
+input[type="date"],
+input[type="month"],
+input[type="time"],
+input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
 /* Recharts / Tremor chart text */
 .recharts-text,
 .recharts-cartesian-axis-tick-value {
@@ -956,45 +964,55 @@ button, a, [role="button"] {
   color: #7c2d12;
 }
 
-[data-theme="light"] .app-select__trigger {
+[data-theme="light"] .app-select__trigger,
+[data-theme="light"].app-select__trigger {
   border-color: rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.92);
   color: #1e293b;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-[data-theme="light"] .app-select__trigger:hover:not(:disabled) {
+[data-theme="light"] .app-select__trigger:hover:not(:disabled),
+[data-theme="light"].app-select__trigger:hover:not(:disabled) {
   border-color: rgba(198, 109, 71, 0.28);
   background: #ffffff;
 }
 
-[data-theme="light"] .app-select__trigger:focus-visible {
+[data-theme="light"] .app-select__trigger:focus-visible,
+[data-theme="light"].app-select__trigger:focus-visible {
   border-color: rgba(198, 109, 71, 0.45);
   box-shadow: 0 0 0 3px rgba(198, 109, 71, 0.14);
 }
 
-[data-theme="light"] .app-select__menu {
+[data-theme="light"] .app-select__menu,
+[data-theme="light"].app-select__menu {
   border-color: rgba(0, 0, 0, 0.06);
   background: #ffffff;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
 }
 
-[data-theme="light"] .app-select__option {
+[data-theme="light"] .app-select__option,
+[data-theme="light"] .app-select__menu .app-select__option,
+[data-theme="light"].app-select__menu .app-select__option {
   color: #334155;
 }
 
 [data-theme="light"] .app-select__option--active,
-[data-theme="light"] .app-select__option:hover {
+[data-theme="light"] .app-select__option:hover,
+[data-theme="light"].app-select__menu .app-select__option--active,
+[data-theme="light"].app-select__menu .app-select__option:hover {
   background: rgba(198, 109, 71, 0.14);
   color: #7c2d12;
 }
 
-[data-theme="light"] .app-select__option--selected {
+[data-theme="light"] .app-select__option--selected,
+[data-theme="light"].app-select__menu .app-select__option--selected {
   background: rgba(198, 109, 71, 0.1);
   color: #9a3412;
 }
 
-[data-theme="light"] .app-select__option--selected.app-select__option--active {
+[data-theme="light"] .app-select__option--selected.app-select__option--active,
+[data-theme="light"].app-select__menu .app-select__option--selected.app-select__option--active {
   background: rgba(198, 109, 71, 0.2);
 }
 
@@ -1091,6 +1109,7 @@ button, a, [role="button"] {
   box-shadow: 0 0 0 3px rgba(198, 109, 71, 0.14);
 }
 
+.page-form-modal-backdrop [data-theme='light'] .app-select__trigger,
 [data-theme='light'] .page-form-modal-backdrop .app-select__trigger {
   background-color: rgba(255, 255, 255, 0.92);
   border-color: rgba(0, 0, 0, 0.08);

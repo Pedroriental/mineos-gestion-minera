@@ -12,6 +12,13 @@ import {
 } from '@/lib/nomina-distribucion';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
 import type { NominaVale, PreNominaRow, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
+import { z } from 'zod';
+import {
+  PersonalV3Schema,
+  PersonalV3UpdateSchema,
+  AssignToNominaAreaSchema,
+  CrearValeSchema,
+} from '@/lib/validations/nomina-v3';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
@@ -38,41 +45,49 @@ export async function upsertPersonalV3Action(raw: {
   esquema_rotacion: string;
   rotacion_inicio_fecha: string;
 }): Promise<ActionResult> {
+  const schema = raw.id ? PersonalV3UpdateSchema : PersonalV3Schema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+  const data = parsed.data as typeof parsed.data & { id?: string };
   try {
     const supabase = await createServerClient();
-    const areaDetalle = normalizeAreaDetalle(raw.area_detalle || '', raw.area);
+    const areaDetalle = normalizeAreaDetalle(data.area_detalle || '', data.area);
 
     const { data: existingByCedula } = await supabase
       .from('personal')
       .select(
         'id, estado_laboral, observacion_estado, despido_fecha, despido_causa, reenganche_fecha, reenganche_cargo, reenganche_observacion',
       )
-      .eq('cedula', raw.cedula)
+      .eq('cedula', data.cedula)
       .maybeSingle();
 
-    const targetId = raw.id || existingByCedula?.id;
+    const hasId = 'id' in parsed.data && parsed.data.id !== undefined;
+    const targetId = hasId ? (parsed.data as any).id : existingByCedula?.id;
     const estadoActual = (existingByCedula?.estado_laboral || 'ACTIVO') as string;
 
     const payload: Record<string, unknown> = {
-      cedula: raw.cedula,
-      nombre_completo: raw.nombre_completo,
-      cargo: raw.cargo,
-      area: raw.area,
+      cedula: data.cedula,
+      nombre_completo: data.nombre_completo,
+      cargo: data.cargo,
+      area: data.area,
       area_detalle: areaDetalle,
-      salario_base: raw.salario_base,
-      salario_libre: raw.salario_libre,
-      bono_transporte: raw.bono_transporte,
-      telefono: raw.telefono,
-      notas: raw.notas,
-      fecha_ingreso: raw.fecha_ingreso,
-      esquema_rotacion: raw.esquema_rotacion || 'FIJO_SEMANAL',
-      rotacion_inicio_fecha: raw.rotacion_inicio_fecha || null,
+      salario_base: data.salario_base,
+      salario_libre: data.salario_libre,
+      bono_transporte: data.bono_transporte,
+      telefono: data.telefono,
+      notas: data.notas,
+      fecha_ingreso: data.fecha_ingreso,
+      esquema_rotacion: data.esquema_rotacion || 'FIJO_SEMANAL',
+      rotacion_inicio_fecha: data.rotacion_inicio_fecha || null,
     };
 
     if (estadoActual === 'DESPEDIDO') {
       payload.estado_laboral = 'REENGANCHADO';
       payload.reenganche_fecha = new Date().toISOString().split('T')[0];
-      payload.reenganche_cargo = raw.cargo;
+      payload.reenganche_cargo = data.cargo;
       payload.reenganche_observacion = 'Reincorporado desde módulo de nómina.';
       payload.despido_fecha = null;
       payload.despido_causa = null;
@@ -104,7 +119,7 @@ export async function upsertPersonalV3Action(raw: {
 
     if (error) return { ok: false, message: error.message };
     revalidateAll();
-    return { ok: true, message: raw.id ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
+    return { ok: true, message: hasId ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
   } catch (e) {
     return { ok: false, message: 'Error interno del servidor.' };
   }
@@ -116,25 +131,28 @@ export async function assignPersonalToNominaAreaAction(input: {
   targetArea: string;
   areaDetalle?: string;
 }): Promise<ActionResult> {
+  const parsed = AssignToNominaAreaSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos' };
+  const data = parsed.data;
   try {
     const supabase = await createServerClient();
     const { data: row, error: fetchError } = await supabase
       .from('personal')
       .select('*')
-      .eq('id', input.personalId)
+      .eq('id', data.personalId)
       .maybeSingle();
 
     if (fetchError) return { ok: false, message: fetchError.message };
     if (!row) return { ok: false, message: 'Trabajador no encontrado en la base.' };
 
     const areaDetalle = normalizeAreaDetalle(
-      input.areaDetalle || String(row.area_detalle || ''),
-      input.targetArea,
+      data.areaDetalle || String(row.area_detalle || ''),
+      data.targetArea,
     );
     const estadoActual = String(row.estado_laboral || 'ACTIVO');
 
     const payload: Record<string, unknown> = {
-      area: input.targetArea,
+      area: data.targetArea,
       area_detalle: areaDetalle,
       activo: true,
       estatus: 'ACTIVO',
@@ -165,7 +183,7 @@ export async function assignPersonalToNominaAreaAction(input: {
     const biblioteca = await loadBibliotecaAppSnapshot();
     const esquemaActual = String(row.esquema_rotacion || '');
     const esquemaDefault =
-      biblioteca.esquemaDefaultPorArea[input.targetArea] || ('FIJO_SEMANAL' as const);
+      biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);
     if (!esquemaActual || esquemaActual === 'FIJO_SEMANAL') {
       payload.esquema_rotacion = esquemaDefault;
     }
@@ -174,7 +192,7 @@ export async function assignPersonalToNominaAreaAction(input: {
       payload.rotacion_inicio_fecha = new Date().toISOString().split('T')[0];
     }
 
-    const { error } = await supabase.from('personal').update(payload).eq('id', input.personalId);
+    const { error } = await supabase.from('personal').update(payload).eq('id', data.personalId);
     if (error) return { ok: false, message: error.message };
 
     revalidateAll();
@@ -238,13 +256,16 @@ export async function crearValeAction(
   motivo: string,
   fecha?: string
 ): Promise<ActionResult> {
+  const parsed = CrearValeSchema.safeParse({ personalId, monto, motivo, fecha });
+  if (!parsed.success) return { ok: false, message: Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos' };
+  const data = parsed.data;
   try {
     const supabase = await createServerClient();
     const { error } = await supabase.from('nomina_vales').insert({
-      personal_id: personalId,
-      monto,
-      motivo: motivo || 'Adelanto de caja',
-      fecha: fecha || new Date().toISOString().split('T')[0],
+      personal_id: data.personalId,
+      monto: data.monto,
+      motivo: data.motivo,
+      fecha: data.fecha || new Date().toISOString().split('T')[0],
       estado: 'PENDIENTE',
     });
     if (error) return { ok: false, message: error.message };
@@ -257,9 +278,12 @@ export async function crearValeAction(
 
 // Eliminar un vale pendiente
 export async function eliminarValeAction(valeId: string): Promise<ActionResult> {
+  const parsed = z.string().uuid('ID inválido').safeParse(valeId);
+  if (!parsed.success) return { ok: false, message: Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos' };
+  const id = parsed.data;
   try {
     const supabase = await createServerClient();
-    const { error } = await supabase.from('nomina_vales').delete().eq('id', valeId);
+    const { error } = await supabase.from('nomina_vales').delete().eq('id', id);
     if (error) return { ok: false, message: error.message };
     revalidateAll();
     return { ok: true, message: 'Vale eliminado.' };

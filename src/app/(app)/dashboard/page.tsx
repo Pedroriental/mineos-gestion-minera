@@ -2,6 +2,7 @@ import dynamic from 'next/dynamic';
 import { createServerClient } from '@/lib/supabase-server';
 import { buildDashboardAlerts } from '@/lib/dashboard-alerts';
 import { computePlanchaBalances, resolvePlanchaLines } from '@/lib/dashboard-planchas';
+import type { PlanchaLineConfig } from '@/lib/dashboard-planchas';
 import { DashboardCommandSkeleton } from '@/components/dashboard/DashboardCommandSkeleton';
 import type { LocationData, GlobalData } from '@/components/dashboard/types';
 
@@ -88,6 +89,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const supabase = await createServerClient();
 
+  // Helper: evita que una excepción de red cascadee todo el dashboard
+  const safeCatch = async <T,>(promise: any): Promise<T> => {
+    try { return await (promise as Promise<T>); } catch { return undefined as unknown as T; }
+  };
+
+  type GastoRow = { monto: number };
+  type ProdRow = { molino?: string | null; oro_recuperado_g?: number | null; fecha?: string; tenor_tonelada_gpt?: number | null; merma_1_pct?: number | null; material?: string | null; material_codigo?: string | null };
+  type InventarioRow = { id: string; nombre: string; stock_actual: number; stock_minimo: number };
+  type PersonalAreaRow = { area: string };
+  type VoladuraRow = { id: string; mina: string; fecha: string; sin_novedad: boolean };
+  type ValesRow = { id: string; monto: number; personal: { area: string } };
+  type NominaSemanaRow = { area: string; semana_inicio: string };
+  type EquiposResponse = { data: never[]; count: number };
+  type PersonalCountResponse = { data: never[]; count: number };
+
   try {
     const [
       gastosHoyRes,
@@ -102,35 +118,50 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       personalRes,
       planchaLines,
     ] = await Promise.all([
-      supabase.from('gastos').select('monto').eq('fecha', today),
-      supabase.from('gastos').select('monto').gte('fecha', from).lte('fecha', to),
-      supabase.from('equipos').select('id', { count: 'exact', head: true }).eq('activo', true),
-      supabase
-        .from('reportes_produccion')
-        .select('molino, oro_recuperado_g, tenor_tonelada_gpt, merma_1_pct, material, material_codigo')
-        .gte('fecha', from)
-        .lte('fecha', to)
-        .order('fecha', { ascending: false }),
-      supabase
-        .from('reportes_voladuras')
-        .select('id, mina, fecha, sin_novedad')
-        .gte('fecha', from)
-        .lte('fecha', to)
-        .eq('sin_novedad', false)
-        .order('fecha', { ascending: false })
-        .limit(10),
-      supabase
-        .from('inventario_items')
-        .select('id, nombre, stock_actual, stock_minimo')
-        .eq('activo', true),
-      supabase.from('nomina_semanas').select('area, semana_inicio'),
-      supabase.from('personal').select('area').eq('activo', true).in('area', ['planta', 'mina', 'administracion']),
-      supabase
-        .from('nomina_vales')
-        .select('id, monto, personal:personal_id(area)')
-        .eq('estado', 'PENDIENTE'),
-      supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).in('area', ['planta', 'mina']),
-      resolvePlanchaLines(supabase),
+      safeCatch<{ data: GastoRow[]; error: any }>(supabase.from('gastos').select('monto').eq('fecha', today).limit(500)),
+      safeCatch<{ data: GastoRow[]; error: any }>(supabase.from('gastos').select('monto').gte('fecha', from).lte('fecha', to).limit(500)),
+      safeCatch<EquiposResponse>(supabase.from('equipos').select('id', { count: 'exact', head: true }).eq('activo', true)),
+      safeCatch<{ data: ProdRow[]; error: any }>(
+        supabase
+          .from('reportes_produccion')
+          .select('molino, oro_recuperado_g, tenor_tonelada_gpt, merma_1_pct, material, material_codigo')
+          .gte('fecha', from)
+          .lte('fecha', to)
+          .order('fecha', { ascending: false })
+          .limit(500),
+      ),
+      safeCatch<{ data: VoladuraRow[]; error: any }>(
+        supabase
+          .from('reportes_voladuras')
+          .select('id, mina, fecha, sin_novedad')
+          .gte('fecha', from)
+          .lte('fecha', to)
+          .eq('sin_novedad', false)
+          .order('fecha', { ascending: false })
+          .limit(10),
+      ),
+      safeCatch<{ data: InventarioRow[]; error: any }>(
+        supabase
+          .from('inventario_items')
+          .select('id, nombre, stock_actual, stock_minimo')
+          .eq('activo', true)
+          .limit(500),
+      ),
+      safeCatch<{ data: NominaSemanaRow[]; error: any }>(supabase.from('nomina_semanas').select('area, semana_inicio').limit(200)),
+      safeCatch<{ data: PersonalAreaRow[]; error: any }>(
+        supabase.from('personal').select('area').eq('activo', true).in('area', ['planta', 'mina', 'administracion']).limit(500),
+      ),
+      safeCatch<{ data: ValesRow[]; error: any }>(
+        supabase
+          .from('nomina_vales')
+          .select('id, monto, personal:personal_id(area)')
+          .eq('estado', 'PENDIENTE')
+          .limit(500),
+      ),
+      safeCatch<PersonalCountResponse>(
+        supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).in('area', ['planta', 'mina']),
+      ),
+      safeCatch<PlanchaLineConfig[]>(resolvePlanchaLines(supabase)),
     ]);
 
     const reportesProd = (prodRes?.data ?? []) as {

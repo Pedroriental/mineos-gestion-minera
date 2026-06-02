@@ -14,6 +14,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { GastoSchema, GastoUpdateSchema } from '@/lib/validations/gastos';
+import { GastoConceptoSchema } from '@/lib/validations/conceptos';
 import { z } from 'zod';
 
 // ── Tipo de respuesta estándar ────────────────────────────────
@@ -51,22 +52,27 @@ export async function createGasto(raw: unknown): Promise<ActionResult> {
 
   const data = parsed.data;
 
-  // 2) Insertar en Supabase
+  // 2) Insertar en Supabase y verificar que RLS no bloquee
   const supabase = await createServerClient();
-  const { error } = await supabase.from('gastos').insert({
+  const { data: inserted, error } = await supabase.from('gastos').insert({
     fecha:               data.fecha,
     categoria_id:        data.categoria_id,
     descripcion:         data.descripcion,
     monto:               data.monto,
-    proveedor:           data.proveedor   || null,
-    factura_referencia:  data.factura_referencia || null,
-    notas:               data.notas       || null,
-    registrado_por:      data.registrado_por    || null,
-  });
+    proveedor:           data.proveedor   ?? null,
+    factura_referencia:  data.factura_referencia ?? null,
+    notas:               data.notas       ?? null,
+    registrado_por:      data.registrado_por    ?? null,
+  }).select('id');
 
     if (error) {
       console.error('[Action] createGasto Supabase error:', error.message);
       return { ok: false, message: `Error al guardar: ${error.message}` };
+    }
+
+    if (!inserted || inserted.length === 0) {
+      console.error('[Action] createGasto: RLS silently blocked insert');
+      return { ok: false, message: 'Error de permisos: no se pudo guardar el gasto.' };
     }
 
     // 3) Purgar caché y actualizar UI sin reload
@@ -86,7 +92,7 @@ export async function createGastosBulk(raws: unknown[]): Promise<ActionResult> {
     const parsedArray = z.array(GastoSchema).safeParse(raws);
 
     if (!parsedArray.success) {
-      const fieldErrors = parsedArray.error.flatten().fieldErrors as Record<string, string[]>;
+      const fieldErrors = parsedArray.error.flatten().fieldErrors as unknown as Record<string, string[]>;
       const firstError = Object.values(fieldErrors).flat()[0] ?? 'Datos inválidos en uno de los registros';
       return { ok: false, message: firstError, fieldErrors };
     }
@@ -100,17 +106,22 @@ export async function createGastosBulk(raws: unknown[]): Promise<ActionResult> {
       categoria_id:        g.categoria_id,
       descripcion:         g.descripcion,
       monto:               g.monto,
-      proveedor:           g.proveedor   || null,
-      factura_referencia:  g.factura_referencia || null,
-      notas:               g.notas       || null,
-      registrado_por:      g.registrado_por    || null,
+      proveedor:           g.proveedor   ?? null,
+      factura_referencia:  g.factura_referencia ?? null,
+      notas:               g.notas       ?? null,
+      registrado_por:      g.registrado_por    ?? null,
     }));
 
-    const { error } = await supabase.from('gastos').insert(rowsToInsert);
+    const { data: inserted, error } = await supabase.from('gastos').insert(rowsToInsert).select('id');
 
     if (error) {
       console.error('[Action] createGastosBulk Supabase error:', error.message);
       return { ok: false, message: `Error al guardar lote: ${error.message}` };
+    }
+
+    if (!inserted || inserted.length === 0) {
+      console.error('[Action] createGastosBulk: RLS silently blocked bulk insert');
+      return { ok: false, message: 'Error de permisos: no se pudieron guardar los gastos.' };
     }
 
     revalidateAll();
@@ -137,22 +148,28 @@ export async function updateGasto(raw: unknown): Promise<ActionResult> {
   const { id, registrado_por: _rp, ...rest } = parsed.data;
 
   const supabase = await createServerClient();
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('gastos')
     .update({
       fecha:              rest.fecha,
       categoria_id:       rest.categoria_id,
       descripcion:        rest.descripcion,
       monto:              rest.monto,
-      proveedor:          rest.proveedor          || null,
-      factura_referencia: rest.factura_referencia || null,
-      notas:              rest.notas              || null,
+      proveedor:          rest.proveedor          ?? null,
+      factura_referencia: rest.factura_referencia ?? null,
+      notas:              rest.notas              ?? null,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
 
     if (error) {
       console.error('[Action] updateGasto Supabase error:', error.message);
       return { ok: false, message: `Error al actualizar: ${error.message}` };
+    }
+
+    if (!updated || updated.length === 0) {
+      console.error('[Action] updateGasto: RLS silently blocked update or record not found');
+      return { ok: false, message: 'Error de permisos: no se pudo actualizar el gasto.' };
     }
 
     revalidateAll();
@@ -202,13 +219,13 @@ export async function getOrCreateCategoria(
 
     const supabase = await createServerClient();
 
-    // 1) Buscar por nombre (insensible a mayúsculas)
+    // 1) Buscar por nombre exacto (insensible a mayúsculas)
     const { data: existing } = await supabase
       .from('categorias_gasto')
       .select('id')
-      .ilike('nombre', nombreClean)
+      .eq('nombre', nombreClean)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (existing?.id) return { ok: true, id: existing.id };
 
@@ -236,34 +253,29 @@ export async function getOrCreateCategoria(
 // CATALOGO DE CONCEPTOS — registrar, actualizar y eliminar
 // ─────────────────────────────────────────────────────────────
 
-export async function upsertGastoConcepto(raw: {
-  id?: string;
-  descripcion: string;
-  categoria_default_id?: string | null;
-  proveedor_sugerido?: string | null;
-  monto_sugerido?: number | null;
-  notas?: string | null;
-  activo?: boolean;
-}): Promise<ActionResult> {
+export async function upsertGastoConcepto(raw: unknown): Promise<ActionResult> {
   try {
-    const descClean = raw.descripcion.trim();
-    if (!descClean || descClean.length < 3) {
-      return { ok: false, message: 'La descripción del concepto debe tener al menos 3 caracteres.' };
+    const parsed = GastoConceptoSchema.safeParse(raw);
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.flatten().fieldErrors as unknown as Record<string, string[]>;
+      const firstError = Object.values(fieldErrors).flat()[0] ?? 'Datos inválidos';
+      return { ok: false, message: firstError, fieldErrors };
     }
 
+    const data = parsed.data;
     const supabase = await createServerClient();
     const payload = {
-      descripcion: descClean,
-      categoria_default_id: raw.categoria_default_id || null,
-      proveedor_sugerido: raw.proveedor_sugerido || null,
-      monto_sugerido: raw.monto_sugerido || null,
-      notas: raw.notas || null,
-      activo: raw.activo !== false,
+      descripcion: data.descripcion.trim(),
+      categoria_default_id: data.categoria_default_id ?? null,
+      proveedor_sugerido: data.proveedor_sugerido ?? null,
+      monto_sugerido: data.monto_sugerido ?? null,
+      notas: data.notas ?? null,
+      activo: data.activo ?? true,
     };
 
     let error;
-    if (raw.id) {
-      ({ error } = await supabase.from('gasto_conceptos').update(payload).eq('id', raw.id));
+    if (data.id) {
+      ({ error } = await supabase.from('gasto_conceptos').update(payload).eq('id', data.id));
     } else {
       ({ error } = await supabase.from('gasto_conceptos').insert(payload));
     }
@@ -286,6 +298,11 @@ export async function upsertGastoConcepto(raw: {
 
 export async function deleteGastoConcepto(id: string): Promise<ActionResult> {
   try {
+    const parsed = z.string().uuid('ID de concepto inválido').safeParse(id);
+    if (!parsed.success) {
+      return { ok: false, message: 'ID de concepto inválido' };
+    }
+
     const supabase = await createServerClient();
     const { error } = await supabase.from('gasto_conceptos').delete().eq('id', id);
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -13,7 +14,7 @@ type CriticalAlertsBannerProps = {
 };
 
 /** Indicador de alertas del sistema: rojo con eventos activos, verde si está nominal. */
-export function CriticalAlertsBanner({ alerts, variant = 'default' }: CriticalAlertsBannerProps) {
+export const CriticalAlertsBanner = memo(function CriticalAlertsBanner({ alerts, variant = 'default' }: CriticalAlertsBannerProps) {
   const isCompact = variant === 'compact';
   const hasAlerts = alerts.length > 0;
 
@@ -81,4 +82,4 @@ export function CriticalAlertsBanner({ alerts, variant = 'default' }: CriticalAl
       </Link>
     </section>
   );
-}
+});

@@ -9,7 +9,8 @@ export default async function ConceptosPage() {
     supabase
       .from('gasto_conceptos')
       .select('*, categorias_gasto(id, nombre, tipo)')
-      .order('descripcion'),
+      .order('descripcion')
+      .limit(500),
     supabase
       .from('categorias_gasto')
       .select('*')

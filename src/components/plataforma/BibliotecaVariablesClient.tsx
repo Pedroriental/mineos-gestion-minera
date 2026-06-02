@@ -27,6 +27,7 @@ import type { BibliotecaCategoriaCompleta, BibliotecaModulo } from '@/lib/types'
 import { BibliotecaCategoryVariablesView } from '@/components/plataforma/BibliotecaCategoryVariablesView';
 import { BibliotecaVariableFormFields } from '@/components/plataforma/BibliotecaVariableFormFields';
 import { MODULO_LABEL } from '@/components/plataforma/biblioteca-constants';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 type Props = { catalogo: BibliotecaCategoriaCompleta[] };
 
@@ -54,6 +55,7 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
   const [search, setSearch] = useState('');
   const [categoriaId, setCategoriaId] = useState<string | null>(catalogo[0]?.id ?? null);
   const [isPending, startTransition] = useTransition();
+  const confirmDialog = useConfirm();
 
   const [catModal, setCatModal] = useState(false);
   const [catForm, setCatForm] = useState({
@@ -283,13 +285,21 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
                 categoria={categoriaActiva}
                 isPending={isPending}
                 onEditCategoria={() => openEditarCategoria(categoriaActiva)}
-                onDeleteCategoria={() => {
-                  if (!confirm('¿Eliminar categoría y todas sus variables?')) return;
+                onDeleteCategoria={async () => {
+                  if (!(await confirmDialog({
+                    title: 'Eliminar categoría',
+                    message: '¿Eliminar categoría y todas sus variables?',
+                    variant: 'danger'
+                  }))) return;
                   run(() => deleteBibliotecaCategoriaAction(categoriaActiva.id));
                 }}
                 onEditVariable={(v) => openEditarVariable(v, categoriaActiva.id, categoriaActiva.slug)}
-                onDeleteVariable={(id) => {
-                  if (!confirm('¿Eliminar esta variable?')) return;
+                onDeleteVariable={async (id) => {
+                  if (!(await confirmDialog({
+                    title: 'Eliminar variable',
+                    message: '¿Eliminar esta variable?',
+                    variant: 'danger'
+                  }))) return;
                   run(() => deleteBibliotecaVariableAction(id));
                 }}
               />

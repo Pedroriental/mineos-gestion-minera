@@ -91,20 +91,20 @@ function DateRangeField({
   return (
     <div className={compact ? 'flex items-center' : 'flex shrink-0 items-center gap-1.5'}>
       {!compact ? (
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{label}</span>
       ) : null}
       <button
         type="button"
         onClick={openPicker}
         className={
           compact
-            ? 'relative flex h-9 cursor-pointer items-center px-2.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500'
-            : 'relative flex h-9 min-w-[7rem] cursor-pointer items-center rounded-lg border border-slate-200 bg-white py-0 pl-2.5 pr-8 text-left transition-colors hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500'
+            ? 'relative flex h-9 cursor-pointer items-center px-2.5 text-left transition-colors hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500'
+            : 'relative flex h-9 min-w-[7rem] cursor-pointer items-center rounded-lg border border-white/10 bg-zinc-900 py-0 pl-2.5 pr-8 text-left transition-colors hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500'
         }
       >
-        <span className="text-xs font-medium tabular-nums text-slate-900">{display}</span>
+        <span className="text-xs font-medium tabular-nums text-zinc-200">{display}</span>
         {!compact ? (
-          <Calendar className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-slate-400" aria-hidden />
+          <Calendar className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-zinc-400" aria-hidden />
         ) : null}
       </button>
       <input
@@ -391,6 +391,7 @@ export default function NominaVistaPreviaContent({
                 <div className="flex min-w-0 max-w-[240px] flex-1 items-center gap-1.5 sm:flex-none">
                   <Archive className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
                   <AppSelect
+                    theme="light"
                     value={periodoId ?? ''}
                     onChange={(val) => {
                       if (!val) {

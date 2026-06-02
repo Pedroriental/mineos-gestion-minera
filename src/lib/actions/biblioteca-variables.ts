@@ -2,6 +2,15 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
+import { z } from 'zod';
+import {
+  BibliotecaCategoriaSchema,
+  BibliotecaCategoriaUpdateSchema,
+  BibliotecaVariableSchema,
+  BibliotecaVariableUpdateSchema,
+  DeleteBibliotecaCategoriaSchema,
+  DeleteBibliotecaVariableSchema,
+} from '@/lib/validations/biblioteca';
 import type {
   BibliotecaCategoria,
   BibliotecaCategoriaCompleta,
@@ -61,24 +70,31 @@ export async function upsertBibliotecaCategoriaAction(raw: {
   modulo?: BibliotecaModulo;
   orden?: number;
 }): Promise<BibliotecaActionResult> {
+  const schema = raw.id ? BibliotecaCategoriaUpdateSchema : BibliotecaCategoriaSchema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+
   try {
-    if (!raw.nombre.trim()) return { ok: false, message: 'El nombre de la categoría es obligatorio.' };
     const supabase = await createServerClient();
-    const slug = slugify(raw.slug || raw.nombre);
+    const slug = slugify(parsed.data.slug || parsed.data.nombre);
     const payload = {
       slug,
-      nombre: raw.nombre.trim(),
-      descripcion: raw.descripcion?.trim() || null,
-      modulo: raw.modulo || 'general',
-      orden: raw.orden ?? 0,
+      nombre: parsed.data.nombre.trim(),
+      descripcion: parsed.data.descripcion?.trim() || null,
+      modulo: parsed.data.modulo || 'general',
+      orden: parsed.data.orden ?? 0,
       activo: true,
     };
-    const { error } = raw.id
-      ? await supabase.from('biblioteca_categorias').update(payload).eq('id', raw.id)
+    const id = 'id' in parsed.data ? parsed.data.id : undefined;
+    const { error } = id
+      ? await supabase.from('biblioteca_categorias').update(payload).eq('id', id)
       : await supabase.from('biblioteca_categorias').insert(payload);
     if (error) return { ok: false, message: error.message };
     revalidateAll();
-    return { ok: true, message: raw.id ? 'Categoría actualizada.' : 'Categoría creada.' };
+    return { ok: true, message: id ? 'Categoría actualizada.' : 'Categoría creada.' };
   } catch {
     return { ok: false, message: 'No se pudo guardar la categoría.' };
   }
@@ -95,33 +111,44 @@ export async function upsertBibliotecaVariableAction(raw: {
   orden?: number;
   metadata?: Record<string, unknown>;
 }): Promise<BibliotecaActionResult> {
+  const schema = raw.id ? BibliotecaVariableUpdateSchema : BibliotecaVariableSchema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
+    return { ok: false, message: msg };
+  }
+
   try {
-    if (!raw.etiqueta.trim()) return { ok: false, message: 'La etiqueta es obligatoria.' };
     const supabase = await createServerClient();
-    const clave = slugify(raw.clave || raw.etiqueta);
+    const data = parsed.data;
+    const clave = slugify(data.clave || data.etiqueta);
     const payload = {
-      categoria_id: raw.categoria_id,
+      categoria_id: data.categoria_id,
       clave,
-      etiqueta: raw.etiqueta.trim(),
-      valor: (raw.valor ?? raw.etiqueta).trim(),
-      unidad: raw.unidad?.trim() || null,
-      descripcion: raw.descripcion?.trim() || null,
-      orden: raw.orden ?? 0,
+      etiqueta: data.etiqueta.trim(),
+      valor: (data.valor ?? data.etiqueta).trim(),
+      unidad: data.unidad?.trim() || null,
+      descripcion: data.descripcion?.trim() || null,
+      orden: data.orden ?? 0,
       activo: true,
-      metadata: raw.metadata ?? {},
+      metadata: data.metadata ?? {},
     };
-    const { error } = raw.id
-      ? await supabase.from('biblioteca_variables').update(payload).eq('id', raw.id)
+    const id = 'id' in data ? data.id : undefined;
+    const { error } = id
+      ? await supabase.from('biblioteca_variables').update(payload).eq('id', id)
       : await supabase.from('biblioteca_variables').insert(payload);
     if (error) return { ok: false, message: error.message };
     revalidateAll();
-    return { ok: true, message: raw.id ? 'Variable actualizada.' : 'Variable creada.' };
+    return { ok: true, message: id ? 'Variable actualizada.' : 'Variable creada.' };
   } catch {
     return { ok: false, message: 'No se pudo guardar la variable.' };
   }
 }
 
 export async function deleteBibliotecaCategoriaAction(id: string): Promise<BibliotecaActionResult> {
+  const parsed = DeleteBibliotecaCategoriaSchema.safeParse({ id });
+  if (!parsed.success) return { ok: false, message: 'ID de categoría inválido' };
+
   const supabase = await createServerClient();
   const { error } = await supabase.from('biblioteca_categorias').delete().eq('id', id);
   if (error) return { ok: false, message: error.message };
@@ -130,6 +157,9 @@ export async function deleteBibliotecaCategoriaAction(id: string): Promise<Bibli
 }
 
 export async function deleteBibliotecaVariableAction(id: string): Promise<BibliotecaActionResult> {
+  const parsed = DeleteBibliotecaVariableSchema.safeParse({ id });
+  if (!parsed.success) return { ok: false, message: 'ID de variable inválido' };
+
   const supabase = await createServerClient();
   const { error } = await supabase.from('biblioteca_variables').delete().eq('id', id);
   if (error) return { ok: false, message: error.message };

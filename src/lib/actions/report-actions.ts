@@ -46,7 +46,8 @@ export async function fetchFilterOptions(): Promise<FilterOptions> {
   // 1. Producción
   const { data: prodData } = await supabase
     .from('reportes_produccion')
-    .select('molino, material');
+    .select('molino, material')
+    .limit(500);
   const molinosRaw: string[] = [];
   const materialesRaw: string[] = [];
   prodData?.forEach((r) => {
@@ -67,7 +68,8 @@ export async function fetchFilterOptions(): Promise<FilterOptions> {
   // 3. Voladuras
   const { data: volData } = await supabase
     .from('reportes_voladuras')
-    .select('mina, vertical_disparo');
+    .select('mina, vertical_disparo')
+    .limit(500);
   const minasVolRaw: string[] = [];
   const verticalesVolRaw: string[] = [];
   volData?.forEach((v) => {
@@ -78,7 +80,8 @@ export async function fetchFilterOptions(): Promise<FilterOptions> {
   // 4. Extracción
   const { data: extData } = await supabase
     .from('reportes_extraccion')
-    .select('mina, vertical');
+    .select('mina, vertical')
+    .limit(500);
   const minasExtRaw: string[] = [];
   const verticalesExtRaw: string[] = [];
   extData?.forEach((e) => {

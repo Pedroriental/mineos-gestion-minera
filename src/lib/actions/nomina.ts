@@ -118,36 +118,53 @@ export async function importarPersonalAction(rawEmps: unknown, area: string): Pr
 
     const validEmps = parsed.data;
     const supabase = await createServerClient();
-    
-    // Desactivar trabajadores actuales del área para reemplazarlos (soft-delete style like before)
+
+    // Guardar IDs de trabajadores activos antes de desactivarlos (para rollback)
+    const { data: prevActivos } = await supabase
+      .from('personal')
+      .select('id')
+      .eq('activo', true)
+      .eq('area', area);
+    const prevIds = (prevActivos ?? []).map((p: { id: string }) => p.id);
+
+    // Desactivar trabajadores actuales del área para reemplazarlos
     await supabase.from('personal').update({ activo: false }).eq('activo', true).eq('area', area);
 
     let nuevos = 0;
     let actualizados = 0;
 
-    for (const emp of validEmps) {
-      const payload = {
-        cedula: emp.cedula,
-        nombre_completo: emp.nombre_completo,
-        cargo: emp.cargo,
-        area: emp.area,
-        area_detalle: normalizeAreaDetalle(emp.cargo, emp.area),
-        salario_base: emp.salario_semanal,
-        fecha_ingreso: emp.fecha_ingreso,
-        activo: true,
-        estado_laboral: 'ACTIVO',
-        estatus: 'ACTIVO',
-      };
+    try {
+      for (const emp of validEmps) {
+        const payload = {
+          cedula: emp.cedula,
+          nombre_completo: emp.nombre_completo,
+          cargo: emp.cargo,
+          area: emp.area,
+          area_detalle: normalizeAreaDetalle(emp.cargo, emp.area),
+          salario_base: emp.salario_semanal,
+          fecha_ingreso: emp.fecha_ingreso,
+          activo: true,
+          estado_laboral: 'ACTIVO',
+          estatus: 'ACTIVO',
+        };
 
-      const { data: existing } = await supabase.from('personal').select('id').eq('cedula', emp.cedula).maybeSingle();
-      
-      if (existing) {
-        await supabase.from('personal').update(payload).eq('id', existing.id);
-        actualizados++;
-      } else {
-        await supabase.from('personal').insert(payload);
-        nuevos++;
+        const { data: existing } = await supabase.from('personal').select('id').eq('cedula', emp.cedula).maybeSingle();
+
+        if (existing) {
+          await supabase.from('personal').update(payload).eq('id', existing.id);
+          actualizados++;
+        } else {
+          const { error: insertErr } = await supabase.from('personal').insert(payload);
+          if (insertErr) throw new Error(`Error al insertar trabajador ${emp.cedula}: ${insertErr.message}`);
+          nuevos++;
+        }
       }
+    } catch (err) {
+      // Rollback: restaurar trabajadores que fueron desactivados
+      if (prevIds.length > 0) {
+        await supabase.from('personal').update({ activo: true }).in('id', prevIds);
+      }
+      throw err; // Re-lanzar para el catch exterior
     }
 
     revalidateAll();
