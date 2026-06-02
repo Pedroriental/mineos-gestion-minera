@@ -5,6 +5,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { Calendar, Printer, RefreshCw, X, Archive } from 'lucide-react';
 import NominaPreviewReport from '@/components/nomina/NominaPreviewReport';
 import NominaPreviewOptionsMenu from '@/components/nomina/NominaPreviewOptionsMenu';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config';
 import { getValesPendientesBulkAction } from '@/lib/actions/nomina-v3';
@@ -59,66 +60,7 @@ function defaultRangeFromContext(semanas: NominaSemanaRef[]) {
   return { start, end: getWeekEnd(start) };
 }
 
-function DateRangeField({
-  label,
-  value,
-  onChange,
-  compact = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  compact?: boolean;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const display = value ? format(parseISO(value), 'dd/MM/yyyy') : '—';
-
-  function openPicker() {
-    const el = inputRef.current;
-    if (!el) return;
-    if (typeof el.showPicker === 'function') {
-      try {
-        el.showPicker();
-        return;
-      } catch {
-        /* fallback */
-      }
-    }
-    el.focus();
-    el.click();
-  }
-
-  return (
-    <div className={compact ? 'flex items-center' : 'flex shrink-0 items-center gap-1.5'}>
-      {!compact ? (
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
-      ) : null}
-      <button
-        type="button"
-        onClick={openPicker}
-        className={
-          compact
-            ? 'relative flex h-9 cursor-pointer items-center px-2.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500'
-            : 'relative flex h-9 min-w-[7rem] cursor-pointer items-center rounded-lg border border-slate-200 bg-white py-0 pl-2.5 pr-8 text-left transition-colors hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500'
-        }
-      >
-        <span className="text-xs font-medium tabular-nums text-slate-900">{display}</span>
-        {!compact ? (
-          <Calendar className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-slate-400" aria-hidden />
-        ) : null}
-      </button>
-      <input
-        ref={inputRef}
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden
-      />
-    </div>
-  );
-}
+// DateRangeField is now obsolete, we use AppDatePicker with theme='light'
 
 export default function NominaVistaPreviaContent({
   personal,
@@ -379,12 +321,22 @@ export default function NominaVistaPreviaContent({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
-                <DateRangeField label="Desde" value={rangeStart} onChange={handleRangeStartChange} compact />
-                <span className="hidden px-1 text-[10px] text-slate-300 sm:inline" aria-hidden>
+              <div className="inline-flex items-center gap-1">
+                <AppDatePicker
+                  value={rangeStart}
+                  onChange={handleRangeStartChange}
+                  className="w-[140px]"
+                  theme="light"
+                />
+                <span className="hidden px-1 text-[10px] text-slate-400 sm:inline" aria-hidden>
                   —
                 </span>
-                <DateRangeField label="Hasta" value={rangeEnd} onChange={setRangeEnd} compact />
+                <AppDatePicker
+                  value={rangeEnd}
+                  onChange={setRangeEnd}
+                  className="w-[140px]"
+                  theme="light"
+                />
               </div>
 
               {archivedPeriods.length > 0 ? (
@@ -415,6 +367,7 @@ export default function NominaVistaPreviaContent({
                       })),
                     ]}
                     className="min-w-[170px] flex-1 text-xs"
+                    theme="light"
                   />
                 </div>
               ) : null}

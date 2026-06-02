@@ -14,6 +14,7 @@ type AppDatePickerProps = {
   className?: string;
   disabled?: boolean;
   id?: string;
+  theme?: 'light' | 'dark';
 };
 
 const MENU_MAX_H = 340;
@@ -27,6 +28,7 @@ export function AppDatePicker({
   className,
   disabled,
   id: idProp,
+  theme = 'dark',
 }: AppDatePickerProps) {
   const autoId = useId();
   const id = idProp ?? autoId;
@@ -145,8 +147,11 @@ export function AppDatePicker({
       <div
         id={`${id}-menu`}
         className={cn(
-          'z-[10000] rounded-xl border border-white/10 bg-[#111113] p-3 shadow-2xl',
+          'z-[10000] rounded-xl border p-3 shadow-2xl',
           'animate-in fade-in zoom-in-95 duration-100',
+          theme === 'light' 
+            ? 'border-slate-200 bg-white text-slate-900' 
+            : 'border-white/10 bg-[#111113] text-white',
           menuPos.dropUp && 'slide-in-from-bottom-2'
         )}
         style={{
@@ -161,17 +166,23 @@ export function AppDatePicker({
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); setViewDate(subMonths(viewDate, 1)); }}
-            className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/10 text-zinc-400 hover:text-zinc-100 transition-colors"
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+              theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "hover:bg-white/10 text-zinc-400 hover:text-zinc-100"
+            )}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm font-semibold text-zinc-200 capitalize">
+          <span className={cn("text-sm font-semibold capitalize", theme === 'light' ? 'text-slate-800' : 'text-zinc-200')}>
             {format(viewDate, 'MMMM yyyy', { locale: es })}
           </span>
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); setViewDate(addMonths(viewDate, 1)); }}
-            className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/10 text-zinc-400 hover:text-zinc-100 transition-colors"
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+              theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "hover:bg-white/10 text-zinc-400 hover:text-zinc-100"
+            )}
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -179,7 +190,7 @@ export function AppDatePicker({
         
         <div className="grid grid-cols-7 gap-1 mb-2">
           {WEEKDAYS.map((day) => (
-            <div key={day} className="text-center text-[11px] font-bold text-zinc-500">
+            <div key={day} className={cn("text-center text-[11px] font-bold", theme === 'light' ? 'text-slate-400' : 'text-zinc-500')}>
               {day}
             </div>
           ))}
@@ -203,8 +214,12 @@ export function AppDatePicker({
                   isSelected 
                     ? 'bg-amber-500 text-black font-semibold shadow-sm'
                     : isToday 
-                      ? 'bg-white/10 text-amber-400 font-bold hover:bg-white/20'
-                      : 'text-zinc-300 hover:bg-white/10 hover:text-white'
+                      ? theme === 'light' 
+                          ? 'bg-amber-50 text-amber-600 font-bold hover:bg-amber-100'
+                          : 'bg-white/10 text-amber-400 font-bold hover:bg-white/20'
+                      : theme === 'light'
+                          ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          : 'text-zinc-300 hover:bg-white/10 hover:text-white'
                 )}
               >
                 {format(day, dateFormat)}
@@ -213,7 +228,7 @@ export function AppDatePicker({
           })}
         </div>
         
-        <div className="mt-3 pt-3 border-t border-white/10 flex justify-between items-center px-1">
+        <div className={cn("mt-3 pt-3 flex justify-between items-center px-1 border-t", theme === 'light' ? 'border-slate-100' : 'border-white/10')}>
              <button
                 type="button"
                 onClick={(e) => {
@@ -221,7 +236,7 @@ export function AppDatePicker({
                   onChange('');
                   close();
                 }}
-                className="text-xs font-medium text-zinc-500 hover:text-zinc-300"
+                className={cn("text-xs font-medium", theme === 'light' ? 'text-slate-500 hover:text-slate-700' : 'text-zinc-500 hover:text-zinc-300')}
              >
                 Limpiar
              </button>
@@ -231,7 +246,7 @@ export function AppDatePicker({
                   e.preventDefault();
                   pick(new Date());
                 }}
-                className="text-xs font-medium text-amber-500 hover:text-amber-400"
+                className={cn("text-xs font-medium", theme === 'light' ? 'text-amber-600 hover:text-amber-700' : 'text-amber-500 hover:text-amber-400')}
              >
                 Hoy
              </button>
@@ -247,9 +262,12 @@ export function AppDatePicker({
         type="button"
         disabled={disabled}
         className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-zinc-200 transition-colors',
-          'focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50',
-          'disabled:cursor-not-allowed disabled:opacity-50 hover:bg-white/10'
+          'flex w-full items-center justify-between gap-2 transition-colors',
+          'focus:outline-none focus:ring-1 focus:ring-amber-500/50',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+          theme === 'light'
+            ? 'rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 hover:border-slate-300 focus:border-amber-500/50'
+            : 'rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-zinc-200 focus:border-amber-500/50 hover:bg-white/10'
         )}
         onClick={() => {
           if (disabled) return;
@@ -259,14 +277,15 @@ export function AppDatePicker({
           setOpen((o) => !o);
         }}
       >
-        <span className="truncate capitalize flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-amber-500/70" />
+        <span className={cn("truncate capitalize flex items-center gap-2", !value && (theme === 'light' ? "text-slate-400" : "text-zinc-400"))}>
+            <CalendarIcon className={cn("h-4 w-4", theme === 'light' ? "text-amber-500/80" : "text-amber-500/70")} />
             {getDisplayValue()}
         </span>
         <ChevronDown
           className={cn(
-            'h-4 w-4 shrink-0 text-zinc-500 transition-transform',
-            open && 'rotate-180'
+            'h-4 w-4 shrink-0 transition-transform',
+            open && 'rotate-180',
+            theme === 'light' ? 'text-slate-400' : 'text-zinc-500'
           )}
         />
       </button>

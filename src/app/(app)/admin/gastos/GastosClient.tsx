@@ -58,7 +58,6 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 
 const fmtShort = (n: number) => {
-  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
   return fmt(n);
 };
 
