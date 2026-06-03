@@ -1,8 +1,7 @@
 import dynamic from 'next/dynamic';
 import { createServerClient } from '@/lib/supabase-server';
 import { buildDashboardAlerts } from '@/lib/dashboard-alerts';
-import { computePlanchaBalances, resolvePlanchaLines } from '@/lib/dashboard-planchas';
-import type { PlanchaLineConfig } from '@/lib/dashboard-planchas';
+
 import { DashboardCommandSkeleton } from '@/components/dashboard/DashboardCommandSkeleton';
 import type { LocationData, GlobalData } from '@/components/dashboard/types';
 
@@ -132,7 +131,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       personalAreasRes,
       valesPendientesRes,
       personalRes,
-      planchaLines,
     ] = await Promise.all([
       safeCatch<{ data: GastoRow[]; error: any }>(supabase.from('gastos').select('monto').eq('fecha', today).limit(500)),
       safeCatch<{ data: GastoRow[]; error: any }>(supabase.from('gastos').select('monto').gte('fecha', from).lte('fecha', to).limit(500)),
@@ -180,7 +178,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       safeCatch<PersonalCountResponse>(
         supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).in('area', ['planta', 'mina']),
       ),
-      safeCatch<PlanchaLineConfig[]>(resolvePlanchaLines(supabase)),
     ]);
 
     const reportesProd = (prodRes?.data ?? []) as {
@@ -209,8 +206,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     }
 
     // Removed alerts fetching
-
-    const balancesPlanchas = computePlanchaBalances(reportesProd, planchaLines);
 
     const useCustomWindow = Boolean(desde || hasta);
     let kpiFrom = from;
@@ -256,16 +251,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     // ── Oro Total Recuperado (KPI Principal) ──
     const oroTotalRecuperado = produccionMensual + oroQuemadoMensual;
 
-    // ── Balance Plancha 1 (3 verticales por material_codigo + Molino Continuo) ──
-    const esVertical = (r: ProdRow) => {
-      const c = String(r.material_codigo ?? '').trim();
-      return /^V[1-3]/i.test(c);
-    };
-    const esContinuo = (r: ProdRow) => r.molino?.trim() === 'Molino Continuo';
-    const balancePlancha1 = kpiProdRows
-      .filter((r) => esVertical(r) || esContinuo(r))
-      .reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
-
     const globalData: GlobalData = {
       totalGrams,
       eqTotal: equiposRes.count ?? 0,
@@ -273,10 +258,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       monthlyExpenses,
       criticalInventory,
       activePersonnel,
-      balancesPlanchas,
       produccionMensual,
       oroTotalRecuperado,
-      balancePlancha1,
     };
 
     const accumMap = new Map<string, Accum>();

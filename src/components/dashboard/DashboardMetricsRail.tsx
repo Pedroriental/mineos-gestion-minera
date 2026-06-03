@@ -3,13 +3,11 @@
 import { memo } from 'react';
 import {
   BatteryCharging,
-  Flame,
   Gem,
   Package,
   Receipt,
   Users,
   TrendingUp,
-  Layers,
 } from 'lucide-react';
 import { SolidMetricCard } from './SolidMetricCard';
 import type { GlobalData } from './types';
@@ -53,35 +51,6 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
           unit="g Au"
           icon={<Gem className="h-4 w-4" />}
         />
-        <SolidMetricCard
-          layout="rail"
-          label="Balance Plancha 1"
-          value={globalData.balancePlancha1.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-          unit="g Au"
-          icon={<Layers className="h-3.5 w-3.5" />}
-        />
-
-        {globalData.balancesPlanchas.length > 0 ? (
-          <>
-            <p className="dashboard-metrics-rail__section">Planchas</p>
-            {globalData.balancesPlanchas.map((plancha) => (
-              <SolidMetricCard
-                key={plancha.id}
-                layout="rail"
-                label={plancha.label}
-                value={plancha.grams.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-                unit="g Au"
-                icon={<Flame className="h-3.5 w-3.5" />}
-              />
-            ))}
-          </>
-        ) : null}
 
         <p className="dashboard-metrics-rail__section">Recursos</p>
         <SolidMetricCard

@@ -9,13 +9,6 @@ export interface LocationData {
   origenes?: string[];
 }
 
-export type PlanchaBalance = {
-  id: string;
-  number: number;
-  label: string;
-  grams: number;
-};
-
 import type { DashboardAlert } from '@/lib/dashboard-alerts';
 
 export type { DashboardAlert };
@@ -27,8 +20,6 @@ export interface GlobalData {
   monthlyExpenses: number;
   criticalInventory: number;
   activePersonnel: number;
-  balancesPlanchas: PlanchaBalance[];
   produccionMensual: number;
   oroTotalRecuperado: number;
-  balancePlancha1: number;
 }
