@@ -122,3 +122,19 @@ export type TableFilterConfig = {
   dateColumn: string;
   joinClause?: string;
 };
+
+// Mapeo de modulo ReportModule → clave en FILTRABLE_COLUMNS
+const MODULE_TO_TABLE: Record<string, string> = {
+  produccion: 'reportes_produccion',
+  extraccion:  'reportes_extraccion',
+  quemado:     'reportes_quemado',
+  voladuras:   'reportes_voladuras',
+  gastos:      'gastos',
+  nomina:      'nomina_semanas',
+  balance:     'balance_diario',
+};
+
+export function getTableConfig(module: string): TableFilterConfig | undefined {
+  const key = MODULE_TO_TABLE[module] as keyof typeof FILTRABLE_COLUMNS | undefined;
+  return key ? (FILTRABLE_COLUMNS[key] as unknown as TableFilterConfig) : undefined;
+}

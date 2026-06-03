@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { FILTRABLE_COLUMNS } from '@/lib/reports/filtrable-columns';
+import { getTableConfig } from '@/lib/reports/filtrable-columns';
 import type { ReportModule, ModuleFilters } from '@/lib/reports/report-types';
 
 type Props = {
@@ -109,7 +109,7 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
     const seen = new Set<string>();
     const opts: { key: string; label: string }[] = [];
     for (const m of modules) {
-      const cfg = FILTRABLE_COLUMNS[m as keyof typeof FILTRABLE_COLUMNS];
+      const cfg = getTableConfig(m);
       if (!cfg) continue;
       for (const g of cfg.groupByOptions) {
         if (seen.has(g)) continue;
@@ -157,7 +157,7 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
 
       {/* Per-module filters */}
       {cascadingModules.map((mod) => {
-        const cfg = FILTRABLE_COLUMNS[mod as keyof typeof FILTRABLE_COLUMNS];
+        const cfg = getTableConfig(mod);
         if (!cfg) return null;
 
         return (
