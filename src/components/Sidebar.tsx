@@ -475,6 +475,12 @@ export default function Sidebar({
           expanded={isExpanded}
           onNav={handleNav}
         />
+        <NavItem
+          item={standaloneItems[2]}
+          active={pathname === '/reportes/constructor' || pathname.startsWith('/reportes/constructor')}
+          expanded={isExpanded}
+          onNav={handleNav}
+        />
       </div>
 
       {/* Divider */}
