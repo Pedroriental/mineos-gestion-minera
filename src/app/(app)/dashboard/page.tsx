@@ -24,13 +24,20 @@ function periodBounds(desde?: string, hasta?: string) {
   const to =
     hasta ||
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  
+
   let from = desde;
   if (!from) {
     const thirtyDaysAgo = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
     from = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(thirtyDaysAgo.getDate()).padStart(2, '0')}`;
   }
   return { from, to, today: to };
+}
+
+function monthBounds() {
+  const now = new Date();
+  const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const end = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return { monthStart: start, monthEnd: end };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -86,6 +93,7 @@ function makeAccum(name: string): Accum {
 export default async function DashboardPage({ searchParams }: PageProps) {
   const { desde, hasta } = await searchParams;
   const { from, to, today } = periodBounds(desde, hasta);
+  const { monthStart, monthEnd } = monthBounds();
 
   const supabase = await createServerClient();
 
@@ -95,7 +103,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   };
 
   type GastoRow = { monto: number };
-  type ProdRow = { molino?: string | null; oro_recuperado_g?: number | null; fecha?: string; tenor_tonelada_gpt?: number | null; merma_1_pct?: number | null; material?: string | null; material_codigo?: string | null };
+  type ProdRow = { fecha?: string; molino?: string | null; oro_recuperado_g?: number | null; tenor_tonelada_gpt?: number | null; merma_1_pct?: number | null; material?: string | null; material_codigo?: string | null };
   type InventarioRow = { id: string; nombre: string; stock_actual: number; stock_minimo: number };
   type PersonalAreaRow = { area: string };
   type VoladuraRow = { id: string; mina: string; fecha: string; sin_novedad: boolean };
@@ -110,6 +118,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       gastosPeriodoRes,
       equiposRes,
       prodRes,
+      quemadoRes,
       volRes,
       inventarioRes,
       nominaSemanasRes,
@@ -124,11 +133,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       safeCatch<{ data: ProdRow[]; error: any }>(
         supabase
           .from('reportes_produccion')
-          .select('molino, oro_recuperado_g, tenor_tonelada_gpt, merma_1_pct, material, material_codigo')
+          .select('fecha, molino, oro_recuperado_g, tenor_tonelada_gpt, merma_1_pct, material, material_codigo')
           .gte('fecha', from)
           .lte('fecha', to)
           .order('fecha', { ascending: false })
           .limit(500),
+      ),
+      safeCatch<{ data: { total_oro_g: number }[]; error: any }>(
+        supabase.from('reportes_quemado').select('total_oro_g').gte('fecha', monthStart).lte('fecha', monthEnd),
       ),
       safeCatch<{ data: VoladuraRow[]; error: any }>(
         supabase
@@ -193,6 +205,24 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
     const balancesPlanchas = computePlanchaBalances(reportesProd, planchaLines);
 
+    // ── Producción Mensual (oro_recuperado_g del mes actual) ──
+    const produccionMensual = reportesProd
+      .filter((r) => r.fecha && r.fecha >= monthStart && r.fecha <= monthEnd)
+      .reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
+
+    // ── Oro Quemado Mensual (total_oro_g del mes actual) ──
+    const quemadoRows = (quemadoRes?.data ?? []) as { total_oro_g: number }[];
+    const oroQuemadoMensual = quemadoRows.reduce((s, q) => s + Number(q.total_oro_g ?? 0), 0);
+
+    // ── Oro Total Recuperado (KPI Principal) ──
+    const oroTotalRecuperado = produccionMensual + oroQuemadoMensual;
+
+    // ── Balance Plancha 1 ──
+    const plancha1Molinos = ['Vertical 1', 'Vertical 2', 'Vertical 3', 'Molino Continuo'];
+    const balancePlancha1 = reportesProd
+      .filter((r) => r.molino && plancha1Molinos.includes(r.molino.trim()))
+      .reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
+
     const globalData: GlobalData = {
       totalGrams,
       eqTotal: equiposRes.count ?? 0,
@@ -201,6 +231,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       criticalInventory,
       activePersonnel,
       balancesPlanchas,
+      produccionMensual,
+      oroTotalRecuperado,
+      balancePlancha1,
     };
 
     const accumMap = new Map<string, Accum>();

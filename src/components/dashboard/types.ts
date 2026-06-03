@@ -28,4 +28,7 @@ export interface GlobalData {
   criticalInventory: number;
   activePersonnel: number;
   balancesPlanchas: PlanchaBalance[];
+  produccionMensual: number;
+  oroTotalRecuperado: number;
+  balancePlancha1: number;
 }

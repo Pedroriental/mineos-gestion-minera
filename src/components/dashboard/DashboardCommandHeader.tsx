@@ -34,9 +34,9 @@ export const DashboardCommandHeader = memo(function DashboardCommandHeader({
           <Gem className="h-4 w-4" />
         </span>
         <div className="dashboard-command-stat__body">
-          <span className="dashboard-command-stat__label">Oro recuperado</span>
+          <span className="dashboard-command-stat__label">Oro Total Recuperado</span>
           <span className="dashboard-command-stat__value">
-            {globalData.totalGrams.toLocaleString('en-US', {
+            {globalData.oroTotalRecuperado.toLocaleString('en-US', {
               minimumFractionDigits: 1,
               maximumFractionDigits: 1,
             })}
