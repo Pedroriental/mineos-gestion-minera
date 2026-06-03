@@ -33,13 +33,6 @@ function periodBounds(desde?: string, hasta?: string) {
   return { from, to, today: to };
 }
 
-function monthBounds() {
-  const now = new Date();
-  const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-  const end = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  return { monthStart: start, monthEnd: end };
-}
-
 // ══════════════════════════════════════════════════════════════
 // DICCIONARIO ESTRICTO DE NODOS FÍSICOS DEL COMPLEJO LA FE
 const NODE_DICT: Record<string, { x: number; y: number }> = {
@@ -93,7 +86,6 @@ function makeAccum(name: string): Accum {
 export default async function DashboardPage({ searchParams }: PageProps) {
   const { desde, hasta } = await searchParams;
   const { from, to, today } = periodBounds(desde, hasta);
-  const { monthStart, monthEnd } = monthBounds();
 
   const supabase = await createServerClient();
 
@@ -140,7 +132,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           .limit(500),
       ),
       safeCatch<{ data: { total_oro_g: number }[]; error: any }>(
-        supabase.from('reportes_quemado').select('total_oro_g').gte('fecha', monthStart).lte('fecha', monthEnd),
+        supabase.from('reportes_quemado').select('total_oro_g').gte('fecha', from).lte('fecha', to),
       ),
       safeCatch<{ data: VoladuraRow[]; error: any }>(
         supabase
@@ -205,12 +197,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
     const balancesPlanchas = computePlanchaBalances(reportesProd, planchaLines);
 
-    // ── Producción Mensual (oro_recuperado_g del mes actual) ──
-    const produccionMensual = reportesProd
-      .filter((r) => r.fecha && r.fecha >= monthStart && r.fecha <= monthEnd)
-      .reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
+    // ── Producción Mensual (oro_recuperado_g del período) ──
+    const produccionMensual = totalGrams;
 
-    // ── Oro Quemado Mensual (total_oro_g del mes actual) ──
+    // ── Oro Quemado Mensual (total_oro_g del período) ──
     const quemadoRows = (quemadoRes?.data ?? []) as { total_oro_g: number }[];
     const oroQuemadoMensual = quemadoRows.reduce((s, q) => s + Number(q.total_oro_g ?? 0), 0);
 
@@ -218,7 +208,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const oroTotalRecuperado = produccionMensual + oroQuemadoMensual;
 
     // ── Balance Plancha 1 ──
-    const plancha1Molinos = ['Vertical 1', 'Vertical 2', 'Vertical 3', 'Molino Continuo'];
+    const plancha1Molinos = ['Molino 1', 'Molino 2', 'Molino 3', 'Molino 1-2', 'Molino 1-3', 'Molino 2-3', 'Molino Continuo'];
     const balancePlancha1 = reportesProd
       .filter((r) => r.molino && plancha1Molinos.includes(r.molino.trim()))
       .reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
