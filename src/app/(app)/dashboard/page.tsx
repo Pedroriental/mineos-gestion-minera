@@ -33,6 +33,21 @@ function periodBounds(desde?: string, hasta?: string) {
   return { from, to, today: to };
 }
 
+function monthWindow(dateIso: string) {
+  const [yearRaw, monthRaw] = dateIso.split('-');
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return null;
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const first = `${year}-${pad(month)}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const last = `${year}-${pad(month)}-${pad(lastDay)}`;
+  return { from: first, to: last };
+}
+
 // ══════════════════════════════════════════════════════════════
 // DICCIONARIO ESTRICTO DE NODOS FÍSICOS DEL COMPLEJO LA FE
 const NODE_DICT: Record<string, { x: number; y: number }> = {
@@ -197,20 +212,58 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
     const balancesPlanchas = computePlanchaBalances(reportesProd, planchaLines);
 
-    // ── Producción Mensual (oro_recuperado_g del período) ──
-    const produccionMensual = totalGrams;
+    const useCustomWindow = Boolean(desde || hasta);
+    let kpiFrom = from;
+    let kpiTo = to;
 
-    // ── Oro Quemado Mensual (total_oro_g del período) ──
-    const quemadoRows = (quemadoRes?.data ?? []) as { total_oro_g: number }[];
-    const oroQuemadoMensual = quemadoRows.reduce((s, q) => s + Number(q.total_oro_g ?? 0), 0);
+    if (!useCustomWindow) {
+      const [latestProdRes, latestQuemadoRes] = await Promise.all([
+        safeCatch<{ data: { fecha: string }[]; error: any }>(
+          supabase.from('reportes_produccion').select('fecha').order('fecha', { ascending: false }).limit(1),
+        ),
+        safeCatch<{ data: { fecha: string }[]; error: any }>(
+          supabase.from('reportes_quemado').select('fecha').order('fecha', { ascending: false }).limit(1),
+        ),
+      ]);
+
+      const latestProdDate = latestProdRes?.data?.[0]?.fecha;
+      const latestQuemadoDate = latestQuemadoRes?.data?.[0]?.fecha;
+      const latestDate = [latestProdDate, latestQuemadoDate].filter(Boolean).sort().at(-1);
+      const resolvedMonth = latestDate ? monthWindow(latestDate) : null;
+      if (resolvedMonth) {
+        kpiFrom = resolvedMonth.from;
+        kpiTo = resolvedMonth.to;
+      }
+    }
+
+    const [kpiProdRes, kpiQuemadoRes] = await Promise.all([
+      safeCatch<{ data: ProdRow[]; error: any }>(
+        supabase.from('reportes_produccion').select('molino, oro_recuperado_g, material_codigo').gte('fecha', kpiFrom).lte('fecha', kpiTo).limit(1000),
+      ),
+      safeCatch<{ data: { total_oro_g: number }[]; error: any }>(
+        supabase.from('reportes_quemado').select('total_oro_g').gte('fecha', kpiFrom).lte('fecha', kpiTo).limit(1000),
+      ),
+    ]);
+
+    // ── Producción Mensual (oro_recuperado_g del mes KPI) ──
+    const kpiProdRows = (kpiProdRes?.data ?? []) as ProdRow[];
+    const produccionMensual = kpiProdRows.reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
+
+    // ── Oro Quemado Mensual (total_oro_g del mes KPI) ──
+    const kpiQuemadoRows = (kpiQuemadoRes?.data ?? []) as { total_oro_g: number }[];
+    const oroQuemadoMensual = kpiQuemadoRows.reduce((s, q) => s + Number(q.total_oro_g ?? 0), 0);
 
     // ── Oro Total Recuperado (KPI Principal) ──
     const oroTotalRecuperado = produccionMensual + oroQuemadoMensual;
 
-    // ── Balance Plancha 1 ──
-    const plancha1Molinos = ['Molino 1', 'Molino 2', 'Molino 3', 'Molino 1-2', 'Molino 1-3', 'Molino 2-3', 'Molino Continuo'];
-    const balancePlancha1 = reportesProd
-      .filter((r) => r.molino && plancha1Molinos.includes(r.molino.trim()))
+    // ── Balance Plancha 1 (3 verticales por material_codigo + Molino Continuo) ──
+    const esVertical = (r: ProdRow) => {
+      const c = String(r.material_codigo ?? '').trim();
+      return /^V[1-3]/i.test(c);
+    };
+    const esContinuo = (r: ProdRow) => r.molino?.trim() === 'Molino Continuo';
+    const balancePlancha1 = kpiProdRows
+      .filter((r) => esVertical(r) || esContinuo(r))
       .reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
 
     const globalData: GlobalData = {
