@@ -12,6 +12,59 @@ export type ReportModule =
   | 'balance'
   | 'reconciliacion';
 
+// ── Sistema Universal de Reportes ────────────────────────────
+
+/** Filtro individual para una columna */
+export type ColumnFilter =
+  | { in: string[] }
+  | { regex: string }
+  | { ilike: string }
+  | { eq: string | number }
+  | { gte: number }
+  | { lte: number }
+  | { gt: number }
+  | { lt: number };
+
+/** Mapa de filtros por columna para un modulo */
+export type ModuleFilters = Record<string, string[] | ColumnFilter | string | number>;
+
+/** Configuracion de cruce entre modulos */
+export interface CrossModuleJoin {
+  type: 'vertical' | 'molino' | 'mina' | 'fecha';
+  value: string;
+  include: ReportModule[];
+}
+
+/** Payload completo enviado al RPC execute_dynamic_report */
+export interface ReportPayload {
+  dateFrom: string;
+  dateTo: string;
+  modules: ReportModule[];
+  filters?: Partial<Record<ReportModule, ModuleFilters>>;
+  groupBy?: string;
+  crossModuleJoin?: CrossModuleJoin | null;
+}
+
+/** Resultado del RPC */
+export interface ExecuteReportResult {
+  ok: boolean;
+  dateRange: { from: string; to: string };
+  groupBy?: string;
+  crossModule?: CrossModuleJoin;
+  modules?: string[];
+  data: Record<string, ModuleReportData>;
+}
+
+export interface ModuleReportData {
+  rows?: ReportRow[];
+  totals?: Record<string, number>;
+  error?: string;
+  sql?: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ReportRow = Record<string, any>;
+
 export interface DateRange {
   from: string; // 'YYYY-MM-DD'
   to: string;   // 'YYYY-MM-DD'
