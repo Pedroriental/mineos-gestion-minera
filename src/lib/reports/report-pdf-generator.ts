@@ -372,3 +372,87 @@ export function downloadReportPDF(
   // Save the PDF
   doc.save(`Reporte_MineOS_${module}_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
 }
+
+// ── Unified PDF Export (Constructor Universal) ─────────────────
+
+import type { ExecuteReportResult } from './report-types';
+
+export async function downloadUnifiedReportPDF(
+  result: ExecuteReportResult,
+  dateFrom: string,
+  dateTo: string,
+  groupBy: string,
+) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const fromStr = safeFormatDate(dateFrom, 'dd/MM/yyyy');
+  const toStr = safeFormatDate(dateTo, 'dd/MM/yyyy');
+  const moduleList = Object.keys(result.data).join(', ');
+  const title = `REPORTE UNIFICADO - ${moduleList.toUpperCase()}`;
+  const subtitle = `${fromStr} → ${toStr}   |   Agrupado: ${groupBy}`;
+
+  addHeader(doc, title, subtitle);
+
+  let cursorY = 30;
+  let moduleIdx = 0;
+
+  for (const [mod, modData] of Object.entries(result.data)) {
+    if (modData.error || !modData.rows || modData.rows.length === 0) continue;
+
+    // Module title
+    if (moduleIdx > 0) {
+      doc.addPage();
+      cursorY = 18;
+    }
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...AMBER);
+    doc.text(mod.toUpperCase(), 14, cursorY);
+    cursorY += 5;
+
+    // Totals
+    if (modData.totals && Object.keys(modData.totals).length > 0) {
+      const totalItems = Object.entries(modData.totals).map(([k, v]) => ({
+        label: k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        value: typeof v === 'number' ? v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : String(v),
+      }));
+      addSummaryBox(doc, cursorY, totalItems);
+      cursorY += 18;
+    }
+
+    // Table
+    const rows = modData.rows as Record<string, unknown>[];
+    if (rows.length === 0) continue;
+
+    const columns = Object.keys(rows[0]).filter(
+      (k) => !k.startsWith('_'),
+    );
+    const headers = columns.map((c) =>
+      c.replace(/_/g, ' ').replace(/\b\w/g, (c2) => c2.toUpperCase()),
+    );
+    const body = rows.map((row) =>
+      columns.map((col) => {
+        const v = row[col];
+        if (typeof v === 'number') return v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+        return String(v ?? '');
+      }),
+    );
+
+    autoTable(doc, {
+      ...tableStyles,
+      startY: cursorY,
+      head: [headers],
+      body,
+      margin: { left: 14, right: 14 },
+      didDrawPage: () => { /* handled by addFooter */ },
+    });
+
+    cursorY = (doc as any).lastAutoTable?.finalY ?? cursorY + 20;
+    moduleIdx++;
+  }
+
+  addFooter(doc);
+  doc.save(`Reporte_Unificado_MineOS_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
+}

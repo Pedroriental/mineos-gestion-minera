@@ -127,3 +127,55 @@ export function downloadReportCSV(
     document.body.removeChild(link);
   }
 }
+
+// ── Unified CSV Export (Constructor Universal) ─────────────────
+
+import type { ExecuteReportResult } from './report-types';
+
+export function downloadUnifiedReportCSV(
+  result: ExecuteReportResult,
+  groupBy: string,
+) {
+  const sections: string[] = [];
+  const separator = ',';
+
+  for (const [mod, modData] of Object.entries(result.data)) {
+    if (modData.error || !modData.rows || modData.rows.length === 0) continue;
+
+    // Module header
+    sections.push(`\ufeffMODULO: ${mod.toUpperCase()}`);
+    sections.push(`Agrupado por: ${groupBy}`);
+    sections.push('');
+
+    // Totals
+    if (modData.totals && Object.keys(modData.totals).length > 0) {
+      sections.push('TOTALES:');
+      for (const [k, v] of Object.entries(modData.totals)) {
+        sections.push(`${escapeCSVValue(k)},${escapeCSVValue(v)}`);
+      }
+      sections.push('');
+    }
+
+    // Data rows
+    const rows = modData.rows as Record<string, unknown>[];
+    const columns = Object.keys(rows[0]).filter((k) => !k.startsWith('_'));
+    sections.push(columns.map((c) => escapeCSVValue(c)).join(separator));
+    for (const row of rows) {
+      sections.push(columns.map((col) => escapeCSVValue(row[col])).join(separator));
+    }
+    sections.push('');
+    sections.push('');
+  }
+
+  const blob = new Blob([sections.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const link = document.createElement('a');
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Reporte_Unificado_MineOS_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}

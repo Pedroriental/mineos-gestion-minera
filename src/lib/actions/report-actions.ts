@@ -465,3 +465,25 @@ export async function fetchBalanceReport(
     ventasArenas: (ventasArenas as any[]) ?? [],
   };
 }
+
+// ── Constructor Universal: llama al RPC execute_dynamic_report ──
+
+import type { ReportPayload, ExecuteReportResult } from '@/lib/reports/report-types';
+
+export async function executeReportAction(
+  payload: ReportPayload,
+): Promise<ExecuteReportResult> {
+  'use server';
+
+  const supabase = await createServerClient();
+
+  const { data, error } = await supabase.rpc('execute_dynamic_report', {
+    payload,
+  });
+
+  if (error) {
+    throw new Error(`RPC error: ${error.message}`);
+  }
+
+  return (data ?? { ok: false, dateRange: { from: '', to: '' }, data: {} }) as ExecuteReportResult;
+}

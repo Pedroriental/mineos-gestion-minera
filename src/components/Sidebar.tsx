@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutGrid,
   CircleDollarSign,
+  FileSearch,
   Users,
   Receipt,
   Package,
@@ -46,6 +47,7 @@ interface NavSection {
 const standaloneItems: NavItemData[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutGrid className="w-4 h-4" /> },
   { label: 'Reporte y Balances', href: '/reportes-balances', icon: <CircleDollarSign className="w-4 h-4" /> },
+  { label: 'Constructor de Reportes', href: '/reportes/constructor', icon: <FileSearch className="w-4 h-4" /> },
 ];
 
 const navigation: NavSection[] = [

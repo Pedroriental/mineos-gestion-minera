@@ -8,6 +8,7 @@ import {
   Receipt,
   Calculator,
   Scale,
+  FileSearch,
 } from 'lucide-react';
 import type { ReportModule } from '@/lib/reports/report-types';
 
