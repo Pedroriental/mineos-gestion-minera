@@ -22,4 +22,5 @@ export interface GlobalData {
   activePersonnel: number;
   produccionMensual: number;
   oroTotalRecuperado: number;
+  balancePlancha1: number;
 }

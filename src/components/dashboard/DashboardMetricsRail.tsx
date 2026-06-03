@@ -4,6 +4,7 @@ import { memo } from 'react';
 import {
   BatteryCharging,
   Gem,
+  Layers,
   Package,
   Receipt,
   Users,
@@ -50,6 +51,16 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
           })}
           unit="g Au"
           icon={<Gem className="h-4 w-4" />}
+        />
+        <SolidMetricCard
+          layout="rail"
+          label="Balance Plancha 1"
+          value={globalData.balancePlancha1.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+          unit="g Au"
+          icon={<Layers className="h-3.5 w-3.5" />}
         />
 
         <p className="dashboard-metrics-rail__section">Recursos</p>

@@ -248,6 +248,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const kpiQuemadoRows = (kpiQuemadoRes?.data ?? []) as { total_oro_g: number }[];
     const oroQuemadoMensual = kpiQuemadoRows.reduce((s, q) => s + Number(q.total_oro_g ?? 0), 0);
 
+    // ── Balance Plancha 1 (3 verticales por material_codigo + Molino Continuo) ──
+    const esVertical = (r: ProdRow) => {
+      const c = String(r.material_codigo ?? '').trim();
+      return /^V[1-3]/i.test(c);
+    };
+    const esContinuo = (r: ProdRow) => r.molino?.trim() === 'Molino Continuo';
+    const balancePlancha1 = kpiProdRows
+      .filter((r) => esVertical(r) || esContinuo(r))
+      .reduce((s, r) => s + Number(r.oro_recuperado_g ?? 0), 0);
+
     // ── Oro Total Recuperado (KPI Principal) ──
     const oroTotalRecuperado = produccionMensual + oroQuemadoMensual;
 
@@ -260,6 +270,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       activePersonnel,
       produccionMensual,
       oroTotalRecuperado,
+      balancePlancha1,
     };
 
     const accumMap = new Map<string, Accum>();
