@@ -224,95 +224,41 @@ BEGIN
     -- Armar query final diferente segun el modulo (columnas de agregacion especificas)
     v_sql := CASE v_module
       WHEN 'produccion' THEN format(
-        'SELECT jsonb_build_object(''rows'', COALESCE(jsonb_agg(row_to_json(r.*)), ''[]''::jsonb), ''totals'', COALESCE(to_jsonb(t), ''{}''::jsonb)) FROM (
-          SELECT %s AS periodo, %s AS periodo_label,
-            COUNT(*)::int AS registros,
-            COALESCE(SUM(oro_recuperado_g), 0) AS oro_recuperado_g,
-            COALESCE(SUM(sacos), 0) AS sacos,
-            COALESCE(SUM(toneladas_procesadas), 0) AS toneladas,
-            ROUND(COALESCE(AVG(tenor_tonelada_gpt), 0)::numeric, 2) AS tenor_promedio_gpt,
-            ROUND(COALESCE(AVG(merma_1_pct), 0)::numeric, 2) AS merma_promedio_pct
-          FROM reportes_produccion WHERE %s GROUP BY 1,2 ORDER BY 1
-        ) r, (SELECT COALESCE(SUM(oro_recuperado_g),0) AS total_oro, COALESCE(SUM(sacos),0) AS total_sacos, COALESCE(SUM(toneladas_procesadas),0) AS total_ton FROM reportes_produccion WHERE %s) t',
+        'WITH rows AS (SELECT %s AS periodo, %s AS periodo_label, COUNT(*)::int AS registros, COALESCE(SUM(oro_recuperado_g),0) AS oro_recuperado_g, COALESCE(SUM(sacos),0) AS sacos, COALESCE(SUM(toneladas_procesadas),0) AS toneladas, ROUND(COALESCE(AVG(tenor_tonelada_gpt),0)::numeric,2) AS tenor_promedio_gpt, ROUND(COALESCE(AVG(merma_1_pct),0)::numeric,2) AS merma_promedio_pct FROM reportes_produccion WHERE %s GROUP BY 1,2 ORDER BY 1), totals AS (SELECT COALESCE(SUM(oro_recuperado_g),0) AS total_oro, COALESCE(SUM(sacos),0) AS total_sacos, COALESCE(SUM(toneladas_procesadas),0) AS total_ton FROM reportes_produccion WHERE %s) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb), ''totals'', COALESCE((SELECT row_to_json(totals.*)::jsonb FROM totals), ''{}''::jsonb))',
         v_group_expr, v_label_expr, v_where, v_where
       )
 
       WHEN 'extraccion' THEN format(
-        'SELECT jsonb_build_object(''rows'', COALESCE(jsonb_agg(row_to_json(r.*)), ''[]''::jsonb), ''totals'', COALESCE(to_jsonb(t), ''{}''::jsonb)) FROM (
-          SELECT %s AS periodo, %s AS periodo_label,
-            COUNT(*)::int AS registros,
-            COALESCE(SUM(sacos_extraidos), 0) AS sacos_extraidos
-          FROM reportes_extraccion WHERE %s GROUP BY 1,2 ORDER BY 1
-        ) r, (SELECT COALESCE(SUM(sacos_extraidos),0) AS total_sacos FROM reportes_extraccion WHERE %s) t',
+        'WITH rows AS (SELECT %s AS periodo, %s AS periodo_label, COUNT(*)::int AS registros, COALESCE(SUM(sacos_extraidos),0) AS sacos_extraidos FROM reportes_extraccion WHERE %s GROUP BY 1,2 ORDER BY 1), totals AS (SELECT COALESCE(SUM(sacos_extraidos),0) AS total_sacos FROM reportes_extraccion WHERE %s) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb), ''totals'', COALESCE((SELECT row_to_json(totals.*)::jsonb FROM totals), ''{}''::jsonb))',
         v_group_expr, v_label_expr, v_where, v_where
       )
 
       WHEN 'quemado' THEN format(
-        'SELECT jsonb_build_object(''rows'', COALESCE(jsonb_agg(row_to_json(r.*)), ''[]''::jsonb), ''totals'', COALESCE(to_jsonb(t), ''{}''::jsonb)) FROM (
-          SELECT %s AS periodo, %s AS periodo_label,
-            COUNT(*)::int AS registros,
-            COALESCE(SUM(total_amalgama_g), 0) AS amalgama_g,
-            COALESCE(SUM(total_oro_g), 0) AS oro_quemado_g,
-            COALESCE(SUM(manto_oro_g), 0) AS manto_oro_g,
-            COALESCE(SUM(retorta_oro_g), 0) AS retorta_oro_g
-          FROM reportes_quemado WHERE %s GROUP BY 1,2 ORDER BY 1
-        ) r, (SELECT COALESCE(SUM(total_oro_g),0) AS total_oro FROM reportes_quemado WHERE %s) t',
+        'WITH rows AS (SELECT %s AS periodo, %s AS periodo_label, COUNT(*)::int AS registros, COALESCE(SUM(total_amalgama_g),0) AS amalgama_g, COALESCE(SUM(total_oro_g),0) AS oro_quemado_g, COALESCE(SUM(manto_oro_g),0) AS manto_oro_g, COALESCE(SUM(retorta_oro_g),0) AS retorta_oro_g FROM reportes_quemado WHERE %s GROUP BY 1,2 ORDER BY 1), totals AS (SELECT COALESCE(SUM(total_oro_g),0) AS total_oro FROM reportes_quemado WHERE %s) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb), ''totals'', COALESCE((SELECT row_to_json(totals.*)::jsonb FROM totals), ''{}''::jsonb))',
         v_group_expr, v_label_expr, v_where, v_where
       )
 
       WHEN 'voladuras' THEN format(
-        'SELECT jsonb_build_object(''rows'', COALESCE(jsonb_agg(row_to_json(r.*)), ''[]''::jsonb), ''totals'', COALESCE(to_jsonb(t), ''{}''::jsonb)) FROM (
-          SELECT %s AS periodo, %s AS periodo_label,
-            COUNT(*)::int AS registros,
-            COUNT(*) FILTER (WHERE sin_novedad = false)::int AS disparos,
-            COALESCE(SUM(huecos_cantidad), 0) AS huecos,
-            COALESCE(SUM(chupis_cantidad), 0) AS chupis,
-            COALESCE(SUM(arroz_kg), 0) AS arroz_kg
-          FROM reportes_voladuras WHERE %s GROUP BY 1,2 ORDER BY 1
-        ) r, (SELECT COUNT(*)::int AS total_registros, COALESCE(SUM(huecos_cantidad),0) AS total_huecos FROM reportes_voladuras WHERE %s) t',
+        'WITH rows AS (SELECT %s AS periodo, %s AS periodo_label, COUNT(*)::int AS registros, COUNT(*) FILTER (WHERE sin_novedad = false)::int AS disparos, COALESCE(SUM(huecos_cantidad),0) AS huecos, COALESCE(SUM(chupis_cantidad),0) AS chupis, COALESCE(SUM(arroz_kg),0) AS arroz_kg FROM reportes_voladuras WHERE %s GROUP BY 1,2 ORDER BY 1), totals AS (SELECT COUNT(*)::int AS total_registros, COALESCE(SUM(huecos_cantidad),0) AS total_huecos FROM reportes_voladuras WHERE %s) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb), ''totals'', COALESCE((SELECT row_to_json(totals.*)::jsonb FROM totals), ''{}''::jsonb))',
         v_group_expr, v_label_expr, v_where, v_where
       )
 
       WHEN 'gastos' THEN format(
-        'SELECT jsonb_build_object(''rows'', COALESCE(jsonb_agg(row_to_json(r.*)), ''[]''::jsonb), ''totals'', COALESCE(to_jsonb(t), ''{}''::jsonb)) FROM (
-          SELECT %s AS periodo, %s AS periodo_label,
-            COUNT(*)::int AS registros,
-            COALESCE(SUM(g.monto), 0) AS total_usd,
-            ROUND(COALESCE(AVG(g.monto), 0)::numeric, 2) AS promedio_usd,
-            COALESCE(MAX(g.monto), 0) AS mayor_gasto_usd
-          FROM gastos g %s WHERE %s GROUP BY 1,2 ORDER BY 1
-        ) r, (SELECT COALESCE(SUM(monto),0) AS total_usd, COUNT(*)::int AS total_registros FROM gastos WHERE %s) t',
+        'WITH rows AS (SELECT %s AS periodo, %s AS periodo_label, COUNT(*)::int AS registros, COALESCE(SUM(g.monto),0) AS total_usd, ROUND(COALESCE(AVG(g.monto),0)::numeric,2) AS promedio_usd, COALESCE(MAX(g.monto),0) AS mayor_gasto_usd FROM gastos g %s WHERE %s GROUP BY 1,2 ORDER BY 1), totals AS (SELECT COALESCE(SUM(monto),0) AS total_usd, COUNT(*)::int AS total_registros FROM gastos WHERE %s) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb), ''totals'', COALESCE((SELECT row_to_json(totals.*)::jsonb FROM totals), ''{}''::jsonb))',
         v_group_expr, v_label_expr, v_join, v_where, v_where
       )
 
       WHEN 'nomina' THEN format(
-        'SELECT jsonb_build_object(''rows'', COALESCE(jsonb_agg(row_to_json(r.*)), ''[]''::jsonb), ''totals'', COALESCE(to_jsonb(t), ''{}''::jsonb)) FROM (
-          SELECT %s AS periodo, %s AS periodo_label,
-            COUNT(*)::int AS semanas,
-            COALESCE(SUM(total_pagado), 0) AS total_pagado_usd
-          FROM nomina_semanas WHERE %s GROUP BY 1,2 ORDER BY 1
-        ) r, (SELECT COALESCE(SUM(total_pagado),0) AS total_pagado_usd, COUNT(*)::int AS total_semanas FROM nomina_semanas WHERE %s) t',
+        'WITH rows AS (SELECT %s AS periodo, %s AS periodo_label, COUNT(*)::int AS semanas, COALESCE(SUM(total_pagado),0) AS total_pagado_usd FROM nomina_semanas WHERE %s GROUP BY 1,2 ORDER BY 1), totals AS (SELECT COALESCE(SUM(total_pagado),0) AS total_pagado_usd, COUNT(*)::int AS total_semanas FROM nomina_semanas WHERE %s) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb), ''totals'', COALESCE((SELECT row_to_json(totals.*)::jsonb FROM totals), ''{}''::jsonb))',
         v_group_expr, v_label_expr, v_where, v_where
       )
 
       WHEN 'balance' THEN format(
-        'SELECT jsonb_build_object(''rows'', COALESCE(jsonb_agg(row_to_json(r.*)), ''[]''::jsonb)) FROM (
-          SELECT %s AS periodo, %s AS periodo_label,
-            COALESCE(SUM(gramos_oro_recuperado_total), 0) AS oro_g,
-            ROUND(COALESCE(AVG(precio_oro_usd_gramo),0)::numeric,2) AS precio_oro_usd,
-            COALESCE(SUM(ingreso_bruto_oro_usd), 0) AS ingreso_oro_usd,
-            COALESCE(SUM(ingreso_venta_arenas_usd), 0) AS ingreso_arenas_usd,
-            COALESCE(SUM(gasto_nomina_usd), 0) AS gasto_nomina_usd,
-            COALESCE(SUM(gasto_insumos_usd), 0) AS gasto_insumos_usd,
-            COALESCE(SUM(gasto_operativo_usd), 0) AS gasto_operativo_usd,
-            COALESCE(SUM(rentabilidad_usd), 0) AS rentabilidad_usd,
-            ROUND(COALESCE(AVG(margen_porcentaje),0)::numeric,2) AS margen_pct
-          FROM balance_diario WHERE %s GROUP BY 1,2 ORDER BY 1
-        ) r',
+        'WITH rows AS (SELECT %s AS periodo, %s AS periodo_label, COALESCE(SUM(gramos_oro_recuperado_total),0) AS oro_g, ROUND(COALESCE(AVG(precio_oro_usd_gramo),0)::numeric,2) AS precio_oro_usd, COALESCE(SUM(ingreso_bruto_oro_usd),0) AS ingreso_oro_usd, COALESCE(SUM(ingreso_venta_arenas_usd),0) AS ingreso_arenas_usd, COALESCE(SUM(gasto_nomina_usd),0) AS gasto_nomina_usd, COALESCE(SUM(gasto_insumos_usd),0) AS gasto_insumos_usd, COALESCE(SUM(gasto_operativo_usd),0) AS gasto_operativo_usd, COALESCE(SUM(rentabilidad_usd),0) AS rentabilidad_usd, ROUND(COALESCE(AVG(margen_porcentaje),0)::numeric,2) AS margen_pct FROM balance_diario WHERE %s GROUP BY 1,2 ORDER BY 1) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb))',
         v_group_expr, v_label_expr, v_where
       )
 
-      ELSE format('SELECT ''[]''::jsonb AS rows, ''{}''::jsonb AS totals')
+      ELSE format('SELECT jsonb_build_object(''rows'', ''[]''::jsonb, ''totals'', ''{}''::jsonb)')
     END;
 
     -- Ejecutar
