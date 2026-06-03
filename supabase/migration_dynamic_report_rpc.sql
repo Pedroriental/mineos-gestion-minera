@@ -83,7 +83,8 @@ BEGIN
             ELSE NULL
           END
           WHEN 'mina'     THEN CASE v_module
-            WHEN 'extraccion', 'voladuras' THEN 'mina'
+            WHEN 'extraccion' THEN 'mina'
+            WHEN 'voladuras' THEN 'mina'
             ELSE NULL
           END
           WHEN 'fecha'    THEN v_date_col || '::date'
