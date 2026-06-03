@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { FILTRABLE_COLUMNS } from '@/lib/reports/filtrable-columns';
 import type { ReportModule, ModuleFilters } from '@/lib/reports/report-types';
@@ -119,6 +119,14 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
     }
     return opts;
   }, [modules]);
+
+  // Reset groupBy si el valor actual no existe en las nuevas opciones
+  useEffect(() => {
+    const valid = combinedGroupByOptions.some((g) => g.key === groupBy);
+    if (!valid && combinedGroupByOptions.length > 0) {
+      onChangeGroupBy(combinedGroupByOptions[0].key);
+    }
+  }, [modules, combinedGroupByOptions, groupBy, onChangeGroupBy]);
 
   return (
     <div className="space-y-4">
