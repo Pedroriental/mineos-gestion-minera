@@ -33,7 +33,7 @@ export async function createProduccion(raw: unknown): Promise<ActionResult> {
 
   try {
     await assertBibliotecaValue('turnos', data.turno, 'Turno');
-    await assertBibliotecaValue('molinos', data.molino, 'Molino');
+    await assertBibliotecaValue('planta_molinos', data.molino, 'Molino');
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : 'Valor no permitido en biblioteca.' };
   }
