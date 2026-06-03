@@ -808,9 +808,7 @@ export default function ProduccionGerencialClient({
                 <div><label className="input-label">Turno *</label>
                   <AppSelect value={form.turno} onChange={(v) => handleFieldChange('turno', v)} options={turnoOptions} />
                 </div>
-                <div><label className="input-label">Molino *</label>
-                  <AppSelect value={form.molino} onChange={(v) => handleFieldChange('molino', v)} options={molinoSelectOptions.length ? molinoSelectOptions : molinosSug.map((m) => ({ value: m, label: m }))} placeholder="— Seleccionar molino —" />
-                </div>
+                <div><label className="input-label">Molino *</label><input list="molinos-list" value={form.molino} onChange={e => handleFieldChange('molino', e.target.value)} className="input-field" placeholder="Escribir molino..." /><datalist id="molinos-list">{molinoSelectOptions.map(m => <option key={m.value} value={m.value} />)}{molinosSug.map(m => <option key={m} value={m} />)}</datalist></div>
                 <div><label className="input-label">Material / Mina de Origen *</label><input list="materiales-list" value={form.material} onChange={e => handleFieldChange('material', e.target.value)} className="input-field" placeholder="Escribir material o mina..." /><datalist id="materiales-list">{materialesSug.map(m => <option key={m} value={m} />)}</datalist></div>
                 <div><label className="input-label">Código Lote/Veta</label><input value={form.material_codigo} onChange={e => handleFieldChange('material_codigo', e.target.value)} className="input-field" placeholder="V-2D19" /></div>
               </section>
