@@ -878,7 +878,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                   <span>📍 Identificación</span>
                   <span className="h-px flex-1 bg-amber-400/20" />
                 </h3>
-                <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={(val) => setFormField('fecha', e.target.value)} /></div>
+                <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={(val) => setFormField('fecha', val)} /></div>
                 <div><label className="input-label">Turno *</label>
                   <AppSelect value={form.turno} onChange={(v) => setFormField('turno', v)} options={turnoOptions} />
                 </div>

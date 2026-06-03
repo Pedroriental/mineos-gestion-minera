@@ -135,7 +135,7 @@ export default function LibroGuardiaPage() {
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-4">
-            <AppDatePicker value={selectedDate} onChange={(val) => setSelectedDate(e.target.value)} />
+            <AppDatePicker value={selectedDate} onChange={(val) => setSelectedDate(val)} />
             <span className="text-sm text-white/40 capitalize hidden sm:block">{fmtDateDisplay(selectedDate)}</span>
             {isToday && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-400/25">

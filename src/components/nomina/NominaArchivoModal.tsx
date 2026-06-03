@@ -257,8 +257,8 @@ export function NominaArchivoModal({ open, onClose, userId, onImport, onPeriodDe
                   className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-3 py-2 text-xs text-white"
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <AppDatePicker value={consolidateStart} onChange={(val) => setConsolidateStart(e.target.value)} />
-                  <AppDatePicker value={consolidateEnd} onChange={(val) => setConsolidateEnd(e.target.value)} />
+                  <AppDatePicker value={consolidateStart} onChange={(val) => setConsolidateStart(val)} />
+                  <AppDatePicker value={consolidateEnd} onChange={(val) => setConsolidateEnd(val)} />
                 </div>
                 <button
                   type="button"

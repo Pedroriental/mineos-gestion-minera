@@ -253,7 +253,7 @@ export default function ArenasPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               {/* ── Identificación ── */}
-              <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={(val) => f('fecha', e.target.value)} /></div>
+              <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={(val) => f('fecha', val)} /></div>
               <div><label className="input-label">Comprador *</label><input value={form.comprador} onChange={e => f('comprador', e.target.value)} className="input-field" placeholder="Nombre del comprador" /></div>
               <div className="col-span-1 md:col-span-2">
                 <label className="input-label">Negociación</label>

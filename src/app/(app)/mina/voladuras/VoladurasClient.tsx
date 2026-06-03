@@ -654,7 +654,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
               </h3>
               <div>
                 <label className="input-label">Fecha *</label>
-                <AppDatePicker value={form.fecha} onChange={(val) => set('fecha', e.target.value)} />
+                <AppDatePicker value={form.fecha} onChange={(val) => set('fecha', val)} />
               </div>
               <div>
                 <label className="input-label">Turno *</label>
