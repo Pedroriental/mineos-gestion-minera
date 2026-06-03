@@ -123,43 +123,6 @@ CREATE TABLE compras_programadas (
 -- MÓDULO: MINA (EXTRACCIÓN)
 -- ============================================================
 
--- Cronograma de Disparos
-CREATE TABLE cronograma_disparos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-    turno VARCHAR(20) NOT NULL CHECK (turno IN ('dia', 'noche', 'completo')),
-    zona_mina VARCHAR(100) NOT NULL,
-    nivel VARCHAR(50),
-    numero_huecos INTEGER NOT NULL CHECK (numero_huecos > 0),
-    profundidad_promedio_m NUMERIC(6,2),
-    explosivo_tipo VARCHAR(100) NOT NULL,
-    explosivo_cantidad_kg NUMERIC(10,3) NOT NULL,
-    fulminantes_usados INTEGER NOT NULL DEFAULT 0,
-    mecha_metros NUMERIC(8,2) NOT NULL DEFAULT 0,
-    sacos_obtenidos INTEGER NOT NULL DEFAULT 0,
-    estado VARCHAR(30) NOT NULL DEFAULT 'programado' CHECK (estado IN ('programado', 'ejecutado', 'cancelado', 'parcial')),
-    hora_disparo TIME,
-    responsable VARCHAR(150),
-    observaciones TEXT,
-    registrado_por UUID NOT NULL REFERENCES auth.users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Detalle de Disparos
-CREATE TABLE disparos_detalle (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    cronograma_id UUID NOT NULL REFERENCES cronograma_disparos(id) ON DELETE CASCADE,
-    numero_disparo INTEGER NOT NULL,
-    hora TIME,
-    huecos INTEGER NOT NULL,
-    explosivo_kg NUMERIC(10,3) NOT NULL,
-    sacos_obtenidos INTEGER NOT NULL DEFAULT 0,
-    resultado VARCHAR(100),
-    observaciones TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 -- Estado de Equipos
 CREATE TABLE equipos (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -218,7 +181,6 @@ CREATE TABLE recepcion_material (
     fecha DATE NOT NULL DEFAULT CURRENT_DATE,
     turno VARCHAR(20) NOT NULL CHECK (turno IN ('dia', 'noche', 'completo')),
     origen VARCHAR(150) NOT NULL,
-    disparo_id UUID REFERENCES cronograma_disparos(id),
     sacos_recibidos INTEGER NOT NULL CHECK (sacos_recibidos > 0),
     peso_estimado_kg NUMERIC(12,2),
     tipo_material VARCHAR(80) DEFAULT 'mineral_bruto',
@@ -242,29 +204,6 @@ CREATE TABLE procesamiento_planta (
     horas_proceso NUMERIC(6,2),
     quimicos_utilizados TEXT,
     estado VARCHAR(30) NOT NULL DEFAULT 'en_proceso' CHECK (estado IN ('en_proceso', 'completado', 'enviado_a_quemada')),
-    observaciones TEXT,
-    registrado_por UUID NOT NULL REFERENCES auth.users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- ★★★ QUEMADA DE PLANCHA — Tabla crítica del negocio ★★★
-CREATE TABLE quemada_plancha (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-    procesamiento_id UUID REFERENCES procesamiento_planta(id),
-    numero_quemada VARCHAR(50) NOT NULL,
-
-    -- ★ CAMPO OBLIGATORIO: Gramos de oro puro recuperado ★
-    gramos_oro_puro_recuperado NUMERIC(10,4) NOT NULL CHECK (gramos_oro_puro_recuperado >= 0),
-
-    gramos_oro_bruto NUMERIC(10,4),
-    porcentaje_pureza NUMERIC(5,2) CHECK (porcentaje_pureza BETWEEN 0 AND 100),
-    temperatura_quemada NUMERIC(6,1),
-    duracion_horas NUMERIC(5,2),
-    responsable VARCHAR(150) NOT NULL,
-    testigos TEXT,
-    foto_referencia VARCHAR(500),
     observaciones TEXT,
     registrado_por UUID NOT NULL REFERENCES auth.users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -341,10 +280,8 @@ CREATE INDEX idx_gastos_fecha ON gastos(fecha);
 CREATE INDEX idx_gastos_categoria ON gastos(categoria_id);
 CREATE INDEX idx_inventario_mov_fecha ON inventario_movimientos(fecha);
 CREATE INDEX idx_inventario_mov_item ON inventario_movimientos(item_id);
-CREATE INDEX idx_cronograma_fecha ON cronograma_disparos(fecha);
 CREATE INDEX idx_recepcion_fecha ON recepcion_material(fecha);
 CREATE INDEX idx_procesamiento_fecha ON procesamiento_planta(fecha);
-CREATE INDEX idx_quemada_fecha ON quemada_plancha(fecha);
 CREATE INDEX idx_balance_fecha ON balance_diario(fecha);
 CREATE INDEX idx_precio_oro_fecha ON precio_oro_cache(fecha);
 CREATE INDEX idx_nomina_pagos_personal ON nomina_pagos(personal_id);
@@ -365,14 +302,11 @@ ALTER TABLE gastos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventario_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventario_movimientos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE compras_programadas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cronograma_disparos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE disparos_detalle ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipos_historial ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mejoras_seguridad ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recepcion_material ENABLE ROW LEVEL SECURITY;
 ALTER TABLE procesamiento_planta ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quemada_plancha ENABLE ROW LEVEL SECURITY;
 ALTER TABLE venta_arenas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE precio_oro_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE balance_diario ENABLE ROW LEVEL SECURITY;
@@ -385,14 +319,11 @@ CREATE POLICY "auth_full_access" ON gastos FOR ALL USING (auth.role() = 'authent
 CREATE POLICY "auth_full_access" ON inventario_items FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON inventario_movimientos FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON compras_programadas FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "auth_full_access" ON cronograma_disparos FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "auth_full_access" ON disparos_detalle FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON equipos FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON equipos_historial FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON mejoras_seguridad FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON recepcion_material FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON procesamiento_planta FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "auth_full_access" ON quemada_plancha FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON venta_arenas FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON precio_oro_cache FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_full_access" ON balance_diario FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
@@ -414,12 +345,10 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON personal FOR EACH ROW EXECUTE FUN
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON gastos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON inventario_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON compras_programadas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON cronograma_disparos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON equipos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON mejoras_seguridad FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON recepcion_material FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON procesamiento_planta FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON quemada_plancha FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON balance_diario FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Auto-actualizar stock del inventario en movimientos

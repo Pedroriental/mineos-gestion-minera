@@ -258,28 +258,6 @@ export interface CompraProgramada {
 }
 
 // --- Mina ---
-export interface CronogramaDisparo {
-  id: string;
-  fecha: string;
-  turno: 'dia' | 'noche' | 'completo';
-  zona_mina: string;
-  nivel?: string;
-  numero_huecos: number;
-  profundidad_promedio_m?: number;
-  explosivo_tipo: string;
-  explosivo_cantidad_kg: number;
-  fulminantes_usados: number;
-  mecha_metros: number;
-  sacos_obtenidos: number;
-  estado: 'programado' | 'ejecutado' | 'cancelado' | 'parcial';
-  hora_disparo?: string;
-  responsable?: string;
-  observaciones?: string;
-  registrado_por: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface PausaBarrenado {
   hora_inicio: string;
   hora_fin: string;
@@ -314,19 +292,7 @@ export interface ReporteVoladura {
   observaciones?: string;
   responsable?: string;
   registrado_por?: string;
-  created_at: string;
-}
-
-export interface DisparoDetalle {
-  id: string;
-  cronograma_id: string;
-  numero_disparo: number;
-  hora?: string;
-  huecos: number;
-  explosivo_kg: number;
-  sacos_obtenidos: number;
-  resultado?: string;
-  observaciones?: string;
+  recepcion_id?: string;
   created_at: string;
 }
 
@@ -349,9 +315,9 @@ export interface ReporteExtraccion {
   numero_disparo?: string;
   observaciones?: string;
   registrado_por?: string;
+  recepcion_id?: string;
   created_at: string;
 }
-
 export interface Equipo {
   id: string;
   codigo: string;
@@ -391,7 +357,6 @@ export interface RecepcionMaterial {
   fecha: string;
   turno: 'dia' | 'noche' | 'completo';
   origen: string;
-  disparo_id?: string;
   sacos_recibidos: number;
   peso_estimado_kg?: number;
   tipo_material: string;
@@ -401,7 +366,6 @@ export interface RecepcionMaterial {
   registrado_por: string;
   created_at: string;
   updated_at: string;
-  cronograma_disparos?: CronogramaDisparo;
 }
 
 export interface ProcesamientoPlanta {
@@ -420,25 +384,6 @@ export interface ProcesamientoPlanta {
   created_at: string;
   updated_at: string;
   recepcion_material?: RecepcionMaterial;
-}
-
-export interface QuemadaPlancha {
-  id: string;
-  fecha: string;
-  procesamiento_id?: string;
-  numero_quemada: string;
-  gramos_oro_puro_recuperado: number;
-  gramos_oro_bruto?: number;
-  porcentaje_pureza?: number;
-  temperatura_quemada?: number;
-  duracion_horas?: number;
-  responsable: string;
-  testigos?: string;
-  foto_referencia?: string;
-  observaciones?: string;
-  registrado_por: string;
-  created_at: string;
-  updated_at: string;
 }
 
 // --- Quemado de Planchas ---
@@ -461,6 +406,7 @@ export interface ReporteQuemado {
   responsable?: string;
   observaciones?: string;
   registrado_por?: string;
+  procesamiento_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -479,6 +425,7 @@ export interface VentaArenas {
   pct_molino?: number;
   observaciones?: string;
   registrado_por: string;
+  procesamiento_id?: string;
   created_at: string;
 }
 
@@ -520,6 +467,7 @@ export interface ReporteProduccion {
   responsable?: string;
   observaciones?: string;
   registrado_por?: string;
+  procesamiento_id?: string;
   created_at: string;
   updated_at: string;
 }
