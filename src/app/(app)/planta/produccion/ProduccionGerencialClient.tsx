@@ -804,7 +804,7 @@ export default function ProduccionGerencialClient({
               {/* Columna 1 — Datos del reporte */}
               <section className="produccion-page__modal-col produccion-page__modal-col--datos flex flex-col gap-2.5">
                 <h3 className="produccion-page__modal-col-title produccion-modal-title text-sm font-semibold">Datos del reporte</h3>
-                <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={(val) => handleFieldChange('fecha', e.target.value)} /></div>
+                <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={(val) => handleFieldChange('fecha', val)} /></div>
                 <div><label className="input-label">Turno *</label>
                   <AppSelect value={form.turno} onChange={(v) => handleFieldChange('turno', v)} options={turnoOptions} />
                 </div>
