@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -21,17 +21,16 @@ import {
   Database,
   LogOut,
   X,
-  FileBarChart,
-  ClipboardList,
-  TestTube2,
-  Calculator,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MineosLogo, sidebarIconSurface } from '@/components/brand/MineosLogo';
 import { useTheme } from '@/lib/theme-context';
 
-// ── Navigation data ───────────────────────────────────────────
-interface NavItem {
+type SidebarVariant = 'default' | 'dashboard';
+
+interface NavItemData {
   label: string;
   href: string;
   icon: React.ReactNode;
@@ -40,8 +39,13 @@ interface NavItem {
 interface NavSection {
   id: string;
   title: string;
-  items: NavItem[];
+  items: NavItemData[];
 }
+
+const standaloneItems: NavItemData[] = [
+  { label: 'Dashboard', href: '/dashboard', icon: <LayoutGrid className="w-4 h-4" /> },
+  { label: 'Reporte y Balances', href: '/reportes-balances', icon: <CircleDollarSign className="w-4 h-4" /> },
+];
 
 const navigation: NavSection[] = [
   {
@@ -50,28 +54,24 @@ const navigation: NavSection[] = [
     items: [
       { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', icon: <BookOpen className="w-4 h-4" /> },
       {
-        label: 'Gastos',
-        href: '#',
-        icon: <Receipt className="w-4 h-4" />,
+        label: 'Gastos', href: '#', icon: <Receipt className="w-4 h-4" />,
         subItems: [
           { label: 'Registros de Gastos', href: '/admin/gastos' },
           { label: 'Catálogo', href: '/admin/gastos/conceptos' },
         ],
       },
       { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
-      { label: 'Compras',    href: '/admin/compras',    icon: <ShoppingCart className="w-4 h-4" /> },
+      { label: 'Compras', href: '/admin/compras', icon: <ShoppingCart className="w-4 h-4" /> },
       {
         label: 'Nómina de Personal', href: '#', icon: <Users className="w-4 h-4" />,
         subItems: [
           { label: 'Base de Trabajadores', href: '/admin/trabajadores' },
-          { label: 'Nómina Mina',    href: '/mina/nomina' },
+          { label: 'Nómina Mina', href: '/mina/nomina' },
           { label: 'Nómina Molinos', href: '/planta/nomina' },
         ],
       },
       {
-        label: 'Datos de Plataforma',
-        href: '#',
-        icon: <Database className="w-4 h-4" />,
+        label: 'Datos de Plataforma', href: '#', icon: <Database className="w-4 h-4" />,
         subItems: [
           { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales' },
           { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables' },
@@ -83,83 +83,85 @@ const navigation: NavSection[] = [
     id: 'mina',
     title: 'Mina',
     items: [
-      { label: 'Voladuras',  href: '/mina/voladuras',  icon: <Zap className="w-4 h-4" /> },
+      { label: 'Voladuras', href: '/mina/voladuras', icon: <Zap className="w-4 h-4" /> },
       { label: 'Extracción', href: '/mina/extraccion', icon: <HardHat className="w-4 h-4" /> },
-      { label: 'Equipos',    href: '/mina/equipos',    icon: <Wrench className="w-4 h-4" /> },
+      { label: 'Equipos', href: '/mina/equipos', icon: <Wrench className="w-4 h-4" /> },
     ],
   },
   {
     id: 'planta',
     title: 'Molino',
     items: [
-      { label: 'Producción',    href: '/planta/produccion',    icon: <FlaskConical className="w-4 h-4" /> },
-      { label: 'Recepción',     href: '/planta/recepcion',     icon: <Layers className="w-4 h-4" /> },
-      { label: 'Arenas',        href: '/planta/arenas',        icon: <Package className="w-4 h-4" /> },
-      { label: 'Quemado',       href: '/mina/quemado',         icon: <Flame className="w-4 h-4" /> },
+      { label: 'Producción', href: '/planta/produccion', icon: <FlaskConical className="w-4 h-4" /> },
+      { label: 'Recepción', href: '/planta/recepcion', icon: <Layers className="w-4 h-4" /> },
+      { label: 'Arenas', href: '/planta/arenas', icon: <Package className="w-4 h-4" /> },
+      { label: 'Quemado', href: '/mina/quemado', icon: <Flame className="w-4 h-4" /> },
     ],
   },
 ];
 
-type SidebarVariant = 'default' | 'dashboard';
+const activeClass = 'bg-amber-100/70 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium rounded-lg';
+const idleClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] rounded-lg transition-colors duration-150';
+const activeSubClass = 'font-medium text-amber-600 dark:text-amber-400';
+const idleSubClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors duration-150';
 
-function getSidebarTone(variant: SidebarVariant) {
-  if (variant === 'dashboard') {
-    return {
-      sectionLabel: 'text-[var(--dashboard-text-muted)]',
-      chevron: 'text-[var(--dashboard-text-muted)]',
-      navIdle:
-        'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.06]',
-      navIconIdle: 'text-[var(--dashboard-text-muted)]',
-      subParentIdle: 'text-[var(--dashboard-text-muted)]',
-      subParentIcon: 'text-[var(--dashboard-text-muted)]',
-      subIdle:
-        'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors',
-      headerBorder: 'border-[var(--dashboard-border)]',
-      headerTitle: 'text-[var(--dashboard-text)]',
-      closeBtn:
-        'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.06]',
-      footerBorder: 'border-[var(--dashboard-border)]',
-      userCard: 'bg-[var(--dashboard-card-muted)] border border-[var(--dashboard-border)]',
-      userEmail: 'text-[var(--dashboard-text)]',
-      userRole: 'text-[var(--dashboard-text-muted)]',
-      dashboardNavIdle:
-        'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.06]',
-      dashboardNavIcon: 'text-[var(--dashboard-text-muted)]',
-    };
-  }
-  return {
-    sectionLabel: 'text-zinc-500',
-    chevron: 'text-zinc-600',
-    navIdle: 'text-zinc-400 hover:text-white hover:bg-white/5',
-    navIconIdle: 'text-zinc-500',
-    subParentIdle: 'text-zinc-500',
-    subParentIcon: 'text-zinc-600',
-    subIdle: 'text-zinc-500 hover:text-zinc-300 transition-colors',
-    headerBorder: 'border-white/5',
-    headerTitle: 'text-white/90',
-    closeBtn: 'text-zinc-500 hover:text-white hover:bg-white/5',
-    footerBorder: 'border-white/5',
-    userCard: 'bg-white/[0.03] border border-white/5',
-    userEmail: 'text-zinc-300',
-    userRole: 'text-zinc-600',
-    dashboardNavIdle: 'text-zinc-400 hover:text-white hover:bg-white/5',
-    dashboardNavIcon: 'text-zinc-500',
-  };
+function NavTooltip({ label, show, children }: { label: string; show: boolean; children: React.ReactNode }) {
+  if (!show) return <>{children}</>;
+  return (
+    <div className="group/tip relative">
+      {children}
+      <div className="pointer-events-none absolute left-full ml-2.5 top-1/2 -translate-y-1/2 z-[60]
+                      opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150">
+        <div className="rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl whitespace-nowrap">
+          {label}
+        </div>
+      </div>
+    </div>
+  );
 }
 
-// ── Item con submenú plegable (ej. Nómina de Personal) ────────
+function NavItem({
+  item,
+  active,
+  expanded,
+  onNav,
+}: {
+  item: NavItemData;
+  active: boolean;
+  expanded: boolean;
+  onNav: (href: string) => void;
+}) {
+  return (
+    <NavTooltip label={item.label} show={!expanded}>
+      <button
+        type="button"
+        onClick={() => onNav(item.href)}
+        className={cn(
+          'flex w-full items-center gap-3 text-sm transition-all duration-150',
+          expanded ? 'px-2.5 py-2 text-left' : 'justify-center px-0 py-2',
+          active ? activeClass : idleClass,
+        )}
+      >
+        <span className={cn('flex-shrink-0', !active && 'text-[var(--dashboard-text-muted)]')}>
+          {item.icon}
+        </span>
+        {expanded && <span className="truncate text-[13px]">{item.label}</span>}
+      </button>
+    </NavTooltip>
+  );
+}
+
 function NavItemWithSubmenu({
   item,
   pathname,
+  expanded,
   onNav,
-  variant,
 }: {
-  item: NavItem;
+  item: NavItemData;
   pathname: string;
+  expanded: boolean;
   onNav: (href: string) => void;
-  variant: SidebarVariant;
 }) {
-  const tone = getSidebarTone(variant);
   const subItems = item.subItems ?? [];
   const anySubActive = subItems.some(
     (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
@@ -170,31 +172,45 @@ function NavItemWithSubmenu({
     if (anySubActive) setOpen(true);
   }, [anySubActive]);
 
-  const compact = variant === 'dashboard';
+  if (!expanded) {
+    return (
+      <NavTooltip label={item.label} show>
+        <button
+          type="button"
+          onClick={() => onNav('#')}
+          className={cn(
+            'flex w-full items-center justify-center px-0 py-2 text-sm transition-all duration-150',
+            anySubActive ? activeClass : idleClass,
+          )}
+        >
+          <span className={cn('flex-shrink-0', !anySubActive && 'text-[var(--dashboard-text-muted)]')}>
+            {item.icon}
+          </span>
+        </button>
+      </NavTooltip>
+    );
+  }
 
   return (
-    <div className={compact ? 'mb-0' : 'mb-1'}>
+    <div>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cn(
-          'flex w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors',
-          compact ? 'py-1.5' : 'py-2',
-          anySubActive ? 'text-amber-500' : tone.subParentIdle,
-          !anySubActive && tone.navIdle,
+          'flex w-full items-center gap-3 px-2.5 py-2 text-sm transition-all duration-150 text-left rounded-lg',
+          anySubActive ? activeClass : idleClass,
         )}
       >
-        <span className={cn('flex-shrink-0', anySubActive ? 'text-amber-500' : tone.subParentIcon)}>
+        <span className={cn('flex-shrink-0', !anySubActive && 'text-[var(--dashboard-text-muted)]')}>
           {item.icon}
         </span>
         <span className="min-w-0 flex-1 truncate text-[13px]">{item.label}</span>
         <ChevronDown
           className={cn(
-            'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200',
-            tone.chevron,
-            anySubActive && 'text-amber-500/80',
+            'h-3.5 w-3.5 flex-shrink-0 text-[var(--dashboard-text-muted)] transition-transform duration-200',
             open && 'rotate-180',
+            anySubActive && 'text-amber-500/80',
           )}
         />
       </button>
@@ -205,86 +221,113 @@ function NavItemWithSubmenu({
         )}
       >
         <div className="overflow-hidden">
-        <div className="mt-0.5 space-y-0 pb-0.5">
-          {subItems.map((sub) => {
-            const subActive = sub.href === '/admin/gastos'
-              ? (pathname === '/admin/gastos' || (pathname.startsWith('/admin/gastos/') && !pathname.startsWith('/admin/gastos/conceptos')))
-              : (pathname === sub.href || pathname.startsWith(sub.href + '/'));
-            return (
-              <button
-                key={sub.href}
-                type="button"
-                onClick={() => onNav(sub.href)}
-                className={cn(
-                  'block w-full pl-11 text-left text-[13px] transition-all duration-150',
-                  compact ? 'py-2' : 'py-2.5 pl-12',
-                  subActive
-                    ? 'font-medium text-amber-500'
-                    : tone.subIdle,
-                )}
-              >
-                {sub.label}
-              </button>
-            );
-          })}
-        </div>
+          <div className="ml-9 mt-0.5 space-y-0 pb-0.5 border-l-2 border-[var(--dashboard-border)] pl-3">
+            {subItems.map((sub) => {
+              const subActive = sub.href === '/admin/gastos'
+                ? (pathname === '/admin/gastos' || (pathname.startsWith('/admin/gastos/') && !pathname.startsWith('/admin/gastos/conceptos')))
+                : (pathname === sub.href || pathname.startsWith(sub.href + '/'));
+              return (
+                <button
+                  key={sub.href}
+                  type="button"
+                  onClick={() => onNav(sub.href)}
+                  className={cn(
+                    'block w-full py-2 text-left text-[13px] transition-all duration-150',
+                    subActive ? activeSubClass : idleSubClass,
+                  )}
+                >
+                  {sub.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Accordion Section ─────────────────────────────────────────
-function GlassAccordion({
+function Section({
   section,
   pathname,
+  expanded,
   onNav,
   defaultOpen,
-  variant,
 }: {
   section: NavSection;
   pathname: string;
+  expanded: boolean;
   onNav: (href: string) => void;
   defaultOpen: boolean;
-  variant: SidebarVariant;
 }) {
-  const tone = getSidebarTone(variant);
-  const compact = variant === 'dashboard';
   const [open, setOpen] = useState(defaultOpen);
-  const isActive = section.items.some(
-    (i) => pathname.startsWith(i.href) || i.subItems?.some((s) => pathname.startsWith(s.href))
-  );
+
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
+
+  if (!expanded) {
+    return (
+      <div className="space-y-0.5 px-2">
+        {section.items.map((item) => {
+          if (item.subItems?.length) {
+            const anySubActive = item.subItems.some(
+              (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
+            );
+            return (
+              <NavTooltip key={item.label} label={item.label} show>
+                <button
+                  type="button"
+                  onClick={() => onNav('#')}
+                  className={cn(
+                    'flex w-full items-center justify-center py-2 text-sm transition-all duration-150 rounded-lg',
+                    anySubActive ? activeClass : idleClass,
+                  )}
+                >
+                  <span className={cn('flex-shrink-0', !anySubActive && 'text-[var(--dashboard-text-muted)]')}>
+                    {item.icon}
+                  </span>
+                </button>
+              </NavTooltip>
+            );
+          }
+          const active = pathname === item.href || pathname.startsWith(item.href + '/');
+          return (
+            <NavItem key={item.href} item={item} active={active} expanded={false} onNav={onNav} />
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
-    <div className="mb-0.5">
-      {/* Section header */}
+    <div>
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-2 py-1.5 mb-0.5 text-left"
+        className={cn(
+          'flex w-full items-center gap-2 px-3 py-1.5 mb-0.5 text-left group',
+        )}
       >
-        <span
-          className={cn(
-            'flex-1 text-[10px] font-semibold uppercase tracking-widest',
-            tone.sectionLabel,
-          )}
-        >
-          {section.title}
-        </span>
+        <div className="flex-1 flex items-center gap-2">
+          <div className="h-px flex-1 bg-[var(--dashboard-border)]" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--dashboard-text-muted)]">
+            {section.title}
+          </span>
+          <div className="h-px flex-1 bg-[var(--dashboard-border)]" />
+        </div>
         <ChevronDown
           className={cn(
-            'w-3 h-3 transition-transform duration-200',
-            tone.chevron,
+            'w-3 h-3 text-[var(--dashboard-text-muted)] transition-transform duration-200',
             open && 'rotate-180',
           )}
         />
       </button>
-
-      {/* Items */}
       <div
         className="overflow-hidden transition-all duration-200 ease-in-out"
         style={{ maxHeight: open ? '600px' : '0px', opacity: open ? 1 : 0 }}
       >
-        <div className={cn('space-y-0', compact ? 'pb-0.5' : 'space-y-0.5 pb-2')}>
+        <div className="space-y-0.5 pb-1.5 px-2">
           {section.items.map((item) => {
             if (item.subItems?.length) {
               return (
@@ -292,32 +335,14 @@ function GlassAccordion({
                   key={item.label}
                   item={item}
                   pathname={pathname}
+                  expanded
                   onNav={onNav}
-                  variant={variant}
                 />
               );
             }
-
             const active = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
-              <button
-                key={item.href}
-                onClick={() => onNav(item.href)}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 text-sm transition-all duration-150 text-left',
-                  compact ? 'py-2' : 'py-2.5',
-                  active
-                    ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520] font-medium rounded-r-xl rounded-l-none'
-                    : cn(tone.navIdle, 'transition-colors rounded-xl'),
-                )}
-              >
-                <span
-                  className={cn('flex-shrink-0', active ? 'text-amber-500' : tone.navIconIdle)}
-                >
-                  {item.icon}
-                </span>
-                <span className="truncate text-[13px]">{item.label}</span>
-              </button>
+              <NavItem key={item.href} item={item} active={active} expanded onNav={onNav} />
             );
           })}
         </div>
@@ -326,39 +351,37 @@ function GlassAccordion({
   );
 }
 
-// ── Sidebar Props ─────────────────────────────────────────────
 interface SidebarProps {
-  variant?: 'default' | 'dashboard';
-  mobileOpen?: boolean;
-  onMobileClose?: () => void;
+  variant?: SidebarVariant;
   expanded?: boolean;
   onExpandedChange?: (v: boolean) => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-const sidebarShellClass = (variant: 'default' | 'dashboard') =>
-  cn(
-    'flex flex-col w-[260px] flex-shrink-0',
-    variant === 'dashboard' ? 'py-3 px-3' : 'py-6 px-4',
-    variant === 'dashboard'
-      ? 'rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]'
-      : 'rounded-[2rem] bg-zinc-900/40 backdrop-blur-2xl border border-white/5 shadow-2xl',
-  );
-
-// ── Main Sidebar (Floating Glass Dock) ────────────────────────
 export default function Sidebar({
   variant = 'default',
+  expanded,
+  onExpandedChange,
   mobileOpen,
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
-  const router   = useRouter();
+  const router = useRouter();
   const { signOut, user } = useAuth();
   const { theme } = useTheme();
-  const iconSurface = sidebarIconSurface(variant, theme);
+
+  const isExpanded = expanded ?? true;
 
   const handleNav = useCallback(
-    (href: string) => { router.push(href); onMobileClose?.(); },
-    [router, onMobileClose]
+    (href: string) => {
+      if (href !== '#') {
+        router.push(href);
+        if (!isExpanded) onExpandedChange?.(true);
+      }
+      onMobileClose?.();
+    },
+    [router, onMobileClose, isExpanded, onExpandedChange],
   );
 
   const handleSignOut = useCallback(async () => {
@@ -377,169 +400,159 @@ export default function Sidebar({
     .map((s) => s.id);
 
   const initials = (user?.email?.charAt(0) ?? 'U').toUpperCase();
-  const tone = getSidebarTone(variant);
-  const compact = variant === 'dashboard';
 
-  // ── GLASS DOCK CONTENT ────────────────────────────────────
-  const dockContent = (onClose?: () => void) => (
+  const iconSurface = sidebarIconSurface(variant, theme);
+
+  const shellClass = cn(
+    'flex flex-col flex-shrink-0',
+    'transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
+    isExpanded ? 'w-[240px]' : 'w-[68px]',
+    variant === 'dashboard' ? 'py-3' : 'py-6',
+    variant === 'dashboard'
+      ? 'rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] h-full max-h-full'
+      : 'rounded-[2rem] bg-zinc-900/40 backdrop-blur-2xl border border-white/5 shadow-2xl h-[calc(100vh-2rem)]',
+  );
+
+  const dockContent = (showClose?: boolean, onClose?: () => void) => (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Header / Logo */}
+      {/* Header */}
       <div
         className={cn(
-          'flex items-center gap-2 border-b',
-          compact ? 'mb-1 px-2 py-2' : 'mb-2 gap-2.5 px-4 py-3',
-          tone.headerBorder,
+          'flex items-center gap-3 border-b border-[var(--dashboard-border)]',
+          isExpanded ? 'px-3 pb-3 mb-2' : 'px-3 pb-3 mb-2 justify-center',
         )}
       >
         <div
           className={cn(
-            'flex flex-shrink-0 items-center justify-center self-center',
-            compact ? 'h-9 w-9' : 'h-12 w-12',
-            variant === 'default' &&
-              'rounded-xl border border-amber-500/20 bg-amber-500/10 p-1',
+            'flex items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 p-1.5',
+            'h-9 w-9',
           )}
-          aria-hidden
         >
           <MineosLogo
             variant="icon"
             surface={iconSurface}
-            className={cn('object-[center_46%]', compact ? 'h-8 w-8' : 'h-10 w-10')}
+            className="h-7 w-7 object-[center_46%]"
             alt=""
           />
         </div>
-        <div className="flex min-w-0 flex-col justify-center gap-px self-center leading-none">
-          <span className={cn('text-[14px] font-extrabold tracking-tight', tone.headerTitle)}>
-            La Fe
-          </span>
-          <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-400/70">
-            MineOS
-          </span>
-        </div>
-        {/* Mobile close button */}
-        {onClose && (
-          <button
-            onClick={onClose}
-            className={cn('ml-auto p-1.5 rounded-lg transition-colors', tone.closeBtn)}
-          >
-            <X className="w-4 h-4" />
-          </button>
+        {isExpanded && (
+          <>
+            <div className="flex min-w-0 flex-1 flex-col gap-px leading-none">
+              <span className="text-[14px] font-extrabold tracking-tight text-[var(--dashboard-text)]">
+                La Fe
+              </span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-400/70">
+                MineOS
+              </span>
+            </div>
+            {showClose && onClose && (
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.06] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </>
         )}
       </div>
 
-      {/* Dashboard pill */}
-      <div className={cn('px-2', compact ? 'mb-1' : 'mb-3')}>
-        <button
-          onClick={() => handleNav('/dashboard')}
-          className={cn(
-            'flex w-full items-center gap-3 px-3 text-sm transition-all duration-150 text-left',
-            compact ? 'py-2' : 'py-2.5',
-            pathname === '/dashboard'
-              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520] font-medium rounded-r-xl rounded-l-none'
-              : cn(tone.dashboardNavIdle, 'transition-colors rounded-xl'),
-          )}
-        >
-          <LayoutGrid
-            className={cn(
-              'w-4 h-4 flex-shrink-0',
-              pathname === '/dashboard' ? 'text-amber-500' : tone.dashboardNavIcon,
-            )}
-          />
-          <span className="text-[13px]">Dashboard</span>
-        </button>
-        <button
-          onClick={() => handleNav('/reportes-balances')}
-          className={cn(
-            'mt-1 flex w-full items-center gap-3 px-3 text-sm transition-all duration-150 text-left',
-            compact ? 'py-2' : 'py-2.5',
-            pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')
-              ? 'bg-amber-500/10 text-amber-500 shadow-[inset_3px_0_0_0_#DAA520] font-medium rounded-r-xl rounded-l-none'
-              : cn(tone.dashboardNavIdle, 'transition-colors rounded-xl'),
-          )}
-        >
-          <CircleDollarSign
-            className={cn(
-              'w-4 h-4 flex-shrink-0',
-              pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')
-                ? 'text-amber-500'
-                : tone.dashboardNavIcon,
-            )}
-          />
-          <span className="text-[13px]">Reporte y Balances</span>
-        </button>
+      {/* Dashboard & Reportes (standalone) */}
+      <div className={cn(isExpanded ? 'px-2 space-y-0.5' : 'px-2 space-y-0.5')}>
+        <NavItem
+          item={standaloneItems[0]}
+          active={pathname === '/dashboard'}
+          expanded={isExpanded}
+          onNav={handleNav}
+        />
+        <NavItem
+          item={standaloneItems[1]}
+          active={pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')}
+          expanded={isExpanded}
+          onNav={handleNav}
+        />
       </div>
 
-      {/* Navigation */}
-      <nav
-        className={cn(
-          'sidebar-nav-scroll scroll-y-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2',
-          compact ? 'space-y-0' : 'space-y-1',
-        )}
-      >
+      {/* Divider */}
+      <div className={cn('border-t border-[var(--dashboard-border)]', isExpanded ? 'mx-3 my-2' : 'mx-2 my-2')} />
+
+      {/* Sections */}
+      <nav className="sidebar-nav-scroll scroll-y-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto space-y-0.5">
         {navigation.map((section) => (
-          <GlassAccordion
+          <Section
             key={section.id}
             section={section}
             pathname={pathname}
-            onNav={(href) => { handleNav(href); onClose?.(); }}
+            expanded={isExpanded}
+            onNav={handleNav}
             defaultOpen={defaultOpenIds.includes(section.id)}
-            variant={variant}
           />
         ))}
       </nav>
 
-      {/* Footer: User pill */}
-      <div
-        className={cn(
-          'mt-auto shrink-0 border-t px-2',
-          compact ? 'pt-2' : 'mt-2 pt-4',
-          tone.footerBorder,
+      {/* Footer */}
+      <div className={cn('mt-auto shrink-0 border-t border-[var(--dashboard-border)]', isExpanded ? 'px-2 pt-3' : 'px-2 pt-3')}>
+        {isExpanded ? (
+          <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 bg-[var(--dashboard-card-muted)] border border-[var(--dashboard-border)]">
+            <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+              <span className="text-amber-300 font-bold text-[12px]">{initials}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold truncate text-[var(--dashboard-text)]">{user?.email}</p>
+              <p className="text-[9px] uppercase tracking-wider text-[var(--dashboard-text-muted)]">Operaciones</p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              title="Cerrar sesión"
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 pb-1">
+            <div className="w-9 h-9 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+              <span className="text-amber-300 font-bold text-[12px]">{initials}</span>
+            </div>
+          </div>
         )}
-      >
-        <div
-          className={cn(
-            'flex items-center gap-3 rounded-xl px-3',
-            compact ? 'py-2' : 'py-2.5',
-            tone.userCard,
-          )}
-        >
-          {/* Avatar */}
-          <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
-            <span className="text-amber-300 font-bold text-[12px]">{initials}</span>
-          </div>
-          {/* Email */}
-          <div className="flex-1 min-w-0">
-            <p className={cn('text-[11px] font-semibold truncate', tone.userEmail)}>{user?.email}</p>
-            <p className={cn('text-[9px] uppercase tracking-wider', tone.userRole)}>Operaciones</p>
-          </div>
-          {/* Sign out */}
-          <button
-            onClick={handleSignOut}
-            title="Cerrar sesión"
-            className="p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
       </div>
     </div>
   );
 
   return (
     <>
-      {/* ── DESKTOP: Floating Glass Dock ── */}
+      {/* Desktop */}
       <aside
         data-sidebar
         data-sidebar-variant={variant}
-        className={cn(
-          'hidden md:flex',
-          variant === 'dashboard' ? 'h-full max-h-full' : 'h-[calc(100vh-2rem)]',
-          sidebarShellClass(variant),
-        )}
+        data-expanded={isExpanded}
+        className={cn('hidden md:flex', shellClass)}
       >
         {dockContent()}
+
+        {/* Collapse toggle (desktop only) */}
+        <div className={cn(
+          'flex justify-center py-2',
+          isExpanded ? 'justify-end px-3 pt-1 pb-0' : 'justify-center pt-1 pb-2',
+        )}>
+          <button
+            type="button"
+            onClick={() => onExpandedChange?.(!isExpanded)}
+            className={cn(
+              'rounded-lg transition-all duration-150',
+              isExpanded
+                ? 'p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]'
+                : 'p-2 text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]',
+            )}
+            title={isExpanded ? 'Colapsar menú' : 'Expandir menú'}
+          >
+            {isExpanded ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+          </button>
+        </div>
       </aside>
 
-      {/* ── MOBILE: Slide-in Drawer ── */}
+      {/* Mobile backdrop */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/55 backdrop-blur-md md:hidden"
@@ -547,6 +560,8 @@ export default function Sidebar({
           aria-hidden="true"
         />
       )}
+
+      {/* Mobile drawer */}
       <aside
         data-sidebar
         data-sidebar-variant={variant}
@@ -560,12 +575,11 @@ export default function Sidebar({
           mobileOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)]',
         )}
       >
-        {dockContent(onMobileClose)}
+        {dockContent(true, onMobileClose)}
       </aside>
     </>
   );
 }
 
-// Keep exports for compatibility
 export const COLLAPSED_W = 68;
-export const EXPANDED_W  = 260;
+export const EXPANDED_W = 240;

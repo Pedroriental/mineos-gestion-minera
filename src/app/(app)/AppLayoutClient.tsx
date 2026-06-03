@@ -100,6 +100,19 @@ export default function AppLayoutClient({
   const [bellOpen,      setBellOpen]      = useState(false);
   const [bellCoords,    setBellCoords]    = useState({ top: 56, right: 56 });
   const [alerts,        setAlerts]        = useState<DashboardAlert[]>(initialAlerts);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mineos-sidebar-expanded');
+      if (saved !== null) setSidebarExpanded(saved === 'true');
+    } catch {}
+  }, []);
+
+  const handleSidebarExpandedChange = useCallback((v: boolean) => {
+    setSidebarExpanded(v);
+    try { localStorage.setItem('mineos-sidebar-expanded', String(v)); } catch {}
+  }, []);
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
   const sectionMeta = getAppSectionMeta(pathname);
@@ -170,6 +183,8 @@ export default function AppLayoutClient({
       <div className="relative z-10 flex h-full w-full gap-2 p-2 sm:gap-3 sm:p-3 md:gap-3 md:p-4" data-app-shell>
         <Sidebar
           variant="dashboard"
+          expanded={sidebarExpanded}
+          onExpandedChange={handleSidebarExpandedChange}
           mobileOpen={mobileMenuOpen}
           onMobileClose={() => setMobileMenuOpen(false)}
         />
