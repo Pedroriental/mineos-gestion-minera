@@ -10,6 +10,8 @@ import type {
   ExtraccionReportFilters,
   GastosReportFilters,
   BalanceReportFilters,
+  ReportPayload,
+  ExecuteReportResult,
 } from '../reports/report-types';
 import type {
   ReporteProduccion,
@@ -465,10 +467,6 @@ export async function fetchBalanceReport(
     ventasArenas: (ventasArenas as any[]) ?? [],
   };
 }
-
-// ── Constructor Universal: llama al RPC execute_dynamic_report ──
-
-import type { ReportPayload, ExecuteReportResult } from '@/lib/reports/report-types';
 
 export async function executeReportAction(
   payload: ReportPayload,
