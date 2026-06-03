@@ -23,6 +23,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeft,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MineosLogo, sidebarIconSurface } from '@/components/brand/MineosLogo';
@@ -61,7 +62,8 @@ const navigation: NavSection[] = [
         ],
       },
       { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
-      { label: 'Compras', href: '/admin/compras', icon: <ShoppingCart className="w-4 h-4" /> },
+      { label: 'Compras',    href: '/admin/compras',    icon: <ShoppingCart className="w-4 h-4" /> },
+      { label: 'Integridad Financiera', href: '/operaciones/integridad', icon: <ShieldCheck className="w-4 h-4" /> },
       {
         label: 'Nómina de Personal', href: '#', icon: <Users className="w-4 h-4" />,
         subItems: [
