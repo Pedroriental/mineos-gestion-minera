@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Factory,
   Gem,
@@ -13,6 +14,11 @@ import {
 } from 'lucide-react';
 import { SolidMetricCard } from './SolidMetricCard';
 import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase';
+import { createProduccion } from '@/lib/actions/produccion';
+import { createExtraccion } from '@/lib/actions/extraccion';
+import { getOrCreateCategoria, createGasto } from '@/lib/actions/gastos';
 import type { GlobalData } from './types';
 
 type TabType = 'produccion' | 'extraccion' | 'gastos' | 'asistencia' | 'equipos';
@@ -55,6 +61,8 @@ type DashboardMetricsRailProps = {
 };
 
 export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalData, activeNodes }: DashboardMetricsRailProps) {
+  const router = useRouter();
+  const { user } = useAuth();
   const turnoOpts = useTurnoOptions(false);
   const molinoOpts = useBibliotecaOptions('planta_molinos');
   const verticalOpts = useBibliotecaOptions('verticales_voladura', { prependEmpty: true });
@@ -62,6 +70,7 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
 
   const [activeTab, setActiveTab] = useState<TabType>('produccion');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Producción
@@ -112,81 +121,103 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
     setActiveTab('produccion');
   }, []);
 
+  const showSuccessAndRefresh = useCallback(() => {
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 2500);
+    resetForm();
+    router.refresh();
+  }, [resetForm, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMsg('');
 
-    let payload: Record<string, unknown>;
+    try {
+      switch (activeTab) {
+        case 'produccion': {
+          const res = await createProduccion({
+            fecha: pFecha,
+            turno: pTurno,
+            molino: pMolino,
+            material: pMaterial,
+            sacos: Number(pSacos) || 0,
+            oro_recuperado_g: Number(pOro) || 0,
+            registrado_por: user?.id ?? null,
+          });
+          if (!res.ok) { setErrorMsg(res.message); setIsSubmitting(false); return; }
+          break;
+        }
+        case 'extraccion': {
+          const res = await createExtraccion({
+            fecha: eFecha,
+            turno: eTurno,
+            vertical: eVertical || undefined,
+            mina: eMina || undefined,
+            sacos_extraidos: Number(eSacos) || 0,
+            numero_disparo: eDisparo || undefined,
+            registrado_por: user?.id ?? undefined,
+          });
+          if (!res.ok) { setErrorMsg(res.message ?? 'Error al registrar extracción'); setIsSubmitting(false); return; }
+          break;
+        }
+        case 'gastos': {
+          if (!gCategoria || !gDescripcion.trim()) {
+            setErrorMsg('Categoría y descripción son obligatorias'); setIsSubmitting(false); return;
+          }
+          const catRes = await getOrCreateCategoria(gCategoria);
+          if (!catRes.ok) { setErrorMsg(catRes.message); setIsSubmitting(false); return; }
+          const res = await createGasto({
+            fecha: gFecha,
+            categoria_id: catRes.id,
+            descripcion: gDescripcion.trim(),
+            monto: Number(gMonto) || 0,
+            registrado_por: user?.id ?? null,
+          });
+          if (!res.ok) { setErrorMsg(res.message); setIsSubmitting(false); return; }
+          break;
+        }
+        case 'asistencia': {
+          if (!aJefeSaliente.trim() || !aJefeEntrante.trim() || !aNovedades.trim()) {
+            setErrorMsg('Jefes y novedades son obligatorios'); setIsSubmitting(false); return;
+          }
+          const { error: guardiaError } = await supabase.from('libro_guardia').insert({
+            fecha: aFecha,
+            turno: aTurno,
+            jefe_saliente: aJefeSaliente.trim(),
+            jefe_entrante: aJefeEntrante.trim(),
+            personal_mina: Number(aPersonalMina) || 0,
+            personal_planta: Number(aPersonalPlanta) || 0,
+            personal_otros: 0,
+            novedades_operativas: aNovedades.trim(),
+            registrado_por: user?.id ?? null,
+          });
+          if (guardiaError) { setErrorMsg(guardiaError.message); setIsSubmitting(false); return; }
+          break;
+        }
+        case 'equipos': {
+          if (!qTipoEvento || !qDescripcion.trim()) {
+            setErrorMsg('Tipo de evento y descripción son obligatorios'); setIsSubmitting(false); return;
+          }
+          const { error: equipoError } = await supabase.from('equipos_historial').insert({
+            fecha: qFecha,
+            tipo_evento: qTipoEvento,
+            descripcion: qDescripcion.trim(),
+            costo: Number(qCosto) || 0,
+            registrado_por: user?.id ?? null,
+          });
+          if (equipoError) { setErrorMsg(equipoError.message); setIsSubmitting(false); return; }
+          break;
+        }
+      }
 
-    switch (activeTab) {
-      case 'produccion':
-        payload = {
-          tabla: 'reportes_produccion',
-          fecha: pFecha,
-          turno: pTurno,
-          molino: pMolino,
-          material: pMaterial,
-          sacos: Number(pSacos) || 0,
-          oro_recuperado_g: Number(pOro) || 0,
-          timestamp: new Date().toISOString(),
-        };
-        break;
-      case 'extraccion':
-        payload = {
-          tabla: 'reportes_extraccion',
-          fecha: eFecha,
-          turno: eTurno,
-          vertical: eVertical,
-          mina: eMina,
-          sacos_extraidos: Number(eSacos) || 0,
-          numero_disparo: eDisparo,
-          timestamp: new Date().toISOString(),
-        };
-        break;
-      case 'gastos':
-        payload = {
-          tabla: 'gastos',
-          fecha: gFecha,
-          monto: Number(gMonto) || 0,
-          categoria: gCategoria,
-          descripcion: gDescripcion,
-          timestamp: new Date().toISOString(),
-        };
-        break;
-      case 'asistencia':
-        payload = {
-          tabla: 'libro_guardia',
-          fecha: aFecha,
-          turno: aTurno,
-          jefe_saliente: aJefeSaliente,
-          jefe_entrante: aJefeEntrante,
-          personal_mina: Number(aPersonalMina) || 0,
-          personal_planta: Number(aPersonalPlanta) || 0,
-          novedades_operativas: aNovedades,
-          timestamp: new Date().toISOString(),
-        };
-        break;
-      case 'equipos':
-        payload = {
-          tabla: 'equipos_historial',
-          fecha: qFecha,
-          tipo_evento: qTipoEvento,
-          descripcion: qDescripcion,
-          costo: Number(qCosto) || 0,
-          timestamp: new Date().toISOString(),
-        };
-        break;
+      showSuccessAndRefresh();
+    } catch (err) {
+      console.error('[QuickEntry] Error:', err);
+      setErrorMsg('Error inesperado. Intenta de nuevo.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    console.log('[QuickEntry] payload:', JSON.stringify(payload, null, 2));
-
-    // TODO: Replace with Supabase insert
-    // await supabase.from(payload.tabla as string).insert(payload);
-
-    setIsSubmitting(false);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
-    resetForm();
   };
 
   return (
@@ -420,6 +451,11 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
                   <input type="number" min="0" step="0.01" value={qCosto} onChange={e => setQCosto(e.target.value)} placeholder="0.00" className={IC} />
                 </div>
               </>
+            )}
+
+            {/* Error message */}
+            {errorMsg && (
+              <p className="rounded bg-red-900/40 px-2 py-1 text-[0.65rem] text-red-300">{errorMsg}</p>
             )}
 
             {/* Submit */}
