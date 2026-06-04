@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Factory,
@@ -13,7 +13,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { SolidMetricCard } from './SolidMetricCard';
-import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { useBiblioteca, useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { createProduccion } from '@/lib/actions/produccion';
@@ -22,12 +22,6 @@ import { getOrCreateCategoria, createGasto } from '@/lib/actions/gastos';
 import type { GlobalData } from './types';
 
 type TabType = 'produccion' | 'extraccion' | 'gastos' | 'asistencia' | 'equipos';
-
-const MOLINOS = [
-  { id: 'MOLINO 1', label: 'Molino 1' },
-  { id: 'MOLINO 2', label: 'Molino 2' },
-  { id: 'MOLINO 3', label: 'Molino 3' },
-] as const;
 
 const GASTOS_CATEGORIAS = ['Operación', 'Mantenimiento', 'Insumos', 'Transporte'] as const;
 
@@ -51,10 +45,6 @@ const TAB_ITEMS: { key: TabType; label: string; icon: React.ReactNode }[] = [
   { key: 'equipos', label: 'Equipos', icon: <Wrench className="h-3 w-3" /> },
 ];
 
-const IC = 'w-full rounded border border-[var(--dashboard-border)] bg-[#111111] px-2 py-1.5 text-[0.7rem] text-[var(--dashboard-text)] placeholder:text-[var(--dashboard-text-muted)] focus:border-[var(--dashboard-accent)] focus:outline-none';
-const SC = IC;
-const LC = 'block text-[0.6rem] font-semibold uppercase tracking-wider text-[var(--dashboard-text-muted)] mb-0.5';
-
 type DashboardMetricsRailProps = {
   globalData: GlobalData;
   activeNodes: number;
@@ -67,6 +57,24 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
   const molinoOpts = useBibliotecaOptions('planta_molinos');
   const verticalOpts = useBibliotecaOptions('verticales_voladura', { prependEmpty: true });
   const minaOpts = useBibliotecaOptions('minas');
+  const biblioteca = useBiblioteca();
+
+  const molinoDatalist = useMemo(
+    () => molinoOpts.length > 0 ? molinoOpts : [{ value: 'Molino La Fe', label: 'Molino La Fe' }],
+    [molinoOpts],
+  );
+
+  const materialDatalist = useMemo(() => {
+    const items = biblioteca.options?.['asignacion_nomina'] ?? [];
+    return items.length > 0 ? items : [
+      { value: 'Vertical 1', label: 'Vertical 1' },
+      { value: 'Vertical 2', label: 'Vertical 2' },
+      { value: 'Vertical 3', label: 'Vertical 3' },
+      { value: 'Mantenimiento', label: 'Mantenimiento' },
+      { value: 'Repaso', label: 'Repaso' },
+      { value: 'Caratal', label: 'Caratal' },
+    ];
+  }, [biblioteca]);
 
   const [activeTab, setActiveTab] = useState<TabType>('produccion');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,8 +86,12 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
   const [pTurno, setPTurno] = useState('dia');
   const [pMolino, setPMolino] = useState('');
   const [pMaterial, setPMaterial] = useState('');
+  const [pCodigo, setPCodigo] = useState('');
   const [pSacos, setPSacos] = useState('');
+  const [pAmalgama1, setPAmalgama1] = useState('');
+  const [pAmalgama2, setPAmalgama2] = useState('');
   const [pOro, setPOro] = useState('');
+  const [pResponsable, setPResponsable] = useState('');
 
   // Extracción
   const [eFecha, setEFecha] = useState(() => new Date().toISOString().slice(0, 10));
@@ -88,6 +100,7 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
   const [eMina, setEMina] = useState('');
   const [eSacos, setESacos] = useState('');
   const [eDisparo, setEDisparo] = useState('');
+  const [eResponsable, setEResponsable] = useState('');
 
   // Gastos
   const [gFecha, setGFecha] = useState(() => new Date().toISOString().slice(0, 10));
@@ -110,11 +123,9 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
   const [qDescripcion, setQDescripcion] = useState('');
   const [qCosto, setQCosto] = useState('');
 
-  const molinoSelectOptions = molinoOpts.length > 0 ? molinoOpts : MOLINOS.map(m => ({ value: m.id, label: m.label }));
-
   const resetForm = useCallback(() => {
-    setPFecha(new Date().toISOString().slice(0, 10)); setPTurno('dia'); setPMolino(''); setPMaterial(''); setPSacos(''); setPOro('');
-    setEFecha(new Date().toISOString().slice(0, 10)); setETurno('dia'); setEVertical(''); setEMina(''); setESacos(''); setEDisparo('');
+    setPFecha(new Date().toISOString().slice(0, 10)); setPTurno('dia'); setPMolino(''); setPMaterial(''); setPCodigo(''); setPSacos(''); setPAmalgama1(''); setPAmalgama2(''); setPOro(''); setPResponsable('');
+    setEFecha(new Date().toISOString().slice(0, 10)); setETurno('dia'); setEVertical(''); setEMina(''); setESacos(''); setEDisparo(''); setEResponsable('');
     setGFecha(new Date().toISOString().slice(0, 10)); setGMonto(''); setGCategoria(''); setGDescripcion('');
     setAFecha(new Date().toISOString().slice(0, 10)); setATurno('dia'); setAJefeSaliente(''); setAJefeEntrante(''); setAPersonalMina(''); setAPersonalPlanta(''); setANovedades('');
     setQFecha(new Date().toISOString().slice(0, 10)); setQTipoEvento(''); setQDescripcion(''); setQCosto('');
@@ -136,13 +147,20 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
     try {
       switch (activeTab) {
         case 'produccion': {
+          if (!pMolino.trim() || !pMaterial.trim()) {
+            setErrorMsg('Molino y material son obligatorios'); setIsSubmitting(false); return;
+          }
           const res = await createProduccion({
             fecha: pFecha,
             turno: pTurno,
-            molino: pMolino,
-            material: pMaterial,
+            molino: pMolino.trim(),
+            material: pMaterial.trim(),
+            material_codigo: pCodigo.trim() || undefined,
             sacos: Number(pSacos) || 0,
+            amalgama_1_g: pAmalgama1 ? Number(pAmalgama1) : undefined,
+            amalgama_2_g: pAmalgama2 ? Number(pAmalgama2) : undefined,
             oro_recuperado_g: Number(pOro) || 0,
+            responsable: pResponsable.trim() || undefined,
             registrado_por: user?.id ?? null,
           });
           if (!res.ok) { setErrorMsg(res.message); setIsSubmitting(false); return; }
@@ -156,6 +174,7 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
             mina: eMina || undefined,
             sacos_extraidos: Number(eSacos) || 0,
             numero_disparo: eDisparo || undefined,
+            responsable: eResponsable.trim() || undefined,
             registrado_por: user?.id ?? undefined,
           });
           if (!res.ok) { setErrorMsg(res.message ?? 'Error al registrar extracción'); setIsSubmitting(false); return; }
@@ -234,10 +253,7 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
         <SolidMetricCard
           layout="rail"
           label="Producción Mensual"
-          value={globalData.produccionMensual.toLocaleString('en-US', {
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 1,
-          })}
+          value={globalData.produccionMensual.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
           unit="g Au"
           icon={<TrendingUp className="h-4 w-4" />}
         />
@@ -245,84 +261,91 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
           layout="rail"
           featured
           label="Oro Total Recuperado"
-          value={globalData.oroTotalRecuperado.toLocaleString('en-US', {
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 1,
-          })}
+          value={globalData.oroTotalRecuperado.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
           unit="g Au"
           icon={<Gem className="h-4 w-4" />}
         />
         <SolidMetricCard
           layout="rail"
           label="Balance Plancha 1"
-          value={globalData.balancePlancha1.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
+          value={globalData.balancePlancha1.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           unit="g Au"
           icon={<Layers className="h-3.5 w-3.5" />}
         />
 
         {/* ── Quick Entry Panel ─────────────────────────────── */}
         <p className="dashboard-metrics-rail__section">Entrada Rápida</p>
-        <div className="flex flex-col gap-2 overflow-y-auto py-1">
-          <p className="text-[0.6rem] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
-            # Reporte Rápido / Modo Entrada Rápida
-          </p>
-
-          {/* Tab Buttons */}
-          <div className="grid grid-cols-5 gap-1">
+        <div className="quick-entry-panel">
+          <div className="quick-entry-panel__tabs">
             {TAB_ITEMS.map(({ key, label, icon }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setActiveTab(key)}
                 className={[
-                  'flex flex-col items-center gap-0.5 rounded border py-1 px-0.5 text-[0.55rem] font-medium uppercase tracking-wide transition-all',
-                  activeTab === key
-                    ? 'border-[var(--dashboard-accent)] bg-[var(--dashboard-accent-soft)] text-[var(--dashboard-accent)]'
-                    : 'border-[var(--dashboard-border)] text-[var(--dashboard-text-muted)] hover:border-[var(--dashboard-accent)]/40 hover:text-[var(--dashboard-text)]',
-                ].join(' ')}
+                  'quick-entry-panel__tab',
+                  activeTab === key ? 'quick-entry-panel__tab--active' : '',
+                ].filter(Boolean).join(' ')}
               >
                 {icon}
-                {label}
+                <span>{label}</span>
               </button>
             ))}
           </div>
 
-          {/* Dynamic Form */}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-1.5">
+          <form onSubmit={handleSubmit} className="quick-entry-panel__form">
             {/* ── PRODUCCIÓN ── */}
             {activeTab === 'produccion' && (
               <>
-                <div>
-                  <label className={LC}>Fecha</label>
-                  <input type="date" value={pFecha} onChange={e => setPFecha(e.target.value)} className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Fecha</label>
+                  <input type="date" value={pFecha} onChange={e => setPFecha(e.target.value)} className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>Turno</label>
-                  <select value={pTurno} onChange={e => setPTurno(e.target.value)} className={SC}>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Turno</label>
+                  <select value={pTurno} onChange={e => setPTurno(e.target.value)} className="input-field">
                     {turnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className={LC}>Molino / Lote</label>
-                  <select value={pMolino} onChange={e => setPMolino(e.target.value)} className={SC}>
-                    <option value="">Seleccionar…</option>
-                    {molinoSelectOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Molino</label>
+                  <input type="text" value={pMolino} onChange={e => setPMolino(e.target.value)} list="qe-molino-list" placeholder="Molino La Fe…" className="input-field" />
+                  <datalist id="qe-molino-list">
+                    {molinoDatalist.map(o => <option key={o.value} value={o.value} />)}
+                  </datalist>
                 </div>
-                <div>
-                  <label className={LC}>Material</label>
-                  <input type="text" value={pMaterial} onChange={e => setPMaterial(e.target.value)} placeholder="Nombre del material" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Material / Origen</label>
+                  <input type="text" value={pMaterial} onChange={e => setPMaterial(e.target.value)} list="qe-material-list" placeholder="Vertical 1, Repaso…" className="input-field" />
+                  <datalist id="qe-material-list">
+                    {materialDatalist.map(o => <option key={o.value} value={o.value} />)}
+                  </datalist>
                 </div>
-                <div>
-                  <label className={LC}>Sacos</label>
-                  <input type="number" min="0" step="1" value={pSacos} onChange={e => setPSacos(e.target.value)} placeholder="0" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Código Lote/Veta</label>
+                  <input type="text" value={pCodigo} onChange={e => setPCodigo(e.target.value)} placeholder="V-2D19" className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>Oro recuperado (g)</label>
-                  <input type="number" min="0" step="0.01" value={pOro} onChange={e => setPOro(e.target.value)} placeholder="0.00" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Sacos</label>
+                  <input type="number" min="0" step="1" value={pSacos} onChange={e => setPSacos(e.target.value)} placeholder="0" className="input-field" />
+                </div>
+                <div className="quick-entry-panel__cols2">
+                  <div className="quick-entry-panel__row">
+                    <label className="input-label">Amalgama 1 (g)</label>
+                    <input type="number" min="0" step="0.01" value={pAmalgama1} onChange={e => setPAmalgama1(e.target.value)} placeholder="0.00" className="input-field" />
+                  </div>
+                  <div className="quick-entry-panel__row">
+                    <label className="input-label">Amalgama 2 (g)</label>
+                    <input type="number" min="0" step="0.01" value={pAmalgama2} onChange={e => setPAmalgama2(e.target.value)} placeholder="0.00" className="input-field" />
+                  </div>
+                </div>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Oro recuperado (g Au) *</label>
+                  <input type="number" min="0" step="0.0001" value={pOro} onChange={e => setPOro(e.target.value)} placeholder="0.0000" className="input-field" />
+                </div>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Responsable</label>
+                  <input type="text" value={pResponsable} onChange={e => setPResponsable(e.target.value)} placeholder="Opcional" className="input-field" />
                 </div>
               </>
             )}
@@ -330,37 +353,41 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
             {/* ── EXTRACCIÓN ── */}
             {activeTab === 'extraccion' && (
               <>
-                <div>
-                  <label className={LC}>Fecha</label>
-                  <input type="date" value={eFecha} onChange={e => setEFecha(e.target.value)} className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Fecha</label>
+                  <input type="date" value={eFecha} onChange={e => setEFecha(e.target.value)} className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>Turno</label>
-                  <select value={eTurno} onChange={e => setETurno(e.target.value)} className={SC}>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Turno</label>
+                  <select value={eTurno} onChange={e => setETurno(e.target.value)} className="input-field">
                     {turnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className={LC}>Vertical</label>
-                  <select value={eVertical} onChange={e => setEVertical(e.target.value)} className={SC}>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Vertical</label>
+                  <select value={eVertical} onChange={e => setEVertical(e.target.value)} className="input-field">
                     <option value="">— Sin especificar —</option>
                     {verticalOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className={LC}>Mina</label>
-                  <select value={eMina} onChange={e => setEMina(e.target.value)} className={SC}>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Mina</label>
+                  <select value={eMina} onChange={e => setEMina(e.target.value)} className="input-field">
                     <option value="">Seleccionar…</option>
                     {minaOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className={LC}>Sacos extraídos</label>
-                  <input type="number" min="0" step="1" value={eSacos} onChange={e => setESacos(e.target.value)} placeholder="0" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Sacos extraídos</label>
+                  <input type="number" min="0" step="1" value={eSacos} onChange={e => setESacos(e.target.value)} placeholder="0" className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>N° Disparo</label>
-                  <input type="text" value={eDisparo} onChange={e => setEDisparo(e.target.value)} placeholder="Opcional" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">N° Disparo</label>
+                  <input type="text" value={eDisparo} onChange={e => setEDisparo(e.target.value)} placeholder="Opcional" className="input-field" />
+                </div>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Responsable</label>
+                  <input type="text" value={eResponsable} onChange={e => setEResponsable(e.target.value)} placeholder="Opcional" className="input-field" />
                 </div>
               </>
             )}
@@ -368,24 +395,24 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
             {/* ── GASTOS ── */}
             {activeTab === 'gastos' && (
               <>
-                <div>
-                  <label className={LC}>Fecha</label>
-                  <input type="date" value={gFecha} onChange={e => setGFecha(e.target.value)} className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Fecha</label>
+                  <input type="date" value={gFecha} onChange={e => setGFecha(e.target.value)} className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>Monto ($)</label>
-                  <input type="number" min="0" step="0.01" value={gMonto} onChange={e => setGMonto(e.target.value)} placeholder="0.00" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Monto ($)</label>
+                  <input type="number" min="0" step="0.01" value={gMonto} onChange={e => setGMonto(e.target.value)} placeholder="0.00" className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>Categoría</label>
-                  <select value={gCategoria} onChange={e => setGCategoria(e.target.value)} className={SC}>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Categoría</label>
+                  <select value={gCategoria} onChange={e => setGCategoria(e.target.value)} className="input-field">
                     <option value="">Seleccionar…</option>
                     {GASTOS_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className={LC}>Descripción</label>
-                  <textarea value={gDescripcion} onChange={e => setGDescripcion(e.target.value)} placeholder="Detalle del gasto" rows={2} className={`${IC} resize-none`} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Descripción</label>
+                  <textarea value={gDescripcion} onChange={e => setGDescripcion(e.target.value)} placeholder="Detalle del gasto" rows={2} className="input-field resize-none" />
                 </div>
               </>
             )}
@@ -393,37 +420,37 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
             {/* ── ASISTENCIA (Libro de Guardia) ── */}
             {activeTab === 'asistencia' && (
               <>
-                <div>
-                  <label className={LC}>Fecha</label>
-                  <input type="date" value={aFecha} onChange={e => setAFecha(e.target.value)} className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Fecha</label>
+                  <input type="date" value={aFecha} onChange={e => setAFecha(e.target.value)} className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>Turno</label>
-                  <select value={aTurno} onChange={e => setATurno(e.target.value)} className={SC}>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Turno</label>
+                  <select value={aTurno} onChange={e => setATurno(e.target.value)} className="input-field">
                     {GUARDIA_TURNOS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className={LC}>Jefe saliente</label>
-                  <input type="text" value={aJefeSaliente} onChange={e => setAJefeSaliente(e.target.value)} placeholder="Nombre" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Jefe saliente</label>
+                  <input type="text" value={aJefeSaliente} onChange={e => setAJefeSaliente(e.target.value)} placeholder="Nombre" className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>Jefe entrante</label>
-                  <input type="text" value={aJefeEntrante} onChange={e => setAJefeEntrante(e.target.value)} placeholder="Nombre" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Jefe entrante</label>
+                  <input type="text" value={aJefeEntrante} onChange={e => setAJefeEntrante(e.target.value)} placeholder="Nombre" className="input-field" />
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div>
-                    <label className={LC}>Personal mina</label>
-                    <input type="number" min="0" step="1" value={aPersonalMina} onChange={e => setAPersonalMina(e.target.value)} placeholder="0" className={IC} />
+                <div className="quick-entry-panel__cols2">
+                  <div className="quick-entry-panel__row">
+                    <label className="input-label">P. Mina</label>
+                    <input type="number" min="0" step="1" value={aPersonalMina} onChange={e => setAPersonalMina(e.target.value)} placeholder="0" className="input-field" />
                   </div>
-                  <div>
-                    <label className={LC}>Personal planta</label>
-                    <input type="number" min="0" step="1" value={aPersonalPlanta} onChange={e => setAPersonalPlanta(e.target.value)} placeholder="0" className={IC} />
+                  <div className="quick-entry-panel__row">
+                    <label className="input-label">P. Planta</label>
+                    <input type="number" min="0" step="1" value={aPersonalPlanta} onChange={e => setAPersonalPlanta(e.target.value)} placeholder="0" className="input-field" />
                   </div>
                 </div>
-                <div>
-                  <label className={LC}>Novedades operativas</label>
-                  <textarea value={aNovedades} onChange={e => setANovedades(e.target.value)} placeholder="Novedades del turno" rows={2} className={`${IC} resize-none`} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Novedades operativas</label>
+                  <textarea value={aNovedades} onChange={e => setANovedades(e.target.value)} placeholder="Novedades del turno" rows={2} className="input-field resize-none" />
                 </div>
               </>
             )}
@@ -431,38 +458,36 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
             {/* ── EQUIPOS (Historial) ── */}
             {activeTab === 'equipos' && (
               <>
-                <div>
-                  <label className={LC}>Fecha</label>
-                  <input type="date" value={qFecha} onChange={e => setQFecha(e.target.value)} className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Fecha</label>
+                  <input type="date" value={qFecha} onChange={e => setQFecha(e.target.value)} className="input-field" />
                 </div>
-                <div>
-                  <label className={LC}>Tipo de evento</label>
-                  <select value={qTipoEvento} onChange={e => setQTipoEvento(e.target.value)} className={SC}>
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Tipo de evento</label>
+                  <select value={qTipoEvento} onChange={e => setQTipoEvento(e.target.value)} className="input-field">
                     <option value="">Seleccionar…</option>
                     {EQUIPO_EVENTOS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className={LC}>Descripción</label>
-                  <textarea value={qDescripcion} onChange={e => setQDescripcion(e.target.value)} placeholder="Detalle del evento" rows={2} className={`${IC} resize-none`} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Descripción</label>
+                  <textarea value={qDescripcion} onChange={e => setQDescripcion(e.target.value)} placeholder="Detalle del evento" rows={2} className="input-field resize-none" />
                 </div>
-                <div>
-                  <label className={LC}>Costo ($)</label>
-                  <input type="number" min="0" step="0.01" value={qCosto} onChange={e => setQCosto(e.target.value)} placeholder="0.00" className={IC} />
+                <div className="quick-entry-panel__row">
+                  <label className="input-label">Costo ($)</label>
+                  <input type="number" min="0" step="0.01" value={qCosto} onChange={e => setQCosto(e.target.value)} placeholder="0.00" className="input-field" />
                 </div>
               </>
             )}
 
-            {/* Error message */}
             {errorMsg && (
-              <p className="rounded bg-red-900/40 px-2 py-1 text-[0.65rem] text-red-300">{errorMsg}</p>
+              <p className="quick-entry-panel__error">{errorMsg}</p>
             )}
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-1 w-full rounded bg-yellow-500 py-2 text-[0.75rem] font-bold text-black transition-all hover:bg-yellow-400 disabled:opacity-50"
+              className="quick-entry-panel__submit"
             >
               {showSuccess ? '✓ Registrado' : isSubmitting ? 'Registrando…' : 'REGISTRAR'}
             </button>

@@ -5291,6 +5291,140 @@ input, textarea, select {
   border-top: none;
 }
 
+/* ── Quick Entry Panel ────────────────────────────────────────── */
+.quick-entry-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  padding: 0.2rem 0;
+}
+
+.quick-entry-panel__tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.2rem;
+}
+
+.quick-entry-panel__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.3rem 0.15rem;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 0.35rem;
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--dashboard-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-entry-panel__tab:hover {
+  border-color: color-mix(in srgb, var(--dashboard-accent) 40%, transparent);
+  color: var(--dashboard-text);
+}
+
+.quick-entry-panel__tab--active {
+  border-color: var(--dashboard-accent);
+  background-color: var(--dashboard-accent-soft);
+  color: var(--dashboard-accent);
+}
+
+.quick-entry-panel__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.quick-entry-panel__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.quick-entry-panel__row > .input-label {
+  margin-bottom: 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+}
+
+.quick-entry-panel__row > .input-field {
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.72rem;
+  border-radius: 0.4rem;
+}
+
+.quick-entry-panel__row > .input-field[type="date"],
+.quick-entry-panel__row > select.input-field {
+  color-scheme: dark;
+}
+
+.quick-entry-panel__row > textarea.input-field {
+  min-height: 2.8rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.72rem;
+  border-radius: 0.4rem;
+}
+
+.quick-entry-panel__cols2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.quick-entry-panel__error {
+  margin: 0;
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+}
+
+.quick-entry-panel__submit {
+  margin-top: 0.25rem;
+  width: 100%;
+  padding: 0.55rem 0;
+  border: none;
+  border-radius: 0.4rem;
+  background-color: #eab308;
+  color: #000;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.quick-entry-panel__submit:hover {
+  background-color: #facc15;
+}
+
+.quick-entry-panel__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-theme='light'] .quick-entry-panel__tab--active {
+  border-color: var(--dashboard-accent);
+  background-color: var(--dashboard-accent-soft);
+  color: var(--dashboard-accent);
+}
+
+[data-theme='light'] .quick-entry-panel__error {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.2);
+}
+
 .dashboard-node-panel--rail {
   display: flex;
   flex-direction: column;
