@@ -39,7 +39,8 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
-import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import { AppDateRangeFields } from '@/components/ui/AppDateRangeFields';
+import { AppSelect } from '@/components/ui/AppSelect';
 import { ReportesTabs } from '@/components/reportes/ReportesTabs';
 import { ReconciliacionPanel } from '@/components/reportes/ReconciliacionPanel';
 import { reportesUi as ui } from '@/components/reportes/reportes-ui';
@@ -48,12 +49,42 @@ import {
   type BalanceReportPayload,
 } from '@/lib/actions/reconciliation-actions';
 import { cn } from '@/lib/utils';
+import {
+  ReportesTableFooter,
+} from '@/components/reportes/ReportesTableFooter';
+import { ReportesTableRowPadding } from '@/components/reportes/ReportesTableRowPadding';
+import { useDataTablePagination } from '@/hooks/useDataTablePagination';
+import { MobileFilterTrigger, MobileFilterSheet, useMobileFilterSheet } from '@/components/mobile';
+import { useBiblioteca } from '@/contexts/biblioteca-context';
+import type { NominaDivisionAmount } from '@/lib/reconciliation/nomina-divisiones';
+
+function reportesTableColSpan(tab: ReportModule, nominaDivisionCount = 0): number {
+  switch (tab) {
+    case 'produccion':
+      return 6;
+    case 'nomina':
+      return 4 + (nominaDivisionCount > 0 ? nominaDivisionCount : 0);
+    case 'voladuras':
+      return 7;
+    case 'quemado':
+      return 6;
+    case 'extraccion':
+      return 4;
+    case 'gastos':
+      return 5;
+    case 'balance':
+      return 9;
+    default:
+      return 5;
+  }
+}
 
 interface ReportesClientProps {
   initialOptions: FilterOptions;
 }
 
 export default function ReportesClient({ initialOptions }: ReportesClientProps) {
+  const { nominaDivisiones } = useBiblioteca();
   const [activeTab, setActiveTab] = useState<ReportModule>('reconciliacion');
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -206,7 +237,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
     if (activeTab === 'produccion' && Array.isArray(rawData)) {
       return aggregateProduccion(rawData, groupByProd);
     } else if (activeTab === 'nomina' && Array.isArray(rawData)) {
-      return aggregateNomina(rawData, groupByNom);
+      return aggregateNomina(rawData, groupByNom, nominaDivisiones);
     } else if (activeTab === 'voladuras' && Array.isArray(rawData)) {
       return aggregateVoladuras(rawData, groupByVol);
     } else if (activeTab === 'quemado' && Array.isArray(rawData)) {
@@ -219,7 +250,118 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
       return balancePayload.aggregated;
     }
     return null;
-  }, [rawData, balancePayload, activeTab, groupByProd, groupByNom, groupByVol, groupByQuem, groupByExt, groupByGst, error]);
+  }, [rawData, balancePayload, activeTab, groupByProd, groupByNom, groupByVol, groupByQuem, groupByExt, groupByGst, nominaDivisiones, error]);
+
+  const nominaSplitCols: NominaDivisionAmount[] =
+    activeTab === 'nomina' && aggregated?.kpis?.divisiones?.length
+      ? aggregated.kpis.divisiones
+      : nominaDivisiones.map((d) => ({ id: d.id, nombre: d.nombre, montoUsd: 0 }));
+  const showNominaSplit = activeTab === 'nomina' && nominaSplitCols.length > 0;
+
+  const tableRows = aggregated?.rows ?? [];
+  const {
+    tableAreaRef,
+    pageIndex,
+    setPageIndex,
+    pageCount,
+    visibleRows: pageRows,
+    emptyRowSlots,
+    rangeLabel,
+  } = useDataTablePagination(tableRows, [
+    activeTab,
+    dateRange.from,
+    dateRange.to,
+    groupByProd,
+    groupByNom,
+    groupByVol,
+    groupByQuem,
+    groupByExt,
+    groupByGst,
+    groupByBal,
+    selectedMolinos,
+    selectedMateriales,
+    selectedTurnosProd,
+    selectedAreasNom,
+    selectedCargosNom,
+    selectedWorkerId,
+    selectedMinasVol,
+    selectedVerticalesVol,
+    selectedTurnosVol,
+    selectedTurnosQuem,
+    selectedMinasExt,
+    selectedVerticalesExt,
+    selectedTurnosExt,
+    selectedCategoriasGst,
+    selectedTiposGst,
+    searchProveedor,
+    tableRows.length,
+  ]);
+
+  const tableFooterMeta = useMemo(() => {
+    if (!aggregated || tableRows.length === 0) return null;
+
+    const rangeWithUnit = `${rangeLabel} agrup.`;
+    const kpis = aggregated.kpis as Record<string, unknown>;
+    const fmtUsd = (value: unknown) =>
+      `$${Number(value ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fmtNum = (value: unknown) => Number(value ?? 0).toLocaleString();
+
+    let tabMeta: { summaryLabel: string; summaryValue: string };
+    switch (activeTab) {
+      case 'produccion':
+        tabMeta = {
+          summaryLabel: 'Oro total',
+          summaryValue: `${fmtNum(kpis.oroTotalGrams)} g`,
+        };
+        break;
+      case 'nomina':
+        tabMeta = {
+          summaryLabel: 'Total nómina',
+          summaryValue: fmtUsd(kpis.totalPagado),
+        };
+        break;
+      case 'voladuras':
+        tabMeta = {
+          summaryLabel: 'Disparos',
+          summaryValue: String(kpis.disparosCount ?? 0),
+        };
+        break;
+      case 'quemado':
+        tabMeta = {
+          summaryLabel: 'Oro puro',
+          summaryValue: `${fmtNum(kpis.oroTotalG)} g`,
+        };
+        break;
+      case 'extraccion':
+        tabMeta = {
+          summaryLabel: 'Sacos extraídos',
+          summaryValue: fmtNum(kpis.sacosTotal),
+        };
+        break;
+      case 'gastos':
+        tabMeta = {
+          summaryLabel: 'Total gastado',
+          summaryValue: fmtUsd(kpis.totalGastado),
+        };
+        break;
+      case 'balance':
+        tabMeta = {
+          summaryLabel: 'Utilidad neta',
+          summaryValue: fmtUsd(kpis.rentabilidadUsd),
+        };
+        break;
+      default:
+        tabMeta = {
+          summaryLabel: 'Total visible',
+          summaryValue: String(pageRows.length),
+        };
+    }
+
+    return {
+      ...tabMeta,
+      countLabel: rangeWithUnit,
+    };
+  }, [activeTab, aggregated, pageRows.length, rangeLabel, tableRows.length]);
 
   // ── 6. Download Handlers ──────────────────────────────────
   const handleDownloadPDF = () => {
@@ -255,43 +397,70 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <ReportesTabs
-        activeTab={activeTab}
-        onTabChange={(tab) => {
-          setActiveTab(tab);
-          setError(null);
-        }}
-      />
+  const filterChipClass = (active: boolean, extra?: string) =>
+    cn('border transition-all duration-150', extra, active ? ui.chipActive : ui.chipInactive);
 
-      {activeTab === 'reconciliacion' ? (
-        <ReconciliacionPanel />
-      ) : (
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        {/* LEFT COLUMN: FILTERS (Glassmorphic Card) */}
-        <div className={ui.sidebar}>
-          <h3 className={ui.sectionTitle}>Rango de fechas</h3>
-          <div className="space-y-2">
-            <div className="flex flex-col gap-1">
-              <label className={ui.fieldLabel}>Desde</label>
-              <input
-                type="date"
-                value={dateRange.from}
-                onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                className={ui.input}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className={ui.fieldLabel}>Hasta</label>
-              <input
-                type="date"
-                value={dateRange.to}
-                onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                className={ui.input}
-              />
-            </div>
-          </div>
+  const {
+    isMobile,
+    open: filtersOpen,
+    setOpen: setFiltersOpen,
+    close: closeFilters,
+  } = useMobileFilterSheet();
+
+  const reportesFilterActiveCount = useMemo(() => {
+    let count = 0;
+    if (activeTab === 'produccion') {
+      count += selectedMolinos.length + selectedMateriales.length + selectedTurnosProd.length;
+    } else if (activeTab === 'nomina') {
+      count += selectedAreasNom.length + selectedCargosNom.length + (selectedWorkerId ? 1 : 0);
+    } else if (activeTab === 'voladuras') {
+      count += selectedMinasVol.length + selectedVerticalesVol.length + selectedTurnosVol.length;
+    } else if (activeTab === 'quemado') {
+      count += selectedTurnosQuem.length;
+    } else if (activeTab === 'extraccion') {
+      count += selectedMinasExt.length + selectedVerticalesExt.length;
+    } else if (activeTab === 'gastos') {
+      count += selectedCategoriasGst.length;
+    }
+    return count;
+  }, [
+    activeTab,
+    selectedMolinos,
+    selectedMateriales,
+    selectedTurnosProd,
+    selectedAreasNom,
+    selectedCargosNom,
+    selectedWorkerId,
+    selectedMinasVol,
+    selectedVerticalesVol,
+    selectedTurnosVol,
+    selectedTurnosQuem,
+    selectedMinasExt,
+    selectedVerticalesExt,
+    selectedCategoriasGst,
+  ]);
+
+  const workerSelectOptions = useMemo(
+    () => [
+      { value: '', label: 'Todos los trabajadores' },
+      ...initialOptions.nomina.personal.map((p) => ({
+        value: p.id,
+        label: `${p.nombre_completo} (${p.cedula})`,
+      })),
+    ],
+    [initialOptions.nomina.personal],
+  );
+
+  const reportesFiltersPanel = (
+    <div className="reportes-page__filters-mobile flex w-full min-w-0 flex-col gap-4">
+<h3 className={ui.sectionTitle}>Rango de fechas</h3>
+          <AppDateRangeFields
+            from={dateRange.from}
+            to={dateRange.to}
+            onFromChange={(from) => setDateRange({ ...dateRange, from })}
+            onToChange={(to) => setDateRange({ ...dateRange, to })}
+            labelClassName={ui.fieldLabel}
+          />
 
           <div className="border-t border-white/5 pt-4 space-y-4">
             <h3 className={ui.sectionTitle}>Filtros</h3>
@@ -310,8 +479,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedMolinos, setSelectedMolinos, m)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
                           selectedMolinos.includes(m)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {m}
@@ -331,8 +500,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedMateriales, setSelectedMateriales, mat)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
                           selectedMateriales.includes(mat)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {mat}
@@ -352,8 +521,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTurnosProd, setSelectedTurnosProd, t)}
                         className={`flex-1 px-2.5 py-1 text-[11px] font-semibold capitalize rounded-lg border transition-all duration-150 ${
                           selectedTurnosProd.includes(t)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {t}
@@ -365,17 +534,17 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
                   <label className={ui.fieldLabel}>Agrupar Datos por</label>
-                  <select
+                  <AppSelect
                     value={groupByProd}
-                    onChange={(e) => setGroupByProd(e.target.value as any)}
-                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                  >
-                    <option value="dia">Por Día</option>
-                    <option value="semana">Por Semana</option>
-                    <option value="mes">Por Mes</option>
-                    <option value="molino">Por Molino</option>
-                    <option value="material">Por Material</option>
-                  </select>
+                    onChange={(v) => setGroupByProd(v as typeof groupByProd)}
+                    options={[
+                      { value: 'dia', label: 'Por Día' },
+                      { value: 'semana', label: 'Por Semana' },
+                      { value: 'mes', label: 'Por Mes' },
+                      { value: 'molino', label: 'Por Molino' },
+                      { value: 'material', label: 'Por Material' },
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -393,8 +562,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedAreasNom, setSelectedAreasNom, a)}
                         className={`px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full border transition-all duration-150 ${
                           selectedAreasNom.includes(a)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {a === 'planta' ? 'Molino' : a}
@@ -406,7 +575,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Cargo */}
                 <div className="space-y-1.5">
                   <label className={ui.fieldLabel}>Cargos Específicos</label>
-                  <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto pr-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {initialOptions.nomina.cargos.map((cg) => (
                       <button
                         key={cg}
@@ -414,8 +583,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedCargosNom, setSelectedCargosNom, cg)}
                         className={`px-2 py-0.5 text-[10px] rounded-md border transition-all duration-150 ${
                           selectedCargosNom.includes(cg)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {cg}
@@ -427,34 +596,28 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Trabajador */}
                 <div className="flex flex-col gap-1.5">
                   <label className={ui.fieldLabel}>Trabajador Singular</label>
-                  <select
+                  <AppSelect
                     value={selectedWorkerId}
-                    onChange={(e) => setSelectedWorkerId(e.target.value)}
-                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                  >
-                    <option value="">-- Todos los Trabajadores --</option>
-                    {initialOptions.nomina.personal.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nombre_completo} ({p.cedula})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSelectedWorkerId}
+                    options={workerSelectOptions}
+                    placeholder="Todos los trabajadores"
+                  />
                 </div>
 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
                   <label className={ui.fieldLabel}>Agrupar Nómina por</label>
-                  <select
+                  <AppSelect
                     value={groupByNom}
-                    onChange={(e) => setGroupByNom(e.target.value as any)}
-                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                  >
-                    <option value="semana">Por Semana</option>
-                    <option value="mes">Por Mes</option>
-                    <option value="area">Por Área Operativa</option>
-                    <option value="cargo">Por Cargo de Personal</option>
-                    <option value="trabajador">Por Trabajador</option>
-                  </select>
+                    onChange={(v) => setGroupByNom(v as typeof groupByNom)}
+                    options={[
+                      { value: 'semana', label: 'Por Semana' },
+                      { value: 'mes', label: 'Por Mes' },
+                      { value: 'area', label: 'Por Área Operativa' },
+                      { value: 'cargo', label: 'Por Cargo de Personal' },
+                      { value: 'trabajador', label: 'Por Trabajador' },
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -464,17 +627,16 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Minas */}
                 <div className="space-y-1.5">
                   <label className={ui.fieldLabel}>Zonas de Mina</label>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="reportes-ui__filter-stack flex flex-col gap-1.5">
                     {initialOptions.voladuras.minas.map((m) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => toggleOption(selectedMinasVol, setSelectedMinasVol, m)}
-                        className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
-                          selectedMinasVol.includes(m)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
-                        }`}
+                        className={filterChipClass(
+                          selectedMinasVol.includes(m),
+                          'w-full rounded-full px-2.5 py-1.5 text-left text-[11px] font-medium',
+                        )}
                       >
                         {m}
                       </button>
@@ -485,17 +647,16 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Verticales */}
                 <div className="space-y-1.5">
                   <label className={ui.fieldLabel}>Frentes Verticales</label>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="reportes-ui__filter-stack flex flex-col gap-1.5">
                     {initialOptions.voladuras.verticales.map((vt) => (
                       <button
                         key={vt}
                         type="button"
                         onClick={() => toggleOption(selectedVerticalesVol, setSelectedVerticalesVol, vt)}
-                        className={`px-2 py-0.5 text-[11px] rounded-md border transition-all duration-150 ${
-                          selectedVerticalesVol.includes(vt)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
-                        }`}
+                        className={filterChipClass(
+                          selectedVerticalesVol.includes(vt),
+                          'w-full rounded-md px-2.5 py-1.5 text-left text-[11px]',
+                        )}
                       >
                         {vt}
                       </button>
@@ -514,8 +675,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTurnosVol, setSelectedTurnosVol, t)}
                         className={`flex-1 px-2.5 py-1 text-[11px] font-semibold capitalize rounded-lg border transition-all duration-150 ${
                           selectedTurnosVol.includes(t)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {t}
@@ -527,15 +688,15 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
                   <label className={ui.fieldLabel}>Agrupar Voladuras por</label>
-                  <select
+                  <AppSelect
                     value={groupByVol}
-                    onChange={(e) => setGroupByVol(e.target.value as any)}
-                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                  >
-                    <option value="dia">Por Día</option>
-                    <option value="semana">Por Semana</option>
-                    <option value="mina">Por Mina</option>
-                  </select>
+                    onChange={(v) => setGroupByVol(v as typeof groupByVol)}
+                    options={[
+                      { value: 'dia', label: 'Por Día' },
+                      { value: 'semana', label: 'Por Semana' },
+                      { value: 'mina', label: 'Por Mina' },
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -553,8 +714,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTurnosQuem, setSelectedTurnosQuem, t)}
                         className={`flex-1 px-2.5 py-1 text-[11px] font-semibold capitalize rounded-lg border transition-all duration-150 ${
                           selectedTurnosQuem.includes(t)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {t}
@@ -566,15 +727,15 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
                   <label className={ui.fieldLabel}>Agrupar por</label>
-                  <select
+                  <AppSelect
                     value={groupByQuem}
-                    onChange={(e) => setGroupByQuem(e.target.value as any)}
-                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                  >
-                    <option value="dia">Por Día</option>
-                    <option value="semana">Por Semana</option>
-                    <option value="mes">Por Mes</option>
-                  </select>
+                    onChange={(v) => setGroupByQuem(v as typeof groupByQuem)}
+                    options={[
+                      { value: 'dia', label: 'Por Día' },
+                      { value: 'semana', label: 'Por Semana' },
+                      { value: 'mes', label: 'Por Mes' },
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -592,8 +753,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedMinasExt, setSelectedMinasExt, m)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
                           selectedMinasExt.includes(m)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {m}
@@ -613,8 +774,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedVerticalesExt, setSelectedVerticalesExt, vt)}
                         className={`px-2 py-0.5 text-[11px] rounded-md border transition-all duration-150 ${
                           selectedVerticalesExt.includes(vt)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {vt}
@@ -634,8 +795,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTurnosExt, setSelectedTurnosExt, t)}
                         className={`flex-1 px-2.5 py-1 text-[11px] font-semibold capitalize rounded-lg border transition-all duration-150 ${
                           selectedTurnosExt.includes(t)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {t}
@@ -647,15 +808,15 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
                   <label className={ui.fieldLabel}>Agrupar por</label>
-                  <select
+                  <AppSelect
                     value={groupByExt}
-                    onChange={(e) => setGroupByExt(e.target.value as any)}
-                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                  >
-                    <option value="dia">Por Día</option>
-                    <option value="semana">Por Semana</option>
-                    <option value="mina">Por Mina</option>
-                  </select>
+                    onChange={(v) => setGroupByExt(v as typeof groupByExt)}
+                    options={[
+                      { value: 'dia', label: 'Por Día' },
+                      { value: 'semana', label: 'Por Semana' },
+                      { value: 'mina', label: 'Por Mina' },
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -665,17 +826,16 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Categorías */}
                 <div className="space-y-1.5">
                   <label className={ui.fieldLabel}>Categorías de Gastos</label>
-                  <div className="flex flex-wrap gap-1 max-h-[140px] overflow-y-auto pr-1">
+                  <div className="reportes-ui__filter-stack flex flex-col gap-1.5">
                     {initialOptions.gastos.categorias.map((c) => (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => toggleOption(selectedCategoriasGst, setSelectedCategoriasGst, c.id)}
-                        className={`px-2 py-0.5 text-[10px] rounded-md border transition-all duration-150 ${
-                          selectedCategoriasGst.includes(c.id)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
-                        }`}
+                        className={filterChipClass(
+                          selectedCategoriasGst.includes(c.id),
+                          'w-full rounded-md px-2.5 py-1.5 text-left text-[11px]',
+                        )}
                       >
                         {c.nombre}
                       </button>
@@ -694,8 +854,8 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         onClick={() => toggleOption(selectedTiposGst, setSelectedTiposGst, tp)}
                         className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md border transition-all duration-150 ${
                           selectedTiposGst.includes(tp)
-                            ? 'bg-zinc-800/70 text-zinc-200 border-zinc-500/40'
-                            : 'bg-transparent text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-400'
+                            ? ui.chipActive
+                            : ui.chipInactive
                         }`}
                       >
                         {tp === 'planta' ? 'Molino' : tp}
@@ -719,16 +879,16 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
                   <label className={ui.fieldLabel}>Agrupar por</label>
-                  <select
+                  <AppSelect
                     value={groupByGst}
-                    onChange={(e) => setGroupByGst(e.target.value as any)}
-                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                  >
-                    <option value="dia">Por Día</option>
-                    <option value="semana">Por Semana</option>
-                    <option value="mes">Por Mes</option>
-                    <option value="categoria">Por Categoría</option>
-                  </select>
+                    onChange={(v) => setGroupByGst(v as typeof groupByGst)}
+                    options={[
+                      { value: 'dia', label: 'Por Día' },
+                      { value: 'semana', label: 'Por Semana' },
+                      { value: 'mes', label: 'Por Mes' },
+                      { value: 'categoria', label: 'Por Categoría' },
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -744,7 +904,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                   </label>
                   <p className="rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-zinc-200 tabular-nums">
                     {balancePayload
-                      ? `$${balancePayload.precioOro.usdPorGramo.toFixed(2)}/g · ${balancePayload.precioOro.origenUi}`
+                      ? `${balancePayload.precioOro.usdPorGramo.toFixed(2)}/g · ${balancePayload.precioOro.origenUi}`
                       : '—'}
                   </p>
                   <p className="text-[10px] text-zinc-600">
@@ -755,37 +915,73 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 {/* Agrupar */}
                 <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
                   <label className={ui.fieldLabel}>Agrupar Balance por</label>
-                  <select
+                  <AppSelect
                     value={groupByBal}
-                    onChange={(e) => setGroupByBal(e.target.value as any)}
-                    className="w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15"
-                  >
-                    <option value="semana">Por Semana</option>
-                    <option value="mes">Por Mes</option>
-                  </select>
+                    onChange={(v) => setGroupByBal(v as typeof groupByBal)}
+                    options={[
+                      { value: 'semana', label: 'Por Semana' },
+                      { value: 'mes', label: 'Por Mes' },
+                    ]}
+                  />
                 </div>
               </div>
             )}
           </div>
+    </div>
+  );
+
+  return (
+    <div className="reportes-page flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden sm:gap-6">
+      <ReportesTabs
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          setError(null);
+        }}
+      />
+
+      {activeTab === 'reconciliacion' ? (
+        <ReconciliacionPanel />
+      ) : (
+      <>
+      {isMobile ? (
+        <div className="reportes-page__filter-bar">
+          <MobileFilterTrigger
+            activeCount={reportesFilterActiveCount}
+            label="Filtros del reporte"
+            subtitle={`${dateRange.from} — ${dateRange.to}`}
+            onOpen={() => setFiltersOpen(true)}
+          />
+        </div>
+      ) : null}
+      <div className="reportes-page__grid grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 md:grid-cols-4">
+        {/* LEFT COLUMN: FILTERS (Glassmorphic Card) */}
+        <div
+          className={cn(
+            ui.sidebar,
+            'reportes-page__sidebar hidden md:flex md:min-h-0 md:min-w-0 md:overflow-y-auto md:overscroll-contain custom-scrollbar',
+          )}
+        >
+          {reportesFiltersPanel}
         </div>
 
         {/* RIGHT COLUMN: PREVIEW & DOWNLOADS */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="reportes-page__preview-col md:col-span-3 flex h-full min-h-0 min-w-0 flex-1 flex-col">
           {/* PREVIEW CONTAINER */}
           <div className={ui.previewPanel}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="reportes-ui__preview-head flex shrink-0 flex-col gap-2.5">
               <h2 className={cn(ui.previewTitle, 'flex items-center gap-2')}>
                 Vista previa
                 {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />}
               </h2>
               {aggregated && aggregated.rows.length > 0 && (
-                <div className="flex gap-2">
+                <div className={ui.exportActions}>
                   <button type="button" onClick={handleDownloadPDF} className={ui.btnExport}>
-                    <FileText className="w-3.5 h-3.5" />
+                    <FileText className="h-4 w-4 shrink-0" />
                     PDF
                   </button>
                   <button type="button" onClick={handleDownloadCSV} className={ui.btnExport}>
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <FileSpreadsheet className="h-4 w-4 shrink-0" />
                     CSV
                   </button>
                 </div>
@@ -821,9 +1017,9 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
             {/* DATA RENDER: KPIs + TABLE */}
             {aggregated && aggregated.rows.length > 0 && !error && (
-              <div className="space-y-6">
+              <div className="reportes-ui__preview-body flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
                 {/* 1. KPIs Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="reportes-ui__kpi-grid grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4">
                   {activeTab === 'produccion' && (
                     <>
                       <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
@@ -859,12 +1055,31 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                         <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Trabajadores</p>
                         <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.trabajadoresUnicos}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Split Pedro/Dar/LaFe</p>
-                        <p className="text-[11px] font-bold mt-1">
-                          ${aggregated.kpis.pedroTotal.toLocaleString()} / ${aggregated.kpis.darinelTotal.toLocaleString()} / ${aggregated.kpis.laFeTotal.toLocaleString()}
-                        </p>
-                      </div>
+                      {showNominaSplit ? (
+                        nominaSplitCols.map((div) => {
+                          const kpiDiv = aggregated.kpis.divisiones?.find((d: NominaDivisionAmount) => d.id === div.id);
+                          return (
+                            <div
+                              key={div.id}
+                              className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5"
+                            >
+                              <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500 truncate" title={div.nombre}>
+                                {div.nombre}
+                              </p>
+                              <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">
+                                ${(kpiDiv?.montoUsd ?? 0).toLocaleString()}
+                              </p>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
+                          <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Reparto cierre</p>
+                          <p className="text-[11px] font-bold mt-1 tabular-nums text-zinc-300">
+                            ${aggregated.kpis.pedroTotal.toLocaleString()} / ${aggregated.kpis.darinelTotal.toLocaleString()} / ${aggregated.kpis.laFeTotal.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
                     </>
                   )}
 
@@ -983,169 +1198,211 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 </div>
 
                 {/* 2. Table Preview */}
-                <div className={ui.tableWrap}>
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className={ui.tableHead}>
-                        <th className="p-2.5">Grupo / Periodo</th>
+                <div className="reportes-ui__table-shell app-surface-card flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <div
+                    ref={tableAreaRef}
+                    className="reportes-ui__table-area flex min-h-0 flex-1 flex-col overflow-hidden"
+                  >
+                    <div className="reportes-ui__table-body gastos-page__table-body min-h-0 flex-1 overflow-hidden overflow-x-auto">
+                  <table className="gastos-table w-full table-fixed border-collapse text-xs">
+                    <thead className="gastos-thead">
+                      <tr>
+                        <th className="gastos-th px-2.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Grupo / Periodo</th>
                         {activeTab === 'produccion' && (
                           <>
-                            <th className="p-2.5 text-right">Sacos</th>
-                            <th className="p-2.5 text-right">Toneladas</th>
-                            <th className="p-2.5 text-right">Oro (g)</th>
-                            <th className="p-2.5 text-right">Tenor (g/t)</th>
-                            <th className="p-2.5 text-right">Merma %</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Sacos</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Toneladas</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Oro (g)</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Tenor (g/t)</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Merma %</th>
                           </>
                         )}
                         {activeTab === 'nomina' && (
                           <>
-                            <th className="p-2.5 text-right">Cant. Personal</th>
-                            <th className="p-2.5 text-right">Pago Nómina</th>
-                            <th className="p-2.5 text-right">Bono Transporte</th>
-                            <th className="p-2.5 text-right">Pedro</th>
-                            <th className="p-2.5 text-right">Darinel</th>
-                            <th className="p-2.5 text-right">La Fe</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Cant. Personal</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Pago Nómina</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Bono Transporte</th>
+                            {showNominaSplit
+                              ? nominaSplitCols.map((div) => (
+                                  <th
+                                    key={div.id}
+                                    className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider truncate"
+                                    title={div.nombre}
+                                  >
+                                    {div.nombre}
+                                  </th>
+                                ))
+                              : null}
                           </>
                         )}
                         {activeTab === 'voladuras' && (
                           <>
-                            <th className="p-2.5 text-right">Disparos</th>
-                            <th className="p-2.5 text-right">Huecos</th>
-                            <th className="p-2.5 text-right">Pies Huecos</th>
-                            <th className="p-2.5 text-right">Chupis</th>
-                            <th className="p-2.5 text-right">Arroz (kg)</th>
-                            <th className="p-2.5 text-right">Ratio H/C</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Disparos</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Huecos</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Pies Huecos</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Chupis</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Arroz (kg)</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Ratio H/C</th>
                           </>
                         )}
                         {activeTab === 'quemado' && (
                           <>
-                            <th className="p-2.5 text-right">Procesos</th>
-                            <th className="p-2.5 text-right">Amalgama (g)</th>
-                            <th className="p-2.5 text-right">Oro Puro (g)</th>
-                            <th className="p-2.5 text-right">Rendimiento %</th>
-                            <th className="p-2.5 text-right">Nro Planchas</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Procesos</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Amalgama (g)</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Oro Puro (g)</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Rendimiento %</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Nro Planchas</th>
                           </>
                         )}
                         {activeTab === 'extraccion' && (
                           <>
-                            <th className="p-2.5 text-right">Reportes</th>
-                            <th className="p-2.5 text-right">Sacos Extraídos</th>
-                            <th className="p-2.5 text-right">Cant. Eventos</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Reportes</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Sacos Extraídos</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Cant. Eventos</th>
                           </>
                         )}
                         {activeTab === 'gastos' && (
                           <>
-                            <th className="p-2.5 text-right">Total Gastado</th>
-                            <th className="p-2.5 text-right">Gasto Promedio</th>
-                            <th className="p-2.5 text-right text-red-300">Gasto Mayor</th>
-                            <th className="p-2.5 text-right">Transacciones</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Total Gastado</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Gasto Promedio</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider text-red-300">Gasto Mayor</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Transacciones</th>
                           </>
                         )}
                         {activeTab === 'balance' && (
                           <>
-                            <th className="p-2.5 text-right">Ingresos Oro</th>
-                            <th className="p-2.5 text-right">Ingresos Arenas</th>
-                            <th className="p-2.5 text-right">Ingresos Total</th>
-                            <th className="p-2.5 text-right">Gasto Nómina</th>
-                            <th className="p-2.5 text-right">Gastos Ops</th>
-                            <th className="p-2.5 text-right">Utilidad Neta</th>
-                            <th className="p-2.5 text-right">Margen %</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Ingresos Oro</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Ingresos Arenas</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Ingresos Total</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Gasto Nómina</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Gastos Ops</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Utilidad Neta</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Margen %</th>
                           </>
                         )}
                       </tr>
                     </thead>
-                    <tbody className={ui.tableBody}>
-                      {aggregated.rows.slice(0, 15).map((row: any, idx: number) => (
-                        <tr key={idx} className={ui.tableRow}>
-                          <td className="p-2.5 font-medium text-zinc-200">{row.grupo}</td>
+                    <tbody>
+                      {pageRows.map((row: any, idx: number) => (
+                        <tr key={`${row.grupo}-${idx}`} className="gastos-table__row gastos-tr">
+                          <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-medium">{row.grupo}</td>
                           
                           {activeTab === 'produccion' && (
                             <>
-                              <td className="p-2.5 text-right">{row.sacos.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">{row.toneladas.toLocaleString()} t</td>
-                              <td className="p-2.5 text-right font-semibold">{row.oroGramos.toLocaleString()} g</td>
-                              <td className="p-2.5 text-right">{row.tenorGpt.toFixed(2)} g/t</td>
-                              <td className="p-2.5 text-right text-zinc-400">{row.mermaPct.toFixed(2)}%</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.sacos.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.toneladas.toLocaleString()} t</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">{row.oroGramos.toLocaleString()} g</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.tenorGpt.toFixed(2)} g/t</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right text-zinc-400">{row.mermaPct.toFixed(2)}%</td>
                             </>
                           )}
 
                           {activeTab === 'nomina' && (
                             <>
-                              <td className="p-2.5 text-right">{row.trabajadoresCount}</td>
-                              <td className="p-2.5 text-right font-semibold">${row.montoPagado.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">${row.bonoTransporte.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">${row.montoPedro.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">${row.montoDarinel.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">${row.montoLaFe.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.trabajadoresCount}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">${row.montoPagado.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.bonoTransporte.toLocaleString()}</td>
+                              {showNominaSplit
+                                ? nominaSplitCols.map((div) => {
+                                    const amount =
+                                      row.divisiones?.find((d: NominaDivisionAmount) => d.id === div.id)
+                                        ?.montoUsd ?? 0;
+                                    return (
+                                      <td
+                                        key={div.id}
+                                        className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"
+                                      >
+                                        ${amount.toLocaleString()}
+                                      </td>
+                                    );
+                                  })
+                                : null}
                             </>
                           )}
 
                           {activeTab === 'voladuras' && (
                             <>
-                              <td className="p-2.5 text-right">{row.disparos}</td>
-                              <td className="p-2.5 text-right">{row.huecos.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">{row.huecosPies.toLocaleString()} ft</td>
-                              <td className="p-2.5 text-right">{row.chupis.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">{row.arrozKg.toLocaleString()} kg</td>
-                              <td className="p-2.5 text-right font-semibold">{row.ratioHC.toFixed(2)}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.disparos}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.huecos.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.huecosPies.toLocaleString()} ft</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.chupis.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.arrozKg.toLocaleString()} kg</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">{row.ratioHC.toFixed(2)}</td>
                             </>
                           )}
 
                           {activeTab === 'quemado' && (
                             <>
-                              <td className="p-2.5 text-right">{row.quemadas}</td>
-                              <td className="p-2.5 text-right">{row.amalgamaG.toLocaleString()} g</td>
-                              <td className="p-2.5 text-right font-semibold">{row.oroG.toLocaleString()} g</td>
-                              <td className="p-2.5 text-right">{row.rendimientoPct.toFixed(2)}%</td>
-                              <td className="p-2.5 text-right">{row.planchasCount}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.quemadas}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.amalgamaG.toLocaleString()} g</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">{row.oroG.toLocaleString()} g</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.rendimientoPct.toFixed(2)}%</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.planchasCount}</td>
                             </>
                           )}
 
                           {activeTab === 'extraccion' && (
                             <>
-                              <td className="p-2.5 text-right">{row.reportes}</td>
-                              <td className="p-2.5 text-right font-semibold">{row.sacos.toLocaleString()} sacos</td>
-                              <td className="p-2.5 text-right">{row.eventos}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.reportes}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">{row.sacos.toLocaleString()} sacos</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.eventos}</td>
                             </>
                           )}
 
                           {activeTab === 'gastos' && (
                             <>
-                              <td className="p-2.5 text-right font-semibold">${row.monto.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">${row.gastoPromedio.toLocaleString()}</td>
-                              <td className="p-2.5 text-right text-red-300">${row.gastoMayor.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">{row.registrosCount}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">${row.monto.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.gastoPromedio.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right text-red-300">${row.gastoMayor.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.registrosCount}</td>
                             </>
                           )}
 
                           {activeTab === 'balance' && (
                             <>
-                              <td className="p-2.5 text-right">${row.ingresosOro.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">${row.ingresosArenas.toLocaleString()}</td>
-                              <td className="p-2.5 text-right font-semibold">${row.ingresosTotal.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">${row.gastosNomina.toLocaleString()}</td>
-                              <td className="p-2.5 text-right">${row.gastosOperativos.toLocaleString()}</td>
-                              <td className="p-2.5 text-right font-semibold">${row.rentabilidad.toLocaleString()}</td>
-                              <td className="p-2.5 text-right font-medium">{row.margenPct.toFixed(1)}%</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.ingresosOro.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.ingresosArenas.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">${row.ingresosTotal.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.gastosNomina.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.gastosOperativos.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">${row.rentabilidad.toLocaleString()}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-medium">{row.margenPct.toFixed(1)}%</td>
                             </>
                           )}
                         </tr>
                       ))}
+                      <ReportesTableRowPadding
+                        colSpan={reportesTableColSpan(activeTab, showNominaSplit ? nominaSplitCols.length : 0)}
+                        count={emptyRowSlots}
+                      />
                     </tbody>
                   </table>
+                    </div>
+                  </div>
+                  {tableFooterMeta ? (
+                    <ReportesTableFooter
+                      summaryLabel={tableFooterMeta.summaryLabel}
+                      summaryValue={tableFooterMeta.summaryValue}
+                      countLabel={tableFooterMeta.countLabel}
+                      pageIndex={pageIndex}
+                      pageCount={pageCount}
+                      onPageChange={setPageIndex}
+                    />
+                  ) : null}
                 </div>
-
-                {/* Pagination indicator / preview notice */}
-                {aggregated.rows.length > 15 && (
-                  <p className="text-[11px] text-zinc-500 text-center italic">
-                    Mostrando las primeras 15 agrupaciones. Descarga el reporte completo en PDF o CSV para ver las {aggregated.rows.length} filas totales.
-                  </p>
-                )}
               </div>
             )}
           </div>
         </div>
       </div>
+      <MobileFilterSheet
+        open={filtersOpen}
+        onClose={closeFilters}
+        title="Filtros del reporte"
+      >
+        {reportesFiltersPanel}
+      </MobileFilterSheet>
+      </>
       )}
     </div>
   );

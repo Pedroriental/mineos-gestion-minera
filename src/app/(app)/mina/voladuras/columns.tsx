@@ -47,7 +47,7 @@ export const columns = (
         <div className="text-white/55 whitespace-nowrap">
           {nd ? `N°${nd}` : '—'}
           {hd && <span className="text-white/30 text-xs ml-1">— {hd.slice(0, 5)}</span>}
-          {vd && <span className="block text-[10px] text-purple-400/70 mt-0.5">{vd}</span>}
+          {vd && <span className="mineos-icon-muted block text-[10px] mt-0.5 opacity-80">{vd}</span>}
         </div>
       );
     },
@@ -56,7 +56,7 @@ export const columns = (
     id: 'huecos',
     header: () => <div className="text-center">Huecos</div>,
     cell: ({ row }) => (
-      <div className="text-center font-semibold text-blue-400">
+      <div className="mineos-cell-general text-center font-semibold">
         {row.original.huecos_cantidad}{' '}
         <span className="text-white/30 text-xs">×{row.original.huecos_pies}p</span>
       </div>
@@ -75,7 +75,7 @@ export const columns = (
   {
     accessorKey: 'fosforos_lp',
     header: () => <div className="text-center">Fósforos</div>,
-    cell: ({ row }) => <div className="text-center text-purple-400">{row.getValue('fosforos_lp')}</div>,
+    cell: ({ row }) => <div className="mineos-cell-general text-center">{row.getValue('fosforos_lp')}</div>,
   },
   {
     accessorKey: 'espaguetis',
@@ -85,12 +85,12 @@ export const columns = (
   {
     accessorKey: 'vitamina_e',
     header: () => <div className="text-center">Vit. E</div>,
-    cell: ({ row }) => <div className="text-center text-cyan-400">{row.getValue('vitamina_e')}</div>,
+    cell: ({ row }) => <div className="mineos-cell-general text-center">{row.getValue('vitamina_e')}</div>,
   },
   {
     accessorKey: 'arroz_kg',
     header: () => <div className="text-right">Arroz (kg)</div>,
-    cell: ({ row }) => <div className="text-right font-semibold text-red-400">{row.getValue('arroz_kg')} kg</div>,
+    cell: ({ row }) => <div className="mineos-cell-general text-right font-semibold">{row.getValue('arroz_kg')} kg</div>,
   },
   {
     accessorKey: 'sin_novedad',

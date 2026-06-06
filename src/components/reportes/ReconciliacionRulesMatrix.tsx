@@ -1,10 +1,17 @@
 'use client';
 
+import { useMemo } from 'react';
 import { AlertTriangle, CheckCircle2, HelpCircle, MinusCircle } from 'lucide-react';
 import type { ReconciliationRuleResult } from '@/lib/reconciliation/types';
 import type { NominaDivisionParam } from '@/lib/reconciliation/nomina-divisiones';
 import { splitNominaByDivisiones } from '@/lib/reconciliation/nomina-divisiones';
+import { ReportesTableFooter } from '@/components/reportes/ReportesTableFooter';
+import { ReportesTableRowPadding } from '@/components/reportes/ReportesTableRowPadding';
+import { useDataTablePagination } from '@/hooks/useDataTablePagination';
 import { cn } from '@/lib/utils';
+
+const RULES_COL_SPAN = 6;
+const RULES_ROW_MIN_PX = 84;
 
 function StatusIcon({ status }: { status: ReconciliationRuleResult['status'] }) {
   if (status === 'ok') return <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />;
@@ -88,7 +95,7 @@ function ReglaFila({
 
   return (
     <>
-      <tr className="border-b border-white/5 hover:bg-white/[0.02] align-top">
+      <tr className="reconciliacion-rules-matrix__data-row gastos-table__row gastos-tr border-b border-white/5 hover:bg-white/[0.02] align-top">
         <td className="px-3 py-2.5">
           <div className="flex items-start gap-2 min-w-0">
             <StatusIcon status={rule.status} />
@@ -151,8 +158,8 @@ function ReglaFila({
         </td>
       </tr>
       {splits.length > 0 && (
-        <tr className="border-b border-white/5 bg-zinc-900/15">
-          <td colSpan={6} className="px-3 py-2">
+        <tr className="reconciliacion-rules-matrix__split-row border-b border-white/5 bg-zinc-900/15">
+          <td colSpan={RULES_COL_SPAN} className="px-3 py-2">
             <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-600 mb-1">
               Reparto del total (${refNomina.toLocaleString('es')})
             </p>
@@ -160,7 +167,7 @@ function ReglaFila({
               {splits.map((s, i) => (
                 <span key={s.id}>
                   {i > 0 ? ' · ' : ''}
-                  {s.nombre} {s.porcentaje}% (${s.montoUsd.toLocaleString('es')})
+                  {s.nombre} (${s.montoUsd.toLocaleString('es')})
                 </span>
               ))}
             </p>
@@ -180,38 +187,77 @@ export function ReconciliacionRulesMatrix({
   nominaDivisiones?: NominaDivisionParam[];
   onDrillDown: (ruleId: string) => void;
 }) {
+  const {
+    tableAreaRef,
+    pageIndex,
+    setPageIndex,
+    pageCount,
+    visibleRows,
+    emptyRowSlots,
+    rangeLabel,
+  } = useDataTablePagination(rules, [rules.length], { rowMinPx: RULES_ROW_MIN_PX });
+
+  const footerMeta = useMemo(() => {
+    const ok = rules.filter((r) => r.status === 'ok').length;
+    const alerts = rules.filter((r) => r.status === 'warning' || r.status === 'error').length;
+    return {
+      summaryLabel: 'Reglas cuadradas',
+      summaryValue: `${ok} de ${rules.length}`,
+      countLabel:
+        alerts > 0
+          ? `${rangeLabel} reglas · ${alerts} con alerta`
+          : `${rangeLabel} reglas`,
+    };
+  }, [rangeLabel, rules]);
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-white/5 bg-zinc-950/25 pt-1">
-      <table className="w-full text-sm table-fixed">
-        <colgroup>
-          <col className="w-[28%]" />
-          <col className="w-[17%]" />
-          <col className="w-[17%]" />
-          <col className="w-[12%]" />
-          <col className="w-[10%]" />
-          <col className="w-[16%]" />
-        </colgroup>
-        <thead>
-          <tr className="border-b border-white/5 text-left text-[10px] uppercase tracking-wider text-zinc-500">
-            <th className="px-3 pt-3 pb-2">Regla</th>
-            <th className="px-2 pt-3 pb-2">Fuente A</th>
-            <th className="px-2 pt-3 pb-2">Fuente B</th>
-            <th className="px-2 pt-3 pb-2">Desvío</th>
-            <th className="px-2 pt-3 pb-2">Estado</th>
-            <th className="px-2 pt-3 pb-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {rules.map((r) => (
-            <ReglaFila
-              key={r.id}
-              rule={r}
-              nominaDivisiones={nominaDivisiones}
-              onDrillDown={onDrillDown}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="reconciliacion-rules-matrix app-surface-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">
+      <div
+        ref={tableAreaRef}
+        className="reconciliacion-rules-matrix__area flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <div className="reconciliacion-rules-matrix__body gastos-page__table-body min-h-0 flex-1 overflow-hidden overflow-x-auto">
+          <table className="reconciliacion-rules-matrix__table gastos-table w-full table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-[28%]" />
+              <col className="w-[17%]" />
+              <col className="w-[17%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
+              <col className="w-[16%]" />
+            </colgroup>
+            <thead className="gastos-thead">
+              <tr>
+                <th className="gastos-th px-3 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Regla</th>
+                <th className="gastos-th px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Fuente A</th>
+                <th className="gastos-th px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Fuente B</th>
+                <th className="gastos-th px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Desvío</th>
+                <th className="gastos-th px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Estado</th>
+                <th className="gastos-th px-2 py-1" />
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((r) => (
+                <ReglaFila
+                  key={r.id}
+                  rule={r}
+                  nominaDivisiones={nominaDivisiones}
+                  onDrillDown={onDrillDown}
+                />
+              ))}
+              <ReportesTableRowPadding colSpan={RULES_COL_SPAN} count={emptyRowSlots} />
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <ReportesTableFooter
+        summaryLabel={footerMeta.summaryLabel}
+        summaryValue={footerMeta.summaryValue}
+        countLabel={footerMeta.countLabel}
+        pageIndex={pageIndex}
+        pageCount={pageCount}
+        onPageChange={setPageIndex}
+      />
     </div>
   );
 }

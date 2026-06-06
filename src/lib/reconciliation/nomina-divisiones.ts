@@ -2,9 +2,13 @@
 
 export type NominaDivisionParam = {
   id: string;
-  /** Etiqueta derivada del porcentaje (p. ej. "33,33%"). */
+  /** Etiqueta configurable (p. ej. socio, parte o "33,33%" auto). */
   nombre: string;
   porcentaje: number;
+};
+
+export type NominaDivisionAmount = Pick<NominaDivisionParam, 'id' | 'nombre'> & {
+  montoUsd: number;
 };
 
 export function formatNominaDivisionLabel(porcentaje: number): string {
@@ -12,8 +16,25 @@ export function formatNominaDivisionLabel(porcentaje: number): string {
   return `${pct.toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
 }
 
+/** Etiqueta auto-generada (vacía o solo porcentaje). */
+export function isAutoNominaDivisionNombre(nombre: string, porcentaje?: number): boolean {
+  const trimmed = nombre.trim();
+  if (!trimmed) return true;
+  if (porcentaje != null && trimmed === formatNominaDivisionLabel(porcentaje)) return true;
+  return /^\d{1,3}([.,]\d{1,2})?%$/.test(trimmed);
+}
+
+export function resolveNominaDivisionNombre(
+  porcentaje: number,
+  nombre?: string | null,
+): string {
+  const trimmed = String(nombre ?? '').trim();
+  if (trimmed && !isAutoNominaDivisionNombre(trimmed, porcentaje)) return trimmed;
+  return formatNominaDivisionLabel(porcentaje);
+}
+
 export function syncNominaDivisionNombre(d: NominaDivisionParam): NominaDivisionParam {
-  return { ...d, nombre: formatNominaDivisionLabel(d.porcentaje) };
+  return { ...d, nombre: resolveNominaDivisionNombre(d.porcentaje, d.nombre) };
 }
 
 export const DEFAULT_NOMINA_DIVISIONES: NominaDivisionParam[] = [
@@ -52,12 +73,13 @@ export function parseNominaDivisionesJson(raw: string | null | undefined): Nomin
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed) || !parsed.length) return [];
     return parsed.map((d, i) => {
-      const porcentaje = Number((d as NominaDivisionParam).porcentaje) || 0;
-      return syncNominaDivisionNombre({
-        id: String((d as NominaDivisionParam).id || `parte_${i + 1}`),
-        nombre: formatNominaDivisionLabel(porcentaje),
+      const raw = d as NominaDivisionParam;
+      const porcentaje = Number(raw.porcentaje) || 0;
+      return {
+        id: String(raw.id || `parte_${i + 1}`),
+        nombre: resolveNominaDivisionNombre(porcentaje, raw.nombre),
         porcentaje,
-      });
+      };
     });
   } catch {
     return [];
@@ -70,7 +92,7 @@ export function serializeNominaDivisionesJson(divisiones: NominaDivisionParam[])
       const porcentaje = Number(d.porcentaje) || 0;
       return {
         id: d.id,
-        nombre: formatNominaDivisionLabel(porcentaje),
+        nombre: resolveNominaDivisionNombre(porcentaje, d.nombre),
         porcentaje,
       };
     }),
@@ -112,6 +134,7 @@ export function applyNominaDivisionPorcentaje(
   const idx = divisiones.findIndex((d) => d.id === id);
   if (idx < 0) return divisiones;
   const absorbIdx = idx === n - 1 ? n - 2 : n - 1;
+  const byId = new Map(divisiones.map((d) => [d.id, d]));
   const updated = divisiones.map((d, i) => (i === idx ? { ...d, porcentaje: pct } : d));
   const othersExceptAbsorb = updated.reduce(
     (s, d, i) => (i === absorbIdx ? s : s + d.porcentaje),
@@ -121,7 +144,14 @@ export function applyNominaDivisionPorcentaje(
   const absorbed = parseFloat(Math.min(100, Math.max(0, remainder)).toFixed(2));
   return updated
     .map((d, i) => (i === absorbIdx ? { ...d, porcentaje: absorbed } : d))
-    .map(syncNominaDivisionNombre);
+    .map((d) => {
+      const prev = byId.get(d.id);
+      const nombre =
+        prev && !isAutoNominaDivisionNombre(prev.nombre, prev.porcentaje)
+          ? prev.nombre.trim()
+          : formatNominaDivisionLabel(d.porcentaje);
+      return { ...d, nombre };
+    });
 }
 
 export function createNominaDivision(porcentaje = 0): NominaDivisionParam {

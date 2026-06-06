@@ -28,6 +28,12 @@ import { BibliotecaCategoryVariablesView } from '@/components/plataforma/Bibliot
 import { BibliotecaVariableFormFields } from '@/components/plataforma/BibliotecaVariableFormFields';
 import { MODULO_LABEL } from '@/components/plataforma/biblioteca-constants';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import {
+  MobileFilterTrigger,
+  MobileFilterSheet,
+  MobileToolbarMore,
+  useMobileFilterSheet,
+} from '@/components/mobile';
 
 type Props = { catalogo: BibliotecaCategoriaCompleta[] };
 
@@ -54,6 +60,10 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [categoriaId, setCategoriaId] = useState<string | null>(catalogo[0]?.id ?? null);
+  const { open: filtersOpen, setOpen: setFiltersOpen } = useMobileFilterSheet();
+  const filterActiveCount =
+    (search.trim() ? 1 : 0) +
+    (categoriaId && categoriaId !== catalogo[0]?.id ? 1 : 0);
   const [isPending, startTransition] = useTransition();
   const confirmDialog = useConfirm();
 
@@ -189,23 +199,71 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
     setVarModal(true);
   }
 
+  const bibliotecaCategoriesPanel = (onPick?: () => void) => (
+    <ul className="space-y-1">
+      {filteredCatalogo.length === 0 ? (
+        <li className="px-2 py-4 text-center text-xs text-white/45">Sin coincidencias.</li>
+      ) : (
+        filteredCatalogo.map((cat) => {
+          const active = categoriaActiva?.id === cat.id;
+          return (
+            <li key={cat.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoriaId(cat.id);
+                  onPick?.();
+                }}
+                className={`mb-1 w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
+                  active
+                    ? 'mineos-plat-chip border'
+                    : 'border border-transparent hover:bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-white/90">{cat.nombre}</span>
+                  <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/50">
+                    {cat.variables.length}
+                  </span>
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-white/40">{MODULO_LABEL[cat.modulo]}</span>
+                  <span className="text-[9px] text-white/30">
+                    {getBibliotecaCategorySchema(cat.slug).label}
+                  </span>
+                </div>
+              </button>
+            </li>
+          );
+        })
+      )}
+    </ul>
+  );
+
   return (
     <div className="biblioteca-variables-page flex min-h-0 w-full flex-1 flex-col gap-2.5 sm:gap-3">
-      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="biblioteca-variables-page__toolbar flex w-full flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+        <MobileFilterTrigger
+          activeCount={filterActiveCount}
+          label="Categorías"
+          onOpen={() => setFiltersOpen(true)}
+          className="biblioteca-variables-page__filter-trigger lg:hidden"
+        />
+        <div className="biblioteca-variables-page__search-row flex min-w-0 flex-1 items-center gap-2">
         <div className="relative min-w-0 w-full flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar categoría, variable, clave o valor…"
+            placeholder="Buscar"
             className="input-field w-full py-2 pl-9"
           />
         </div>
-        <p className="shrink-0 text-xs tabular-nums text-white/40">
+        <p className="biblioteca-variables-page__meta hidden shrink-0 text-xs tabular-nums text-white/40 lg:block">
           {catalogo.length} categorías · {totalVariables} variables
           {search.trim() ? ` · ${filteredCatalogo.length} en búsqueda` : ''}
         </p>
-        <div className="ml-auto flex shrink-0 flex-wrap gap-2">
+        <div className="biblioteca-variables-page__actions ml-auto hidden shrink-0 flex-wrap gap-2 lg:flex">
           <button
             type="button"
             onClick={openNuevaCategoria}
@@ -218,11 +276,28 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
             type="button"
             disabled={!categoriaActiva}
             onClick={() => categoriaActiva && openNuevaVariable(categoriaActiva.id)}
-            className="inline-flex items-center gap-2 rounded-lg border border-violet-500/35 bg-violet-500/15 px-3 py-2 text-xs font-bold text-violet-200 hover:bg-violet-500/25 disabled:opacity-40"
+            className="mineos-plat-btn inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-40"
           >
             <Plus className="h-4 w-4" />
             Nueva variable
           </button>
+        </div>
+        <MobileToolbarMore
+          className="shrink-0 lg:hidden"
+          actions={[
+            {
+              label: 'Nueva categoría',
+              onClick: openNuevaCategoria,
+              icon: <FolderOpen className="h-4 w-4" />,
+            },
+            {
+              label: 'Nueva variable',
+              onClick: () => categoriaActiva && openNuevaVariable(categoriaActiva.id),
+              icon: <Plus className="h-4 w-4" />,
+              disabled: !categoriaActiva,
+            },
+          ]}
+        />
         </div>
       </div>
 
@@ -233,46 +308,12 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
           </p>
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 gap-3 pb-3 sm:pb-4 lg:grid-cols-[minmax(220px,280px)_1fr]">
-          <aside className="card-glass flex max-h-[min(46vh,420px)] flex-col overflow-hidden rounded-xl border border-white/[0.08] lg:max-h-none lg:min-h-0">
+        <div className="grid min-h-0 flex-1 gap-3 pb-3 sm:pb-4 md:grid-cols-[minmax(220px,280px)_1fr]">
+          <aside className="biblioteca-variables-page__categories card-glass hidden max-h-[min(46vh,420px)] flex-col overflow-hidden rounded-xl border border-white/[0.08] md:flex md:max-h-none md:min-h-0">
             <div className="border-b border-white/[0.06] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white/45">
               Categorías
             </div>
-            <ul className="flex-1 overflow-y-auto p-2">
-              {filteredCatalogo.length === 0 ? (
-                <li className="px-2 py-4 text-center text-xs text-white/45">Sin coincidencias.</li>
-              ) : (
-                filteredCatalogo.map((cat) => {
-                  const active = categoriaActiva?.id === cat.id;
-                  return (
-                    <li key={cat.id}>
-                      <button
-                        type="button"
-                        onClick={() => setCategoriaId(cat.id)}
-                        className={`mb-1 w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
-                          active
-                            ? 'border border-violet-500/35 bg-violet-500/15'
-                            : 'border border-transparent hover:bg-white/[0.04]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-white/90">{cat.nombre}</span>
-                          <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/50">
-                            {cat.variables.length}
-                          </span>
-                        </div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                          <span className="text-[10px] text-white/40">{MODULO_LABEL[cat.modulo]}</span>
-                          <span className="text-[9px] text-white/30">
-                            {getBibliotecaCategorySchema(cat.slug).label}
-                          </span>
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })
-              )}
-            </ul>
+            <div className="flex-1 overflow-y-auto p-2">{bibliotecaCategoriesPanel()}</div>
           </aside>
 
           <section className="card-glass flex min-h-[280px] flex-1 flex-col overflow-hidden rounded-xl border border-white/[0.08] lg:min-h-0">
@@ -486,6 +527,14 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
           </PageFormModalFooter>
         </form>
       </PageFormModal>
+
+      <MobileFilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Categorías"
+      >
+        {bibliotecaCategoriesPanel(() => setFiltersOpen(false))}
+      </MobileFilterSheet>
     </div>
   );
 }

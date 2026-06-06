@@ -5,7 +5,6 @@ import {
   applyNominaDivisionPorcentaje,
   createNominaDivision,
   DEFAULT_NOMINA_DIVISIONES,
-  formatNominaDivisionLabel,
   rebalanceNominaDivisionesIgual,
   splitNominaByDivisiones,
   sumNominaDivisionesPct,
@@ -50,11 +49,15 @@ export function ReconciliacionNominaDivisiones({
     onChange(rebalanceNominaDivisionesIgual(divisiones.slice(0, n)));
   };
 
+  const updateNombre = (id: string, nombre: string) => {
+    onChange(divisiones.map((d) => (d.id === id ? { ...d, nombre } : d)));
+  };
+
   return (
     <div className="space-y-3 sm:max-w-2xl">
       <p className="text-[11px] text-zinc-500 leading-relaxed">
         Opcional: define cómo seccionar el total de nómina del periodo (misma lógica que la vista
-        previa). Si no agregas partes, no se muestra el desglose.
+        previa). Cada parte puede tener nombre y porcentaje personalizados.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -113,9 +116,14 @@ export function ReconciliacionNominaDivisiones({
         <div className="space-y-2">
           {divisiones.map((d, i) => (
             <div key={d.id} className="grid grid-cols-[1fr_5rem] gap-2 items-center">
-              <span className="text-sm font-medium text-zinc-300">
-                Parte {i + 1} · {formatNominaDivisionLabel(d.porcentaje)}
-              </span>
+              <input
+                type="text"
+                value={d.nombre}
+                onChange={(e) => updateNombre(d.id, e.target.value)}
+                placeholder={`Parte ${i + 1}`}
+                className={cn(inputClass, 'font-medium')}
+                aria-label={`Nombre parte ${i + 1}`}
+              />
               <label className="flex items-center gap-1">
                 <input
                   type="number"
@@ -153,9 +161,7 @@ export function ReconciliacionNominaDivisiones({
                 key={s.id}
                 className="flex justify-between gap-2 text-[11px] text-zinc-300 tabular-nums"
               >
-                <span className="truncate">
-                  {formatNominaDivisionLabel(s.porcentaje)}
-                </span>
+                <span className="truncate">{s.nombre}</span>
                 <span className="font-medium shrink-0">${s.montoUsd.toLocaleString('es')}</span>
               </li>
             ))}

@@ -9,6 +9,11 @@ import type {
 } from '../types';
 import type { NominaReportRow } from '../actions/report-actions';
 import { aggregateBalance, type BalanceSummary } from '@/lib/reconciliation/aggregate-balance';
+import {
+  splitNominaByDivisiones,
+  type NominaDivisionAmount,
+  type NominaDivisionParam,
+} from '@/lib/reconciliation/nomina-divisiones';
 import { safeFormatDate, getWeekRangeLabel } from '@/lib/reports/report-date-utils';
 
 export { safeFormatDate, getWeekRangeLabel } from '@/lib/reports/report-date-utils';
@@ -223,13 +228,16 @@ export function aggregateProduccion(
 // ── 2. Módulo: Nómina ───────────────────────────────────────
 
 export interface NominaSummary {
+  divisionesConfig: NominaDivisionParam[];
   kpis: {
     totalPagado: number;
     bonoTransporteTotal: number;
     trabajadoresUnicos: number;
+    /** Legacy cierre (solo cuando no hay divisiones configuradas). */
     pedroTotal: number;
     darinelTotal: number;
     laFeTotal: number;
+    divisiones: NominaDivisionAmount[];
   };
   rows: {
     grupo: string;
@@ -240,13 +248,27 @@ export interface NominaSummary {
     montoPedro: number;
     montoDarinel: number;
     montoLaFe: number;
+    divisiones: NominaDivisionAmount[];
   }[];
+}
+
+function toNominaDivisionAmounts(
+  total: number,
+  divisiones: NominaDivisionParam[],
+): NominaDivisionAmount[] {
+  return splitNominaByDivisiones(total, divisiones).map(({ id, nombre, montoUsd }) => ({
+    id,
+    nombre,
+    montoUsd,
+  }));
 }
 
 export function aggregateNomina(
   data: NominaReportRow[],
-  agruparPor: 'semana' | 'mes' | 'area' | 'cargo' | 'trabajador' = 'semana'
+  agruparPor: 'semana' | 'mes' | 'area' | 'cargo' | 'trabajador' = 'semana',
+  divisionesConfig: NominaDivisionParam[] = [],
 ): NominaSummary {
+  const useDivisiones = divisionesConfig.length > 0;
   let totalPagado = 0;
   let bonoTransporteTotal = 0;
   const trabajadoresSet = new Set<string>();
@@ -331,38 +353,50 @@ export function aggregateNomina(
   });
 
   const rows = Array.from(gruposMap.entries()).map(([grupoKey, stats]) => {
-    // Calcular split proporcional por grupo si aplica
     let grupoPedro = 0;
     let grupoDarinel = 0;
     let grupoLaFe = 0;
 
-    stats.semanaIds.forEach((wid) => {
-      const c = cierresMap.get(wid);
-      if (c) {
-        // Asignamos una proporción del cierre al grupo, o el total si es por semana/mes
-        if (agruparPor === 'semana' || agruparPor === 'mes') {
-          grupoPedro += c.pedro;
-          grupoDarinel += c.darinel;
-          grupoLaFe += c.laFe;
-        } else {
-          // Para cargos/areas prorrateamos según la nómina pagada en ese grupo vs total
-          const totalSemanaPago = data
-            .filter((d) => d.semana_id === wid)
-            .reduce((s, d) => s + d.monto_pagado, 0);
-          const grupoSemanaPago = data
-            .filter((d) => d.semana_id === wid && 
-              (agruparPor === 'area' ? (normalizeString(d.area) === normalizeString(grupoKey === 'mina' ? 'mina' : grupoKey === 'molinos (planta)' ? 'planta' : grupoKey)) : 
-               agruparPor === 'cargo' ? normalizeString(d.trabajador_cargo) === grupoKey : 
-               normalizeString(d.trabajador_nombre) === grupoKey))
-            .reduce((s, d) => s + d.monto_pagado, 0);
+    if (!useDivisiones) {
+      stats.semanaIds.forEach((wid) => {
+        const c = cierresMap.get(wid);
+        if (c) {
+          if (agruparPor === 'semana' || agruparPor === 'mes') {
+            grupoPedro += c.pedro;
+            grupoDarinel += c.darinel;
+            grupoLaFe += c.laFe;
+          } else {
+            const totalSemanaPago = data
+              .filter((d) => d.semana_id === wid)
+              .reduce((s, d) => s + d.monto_pagado, 0);
+            const grupoSemanaPago = data
+              .filter(
+                (d) =>
+                  d.semana_id === wid &&
+                  (agruparPor === 'area'
+                    ? normalizeString(d.area) ===
+                      normalizeString(
+                        grupoKey === 'mina' ? 'mina' : grupoKey === 'molinos (planta)' ? 'planta' : grupoKey,
+                      )
+                    : agruparPor === 'cargo'
+                      ? normalizeString(d.trabajador_cargo) === grupoKey
+                      : normalizeString(d.trabajador_nombre) === grupoKey),
+              )
+              .reduce((s, d) => s + d.monto_pagado, 0);
 
-          const ratio = totalSemanaPago > 0 ? grupoSemanaPago / totalSemanaPago : 0;
-          grupoPedro += c.pedro * ratio;
-          grupoDarinel += c.darinel * ratio;
-          grupoLaFe += c.laFe * ratio;
+            const ratio = totalSemanaPago > 0 ? grupoSemanaPago / totalSemanaPago : 0;
+            grupoPedro += c.pedro * ratio;
+            grupoDarinel += c.darinel * ratio;
+            grupoLaFe += c.laFe * ratio;
+          }
         }
-      }
-    });
+      });
+    }
+
+    const montoPagado = Number(stats.montoPagado.toFixed(2));
+    const rowDivisiones = useDivisiones
+      ? toNominaDivisionAmounts(montoPagado, divisionesConfig)
+      : [];
 
     let grupo = grupoKey;
     if (['area', 'cargo', 'trabajador'].includes(agruparPor)) {
@@ -375,16 +409,22 @@ export function aggregateNomina(
     return {
       grupo,
       trabajadoresCount: stats.trabajadores.size,
-      montoPagado: Number(stats.montoPagado.toFixed(2)),
+      montoPagado,
       bonoTransporte: Number(stats.bonoTransporte.toFixed(2)),
       semanasLibresCount: stats.semanasLibresCount,
       montoPedro: Number(grupoPedro.toFixed(2)),
       montoDarinel: Number(grupoDarinel.toFixed(2)),
       montoLaFe: Number(grupoLaFe.toFixed(2)),
+      divisiones: rowDivisiones,
     };
   });
 
+  const kpiDivisiones = useDivisiones
+    ? toNominaDivisionAmounts(totalPagado, divisionesConfig)
+    : [];
+
   return {
+    divisionesConfig,
     kpis: {
       totalPagado: Number(totalPagado.toFixed(2)),
       bonoTransporteTotal: Number(bonoTransporteTotal.toFixed(2)),
@@ -392,6 +432,7 @@ export function aggregateNomina(
       pedroTotal: Number(pedroTotal.toFixed(2)),
       darinelTotal: Number(darinelTotal.toFixed(2)),
       laFeTotal: Number(laFeTotal.toFixed(2)),
+      divisiones: kpiDivisiones,
     },
     rows,
   };

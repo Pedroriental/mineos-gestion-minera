@@ -1,11 +1,21 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Children,
+  isValidElement,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { useBottomSheetSnap } from '@/hooks/useBottomSheetSnap';
+import { MobileSheetChrome } from '@/components/mobile/MobileSheetChrome';
+import { useMobileOverlayLock } from '@/hooks/useMobileOverlayLock';
 
-/** Pie estándar de modales crear/editar: separación clara respecto a los campos. */
 export function PageFormModalFooter({
   children,
   className,
@@ -16,22 +26,32 @@ export function PageFormModalFooter({
   return <div className={cn('page-form-modal-footer', className)}>{children}</div>;
 }
 
+function splitModalChildren(children: ReactNode) {
+  const content: ReactNode[] = [];
+  let footer: ReactNode = null;
+
+  Children.forEach(children, (child) => {
+    if (isValidElement(child) && child.type === PageFormModalFooter) {
+      footer = child;
+      return;
+    }
+    content.push(child);
+  });
+
+  return { content, footer };
+}
+
 type PageFormModalProps = {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
-  /** Contenedor del panel (formulario). */
   panelClassName?: string;
-  /** Clases extra del backdrop (p. ej. ocultar en desktop). */
   backdropClassName?: string;
-  /** center: modal centrado (por defecto). bottom: hoja inferior en móvil. */
   align?: 'center' | 'bottom';
+  sheetTitle?: string;
+  sheetIcon?: ReactNode;
 };
 
-/**
- * Modal de formulario a nivel de ventana (portal en document.body).
- * Cubre toda la vista, incluido el topbar (z-index por encima del header).
- */
 export function PageFormModal({
   open,
   onClose,
@@ -39,13 +59,31 @@ export function PageFormModal({
   panelClassName,
   backdropClassName,
   align = 'center',
+  sheetTitle,
+  sheetIcon,
 }: PageFormModalProps) {
   const [mounted, setMounted] = useState(false);
+  const isMobile = useIsMobile();
   const pathname = usePathname();
   const onCloseRef = useRef(onClose);
   const pathnameRef = useRef(pathname);
   const ignoreBackdropCloseRef = useRef(false);
   onCloseRef.current = onClose;
+  const resolvedAlign = align === 'center' && isMobile ? 'bottom' : align;
+  const isSheet = isMobile && resolvedAlign === 'bottom';
+  const { content, footer } = splitModalChildren(children);
+
+  const {
+    snap,
+    scrollRef,
+    sheetStyle,
+    toggleSnap,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useBottomSheetSnap({ enabled: isSheet, open, onClose });
+
+  useMobileOverlayLock(open, isSheet);
 
   useEffect(() => setMounted(true), []);
 
@@ -63,7 +101,6 @@ export function PageFormModal({
     };
   }, [open]);
 
-  /** Evita que el mismo clic que abrió el modal cierre el backdrop (mouseup sobre el overlay). */
   useEffect(() => {
     if (!open) return;
     ignoreBackdropCloseRef.current = true;
@@ -73,7 +110,6 @@ export function PageFormModal({
     return () => window.clearTimeout(t);
   }, [open]);
 
-  /** Cerrar al navegar a otra ruta. */
   useEffect(() => {
     if (pathnameRef.current === pathname) return;
     pathnameRef.current = pathname;
@@ -82,13 +118,16 @@ export function PageFormModal({
 
   if (!open || !mounted) return null;
 
+  const sheetChildren = isSheet ? content : children;
+
   return createPortal(
     <div
       className={cn(
         'page-form-modal-backdrop fixed inset-0 z-[9500] flex justify-center overflow-hidden bg-black/70 backdrop-blur-sm',
-        align === 'bottom'
+        resolvedAlign === 'bottom'
           ? 'items-end p-0 sm:items-center sm:p-4'
           : 'items-center p-4',
+        isSheet && snap === 'expanded' && 'page-form-modal-backdrop--sheet-expanded',
         backdropClassName,
       )}
       role="presentation"
@@ -101,13 +140,47 @@ export function PageFormModal({
       <div
         role="dialog"
         aria-modal="true"
+        style={isSheet ? sheetStyle : undefined}
+        onTouchStart={isSheet ? handleTouchStart : undefined}
+        onTouchMove={isSheet ? handleTouchMove : undefined}
+        onTouchEnd={isSheet ? handleTouchEnd : undefined}
         className={cn(
-          'page-form-modal-panel relative max-h-[92dvh] w-full overflow-y-auto p-6 sm:max-w-2xl sm:rounded-2xl sm:p-8',
-          align === 'bottom' && 'rounded-t-2xl sm:rounded-2xl',
+          'page-form-modal-panel relative w-full bg-[var(--dashboard-card-bg)]',
+          isSheet
+            ? cn(
+                'mobile-bottom-sheet flex max-h-none flex-col overflow-hidden shadow-[0_-12px_48px_rgba(0,0,0,0.45)] transition-[max-height,border-radius,margin] duration-300 ease-out',
+                snap === 'expanded' ? 'mobile-bottom-sheet--expanded' : 'mobile-bottom-sheet--peek',
+                footer && 'mobile-bottom-sheet--has-footer',
+              )
+            : 'max-h-[92dvh] overflow-y-auto overscroll-contain p-6 sm:max-w-2xl sm:rounded-2xl sm:p-8',
+          !isSheet &&
+            resolvedAlign === 'bottom' &&
+            'rounded-t-[1.25rem] px-[1.125rem] pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:max-h-[92dvh] sm:overflow-y-auto sm:rounded-2xl sm:p-8',
           panelClassName,
         )}
       >
-        {children}
+        {isSheet ? (
+          <>
+            <MobileSheetChrome
+              onClose={onClose}
+              onToggleSnap={toggleSnap}
+              snap={snap}
+              title={sheetTitle}
+              icon={sheetIcon}
+            />
+            <div className="mobile-bottom-sheet__body flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div
+                ref={scrollRef}
+                className="mobile-bottom-sheet__scroll min-h-0 flex-1 overflow-y-auto overscroll-contain pt-3"
+              >
+                {sheetChildren}
+              </div>
+              {footer}
+            </div>
+          </>
+        ) : (
+          children
+        )}
       </div>
     </div>,
     document.body,

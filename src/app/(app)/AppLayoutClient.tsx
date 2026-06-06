@@ -5,19 +5,20 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
 import {
-  Loader2, Eye, Search, BellRing, ChevronRight,
-  LayoutGrid, BookOpen, ClipboardList, Sun, Moon,
+  Loader2, Eye, Search, BellRing, ChevronRight, Sun, Moon,
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import Sidebar from '@/components/Sidebar';
 import { RouteTransitionGuard } from '@/components/app/RouteTransitionGuard';
-import MobileBottomNav from '@/components/MobileBottomNav';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import IdleWarningModal from '@/components/IdleWarningModal';
+import { MobileShell, MobileRouteContent, MobileAppHeader } from '@/components/mobile';
 import { cn } from '@/lib/utils';
 import { Suspense } from 'react';
 import GlobalDateRangePicker from '@/components/ui/GlobalDateRangePicker';
 import { getAppSectionMeta } from '@/lib/app-section-meta';
+import { isNominaWorkspacePath } from '@/lib/mobile-nav';
 import type { DashboardAlert } from '@/lib/dashboard-alerts';
 
 const AppSearchModal = dynamic(
@@ -25,7 +26,6 @@ const AppSearchModal = dynamic(
   { ssr: false },
 );
 
-// ── Quick Access Panel ────────────────────────────────────────────────────
 function BellPanel({
   onClose,
   onNavigate,
@@ -36,14 +36,14 @@ function BellPanel({
   alerts: DashboardAlert[];
 }) {
   return (
-    <div className="app-popover w-80 overflow-hidden rounded-xl shadow-2xl">
-      <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+    <div className="app-popover bell-panel w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl shadow-2xl">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">
           Centro de Notificaciones
         </span>
         <button
           onClick={onClose}
-          className="text-zinc-600 hover:text-zinc-400 text-lg leading-none"
+          className="text-lg leading-none text-zinc-600 hover:text-zinc-400"
         >
           &times;
         </button>
@@ -57,24 +57,24 @@ function BellPanel({
                 onNavigate(alert.href);
                 onClose();
               }}
-              className="app-popover-item w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors"
+              className="app-popover-item flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors"
             >
-              <span className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 flex-shrink-0">
-                <BellRing className="w-4 h-4" />
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-400">
+                <BellRing className="h-4 w-4" />
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-zinc-200">{alert.title}</p>
-                <p className="text-[11px] text-zinc-500 truncate">Atención requerida</p>
+                <p className="truncate text-[11px] text-zinc-500">Atención requerida</p>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-zinc-700 ml-auto flex-shrink-0" />
+              <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-zinc-700" />
             </button>
           ))
         ) : (
-          <div className="px-4 py-8 flex flex-col items-center justify-center text-center">
-            <span className="w-12 h-12 rounded-full bg-zinc-800/50 flex items-center justify-center mb-3 text-zinc-600">
-              <BellRing className="w-5 h-5" />
+          <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800/50 text-zinc-600">
+              <BellRing className="h-5 w-5" />
             </span>
-            <p className="text-[13px] text-zinc-400 font-medium">Todo está en orden</p>
+            <p className="text-[13px] font-medium text-zinc-400">Todo está en orden</p>
             <p className="text-[11px] text-zinc-600">No tienes notificaciones pendientes</p>
           </div>
         )}
@@ -113,6 +113,7 @@ export default function AppLayoutClient({
     setSidebarExpanded(v);
     try { localStorage.setItem('mineos-sidebar-expanded', String(v)); } catch {}
   }, []);
+  const isMobile = useIsMobile();
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
   const sectionMeta = getAppSectionMeta(pathname);
@@ -175,6 +176,100 @@ export default function AppLayoutClient({
   }
 
   if (!user && !isGuest) return null;
+
+  if (isMobile) {
+    return (
+      <>
+        <RouteTransitionGuard />
+        <Sidebar
+          variant="dashboard"
+          mobileOpen={mobileMenuOpen}
+          onMobileClose={() => setMobileMenuOpen(false)}
+        />
+        <MobileShell
+          header={
+            <MobileAppHeader
+              onMenuPress={() => setMobileMenuOpen(true)}
+              onBellPress={openBell}
+              bellActive={bellOpen}
+              alertCount={alerts.length}
+              theme={theme}
+              onToggleTheme={toggleTheme}
+            />
+          }
+        >
+          {isGuest && (
+            <div className="mobile-shell__guest-banner flex shrink-0 items-center justify-between gap-2 border-b px-4 py-2 text-[11px]">
+              <div className="flex items-center gap-2">
+                <Eye className="h-3 w-3 shrink-0 opacity-70" />
+                <span className="font-medium">Modo observador</span>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut();
+                  router.push('/');
+                }}
+                className="text-[10px] font-bold uppercase tracking-wider opacity-80"
+              >
+                Salir
+              </button>
+            </div>
+          )}
+          <MobileRouteContent
+            sectionMeta={sectionMeta}
+            pathname={pathname}
+            flush={
+              pathname !== '/dashboard' &&
+              pathname !== '/operaciones/resumen' &&
+              !isNominaWorkspacePath(pathname)
+            }
+            dense
+            hideSectionLead={isNominaWorkspacePath(pathname)}
+          >
+            {children}
+          </MobileRouteContent>
+        </MobileShell>
+
+        {bellOpen && (
+          <div
+            className="bell-panel-backdrop fixed inset-0 z-[8998] bg-black/50 backdrop-blur-[2px]"
+            onClick={() => setBellOpen(false)}
+            aria-hidden
+          />
+        )}
+        {bellOpen && (
+          <div
+            id="bell-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Centro de notificaciones"
+            className="bell-panel-host fixed inset-x-0 top-[calc(2.75rem+env(safe-area-inset-top)+0.5rem)] z-[9000] flex justify-center px-3"
+          >
+            <BellPanel onClose={() => setBellOpen(false)} onNavigate={handleNav} alerts={alerts} />
+          </div>
+        )}
+
+        {searchOpen && (
+          <AppSearchModal
+            onClose={() => setSearchOpen(false)}
+            onNavigate={(href) => {
+              setSearchOpen(false);
+              router.push(href);
+            }}
+          />
+        )}
+
+        {showWarning && (
+          <IdleWarningModal
+            countdown={countdown}
+            onStayActive={stayActive}
+            onSignOut={handleIdleTimeout}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden relative bg-[var(--app-chrome-bg)]">
@@ -331,9 +426,6 @@ export default function AppLayoutClient({
           }}
         />
       )}
-
-      {/* ── Mobile Bottom Nav ── */}
-      <MobileBottomNav onMorePress={() => setMobileMenuOpen(true)} />
 
       {/* ── Idle Timeout Modal ── */}
       {showWarning && (

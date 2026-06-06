@@ -253,7 +253,7 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
               }}
               className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
                 tab === id
-                  ? 'border-violet-500/40 bg-violet-500/15 text-violet-200'
+                  ? 'mineos-plat-chip border'
                   : 'border-white/10 bg-white/[0.03] text-white/60 hover:text-white/85'
               }`}
             >
@@ -276,7 +276,7 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
           <button
             type="button"
             onClick={onAdd}
-            className="inline-flex items-center gap-2 rounded-lg border border-violet-500/35 bg-violet-500/15 px-3 py-2 text-xs font-bold text-violet-200 hover:bg-violet-500/25"
+            className="mineos-plat-btn inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold"
           >
             <Plus className="h-4 w-4" />
             {addLabel}
@@ -306,7 +306,7 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
                       )}
                     </div>
                     <p className="mt-1 text-sm text-white/60">{e.razon_social}</p>
-                    <p className="mt-1 font-mono text-xs text-violet-300/90">RIF {e.rif}</p>
+                    <p className="mineos-plat-code mt-1 text-xs">RIF {e.rif}</p>
                     <p className="mt-2 text-xs text-white/50">{e.direccion_fiscal}</p>
                   </div>
                   <div className="flex gap-2">
@@ -345,7 +345,7 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
                       </h3>
                       <button
                         type="button"
-                        className="text-[11px] font-semibold text-violet-300 hover:text-violet-200"
+                        className="mineos-plat-link text-[11px] font-semibold"
                         onClick={() => {
                           setRepForm({
                             id: undefined,
@@ -393,7 +393,7 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
                       </h3>
                       <button
                         type="button"
-                        className="text-[11px] font-semibold text-violet-300 hover:text-violet-200"
+                        className="mineos-plat-link text-[11px] font-semibold"
                         onClick={() => {
                           setCuentaForm({
                             id: undefined,
@@ -455,7 +455,7 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
                     <span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] uppercase text-white/50">
                       {CATEGORIA_LABEL[t.categoria]}
                     </span>
-                    <code className="text-[10px] text-violet-300/80">{t.slug}</code>
+                    <code className="mineos-plat-code text-[10px]">{t.slug}</code>
                   </div>
                   <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-white/55">{t.contenido}</p>
                 </div>
@@ -521,7 +521,7 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
                 filteredParams.map((p) => (
                   <tr key={p.id} className="border-b border-white/[0.05] hover:bg-white/[0.02]">
                     <td className="px-4 py-3 font-medium text-white/85">{p.etiqueta}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-violet-300/80">{p.clave}</td>
+                    <td className="mineos-plat-code px-4 py-3 text-xs">{p.clave}</td>
                     <td className="max-w-xs truncate px-4 py-3 text-white/60" title={p.valor}>
                       {p.valor}
                     </td>

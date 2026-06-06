@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { computeFixedMenuPosition, isMobileViewport } from '@/lib/popover-position';
 
 export type AppSelectOption = {
   readonly value: string;
@@ -20,9 +21,20 @@ type AppSelectProps = {
   id?: string;
   theme?: 'light' | 'dark';
   menuClassName?: string;
+  /** En móvil abre anclado al botón hacia arriba (filtros en sheets). */
+  anchorMenu?: boolean;
 };
 
 const MENU_MAX_H = 224;
+
+type MenuPosition = {
+  top?: number;
+  bottom?: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+  dropUp: boolean;
+};
 
 export function AppSelect({
   value,
@@ -34,20 +46,18 @@ export function AppSelect({
   id: idProp,
   theme,
   menuClassName,
+  anchorMenu = false,
 }: AppSelectProps) {
   const autoId = useId();
   const id = idProp ?? autoId;
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuListRef = useRef<HTMLUListElement>(null);
+  const menuPosRef = useRef<MenuPosition | null>(null);
+  const menuTouchRef = useRef({ startY: 0, startScrollTop: 0, scrolling: false });
+  const openedAtRef = useRef(0);
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
-  const [menuPos, setMenuPos] = useState<{
-    top?: number;
-    bottom?: number;
-    left: number;
-    width: number;
-    maxHeight: number;
-    dropUp: boolean;
-  } | null>(null);
+  const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -59,30 +69,40 @@ export function AppSelect({
     setOpen(false);
     setHighlightIndex(-1);
     setMenuPos(null);
+    menuPosRef.current = null;
   }, []);
 
   const updateMenuPos = useCallback(() => {
     const el = rootRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const estHeight = Math.min(MENU_MAX_H, Math.max(options.length, 1) * 38 + 12);
-    const spaceBelow = window.innerHeight - rect.bottom - 10;
-    const spaceAbove = rect.top - 10;
-    const dropUp = spaceBelow < estHeight && spaceAbove > spaceBelow;
+    const mobile = isMobileViewport();
+    const useAnchor = anchorMenu || mobile;
+    const rowH = 38;
+    const listHeight = Math.max(options.length, 1) * rowH + 12;
+    const maxCap = mobile
+      ? Math.min(window.innerHeight * 0.52, Math.max(MENU_MAX_H, listHeight))
+      : MENU_MAX_H;
+    const estimatedHeight = Math.min(maxCap, listHeight);
+    const menuWidth = useAnchor
+      ? Math.min(Math.max(rect.width, 200), window.innerWidth - 24)
+      : Math.max(rect.width, 200);
 
-    setMenuPos({
-      left: rect.left,
-      width: rect.width,
-      maxHeight: Math.min(MENU_MAX_H, dropUp ? spaceAbove : spaceBelow),
-      dropUp,
-      ...(dropUp
-        ? { bottom: window.innerHeight - rect.top + 6 }
-        : { top: rect.bottom + 6 }),
+    const pos = computeFixedMenuPosition({
+      anchorRect: rect,
+      menuWidth,
+      estimatedHeight,
+      maxHeightCap: maxCap,
+      centerOnMobile: !useAnchor,
+      preferDropUp: useAnchor,
     });
-  }, [options.length]);
+    menuPosRef.current = pos;
+    setMenuPos(pos);
+  }, [anchorMenu, options.length]);
 
   useLayoutEffect(() => {
     if (!open) return;
+    menuTouchRef.current = { startY: 0, startScrollTop: 0, scrolling: false };
     updateMenuPos();
     const onReflow = () => updateMenuPos();
     window.addEventListener('resize', onReflow);
@@ -91,38 +111,47 @@ export function AppSelect({
       window.removeEventListener('resize', onReflow);
       window.removeEventListener('scroll', onReflow, true);
     };
-  }, [open, updateMenuPos]);
+  }, [open, updateMenuPos, anchorMenu]);
+
+  const shouldPickOption = () => !menuTouchRef.current.scrolling;
 
   useEffect(() => {
     if (!open) return;
+    openedAtRef.current = Date.now();
     const onDoc = (e: MouseEvent) => {
+      if (Date.now() - openedAtRef.current < 320) return;
       const t = e.target as Node;
       if (rootRef.current?.contains(t)) return;
-      const menu = document.getElementById(`${id}-menu`);
-      if (menu?.contains(t)) return;
+      if (menuListRef.current?.contains(t)) return;
       close();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
-    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('click', onDoc, true);
     document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('click', onDoc, true);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open, close, id]);
+  }, [open, close]);
 
   const pick = (next: string) => {
     onChange(next);
     close();
   };
 
+  const openMenu = useCallback(() => {
+    updateMenuPos();
+    setOpen(true);
+  }, [updateMenuPos]);
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (disabled) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      setOpen((o) => !o);
+      if (open) close();
+      else openMenu();
       return;
     }
     if (!open) return;
@@ -138,22 +167,46 @@ export function AppSelect({
     }
   };
 
+  const resolvedMenuPos = menuPos ?? menuPosRef.current;
+
   const menu =
-    open && menuPos && mounted ? (
+    open && resolvedMenuPos && mounted ? (
       <ul
+        ref={menuListRef}
         id={`${id}-menu`}
         role="listbox"
         aria-labelledby={id}
         data-theme={theme}
-        className={cn('app-select__menu app-select__menu--portal', menuPos.dropUp && 'app-select__menu--up', menuClassName)}
+        className={cn(
+          'app-select__menu app-select__menu--portal',
+          resolvedMenuPos.dropUp && 'app-select__menu--up',
+          menuClassName,
+        )}
         style={{
           position: 'fixed',
-          left: menuPos.left,
-          width: menuPos.width,
-          maxHeight: menuPos.maxHeight,
-          top: menuPos.top,
-          bottom: menuPos.bottom,
-          zIndex: 10000,
+          left: resolvedMenuPos.left,
+          width: resolvedMenuPos.width,
+          maxHeight: resolvedMenuPos.maxHeight,
+          top: resolvedMenuPos.top ?? 'auto',
+          bottom: resolvedMenuPos.bottom ?? 'auto',
+          zIndex: 10050,
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => {
+          const list = menuListRef.current;
+          menuTouchRef.current = {
+            startY: e.touches[0].clientY,
+            startScrollTop: list?.scrollTop ?? 0,
+            scrolling: false,
+          };
+        }}
+        onTouchMove={(e) => {
+          const list = menuListRef.current;
+          const dy = Math.abs(e.touches[0].clientY - menuTouchRef.current.startY);
+          const scrollDelta = Math.abs((list?.scrollTop ?? 0) - menuTouchRef.current.startScrollTop);
+          if (dy > 12 || scrollDelta > 1) {
+            menuTouchRef.current.scrolling = true;
+          }
         }}
       >
         {options.map((opt, index) => {
@@ -169,16 +222,27 @@ export function AppSelect({
                 isSelected && 'app-select__option--selected',
                 isHighlighted && 'app-select__option--active',
               )}
-              onMouseEnter={() => setHighlightIndex(index)}
-              onTouchStart={(e) => {
-                e.preventDefault();
+              onMouseEnter={() => {
+                if (menuTouchRef.current.scrolling) return;
+                setHighlightIndex(index);
+              }}
+              onClick={(e) => {
+                if (e.detail === 0) return;
+                if (!shouldPickOption()) return;
+                pick(opt.value);
+              }}
+              onTouchEnd={(e) => {
+                if (!shouldPickOption()) {
+                  e.preventDefault();
+                  return;
+                }
                 pick(opt.value);
               }}
               onMouseDown={(e) => {
+                if (e.pointerType === 'touch') return;
                 e.preventDefault();
                 pick(opt.value);
               }}
-              onClick={() => pick(opt.value)}
             >
               {opt.label}
             </li>
@@ -198,8 +262,11 @@ export function AppSelect({
         className="app-select__trigger"
         onClick={() => {
           if (disabled) return;
-          setOpen((o) => !o);
+          if (open) close();
+          else openMenu();
         }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
       >
         <span className={cn('app-select__value truncate', !selected && 'app-select__placeholder')}>

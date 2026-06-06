@@ -8,6 +8,7 @@ import type { VentaArenas } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { SheetIconBadge } from '@/components/mobile';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
@@ -104,7 +105,7 @@ export default function ArenasPage() {
         lead={
           <p className="text-white/40 text-sm">
             <span className="text-emerald-400 font-semibold">{fmt(totalVentas)}</span> vendido —{' '}
-            <span className="text-cyan-400 font-semibold">{fmtNum(totalTon)} t</span> totales
+            <span className="mineos-cell-general font-semibold">{fmtNum(totalTon)} t</span> totales
           </p>
         }
       >
@@ -125,7 +126,7 @@ export default function ArenasPage() {
                     <h3 className="text-white/85 font-bold text-base leading-snug">{v.comprador}</h3>
                     <p className="text-white/40 text-xs mt-0.5">{v.fecha}</p>
                     {negociacion(v) !== '—' && (
-                      <span className="text-[10px] text-cyan-400/70 font-semibold mt-1 block">{negociacion(v)}</span>
+                      <span className="mineos-icon-muted text-[10px] font-semibold mt-1 block opacity-80">{negociacion(v)}</span>
                     )}
                   </div>
                   <div className="text-right">
@@ -146,7 +147,7 @@ export default function ArenasPage() {
                   {v.humedad_pct != null && (
                     <div>
                       <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Humedad</span>
-                      <span className="font-semibold text-cyan-400/80">{fmtNum(v.humedad_pct)}%</span>
+                      <span className="mineos-cell-general font-semibold opacity-90">{fmtNum(v.humedad_pct)}%</span>
                     </div>
                   )}
                   {v.pct_recuperacion_planta != null && (
@@ -158,7 +159,7 @@ export default function ArenasPage() {
                   {v.pct_molino != null && (
                     <div>
                       <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">% Molino</span>
-                      <span className="font-semibold text-purple-400/80">{fmtNum(v.pct_molino)}%</span>
+                      <span className="mineos-cell-benefit font-semibold opacity-90">{fmtNum(v.pct_molino)}%</span>
                     </div>
                   )}
                 </div>
@@ -238,8 +239,14 @@ export default function ArenasPage() {
         </>
       )}
 
-      <PageFormModal open={showModal} onClose={() => { setShowModal(false); setFormError(null); }} panelClassName="sm:max-w-2xl">
-            <div className="flex items-center justify-between mb-6">
+      <PageFormModal
+        open={showModal}
+        onClose={() => { setShowModal(false); setFormError(null); }}
+        sheetTitle="Nueva Venta de Arenas"
+        sheetIcon={<SheetIconBadge icon={Waves} tone="info" />}
+        panelClassName="sm:max-w-2xl"
+      >
+            <div className="mb-6 hidden items-center justify-between lg:flex">
               <h2 className="page-form-modal-title text-xl font-bold tracking-tight">Nueva Venta de Arenas</h2>
               <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
@@ -288,7 +295,7 @@ export default function ArenasPage() {
               </div>
 
               <div>
-                <label className="input-label flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5 text-cyan-400" /> Humedad (%)</label>
+                <label className="input-label flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5 mineos-icon-general" /> Humedad (%)</label>
                 <input type="number" step="0.1" min="0" max="100" value={form.humedad_pct} onChange={e => f('humedad_pct', e.target.value)} className="input-field" placeholder="0.0" />
               </div>
               <div>
@@ -296,7 +303,7 @@ export default function ArenasPage() {
                 <input type="number" step="0.01" min="0" max="100" value={form.pct_recuperacion_planta} onChange={e => f('pct_recuperacion_planta', e.target.value)} className="input-field" placeholder="0.00" />
               </div>
               <div>
-                <label className="input-label flex items-center gap-1.5"><Cog className="w-3.5 h-3.5 text-purple-400" /> % para el Molino</label>
+                <label className="input-label flex items-center gap-1.5"><Cog className="w-3.5 h-3.5 mineos-icon-benefit" /> % para el Molino</label>
                 <input type="number" step="0.01" min="0" max="100" value={form.pct_molino} onChange={e => f('pct_molino', e.target.value)} className="input-field" placeholder="0.00" />
               </div>
               <div>

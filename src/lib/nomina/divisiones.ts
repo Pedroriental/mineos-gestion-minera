@@ -16,6 +16,8 @@ export {
   applyNominaDivisionPorcentaje,
   createNominaDivision,
   formatNominaDivisionLabel,
+  isAutoNominaDivisionNombre,
+  resolveNominaDivisionNombre,
   syncNominaDivisionNombre,
 } from '@/lib/reconciliation/nomina-divisiones';
 

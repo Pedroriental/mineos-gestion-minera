@@ -9,6 +9,7 @@ import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { SheetIconBadge } from '@/components/mobile';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 import type { LibroGuardia } from '@/lib/types';
@@ -288,8 +289,14 @@ export default function LibroGuardiaPage() {
         </div>
       )}
 
-      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-3xl">
-            <div className="flex items-center justify-between mb-6">
+      <PageFormModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        sheetTitle="Nueva Entrada — Libro de Guardia"
+        sheetIcon={<SheetIconBadge icon={ClipboardList} />}
+        panelClassName="sm:max-w-3xl"
+      >
+            <div className="mb-6 hidden items-center justify-between lg:flex">
               <h2 className="page-form-modal-title text-xl font-bold tracking-tight">Nueva Entrada — Libro de Guardia</h2>
               <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>

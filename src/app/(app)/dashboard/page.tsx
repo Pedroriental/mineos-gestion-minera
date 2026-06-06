@@ -4,6 +4,7 @@ import { buildDashboardAlerts } from '@/lib/dashboard-alerts';
 
 import { DashboardCommandSkeleton } from '@/components/dashboard/DashboardCommandSkeleton';
 import type { LocationData, GlobalData } from '@/components/dashboard/types';
+import DashboardMobileWrapper from './DashboardMobileWrapper';
 
 const SatelliteCommandClient = dynamic(
   () => import('@/components/dashboard/SatelliteCommandClient'),
@@ -334,7 +335,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       origenes: Array.from(e.origenes).slice(0, 6),
     }));
 
-    return <SatelliteCommandClient locations={locations} globalData={globalData} />;
+    return <DashboardMobileWrapper locations={locations} globalData={globalData} />;
   } catch (err) {
     console.error('Dashboard error:', err);
     return (

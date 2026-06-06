@@ -29,6 +29,13 @@ import { AppMonthPicker } from '@/components/ui/AppMonthPicker';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { getGastoColumns, gastoGlobalFilter, parseDescripcion } from './columns';
 import { GastoDetailCard } from './GastoDetailCard';
+import {
+  MobileFilterTrigger,
+  MobileFilterSheet,
+  MobileToolbarMore,
+  SheetIconBadge,
+  useMobileFilterSheet,
+} from '@/components/mobile';
 
 // ── Helpers ──────────────────────────────────────────────────
 interface GastosClientProps {
@@ -105,6 +112,8 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: GASTOS_PAGE_MAX });
   const [detailId, setDetailId] = useState<string | null>(null);
   const tableBodyRef = useRef<HTMLDivElement>(null);
+  const { open: filtersOpen, setOpen: setFiltersOpen } = useMobileFilterSheet();
+  const activeFilterCount = (selectedMonth ? 1 : 0) + (selectedCategory ? 1 : 0);
 
   const toggleDetail = useCallback((id: string) => {
     setDetailId(prev => (prev === id ? null : id));
@@ -645,6 +654,54 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   }
 
   // ─────────────────────────────────────────────────────────
+  const gastosFiltersPanel = (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)] flex items-center gap-1.5">
+          <Calendar className="h-3 w-3" aria-hidden /> Mes
+        </label>
+        <AppMonthPicker
+          value={selectedMonth}
+          onChange={(val) => {
+            setSelectedMonth(val);
+            setSelectedCategory('');
+          }}
+          placeholder="Filtrar por mes..."
+        />
+      </div>
+      {categoriasDisponibles.length > 1 && (
+        <div
+          className="gastos-page__filter-scroll gastos-page__filter-scroll--categories"
+          role="region"
+          aria-label="Filtrar por categoría de gasto"
+          title="Desplaza para ver más categorías"
+        >
+          <div className="gastos-page__filter-scroll-inner gastos-page__filter-scroll-inner--categories">
+            <Tag className="gastos-icon-muted h-3 w-3 shrink-0" aria-hidden />
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('')}
+              className={filterPillClass(selectedCategory === '', 'category')}
+            >
+              Todas
+            </button>
+            {categoriasDisponibles.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat === selectedCategory ? '' : cat)}
+                className={`${filterPillClass(selectedCategory === cat, 'category')} max-w-[10.5rem] shrink-0 truncate text-left`}
+                title={cat}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="gastos-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
 
@@ -682,56 +739,12 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
           </div>
 
           <div className="gastos-page__summary-stack flex min-h-0 flex-1 flex-col gap-2">
-          {/* Filtros — solo el alto del contenido */}
-          <div className="gastos-page__filters app-surface-card shrink-0 flex flex-col p-3">
+          {/* Filtros — panel desktop; sheet en móvil */}
+          <div className="gastos-page__filters app-surface-card hidden shrink-0 flex-col p-3 lg:flex">
             <p className="mb-2.5 shrink-0 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
               Filtros
             </p>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)] flex items-center gap-1.5">
-                  <Calendar className="h-3 w-3" aria-hidden /> Mes
-                </label>
-                  <AppMonthPicker
-                    value={selectedMonth}
-                    onChange={(val) => {
-                      setSelectedMonth(val);
-                      setSelectedCategory('');
-                    }}
-                    placeholder="Filtrar por mes..."
-                  />
-              </div>
-            {categoriasDisponibles.length > 1 && (
-              <div
-                className="gastos-page__filter-scroll gastos-page__filter-scroll--categories"
-                role="region"
-                aria-label="Filtrar por categoría de gasto"
-                title="Desplaza para ver más categorías"
-              >
-                <div className="gastos-page__filter-scroll-inner gastos-page__filter-scroll-inner--categories">
-                  <Tag className="gastos-icon-muted h-3 w-3 shrink-0" aria-hidden />
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory('')}
-                    className={filterPillClass(selectedCategory === '', 'category')}
-                  >
-                    Todas
-                  </button>
-                  {categoriasDisponibles.map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setSelectedCategory(cat === selectedCategory ? '' : cat)}
-                      className={`${filterPillClass(selectedCategory === cat, 'category')} max-w-[10.5rem] shrink-0 truncate text-left`}
-                      title={cat}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            </div>
+            {gastosFiltersPanel}
           </div>
 
           {/* Gasto por categoría — ocupa el espacio restante */}
@@ -794,53 +807,66 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
         {/* PANEL DERECHO — Tabla */}
         <div className="gastos-page__table app-surface-card relative flex min-h-0 flex-col overflow-hidden">
 
-          <div className="gastos-page__toolbar flex shrink-0 items-center gap-2 px-3 py-1.5">
-            <div className="gastos-search-wrap flex h-8 min-w-0 flex-1 items-center gap-2.5 rounded-lg pl-3 pr-2">
-              <Search className="gastos-icon-muted h-3.5 w-3.5 shrink-0" aria-hidden />
-              <input
-                type="text"
-                placeholder="Buscar por descripción, categoría, proveedor o factura..."
-                value={globalFilter ?? ''}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-                className="min-w-0 w-full border-none bg-transparent text-xs outline-none"
-              />
-              {globalFilter ? (
+          <div className="gastos-page__toolbar flex shrink-0 flex-col gap-2 px-3 py-1.5">
+            <MobileFilterTrigger
+              activeCount={activeFilterCount}
+              onOpen={() => setFiltersOpen(true)}
+              className="gastos-page__filter-trigger lg:hidden"
+            />
+            <div className="gastos-page__toolbar-row flex min-w-0 flex-wrap items-center gap-2">
+              <div className="gastos-search-wrap flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-lg pl-3 pr-2">
+                <Search className="gastos-icon-muted h-3.5 w-3.5 shrink-0" aria-hidden />
+                <input
+                  type="text"
+                  placeholder="Buscar"
+                  value={globalFilter ?? ''}
+                  onChange={(e) => setGlobalFilter(e.target.value)}
+                  className="min-w-0 w-full border-none bg-transparent text-xs outline-none"
+                />
+                {globalFilter ? (
+                  <button
+                    type="button"
+                    onClick={() => setGlobalFilter('')}
+                    className="gastos-page-btn ml-1 shrink-0"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+              <div className="mineos-export-actions hidden shrink-0 sm:grid">
                 <button
                   type="button"
-                  onClick={() => setGlobalFilter('')}
-                  className="gastos-page-btn ml-1 shrink-0"
-                  aria-label="Limpiar búsqueda"
+                  onClick={exportToCSV}
+                  className="mineos-export-btn"
+                  title="Exportar CSV"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <FileDown className="h-4 w-4 shrink-0" /> CSV
                 </button>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={exportToCSV}
-                className="btn-secondary flex h-8 items-center gap-1 px-2.5 text-[10px] whitespace-nowrap"
-                title="Exportar CSV"
-              >
-                <FileDown className="h-3.5 w-3.5" /> CSV
-              </button>
-              <button
-                type="button"
-                onClick={exportToPDF}
-                className="btn-secondary flex h-8 items-center gap-1 px-2.5 text-[10px] whitespace-nowrap"
-                title="Exportar PDF"
-              >
-                <FileText className="h-3.5 w-3.5" /> PDF
-              </button>
+                <button
+                  type="button"
+                  onClick={exportToPDF}
+                  className="mineos-export-btn"
+                  title="Exportar PDF"
+                >
+                  <FileText className="h-4 w-4 shrink-0" /> PDF
+                </button>
+              </div>
+              <MobileToolbarMore
+                actions={[
+                  { label: 'Exportar CSV', onClick: exportToCSV, icon: <FileDown className="h-4 w-4" /> },
+                  { label: 'Exportar PDF', onClick: exportToPDF, icon: <FileText className="h-4 w-4" /> },
+                ]}
+              />
             </div>
             {canEdit && (
               <button
                 type="button"
                 onClick={openNew}
                 disabled={isPending}
-                className="app-btn-primary h-8 shrink-0 px-4 text-xs"
+                className="gastos-page__register-btn app-btn-primary inline-flex h-9 w-full items-center justify-center gap-2 px-4 text-xs font-bold lg:w-auto lg:shrink-0"
               >
-                <Plus className="h-3.5 w-3.5" /> Registrar Gasto
+                <Plus className="h-4 w-4 shrink-0" /> Registrar Gasto
               </button>
             )}
           </div>
@@ -1026,16 +1052,19 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
         </div>
       </div>
 
-      <PageFormModal open={showModal} onClose={closeModal} panelClassName="sm:max-w-5xl">
-        <div className="mb-4 flex justify-center sm:hidden">
-          <div className="h-1 w-8 rounded-full bg-zinc-700" />
-        </div>
-        <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
+      <PageFormModal
+        open={showModal}
+        onClose={closeModal}
+        sheetTitle={editItem ? 'Editar Gasto' : 'Nuevo Gasto'}
+        sheetIcon={<SheetIconBadge icon={Wallet} tone="danger" />}
+        panelClassName="sm:max-w-5xl"
+      >
+        <div className="mb-6 hidden items-center justify-between border-b border-white/5 pb-4 lg:flex">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10">
               <Wallet className="h-4 w-4 text-red-400" />
             </div>
-            <h2 className="text-lg font-semibold text-white/90">
+            <h2 className="page-form-modal-title text-lg font-semibold text-white/90">
               {editItem ? 'Editar Gasto' : 'Nuevo Gasto'}
             </h2>
           </div>
@@ -1292,6 +1321,10 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
           </button>
         </PageFormModalFooter>
       </PageFormModal>
+
+      <MobileFilterSheet open={filtersOpen} onClose={() => setFiltersOpen(false)}>
+        {gastosFiltersPanel}
+      </MobileFilterSheet>
     </div>
   );
 }

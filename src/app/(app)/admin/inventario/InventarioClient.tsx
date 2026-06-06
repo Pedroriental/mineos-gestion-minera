@@ -36,6 +36,8 @@ import {
   normalizeDestino,
 } from './destino';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { MobileToolbarMore, SheetIconBadge } from '@/components/mobile';
 
 const INVENTARIO_PAGE_MAX = 50;
 const INVENTARIO_PAGE_BUTTONS_MAX = 5;
@@ -70,6 +72,7 @@ const EMPTY_ITEM_FORM = {
 export default function InventarioClient() {
   const { user } = useAuth();
   const canEdit = useCanEdit();
+  const isMobile = useIsMobile();
   const categoriaOptions = useBibliotecaOptions('inventario_categoria');
   const movimientoOptions = useBibliotecaOptions('inventario_movimiento');
   const destinoSelectOptions = useBibliotecaOptions('inventario_destino');
@@ -292,7 +295,7 @@ export default function InventarioClient() {
     if (!el) return;
 
     const available = el.clientHeight;
-    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches && !isMobile;
 
     let pageRows: number;
     if (isDesktop) {
@@ -306,7 +309,7 @@ export default function InventarioClient() {
 
     pageRows = Math.min(INVENTARIO_PAGE_MAX, pageRows);
     setPagination((prev) => (prev.pageSize === pageRows ? prev : { ...prev, pageSize: pageRows }));
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     const el = tableAreaRef.current;
@@ -349,51 +352,89 @@ export default function InventarioClient() {
     }
   }, [displayPageCount, pagination.pageIndex]);
 
+  const openNewItem = useCallback(() => {
+    setEditItem(null);
+    setItemForm(EMPTY_ITEM_FORM);
+    setShowItemModal(true);
+  }, []);
+
   return (
-    <div className="inventario-page flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
-      <div className="inventario-page__toolbar flex shrink-0 items-center gap-2">
-        <div className="gastos-search-wrap flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-3">
-          <Search className="gastos-icon-muted h-4 w-4 shrink-0" aria-hidden />
-          <input
-            type="text"
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Buscar por código, nombre o categoría..."
-            className="min-w-0 flex-1 border-none bg-transparent text-sm outline-none"
-          />
-          {globalFilter ? (
-            <button
-              type="button"
-              onClick={() => setGlobalFilter('')}
-              className="gastos-page-btn shrink-0 rounded p-0.5"
-              aria-label="Limpiar búsqueda"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
+    <div className="inventario-page flex min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden sm:gap-4">
+      <div
+        className={`inventario-page__toolbar flex shrink-0 gap-2 ${
+          isMobile ? 'flex-col' : 'items-center'
+        }`}
+      >
+        <div
+          className={`flex min-w-0 items-center gap-2 ${
+            isMobile ? 'inventario-page__toolbar-row w-full' : 'flex-1'
+          }`}
+        >
+          <div className="gastos-search-wrap flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3">
+            <Search className="gastos-icon-muted h-4 w-4 shrink-0" aria-hidden />
+            <input
+              type="text"
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              placeholder="Buscar"
+              className="min-w-0 flex-1 border-none bg-transparent text-xs outline-none sm:text-sm"
+            />
+            {globalFilter ? (
+              <button
+                type="button"
+                onClick={() => setGlobalFilter('')}
+                className="gastos-page-btn shrink-0 rounded p-0.5"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+          {isMobile ? (
+            <MobileToolbarMore
+              actions={[
+                {
+                  label: 'Registrar Movimiento',
+                  onClick: openMovModal,
+                  icon: <ArrowUpCircle className="h-4 w-4" />,
+                  disabled: !canEdit,
+                },
+              ]}
+            />
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={openMovModal}
+                disabled={!canEdit}
+                className="btn-secondary inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+              >
+                <ArrowUpCircle className="h-3.5 w-3.5" /> Registrar Movimiento
+              </button>
+              <button
+                type="button"
+                onClick={openNewItem}
+                disabled={!canEdit}
+                className="app-btn-primary inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+              >
+                <Plus className="h-3.5 w-3.5" /> Nuevo Item
+              </button>
+            </>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={openMovModal}
-          disabled={!canEdit}
-          className="btn-secondary inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-          title={!canEdit ? 'Modo observador: solo lectura' : undefined}
-        >
-          <ArrowUpCircle className="h-3.5 w-3.5" /> Registrar Movimiento
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setEditItem(null);
-            setItemForm(EMPTY_ITEM_FORM);
-            setShowItemModal(true);
-          }}
-          disabled={!canEdit}
-          className="app-btn-primary inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-          title={!canEdit ? 'Modo observador: solo lectura' : undefined}
-        >
-          <Plus className="h-3.5 w-3.5" /> Nuevo Item
-        </button>
+        {isMobile && canEdit && (
+          <button
+            type="button"
+            onClick={openNewItem}
+            disabled={!canEdit}
+            className="inventario-page__new-btn app-btn-primary inline-flex h-9 w-full items-center justify-center gap-2 px-4 text-xs font-bold"
+            title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+          >
+            <Plus className="h-4 w-4 shrink-0" /> Nuevo Item
+          </button>
+        )}
       </div>
 
       <div className="app-surface-card relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -404,105 +445,105 @@ export default function InventarioClient() {
         ) : (
           <>
             <div ref={tableAreaRef} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="block min-h-0 flex-1 overflow-hidden p-3 md:hidden">
-              {filteredCount === 0 ? (
-                <EmptyState icon={<Package className="h-6 w-6" />} title="Sin items en inventario" />
-              ) : (
-                <div className="space-y-3">
-                  {pageRows.map((row) => {
-                    const item = row.original;
-                    const low = item.stock_actual <= item.stock_minimo;
-                    return (
-                      <div
-                        key={row.id}
-                        className="rounded-xl border border-[var(--gastos-border)] bg-[var(--gastos-input-bg)] p-4"
-                      >
-                        <div className="mb-3 flex items-start justify-between">
-                          <div>
-                            <span
-                              className={`rounded-sm border px-2 py-0.5 text-[10px] font-bold tracking-wider ${
-                                codigoDisplay(item.codigo) === CODIGO_SIN_DATOS
-                                  ? 'border-[var(--gastos-pill-border)] bg-[var(--gastos-pill-bg)] text-[var(--gastos-subtle)]'
-                                  : 'border-[var(--dashboard-accent-soft)] bg-[var(--dashboard-accent-soft)] font-mono text-[var(--dashboard-accent)]'
-                              }`}
-                            >
-                              {codigoDisplay(item.codigo)}
-                            </span>
-                            <h3 className="mt-2 text-base font-bold leading-tight text-[var(--gastos-body)]">
-                              {item.nombre}
-                            </h3>
-                            <p className="mt-1 text-sm text-[var(--gastos-subtle)]">
-                              {catLabelsMap[item.categoria] || '—'}
-                            </p>
+            {isMobile ? (
+              <div className="inventario-page__cards min-h-0 flex-1 overflow-y-auto p-3">
+                {filteredCount === 0 ? (
+                  <div className="inventario-page__empty flex items-center justify-center py-10">
+                    <EmptyState icon={<Package className="h-6 w-6" />} title="Sin items en inventario" />
+                  </div>
+                ) : (
+                  <div className="inventario-page__grid">
+                    {pageRows.map((row) => {
+                      const item = row.original;
+                      const low = item.stock_actual <= item.stock_minimo;
+                      return (
+                        <article
+                          key={row.id}
+                          className="inventario-page__card rounded-xl border border-[var(--gastos-border)] bg-[var(--gastos-input-bg)] p-3.5"
+                        >
+                          <div className="mb-2.5 flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span
+                                  className={`rounded-sm border px-1.5 py-0.5 text-[9px] font-bold tracking-wider ${
+                                    codigoDisplay(item.codigo) === CODIGO_SIN_DATOS
+                                      ? 'border-[var(--gastos-pill-border)] bg-[var(--gastos-pill-bg)] text-[var(--gastos-subtle)]'
+                                      : 'border-[var(--dashboard-accent-soft)] bg-[var(--dashboard-accent-soft)] font-mono text-[var(--dashboard-accent)]'
+                                  }`}
+                                >
+                                  {codigoDisplay(item.codigo)}
+                                </span>
+                                <span className="gastos-cat-pill rounded px-1.5 py-0.5 text-[9px] font-semibold">
+                                  {catLabelsMap[item.categoria] || '—'}
+                                </span>
+                              </div>
+                              <h3 className="mt-1.5 truncate text-sm font-bold leading-tight text-[var(--gastos-body)]">
+                                {item.nombre}
+                              </h3>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <span
+                                className={`block text-base font-black leading-none tabular-nums ${
+                                  low ? 'text-[var(--dashboard-danger)]' : 'text-[var(--gastos-body)]'
+                                }`}
+                              >
+                                {item.stock_actual}
+                              </span>
+                              <span className="text-[9px] uppercase tracking-wide text-[var(--gastos-subtle)]">
+                                {item.unidad_medida || 'u.'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="shrink-0 text-right">
-                            <span
-                              className={`block text-lg font-black leading-none tabular-nums ${
-                                low ? 'text-[var(--dashboard-danger)]' : 'text-[var(--gastos-body)]'
-                              }`}
-                            >
-                              {item.stock_actual}
-                            </span>
-                            <span className="text-[10px] uppercase tracking-wide text-[var(--gastos-subtle)]">
-                              Unidades
-                            </span>
-                            <span className="mt-0.5 block text-[9px] text-[var(--gastos-label)]">
-                              Ud. medida: {item.unidad_medida || '—'}
-                            </span>
+                          <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-[var(--gastos-border)] bg-[var(--gastos-pill-bg)] p-2.5 text-[11px]">
+                            <div>
+                              <span className="mb-0.5 block text-[var(--gastos-label)]">Stock mín.</span>
+                              <span className="font-medium tabular-nums text-[var(--gastos-body)]">
+                                {item.stock_minimo}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="mb-0.5 block text-[var(--gastos-label)]">Costo unit.</span>
+                              <span className="font-medium tabular-nums text-[var(--gastos-body)]">
+                                {fmtUsd(item.costo_unitario_promedio)}
+                              </span>
+                            </div>
+                            <div className="col-span-2">
+                              <span className="mb-0.5 block text-[var(--gastos-label)]">Ubicación</span>
+                              <span
+                                className={`gastos-cat-pill inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  normalizeDestino(item.ubicacion, validDestinos) ? '' : 'opacity-80'
+                                }`}
+                              >
+                                {labelDestino(item.ubicacion)}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg border border-[var(--gastos-border)] bg-[var(--gastos-pill-bg)] p-2.5 text-xs">
-                          <div>
-                            <span className="mb-0.5 block text-[var(--gastos-label)]">Stock actual</span>
-                            <span
-                              className={`font-semibold tabular-nums ${
-                                low ? 'text-[var(--dashboard-danger)]' : 'font-medium text-[var(--gastos-body)]'
-                              }`}
-                            >
-                              {item.stock_actual}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="mb-0.5 block text-[var(--gastos-label)]">Stock mínimo</span>
-                            <span className="font-medium tabular-nums text-[var(--gastos-body)]">{item.stock_minimo}</span>
-                          </div>
-                          <div className="col-span-2">
-                            <span className="mb-0.5 block text-[var(--gastos-label)]">Ubicación</span>
-                            <span
-                              className={`gastos-cat-pill inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                normalizeDestino(item.ubicacion, validDestinos) ? '' : 'opacity-80'
-                              }`}
-                            >
-                              {labelDestino(item.ubicacion)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex justify-end gap-2 border-t border-[var(--gastos-border)] pt-3">
-                          <button
-                            type="button"
-                            onClick={() => openEditItem(item)}
-                            disabled={!canEdit}
-                            className="btn-secondary !px-3 !py-1.5 !text-xs disabled:opacity-40"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" /> Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteItem(item)}
-                            disabled={!canEdit}
-                            className="btn-secondary !px-3 !py-1.5 !text-xs text-[var(--dashboard-danger)] disabled:opacity-40"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Eliminar
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="gastos-page__table-body hidden min-h-0 flex-1 flex-col overflow-hidden md:flex">
+                          {canEdit && (
+                            <div className="flex justify-end gap-2 border-t border-[var(--gastos-border)] pt-2.5">
+                              <button
+                                type="button"
+                                onClick={() => openEditItem(item)}
+                                className="btn-secondary !px-3 !py-1.5 !text-xs"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" /> Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteItem(item)}
+                                className="btn-secondary !px-3 !py-1.5 !text-xs text-[var(--dashboard-danger)]"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                              </button>
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+            <div className="gastos-page__table-body min-h-0 flex-1 flex-col overflow-hidden">
               <table className="gastos-table w-full table-fixed border-collapse">
                 <colgroup>
                   <col style={{ width: '10%' }} />
@@ -590,6 +631,7 @@ export default function InventarioClient() {
                 </tbody>
               </table>
             </div>
+            )}
             </div>
 
             <div className="gastos-footer-bar flex shrink-0 items-center justify-between border-t px-3 py-1.5">
@@ -641,16 +683,18 @@ export default function InventarioClient() {
         )}
       </div>
 
-      <PageFormModal open={showItemModal} onClose={() => setShowItemModal(false)}>
-        <div className="mb-4 flex justify-center sm:hidden">
-          <div className="h-1 w-8 rounded-full bg-zinc-700" />
-        </div>
-        <div className="mb-6 flex items-center justify-between">
+      <PageFormModal
+        open={showItemModal}
+        onClose={() => setShowItemModal(false)}
+        sheetTitle={editItem ? 'Editar Item' : 'Nuevo Item'}
+        sheetIcon={<SheetIconBadge icon={Package} tone="accent" />}
+      >
+        <div className="mb-6 hidden items-center justify-between lg:flex">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--dashboard-accent-soft)] bg-[var(--dashboard-accent-soft)]">
               <Package className="h-4 w-4 text-[var(--dashboard-accent)]" />
             </div>
-            <h2 className="text-lg font-semibold text-white/90">{editItem ? 'Editar Item' : 'Nuevo Item'}</h2>
+            <h2 className="page-form-modal-title text-lg font-semibold text-white/90">{editItem ? 'Editar Item' : 'Nuevo Item'}</h2>
           </div>
           <button
             type="button"
@@ -764,18 +808,17 @@ export default function InventarioClient() {
       <PageFormModal
         open={showMovModal}
         onClose={closeMovModal}
+        sheetTitle="Registrar Movimiento"
+        sheetIcon={<SheetIconBadge icon={ArrowUpCircle} tone="accent" />}
         panelClassName="page-form-modal-panel--mov overflow-hidden !max-h-[min(92dvh,40rem)] sm:max-w-2xl"
       >
-        <div className="mb-2 flex justify-center sm:hidden">
-          <div className="h-1 w-8 rounded-full bg-zinc-700" />
-        </div>
-        <div className="mb-4 flex items-start justify-between gap-2">
+        <div className="mb-4 hidden items-start justify-between gap-2 lg:flex">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--dashboard-accent-soft)] bg-[var(--dashboard-accent-soft)]">
               <ArrowUpCircle className="h-3.5 w-3.5 text-[var(--dashboard-accent)]" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-semibold leading-tight text-white/90">Registrar Movimiento</h2>
+              <h2 className="page-form-modal-title text-base font-semibold leading-tight text-white/90">Registrar Movimiento</h2>
               <p className="text-[10px] leading-snug text-white/45">
                 Entrada, salida o ajuste — no edita la ficha del item
               </p>

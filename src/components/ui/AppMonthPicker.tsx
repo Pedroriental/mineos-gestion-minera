@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { computeFixedMenuPosition } from '@/lib/popover-position';
 import { format, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -63,20 +64,13 @@ export function AppMonthPicker({
     const el = rootRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const estHeight = 240; // Approx height of our picker
-    const spaceBelow = window.innerHeight - rect.bottom - 10;
-    const spaceAbove = rect.top - 10;
-    const dropUp = spaceBelow < estHeight && spaceAbove > spaceBelow;
-
-    setMenuPos({
-      left: rect.left,
-      width: Math.max(rect.width, 240), // minimum width for picker
-      maxHeight: Math.min(MENU_MAX_H, dropUp ? spaceAbove : spaceBelow),
-      dropUp,
-      ...(dropUp
-        ? { bottom: window.innerHeight - rect.top + 6 }
-        : { top: rect.bottom + 6 }),
+    const pos = computeFixedMenuPosition({
+      anchorRect: rect,
+      menuWidth: 280,
+      estimatedHeight: 240,
+      maxHeightCap: MENU_MAX_H,
     });
+    setMenuPos(pos);
   }, []);
 
   useLayoutEffect(() => {

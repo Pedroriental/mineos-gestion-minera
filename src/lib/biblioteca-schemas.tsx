@@ -45,7 +45,7 @@ function cell(text: ReactNode, mono = false) {
     <span
       className={
         mono
-          ? 'font-mono text-xs text-violet-300/85'
+          ? 'mineos-plat-code text-xs'
           : 'text-white/70'
       }
     >
@@ -54,10 +54,10 @@ function cell(text: ReactNode, mono = false) {
   );
 }
 
-function badge(text: string, tone: 'violet' | 'amber' | 'red' | 'emerald' | 'sky' | 'zinc' = 'zinc') {
+function badge(text: string, tone: 'general' | 'amber' | 'red' | 'emerald' | 'sky' | 'zinc' = 'zinc') {
   const tones: Record<string, string> = {
-    violet: 'border-violet-500/30 bg-violet-500/15 text-violet-200',
-    amber: 'border-amber-500/30 bg-amber-500/15 text-amber-200',
+    general: 'mineos-plat-chip border',
+    amber: 'mineos-plat-chip border',
     red: 'border-red-500/30 bg-red-500/15 text-red-200',
     emerald: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200',
     sky: 'border-sky-500/30 bg-sky-500/15 text-sky-200',
@@ -178,7 +178,7 @@ const SCHEMA_BY_KIND: Record<BibliotecaSchemaKind, Omit<BibliotecaCategorySchema
   rotation_scheme: {
     label: 'Esquemas de rotación',
     purpose: 'Patrones de asistencia y turnos en nómina. Los días de ciclo y el ámbito por área definen defaults al asignar personal.',
-    badgeClass: 'text-violet-300/90',
+    badgeClass: 'mineos-plat-accent',
     columns: [
       {
         id: 'esquema',
@@ -261,7 +261,7 @@ const SCHEMA_BY_KIND: Record<BibliotecaSchemaKind, Omit<BibliotecaCategorySchema
   labeled_option: {
     label: 'Opciones con etiqueta',
     purpose: 'Valores de lista con presentación en formularios (turnos, clima, áreas). Opcional: emoji o texto corto en UI.',
-    badgeClass: 'text-violet-300/90',
+    badgeClass: 'mineos-plat-accent',
     columns: [
       {
         id: 'etiqueta',
@@ -381,7 +381,7 @@ const SCHEMA_BY_KIND: Record<BibliotecaSchemaKind, Omit<BibliotecaCategorySchema
   process_type: {
     label: 'Tipos de registro',
     purpose: 'Clasificación de procesos o hallazgos (planta, seguridad).',
-    badgeClass: 'text-violet-300/90',
+    badgeClass: 'mineos-plat-accent',
     columns: [
       {
         id: 'tipo',

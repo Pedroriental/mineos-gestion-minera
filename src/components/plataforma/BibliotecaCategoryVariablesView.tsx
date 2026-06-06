@@ -31,7 +31,7 @@ export function BibliotecaCategoryVariablesView({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Variable className="h-4 w-4 shrink-0 text-violet-400" />
+              <Variable className="h-4 w-4 shrink-0 mineos-icon-general" />
               <h2 className="text-base font-bold text-white">{categoria.nombre}</h2>
               <span
                 className={`rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${schema.badgeClass}`}

@@ -47,7 +47,7 @@ export function ReconciliacionMacroKpis({
 
   if (isSidebar) {
     return (
-      <div className="divide-y divide-white/5 rounded-lg border border-white/5 bg-zinc-900/30">
+      <div className="reconciliacion-macro-kpis reconciliacion-macro-kpis--sidebar divide-y divide-white/5 rounded-lg border border-white/5 bg-zinc-900/30">
         {cards.map((c) => (
           <div
             key={c.label}

@@ -25,6 +25,12 @@ import { upsertGastoConcepto, deleteGastoConcepto, getOrCreateCategoria } from '
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import {
+  MobileFilterTrigger,
+  MobileFilterSheet,
+  SheetIconBadge,
+  useMobileFilterSheet,
+} from '@/components/mobile';
 
 interface ConceptosClientProps {
   conceptos: GastoConcepto[];
@@ -58,9 +64,11 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: CONCEPTOS_PAGE_MAX });
   const tableBodyRef = useRef<HTMLDivElement>(null);
   const confirmDialog = useConfirm();
+  const { open: filtersOpen, setOpen: setFiltersOpen } = useMobileFilterSheet();
 
   // Filtro de categorías en la barra lateral
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
+  const activeFilterCount = selectedCategoryFilter ? 1 : 0;
 
   // Estados para creación rápida/inline de nuevas categorías
   const [showNewCatInput, setShowNewCatInput] = useState(false);
@@ -355,8 +363,63 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
     });
   }
 
+  const conceptosFiltersPanel = (onPick?: () => void) => (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedCategoryFilter(null);
+          onPick?.();
+        }}
+        className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-all ${
+          selectedCategoryFilter === null
+            ? 'bg-red-500/10 text-red-400 font-bold'
+            : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+        }`}
+      >
+        <span>Todas las categorías</span>
+        <span
+          className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
+            selectedCategoryFilter === null ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-500'
+          }`}
+        >
+          {conceptos.length}
+        </span>
+      </button>
+
+      {categorias.map((cat) => {
+        const count = categoryCounts.get(cat.id) || 0;
+        const isSelected = selectedCategoryFilter === cat.id;
+        return (
+          <button
+            key={cat.id}
+            type="button"
+            onClick={() => {
+              setSelectedCategoryFilter(cat.id);
+              onPick?.();
+            }}
+            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-all ${
+              isSelected
+                ? 'bg-red-500/10 text-red-400 font-bold'
+                : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+            }`}
+          >
+            <span className="truncate mr-2">{cat.nombre}</span>
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
+                isSelected ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-500'
+              }`}
+            >
+              {count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="gastos-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <div className="gastos-page conceptos-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div className="gastos-page__grid min-h-0 flex-1">
         
         {/* PANEL IZQUIERDO — KPIs */}
@@ -386,8 +449,8 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
             </div>
           </div>
 
-          {/* Tarjeta 1: Guía de Catálogo (Más pequeña y compacta) */}
-          <div className="app-surface-card flex shrink-0 flex-col p-3.5 leading-relaxed text-zinc-400 text-[11px]">
+          {/* Guía — solo desktop */}
+          <div className="conceptos-page__guide app-surface-card hidden shrink-0 flex-col p-3.5 leading-relaxed text-zinc-400 text-[11px] lg:flex">
             <div className="mb-2 flex shrink-0 items-center gap-1.5">
               <BookOpen className="h-3.5 w-3.5 text-amber-500" aria-hidden />
               <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
@@ -404,8 +467,8 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
             </div>
           </div>
 
-          {/* Tarjeta 2: Filtrar por Categoría */}
-          <div className="app-surface-card flex min-h-0 flex-1 flex-col p-4">
+          {/* Filtros categoría — panel desktop */}
+          <div className="conceptos-page__filters app-surface-card hidden min-h-0 flex-1 flex-col p-4 lg:flex">
             <div className="mb-2.5 flex shrink-0 items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Tag className="h-3.5 w-3.5 text-red-400" aria-hidden />
@@ -424,47 +487,8 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
               )}
             </div>
 
-            <div className="space-y-1 overflow-y-auto min-h-0 flex-1 pr-1 custom-scrollbar">
-              <button
-                type="button"
-                onClick={() => setSelectedCategoryFilter(null)}
-                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-all ${
-                  selectedCategoryFilter === null
-                    ? 'bg-red-500/10 text-red-400 font-semibold font-bold'
-                    : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
-                }`}
-              >
-                <span>Todas las categorías</span>
-                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
-                  selectedCategoryFilter === null ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-500'
-                }`}>
-                  {conceptos.length}
-                </span>
-              </button>
-
-              {categorias.map((cat) => {
-                const count = categoryCounts.get(cat.id) || 0;
-                const isSelected = selectedCategoryFilter === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setSelectedCategoryFilter(cat.id)}
-                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-all ${
-                      isSelected
-                        ? 'bg-red-500/10 text-red-400 font-semibold font-bold'
-                        : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
-                    }`}
-                  >
-                    <span className="truncate mr-2">{cat.nombre}</span>
-                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
-                      isSelected ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-500'
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+              {conceptosFiltersPanel()}
             </div>
           </div>
         </aside>
@@ -472,12 +496,18 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
         {/* PANEL DERECHO — Tabla */}
         <div className="gastos-page__table app-surface-card relative flex min-h-0 flex-col overflow-hidden">
           
-          <div className="gastos-page__toolbar flex shrink-0 items-center gap-2 px-3 py-1.5">
-            <div className="gastos-search-wrap flex h-8 min-w-0 flex-1 items-center gap-2.5 rounded-lg pl-3 pr-2">
+          <div className="gastos-page__toolbar flex shrink-0 flex-col gap-2 px-3 py-1.5">
+            <MobileFilterTrigger
+              activeCount={activeFilterCount}
+              label="Categorías"
+              onOpen={() => setFiltersOpen(true)}
+              className="conceptos-page__filter-trigger lg:hidden"
+            />
+            <div className="gastos-search-wrap flex h-9 min-w-0 w-full items-center gap-2.5 rounded-lg pl-3 pr-2">
               <Search className="gastos-icon-muted h-3.5 w-3.5 shrink-0" aria-hidden />
               <input
                 type="text"
-                placeholder="Buscar conceptos en el catálogo por descripción, categoría, proveedor..."
+                placeholder="Buscar"
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 className="min-w-0 w-full border-none bg-transparent text-xs outline-none"
@@ -493,15 +523,14 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
                 </button>
               ) : null}
             </div>
-
             {canEdit && (
               <button
                 type="button"
                 onClick={openNew}
                 disabled={isPending}
-                className="app-btn-primary h-8 shrink-0 px-4 text-xs"
+                className="gastos-page__register-btn app-btn-primary inline-flex h-9 w-full items-center justify-center gap-2 px-4 text-xs font-bold lg:w-auto lg:shrink-0"
               >
-                <Plus className="h-3.5 w-3.5" /> Registrar Concepto
+                <Plus className="h-4 w-4 shrink-0" /> Registrar Concepto
               </button>
             )}
           </div>
@@ -630,8 +659,13 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
 
       </div>
 
-      <PageFormModal open={showModal} onClose={closeModal}>
-        <div className="mb-6 flex items-center justify-between">
+      <PageFormModal
+        open={showModal}
+        onClose={closeModal}
+        sheetTitle={editItem ? 'Editar Concepto' : 'Nuevo Concepto'}
+        sheetIcon={<SheetIconBadge icon={Wallet} tone="danger" />}
+      >
+        <div className="mb-6 hidden items-center justify-between lg:flex">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10">
               <Wallet className="h-4 w-4 text-red-400" />
@@ -790,6 +824,14 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
           </button>
         </PageFormModalFooter>
       </PageFormModal>
+
+      <MobileFilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filtrar por categoría"
+      >
+        {conceptosFiltersPanel(() => setFiltersOpen(false))}
+      </MobileFilterSheet>
     </div>
   );
 }

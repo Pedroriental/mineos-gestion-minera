@@ -132,7 +132,7 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     title: 'Quemado de Planchas',
     description: 'Quemadas, amalgama y oro recuperado.',
     Icon: Flame,
-    iconClassName: 'text-orange-400',
+    iconClassName: 'text-amber-400',
   },
   '/planta/produccion': {
     title: 'Producción',
@@ -168,13 +168,13 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     title: 'Libro de Guardia',
     description: 'Bitácora operativa y novedades.',
     Icon: ClipboardList,
-    iconClassName: 'text-purple-400',
+    iconClassName: 'text-amber-400',
   },
   '/operaciones/leyes': {
     title: 'Control de Leyes',
     description: 'Balance metalúrgico y leyes de cabeza.',
     Icon: Beaker,
-    iconClassName: 'text-teal-400',
+    iconClassName: 'text-emerald-400',
   },
   '/operaciones/costos': {
     title: 'Costo por Gramo',
@@ -186,8 +186,8 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     title: 'Vista previa de Nómina',
     description: 'Reporte consolidado: archivo histórico + proyección de semanas abiertas.',
     Icon: Users,
-    iconClassName: 'text-violet-400',
-    titleClassName: 'text-violet-300',
+    iconClassName: 'text-amber-400',
+    titleClassName: 'text-amber-300',
   },
   '/operaciones/nomina-archivo': {
     title: 'Archivo de Nóminas',
@@ -205,19 +205,19 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     title: 'Datos Fiscales',
     description: 'Parámetros fiscales y tributarios de la operación.',
     Icon: Database,
-    iconClassName: 'text-violet-400',
+    iconClassName: 'text-amber-400',
   },
   '/plataforma/biblioteca-variables': {
     title: 'Biblioteca de Variables',
     description: 'Catálogo central de parámetros reutilizables para toda la plataforma.',
     Icon: Library,
-    iconClassName: 'text-violet-400',
+    iconClassName: 'text-amber-400',
   },
   '/plataforma/diccionario-variables': {
     title: 'Biblioteca de Variables',
     description: 'Catálogo central de parámetros reutilizables para toda la plataforma.',
     Icon: Library,
-    iconClassName: 'text-violet-400',
+    iconClassName: 'text-amber-400',
   },
 };
 

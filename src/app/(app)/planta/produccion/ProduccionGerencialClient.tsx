@@ -15,6 +15,8 @@ import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useBiblioteca, useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { SheetIconBadge } from '@/components/mobile';
+import { GerencialMobileChartFold, GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -463,38 +465,53 @@ export default function ProduccionGerencialClient({
   return (
     <div className="produccion-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
 
-      <FadeIn className="produccion-page__toolbar shrink-0">
-        <div className="produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+      <FadeIn className="produccion-page__toolbar shrink-0 space-y-2">
+        <div className="produccion-page__toolbar-grid grid grid-cols-1 gap-2 lg:grid-cols-12 lg:items-center lg:gap-4">
           <div className="produccion-page__toolbar-search min-w-0 lg:col-span-5">
-            <div className="produccion-page__search produccion-surface produccion-surface--input flex w-full min-w-0 items-center rounded-lg px-3 py-2">
+            <div className="produccion-page__search produccion-surface produccion-surface--input flex h-9 min-w-0 w-full items-center rounded-lg px-3 py-2">
               <Search className="produccion-icon-muted mr-2 h-4 w-4 shrink-0" />
               <input
                 type="text"
-                placeholder="Buscar reporte por molino o material..."
+                placeholder="Buscar"
                 value={globalFilter ?? ''}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 className="produccion-search-input w-full min-w-0 border-none bg-transparent text-sm outline-none"
               />
             </div>
           </div>
+          <GerencialMobileKpiStrip
+            className="lg:hidden lg:col-span-12"
+            items={[
+              { label: 'Oro total', value: `${fmtNum(data.kpis.oroRecuperado)} g`, tone: 'benefit' },
+              { label: 'Ton.', value: fmtNum(data.kpis.toneladas), tone: 'general' },
+              { label: 'Tenor', value: `${fmtNum(data.kpis.tenorPromedio)} g/T`, tone: 'benefit' },
+              { label: 'Efic.', value: `${data.kpis.eficienciaMolino.toFixed(1)}%`, tone: 'general' },
+              { label: 'Oro día', value: fmtNum(diaOro), tone: 'benefit' },
+              { label: 'Sacos día', value: fmtNum(diaSacos), tone: 'general' },
+              { label: 'Ton. día', value: fmtNum(diaToneladas), tone: 'general' },
+              { label: 'Registros', value: String(filteredRegistros.length), tone: 'general' },
+            ]}
+          />
           <div className="produccion-page__toolbar-actions flex min-w-0 flex-wrap items-stretch gap-2 sm:flex-nowrap lg:col-span-7">
             <button
               onClick={handleExportPDF}
               disabled={table.getFilteredRowModel().rows.length === 0 || isExporting}
-              className="produccion-page__toolbar-btn btn-secondary flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-xs disabled:opacity-40"
+              className="produccion-page__toolbar-btn btn-secondary flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-xs disabled:opacity-40 lg:h-9 lg:flex-initial"
               title="Exportar PDF"
             >
               {isExporting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Download className="h-3.5 w-3.5 shrink-0" />}
-              <span className="truncate">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
+              <span className="hidden truncate lg:inline">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
+              <span className="truncate lg:hidden">{isExporting ? '…' : 'PDF'}</span>
             </button>
             <button
               onClick={handleExportBalance}
               disabled={initialData.length === 0 || isExportingBalance}
               title="Balance de recuperación por origen: Vertical 1/2/3, Mantenimiento, Repaso, Molino Continuo"
-              className="produccion-page__toolbar-btn produccion-page__balance-btn flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-40"
+              className="produccion-page__toolbar-btn produccion-page__balance-btn flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-40 lg:h-9 lg:flex-initial"
             >
-              {isExportingBalance ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Calculator className="h-4 w-4 shrink-0" />}
-              <span className="truncate">{isExportingBalance ? 'Calculando...' : 'Balance de recuperación'}</span>
+              {isExportingBalance ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Calculator className="h-3.5 w-3.5 shrink-0" />}
+              <span className="hidden truncate lg:inline">{isExportingBalance ? 'Calculando...' : 'Balance de recuperación'}</span>
+              <span className="truncate lg:hidden">{isExportingBalance ? '…' : 'Balance'}</span>
             </button>
             {canEdit && (
               <button
@@ -504,7 +521,7 @@ export default function ProduccionGerencialClient({
                   setFormError(null);
                   setShowModal(true);
                 }}
-                className="produccion-page__toolbar-btn flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-amber-600 px-3 font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
+                className="gerencial-page__new-btn produccion-page__toolbar-btn flex h-8 min-w-0 flex-[1.15] items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 text-xs font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500 lg:h-9 lg:w-auto lg:flex-initial"
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span className="truncate">Nuevo Registro</span>
@@ -515,10 +532,10 @@ export default function ProduccionGerencialClient({
       </FadeIn>
 
       {/* ── Split Screen Layout (Grid 12) ── */}
-      <div className="produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-4">
+      <div className="produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-2 lg:grid-cols-12 lg:gap-4">
          
          {/* PANEL IZQUIERDO (BI y KPIs) */}
-         <div className="produccion-page__aside flex min-h-0 flex-col gap-3 overflow-y-auto lg:col-span-5 lg:h-full lg:overflow-hidden">
+         <div className="produccion-page__aside hidden min-h-0 flex-col gap-3 overflow-y-auto lg:col-span-5 lg:flex lg:h-full lg:overflow-hidden">
             
             {/* KPI Grid 2x2 */}
             <div className="grid grid-cols-2 gap-3.5 flex-shrink-0">
@@ -537,24 +554,24 @@ export default function ProduccionGerencialClient({
                </div>
 
                <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
-                  <div className="gerencial-kpi-glow gerencial-kpi-glow--blue" aria-hidden />
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--amber" aria-hidden />
                   <div className="relative mb-2 flex items-center gap-2">
                      <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Ton. Molidas</span>
                   </div>
                   <div className="relative flex items-baseline gap-1">
-                     <span className="gerencial-kpi-value gerencial-kpi-value--blue text-2xl font-black">{fmtNum(data.kpis.toneladas)}</span>
-                     <span className="produccion-kpi-unit text-[10px] font-mono text-blue-400/80">T</span>
+                     <span className="gerencial-kpi-value gerencial-kpi-value--amber text-2xl font-black">{fmtNum(data.kpis.toneladas)}</span>
+                     <span className="produccion-kpi-unit mineos-icon-general text-[10px] font-mono opacity-80">T</span>
                   </div>
                </div>
 
                <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
-                  <div className="gerencial-kpi-glow gerencial-kpi-glow--cyan" aria-hidden />
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--emerald" aria-hidden />
                   <div className="relative mb-2 flex items-center gap-2">
                      <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Tenor Prom.</span>
                   </div>
                   <div className="relative flex items-baseline gap-1">
-                     <span className="gerencial-kpi-value gerencial-kpi-value--cyan text-2xl font-black">{fmtNum(data.kpis.tenorPromedio)}</span>
-                     <span className="produccion-kpi-unit text-[10px] font-mono text-cyan-400/80">g/T</span>
+                     <span className="gerencial-kpi-value gerencial-kpi-value--emerald text-2xl font-black">{fmtNum(data.kpis.tenorPromedio)}</span>
+                     <span className="produccion-kpi-unit mineos-icon-benefit text-[10px] font-mono opacity-80">g/T</span>
                   </div>
                </div>
 
@@ -622,10 +639,10 @@ export default function ProduccionGerencialClient({
          </div>
 
          {/* PANEL DERECHO (Operativo / Tabla) */}
-         <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-7 lg:h-full lg:pl-5">
-            
+         <div className="gerencial-page__main produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-3 pt-2.5 lg:col-span-7 lg:h-full lg:p-4 lg:pt-3.5 lg:pl-5">
+
             {/* 1. Selector de Días (más reciente → más antiguo) */}
-            <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 snap-x w-full">
+            <div className="produccion-page__day-tabs mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto pb-2 pt-0.5 snap-x w-full lg:mb-4 lg:gap-2.5 lg:pb-3">
                {diasConRegistros.length === 0 && (
                   <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
                )}
@@ -638,7 +655,7 @@ export default function ProduccionGerencialClient({
                    <button 
                      key={dia.fecha} 
                      onClick={() => setSelectedDate(dia.fecha)}
-                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
+                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
                    >
                      <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
                      <span className={`produccion-day-pill__badge px-1.5 py-0.5 rounded-full text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>{dRegs}</span>
@@ -648,7 +665,7 @@ export default function ProduccionGerencialClient({
             </div>
 
             {/* 2. Mini KPIs del día */}
-            <div className="produccion-page__day-kpis mb-4 grid shrink-0 grid-cols-4 gap-3">
+            <div className="produccion-page__day-kpis mb-4 hidden shrink-0 grid-cols-4 gap-3 lg:grid">
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
                  <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Oro Día</span>
                  <span className="text-sm font-bold leading-tight text-amber-500">{fmtNum(diaOro)}</span>
@@ -781,15 +798,46 @@ export default function ProduccionGerencialClient({
             </div>
 
          </div>
+
+         <GerencialMobileChartFold title="Producción real vs. meta" icon={TrendingUp}>
+           <div className="relative h-36 w-full">
+             <ResponsiveContainer width="100%" height="100%">
+               <ComposedChart data={data.diaria} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
+                 <defs>
+                   <linearGradient id="goldGradientMobile" x1="0" y1="0" x2="0" y2="1">
+                     <stop offset="5%" stopColor="#DAA520" stopOpacity={0.4} />
+                     <stop offset="95%" stopColor="#DAA520" stopOpacity={0} />
+                   </linearGradient>
+                 </defs>
+                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                 <XAxis
+                   dataKey="fecha"
+                   tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 8 }}
+                   tickLine={false}
+                   axisLine={false}
+                   tickFormatter={(val) => {
+                     const d = new Date(val + 'T12:00:00');
+                     return `${d.getDate()}/${d.getMonth() + 1}`;
+                   }}
+                 />
+                 <YAxis yAxisId="left" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 8 }} tickLine={false} axisLine={false} />
+                 <RechartsTooltip content={<CustomTooltip />} />
+                 <Area yAxisId="left" type="monotone" dataKey="oroAcumulado" name="Prod. Acumulada" fill="url(#goldGradientMobile)" stroke="#DAA520" strokeWidth={2} />
+                 <Line yAxisId="left" type="monotone" dataKey="metaDiaria" name="Meta Diaria" stroke="#DAA520" strokeWidth={1} dot={false} activeDot={false} />
+               </ComposedChart>
+             </ResponsiveContainer>
+           </div>
+         </GerencialMobileChartFold>
       </div>
 
       <PageFormModal
         open={showModal}
         onClose={() => { setShowModal(false); setFormError(null); }}
+        sheetTitle={editItem ? 'Editar Registro' : 'Nuevo Reporte de Producción'}
+        sheetIcon={<SheetIconBadge icon={Factory} />}
         panelClassName="produccion-page__modal sm:max-w-[72rem] sm:p-5"
       >
-            <div className="mb-3 flex justify-center sm:hidden"><div className="h-1 w-8 rounded-full bg-[var(--dashboard-border)]" /></div>
-            <div className="mb-3 flex items-center justify-between sm:mb-3">
+            <div className="mb-3 hidden items-center justify-between lg:flex">
               <h2 className="page-form-modal-title text-lg font-semibold">{editItem ? 'Editar Registro' : 'Nuevo Reporte de Producción'}</h2>
               <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="h-5 w-5" /></button>
             </div>
@@ -828,9 +876,9 @@ export default function ProduccionGerencialClient({
 
               {/* Columna 3 — Producción */}
               <section className="produccion-page__modal-col produccion-page__modal-col--prod flex flex-col gap-2.5">
-                <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-blue-400">
+                <h3 className="produccion-page__modal-col-title produccion-page__modal-col-title--general flex items-center gap-2 text-sm font-semibold">
                   <span>📦 Producción</span>
-                  <span className="h-px flex-1 bg-blue-400/20" />
+                  <span className="produccion-page__modal-col-rule produccion-page__modal-col-rule--general h-px flex-1" />
                 </h3>
                 <div>
                   <label className="input-label">Sacos * <span className="font-normal text-amber-400/70">(50 kg)</span></label>

@@ -17,6 +17,8 @@ import { AppSelect } from '@/components/ui/AppSelect';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { SheetIconBadge } from '@/components/mobile';
+import { GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
 import EmptyState from '@/components/EmptyState';
 import { FadeIn } from '@/components/ui/motion';
 import {
@@ -29,6 +31,17 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { columns } from './columns';
+import {
+  mineosIcon,
+  mineosIconRing,
+  mineosKpiGlow,
+  mineosKpiValue,
+  mineosModalDivider,
+  mineosModalHeading,
+  mineosPanel,
+  mineosLabelAccent,
+  type MineosTone,
+} from '@/lib/mineos-visual';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 const VOLADURAS_PAGE_MAX = 12;
@@ -184,13 +197,17 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
   const pageRows = table.getPaginationRowModel().rows;
   const colCount = table.getAllLeafColumns().length;
 
-  const kpiRows = useMemo(() => [
-    { label: 'Huecos', value: fmtNum(tableSummary.huecos), glow: 'blue' as const, icon: <Target className="h-5 w-5 text-blue-400" />, bg: 'bg-blue-500/10' },
-    { label: 'Chupis', value: fmtNum(tableSummary.chupis), glow: 'amber' as const, icon: <Flame className="h-5 w-5 text-amber-400" />, bg: 'bg-amber-500/10' },
-    { label: 'Arroz (ANFO)', value: `${tableSummary.arroz.toFixed(1)} kg`, glow: 'red' as const, icon: <Package className="h-5 w-5 text-red-400" />, bg: 'bg-red-500/10' },
-    { label: 'Fósforos LP', value: fmtNum(tableSummary.fosforos), glow: 'purple' as const, icon: <Zap className="h-5 w-5 text-purple-400" />, bg: 'bg-purple-500/10' },
-    { label: 'Disparos', value: fmtNum(tableSummary.disparos), glow: 'emerald' as const, icon: <AlertTriangle className="h-5 w-5 text-emerald-400" />, bg: 'bg-emerald-500/10' },
-  ], [tableSummary]);
+  const kpiRows = useMemo(
+    () =>
+      [
+        { label: 'Huecos', value: fmtNum(tableSummary.huecos), tone: 'general' as MineosTone, Icon: Target },
+        { label: 'Chupis', value: fmtNum(tableSummary.chupis), tone: 'general' as MineosTone, Icon: Flame },
+        { label: 'Arroz (ANFO)', value: `${tableSummary.arroz.toFixed(1)} kg`, tone: 'general' as MineosTone, Icon: Package },
+        { label: 'Fósforos LP', value: fmtNum(tableSummary.fosforos), tone: 'general' as MineosTone, Icon: Zap },
+        { label: 'Disparos', value: fmtNum(tableSummary.disparos), tone: 'benefit' as MineosTone, Icon: AlertTriangle },
+      ] as const,
+    [tableSummary],
+  );
 
   const diariaChart = useMemo(() => {
     const byDate = new Map<string, { fecha: string; huecos: number; disparos: number; registros: number }>();
@@ -340,26 +357,35 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
   return (
     <div className="voladuras-page produccion-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
 
-      <FadeIn className="produccion-page__toolbar shrink-0">
-        <div className="voladuras-page__toolbar-grid produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+      <FadeIn className="produccion-page__toolbar shrink-0 space-y-2">
+        <div className="voladuras-page__toolbar-grid produccion-page__toolbar-grid grid grid-cols-1 gap-2 lg:grid-cols-12 lg:items-center lg:gap-4">
           <div className="voladuras-page__toolbar-search min-w-0 lg:col-span-4">
-            <div className="produccion-page__search produccion-surface produccion-surface--input flex h-9 w-full min-w-0 items-center rounded-lg px-3 py-2">
+            <div className="produccion-page__search produccion-surface produccion-surface--input flex h-9 min-w-0 w-full items-center rounded-lg px-3 py-2">
               <Search className="produccion-icon-muted mr-2 h-4 w-4 shrink-0" />
               <input
                 type="text"
-                placeholder="Buscar por mina, frente o disparo..."
+                placeholder="Buscar"
                 value={globalFilter ?? ''}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 className="produccion-search-input w-full min-w-0 border-none bg-transparent text-sm outline-none"
               />
             </div>
           </div>
-          <div className="voladuras-page__toolbar-actions flex min-w-0 w-full flex-wrap items-center gap-2 sm:flex-nowrap lg:col-span-8 lg:justify-between">
+          <GerencialMobileKpiStrip
+            className="lg:hidden lg:col-span-12"
+            items={kpiRows.map((k) => ({
+              label: k.label,
+              value: k.value,
+              tone: k.tone,
+              icon: k.Icon,
+            }))}
+          />
+          <div className="voladuras-page__toolbar-actions grid w-full min-w-0 grid-cols-2 gap-2 lg:col-span-8">
             <button
               type="button"
               onClick={() => downloadVoladurasPDF(dataForSelectedDate, selectedDate)}
               disabled={dataForSelectedDate.length === 0}
-              className="voladuras-page__toolbar-btn produccion-page__toolbar-btn btn-secondary flex h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs disabled:opacity-40"
+              className="voladuras-page__toolbar-btn produccion-page__toolbar-btn btn-secondary flex h-9 w-full min-w-0 items-center justify-center gap-1.5 px-3 text-xs disabled:opacity-40"
               title="Exportar PDF del día"
             >
               <Download className="h-3.5 w-3.5 shrink-0" />
@@ -369,7 +395,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
               <button
                 type="button"
                 onClick={openNew}
-                className="voladuras-page__toolbar-btn produccion-page__toolbar-btn flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
+                className="voladuras-page__toolbar-btn produccion-page__toolbar-btn voladuras-page__new-btn flex h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 text-xs font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span className="truncate">Nuevo Reporte</span>
@@ -379,28 +405,30 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
         </div>
       </FadeIn>
 
-      <div className="voladuras-page__grid produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-4">
+      <div className="voladuras-page__grid produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-2 lg:grid-cols-12 lg:gap-4">
 
-        <div className="produccion-page__aside flex min-h-0 flex-col gap-2 overflow-y-auto lg:col-span-4 lg:h-full lg:overflow-hidden">
-          {kpiRows.map((k) => (
+        <div className="produccion-page__aside hidden min-h-0 flex-col gap-2 overflow-y-auto lg:col-span-4 lg:flex lg:h-full lg:overflow-hidden">
+          {kpiRows.map((k) => {
+            const KIcon = k.Icon;
+            return (
             <div
               key={k.label}
               className="produccion-surface gerencial-kpi-card flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5"
             >
-              <div className={`gerencial-kpi-glow gerencial-kpi-glow--${k.glow}`} aria-hidden />
-              <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${k.bg}`}>
-                {k.icon}
+              <div className={mineosKpiGlow(k.tone)} aria-hidden />
+              <div className={mineosIconRing(k.tone)}>
+                <KIcon className={`h-5 w-5 ${mineosIcon(k.tone)}`} />
               </div>
               <div className="relative min-w-0 flex-1">
                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight tracking-wider">
                   {k.label}
                 </span>
-                <span className={`gerencial-kpi-value gerencial-kpi-value--${k.glow} text-lg font-bold leading-tight tabular-nums`}>
+                <span className={`${mineosKpiValue(k.tone)} text-lg font-bold leading-tight tabular-nums`}>
                   {k.value}
                 </span>
               </div>
             </div>
-          ))}
+          );})}
 
           <div className="produccion-page__chart produccion-surface flex min-h-[11rem] flex-1 flex-col rounded-xl p-3 lg:min-h-0">
             <h2 className="produccion-section-title mb-2 flex shrink-0 items-center gap-2 text-xs font-bold">
@@ -489,12 +517,12 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
               ) : (
                 <dl className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10px]">
                   <dt className="produccion-muted">Huecos / Chupis</dt>
-                  <dd className="text-right font-semibold tabular-nums text-blue-300">
+                  <dd className="mineos-cell-general text-right font-semibold tabular-nums">
                     {dayBalance.huecos} : {dayBalance.chupis}
                     <span className="ml-1 text-[9px] font-normal text-amber-400/90">({dayBalance.balanceLabel})</span>
                   </dd>
                   <dt className="produccion-muted">kg ANFO / hueco</dt>
-                  <dd className="text-right font-semibold tabular-nums text-red-400">
+                  <dd className="mineos-cell-general text-right font-semibold tabular-nums">
                     {dayBalance.kgPorHueco != null ? `${dayBalance.kgPorHueco.toFixed(2)} kg` : '—'}
                   </dd>
                   <dt className="produccion-muted">Prom. pies / hueco</dt>
@@ -511,9 +539,9 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
           </div>
         </div>
 
-        <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-8 lg:h-full">
+        <div className="voladuras-page__main produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-3 pt-2.5 lg:col-span-8 lg:h-full lg:p-4 lg:pt-3.5">
 
-          <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 snap-x w-full">
+          <div className="produccion-page__day-tabs mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto pb-2 pt-0.5 snap-x w-full lg:mb-4 lg:gap-2.5 lg:pb-3">
             {diasConRegistros.length === 0 && (
               <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
             )}
@@ -525,7 +553,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                   key={dia.fecha}
                   type="button"
                   onClick={() => setSelectedDate(dia.fecha)}
-                  className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
+                  className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
                 >
                   <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
                   <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>
@@ -639,10 +667,66 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
             </div>
           </div>
         </div>
+
+        {/* Móvil: gráfico colapsable debajo de la tabla */}
+        <details className="voladuras-page__mobile-chart produccion-surface group rounded-xl lg:hidden">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-bold [&::-webkit-details-marker]:hidden">
+            <LineChart className="h-4 w-4 shrink-0 text-amber-400" />
+            <span className="flex-1">Huecos por disparo</span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-white/30 transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="border-t border-[var(--prod-border)] px-3 pb-3 pt-2">
+            <div className="relative h-36 w-full">
+              {diariaChart.length === 0 ? (
+                <p className="produccion-muted flex h-full items-center justify-center text-center text-xs italic">
+                  Sin datos para graficar
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={diariaChart} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="voladurasHuecosGradientMobile" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.45} />
+                        <stop offset="100%" stopColor="#b45309" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                    <XAxis
+                      dataKey="fecha"
+                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 8 }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(val) => {
+                        const d = new Date(val + 'T12:00:00');
+                        return `${d.getDate()}/${d.getMonth() + 1}`;
+                      }}
+                    />
+                    <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 8 }} tickLine={false} axisLine={false} allowDecimals />
+                    <RechartsTooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(245,158,11,0.45)', strokeWidth: 1 }} />
+                    <Area
+                      type="monotone"
+                      dataKey="huecosPorDisparo"
+                      name="Huecos / Disparo"
+                      stroke="#fbbf24"
+                      strokeWidth={2}
+                      fill="url(#voladurasHuecosGradientMobile)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </details>
       </div>
 
-      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="voladuras-page__modal sm:max-w-[72rem] sm:p-5">
-        <div className="flex items-center justify-between mb-6">
+      <PageFormModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        sheetTitle={editItem ? 'Editar Reporte' : 'Nuevo Reporte de Voladura'}
+        sheetIcon={<SheetIconBadge icon={Zap} />}
+        panelClassName="voladuras-page__modal sm:max-w-[72rem] sm:p-5"
+      >
+        <div className="mb-6 hidden items-center justify-between lg:flex">
           <h2 className="page-form-modal-title text-lg font-semibold">
             {editItem ? 'Editar Reporte' : 'Nuevo Reporte de Voladura'}
           </h2>
@@ -658,9 +742,9 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
         <div className="voladuras-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
-              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-amber-400">
+              <h3 className={mineosModalHeading('general')}>
                 <span>📍 Identificación</span>
-                <span className="h-px flex-1 bg-amber-400/20" />
+                <span className={mineosModalDivider('general')} />
               </h3>
               <div>
                 <label className="input-label">Fecha *</label>
@@ -686,9 +770,9 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-blue-400">
+              <h3 className={mineosModalHeading('general')}>
                 <span>⛏ Proceso de Barrenado</span>
-                <span className="h-px flex-1 bg-blue-400/20" />
+                <span className={mineosModalDivider('general')} />
               </h3>
               <div>
                 <label className="input-label">Hora Inicio</label>
@@ -700,14 +784,14 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
               </div>
               <div className="mt-1">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-orange-400/80">⏸ Pausas</span>
+                  <span className="mineos-icon-general text-xs font-bold uppercase tracking-wider opacity-80">⏸ Pausas</span>
                   <button type="button" onClick={addPausa} className="btn-secondary !py-1 !px-2.5 !text-xs">
                     <Plus className="mr-1 h-3.5 w-3.5" /> Agregar
                   </button>
                 </div>
                 <div className="space-y-2">
                   {pausas.map((p, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_2fr_auto] items-start gap-2 rounded-xl border border-orange-400/15 bg-orange-500/[0.06] p-3">
+                    <div key={i} className={`grid grid-cols-[1fr_1fr_2fr_auto] items-start gap-2 ${mineosPanel('neutral')}`}>
                       <input type="time" value={p.hora_inicio} onChange={(e) => updatePausa(i, 'hora_inicio', e.target.value)} className="input-field" />
                       <input type="time" value={p.hora_fin} onChange={(e) => updatePausa(i, 'hora_fin', e.target.value)} className="input-field" />
                       <input value={p.motivo} onChange={(e) => updatePausa(i, 'motivo', e.target.value)} placeholder="Motivo" className="input-field" />
@@ -723,9 +807,9 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
 
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
-              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-orange-400">
+              <h3 className={mineosModalHeading('general')}>
                 <span>🧪 Condimentos</span>
-                <span className="h-px flex-1 bg-orange-400/20" />
+                <span className={mineosModalDivider('general')} />
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -744,25 +828,25 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                   <label className="input-label">Trenza (m)</label>
                   <input type="number" step="0.5" value={form.trenza_metros} onChange={(e) => set('trenza_metros', e.target.value)} className="input-field" />
                 </div>
-                <div className="col-span-2 rounded-xl border border-red-400/20 bg-red-500/[0.07] p-3">
-                  <label className="input-label !font-semibold !text-red-400">Arroz (kg)</label>
+                <div className={`col-span-2 ${mineosPanel('general')}`}>
+                  <label className={mineosLabelAccent('general')}>Arroz (kg)</label>
                   <input type="number" step="0.5" value={form.arroz_kg} onChange={(e) => set('arroz_kg', e.target.value)} className="input-field font-bold" />
                 </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-purple-400">
+              <h3 className={mineosModalHeading('general')}>
                 <span>🕳 Huecos & Chupis</span>
-                <span className="h-px flex-1 bg-purple-400/20" />
+                <span className={mineosModalDivider('general')} />
               </h3>
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-xl border border-blue-400/20 bg-blue-500/[0.07] p-3">
-                  <label className="input-label !text-blue-400">Huecos cantidad</label>
+                <div className={mineosPanel('general')}>
+                  <label className={mineosLabelAccent('general')}>Huecos cantidad</label>
                   <input type="number" value={form.huecos_cantidad} onChange={(e) => set('huecos_cantidad', e.target.value)} className="input-field font-bold text-lg" />
                 </div>
-                <div className="rounded-xl border border-blue-400/20 bg-blue-500/[0.07] p-3">
-                  <label className="input-label !text-blue-400">Pies / Hueco</label>
+                <div className={mineosPanel('general')}>
+                  <label className={mineosLabelAccent('general')}>Pies / Hueco</label>
                   <input type="number" value={form.huecos_pies} onChange={(e) => set('huecos_pies', e.target.value)} className="input-field" />
                 </div>
                 <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">

@@ -12,6 +12,8 @@ import { AppSelect } from '@/components/ui/AppSelect';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { SheetIconBadge } from '@/components/mobile';
+import { GerencialMobileChartFold, GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -28,6 +30,13 @@ import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
+import {
+  mineosModalHeadingBetween,
+  mineosModalDivider,
+  mineosBtnSubtleClass,
+  mineosPanel,
+  mineosLabelAccent,
+} from '@/lib/mineos-visual';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
 
@@ -495,36 +504,56 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   return (
     <div className="extraccion-page produccion-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
 
-      <FadeIn className="produccion-page__toolbar shrink-0">
-        <div className="produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+      <FadeIn className="produccion-page__toolbar shrink-0 space-y-2">
+        <div className="produccion-page__toolbar-grid grid grid-cols-1 gap-2 lg:grid-cols-12 lg:items-center lg:gap-4">
           <div className="produccion-page__toolbar-search min-w-0 lg:col-span-5">
-            <div className="produccion-page__search produccion-surface produccion-surface--input flex w-full min-w-0 items-center rounded-lg px-3 py-2">
+            <div className="produccion-page__search produccion-surface produccion-surface--input flex h-9 min-w-0 w-full items-center rounded-lg px-3 py-2">
               <Search className="produccion-icon-muted mr-2 h-4 w-4 shrink-0" />
               <input
                 type="text"
-                placeholder="Buscar por vertical, mina o disparo..."
+                placeholder="Buscar"
                 value={globalFilter ?? ''}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 className="produccion-search-input w-full min-w-0 border-none bg-transparent text-sm outline-none"
               />
             </div>
           </div>
+          <GerencialMobileKpiStrip
+            className="lg:hidden lg:col-span-12"
+            items={[
+              { label: 'Sacos', value: fmtNum(data.kpis.totalSacos), tone: 'general', icon: Package },
+              { label: 'Disparos', value: fmtNum(data.kpis.totalDisparos), tone: 'general', icon: Zap },
+              { label: 'Eventos', value: fmtNum(data.kpis.totalEventos), tone: 'benefit', icon: Clock },
+              { label: 'Sacos día', value: fmtNum(diaSacos), tone: 'general', icon: Package },
+              { label: 'Disp. día', value: String(diaDisparos), tone: 'general', icon: Zap },
+              { label: 'Registros', value: String(filteredRegistros.length), tone: 'general' },
+            ]}
+          />
           <div className="produccion-page__toolbar-actions flex min-w-0 flex-wrap items-stretch gap-2 sm:flex-nowrap lg:col-span-7">
             <button
               type="button"
               onClick={handleExportPDF}
               disabled={filteredCount === 0 || isExporting}
-              className="produccion-page__toolbar-btn btn-secondary flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-xs disabled:opacity-40"
+              className="produccion-page__toolbar-btn btn-secondary flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-xs disabled:opacity-40 lg:h-9 lg:flex-initial"
               title="Exportar PDF"
             >
               {isExporting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Download className="h-3.5 w-3.5 shrink-0" />}
-              <span className="truncate">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
+              <span className="hidden truncate lg:inline">{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
+              <span className="truncate lg:hidden">{isExporting ? '…' : 'PDF'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBitacoraModal(true)}
+              className="produccion-page__toolbar-btn btn-secondary flex h-8 w-9 shrink-0 items-center justify-center lg:hidden"
+              title="Ver bitácora"
+            >
+              <Clock className="h-4 w-4 shrink-0" />
             </button>
             {canEdit && (
               <button
                 type="button"
                 onClick={openNew}
-                className="produccion-page__toolbar-btn flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-amber-600 px-3 font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
+                className="gerencial-page__new-btn produccion-page__toolbar-btn flex h-8 min-w-0 flex-[1.2] items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 text-xs font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500 lg:h-9 lg:w-auto lg:flex-initial"
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span className="truncate">Nuevo Registro</span>
@@ -534,9 +563,9 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
         </div>
       </FadeIn>
 
-      <div className="produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-4">
+      <div className="produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-2 lg:grid-cols-12 lg:gap-4">
 
-         <div className="produccion-page__aside flex min-h-0 flex-col gap-3 overflow-y-auto lg:col-span-5 lg:h-full lg:overflow-hidden">
+         <div className="produccion-page__aside hidden min-h-0 flex-col gap-3 overflow-y-auto lg:col-span-5 lg:flex lg:h-full lg:overflow-hidden">
 
             <div className="grid flex-shrink-0 grid-cols-2 gap-3.5">
                <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
@@ -548,12 +577,12 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                   <span className="gerencial-kpi-value gerencial-kpi-value--amber relative text-2xl font-black">{fmtNum(data.kpis.totalSacos)}</span>
                </div>
                <div className="produccion-surface gerencial-kpi-card rounded-xl p-4">
-                  <div className="gerencial-kpi-glow gerencial-kpi-glow--blue" aria-hidden />
+                  <div className="gerencial-kpi-glow gerencial-kpi-glow--amber" aria-hidden />
                   <div className="relative mb-2 flex items-center justify-between">
                      <span className="produccion-kpi-label text-[10px] font-bold uppercase tracking-wider">Disparos</span>
-                     <Zap className="h-4 w-4 text-blue-500/50" />
+                     <Zap className="h-4 w-4 mineos-icon-general opacity-50" />
                   </div>
-                  <span className="gerencial-kpi-value gerencial-kpi-value--blue relative text-2xl font-black">{fmtNum(data.kpis.totalDisparos)}</span>
+                  <span className="gerencial-kpi-value gerencial-kpi-value--amber relative text-2xl font-black">{fmtNum(data.kpis.totalDisparos)}</span>
                </div>
                <div className="produccion-surface gerencial-kpi-card col-span-2 flex flex-col gap-3 rounded-xl p-4">
                   <div className="gerencial-kpi-glow gerencial-kpi-glow--emerald" aria-hidden />
@@ -597,9 +626,9 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
          </div>
 
-         <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-7 lg:h-full lg:pl-5">
+         <div className="gerencial-page__main produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-3 pt-2.5 lg:col-span-7 lg:h-full lg:p-4 lg:pt-3.5 lg:pl-5">
 
-            <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 snap-x w-full">
+            <div className="produccion-page__day-tabs mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto pb-2 pt-0.5 snap-x w-full lg:mb-4 lg:gap-2.5 lg:pb-3">
                {diasConRegistros.length === 0 && (
                   <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
                )}
@@ -612,7 +641,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                      key={dia.fecha}
                      type="button"
                      onClick={() => setSelectedDate(dia.fecha)}
-                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
+                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
                    >
                      <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
                      <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>{dRegs}</span>
@@ -621,14 +650,14 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                })}
             </div>
 
-            <div className="produccion-page__day-kpis mb-4 grid shrink-0 grid-cols-3 gap-3">
+            <div className="produccion-page__day-kpis mb-4 hidden shrink-0 grid-cols-3 gap-3 lg:grid">
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
                  <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Sacos Día</span>
                  <span className="text-sm font-bold leading-tight text-amber-500">{fmtNum(diaSacos)}</span>
               </div>
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
                  <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Disparos Día</span>
-                 <span className="text-sm font-bold leading-tight text-blue-400">{diaDisparos}</span>
+                 <span className="mineos-cell-general text-sm font-bold leading-tight">{diaDisparos}</span>
               </div>
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
                  <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Registros</span>
@@ -737,10 +766,39 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
               </div>
             </div>
          </div>
+
+         <GerencialMobileChartFold title="Sacos extraídos por día" icon={BarChart3}>
+           <div className="relative h-36 w-full">
+             <ResponsiveContainer width="100%" height="100%">
+               <BarChart data={data.diaria} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
+                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                 <XAxis
+                   dataKey="fecha"
+                   tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 8 }}
+                   tickLine={false}
+                   axisLine={false}
+                   tickFormatter={(val) => {
+                     const d = new Date(val + 'T12:00:00');
+                     return `${d.getDate()}/${d.getMonth() + 1}`;
+                   }}
+                 />
+                 <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 8 }} tickLine={false} axisLine={false} />
+                 <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                 <Bar dataKey="sacos" name="Sacos" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+               </BarChart>
+             </ResponsiveContainer>
+           </div>
+         </GerencialMobileChartFold>
       </div>
 
-      <PageFormModal open={showBitacoraModal} onClose={() => setShowBitacoraModal(false)} panelClassName="sm:max-w-4xl">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <PageFormModal
+        open={showBitacoraModal}
+        onClose={() => setShowBitacoraModal(false)}
+        sheetTitle="Bitácora de Eventos"
+        sheetIcon={<SheetIconBadge icon={Clock} tone="info" />}
+        panelClassName="sm:max-w-4xl"
+      >
+        <div className="mb-4 hidden items-center justify-between gap-3 lg:flex">
           <h2 className="page-form-modal-title text-lg font-semibold">Bitácora de Eventos</h2>
           <button
             type="button"
@@ -860,8 +918,14 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
         </PageFormModalFooter>
       </PageFormModal>
 
-      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="extraccion-page__modal sm:max-w-[72rem] sm:p-5">
-            <div className="flex items-center justify-between mb-6">
+      <PageFormModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        sheetTitle={editItem ? 'Editar Reporte' : 'Nuevo Reporte de Extracción'}
+        sheetIcon={<SheetIconBadge icon={Pickaxe} />}
+        panelClassName="extraccion-page__modal sm:max-w-[72rem] sm:p-5"
+      >
+            <div className="mb-6 hidden items-center justify-between lg:flex">
               <h2 className="page-form-modal-title text-lg font-semibold">{editItem ? 'Editar Reporte' : 'Nuevo Reporte de Extracción'}</h2>
               <button type="button" onClick={() => setShowModal(false)} className="rounded-lg p-1.5 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
@@ -895,11 +959,11 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
               <section className="extraccion-page__modal-col flex flex-col gap-2.5">
                 <div className="flex items-center gap-2">
-                  <h3 className="produccion-page__modal-col-title flex flex-1 items-center gap-2 text-sm font-semibold text-blue-400">
+                  <h3 className={mineosModalHeadingBetween('general')}>
                     <span>📋 Eventos</span>
-                    <span className="h-px flex-1 bg-blue-400/20" />
+                    <span className={mineosModalDivider('general')} />
                   </h3>
-                  <button type="button" onClick={addEvento} className="flex shrink-0 items-center gap-1 rounded-lg border border-blue-400/20 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-400 transition-colors hover:bg-blue-500/20">
+                  <button type="button" onClick={addEvento} className={`${mineosBtnSubtleClass('general')} shrink-0`}>
                     <Plus className="h-3.5 w-3.5" /> Agregar
                   </button>
                 </div>
@@ -908,13 +972,13 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                 ) : (
                   <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5">
                     {eventos.map((ev, i) => (
-                      <div key={i} className="grid grid-cols-[minmax(0,5.5rem)_1fr_auto] gap-2 rounded-xl border border-blue-400/15 bg-blue-500/[0.05] p-3">
+                      <div key={i} className={`grid grid-cols-[minmax(0,5.5rem)_1fr_auto] gap-2 ${mineosPanel('neutral')}`}>
                         <div>
-                          <label className="input-label !text-[10px] !text-blue-400/70">Hora</label>
+                          <label className={`${mineosLabelAccent('general')} !text-[10px] opacity-70`}>Hora</label>
                           <input type="time" value={ev.hora} onChange={e => updateEvento(i, 'hora', e.target.value)} className="input-field !py-1.5" />
                         </div>
                         <div>
-                          <label className="input-label !text-[10px] !text-blue-400/70">Descripción</label>
+                          <label className={`${mineosLabelAccent('general')} !text-[10px] opacity-70`}>Descripción</label>
                           <input value={ev.descripcion} onChange={e => updateEvento(i, 'descripcion', e.target.value)}
                             placeholder="Ej: SE EMPIEZA SACAR MATERIAL A SACOS" className="input-field !py-1.5" />
                         </div>

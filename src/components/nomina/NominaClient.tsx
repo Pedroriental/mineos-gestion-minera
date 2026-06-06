@@ -33,6 +33,7 @@ import {
   writeNominaNovedadDraft,
 } from '@/lib/nomina-novedad-turno';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { SheetIconBadge } from '@/components/mobile';
 import NominaDistribucionPanel from '@/components/nomina/NominaDistribucionPanel';
 import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config';
 import { NominaImportModal } from '@/components/nomina/NominaImportModal';
@@ -76,13 +77,10 @@ import {
 } from '@/lib/actions/nomina-v3';
 
 import {
-  NominaMobileActionBar,
-  NominaMobileHistorial,
-  NominaMobileKpiStrip,
+  NominaMobileDock,
   NominaMobileMoreSheet,
-  NominaMobileSearch,
-  NominaMobileSteps,
-  NominaMobileStatusCard,
+  NominaMobileSemanaSheet,
+  NominaMobileStickyChrome,
   NominaMobileWorkerCard,
   type PreNominaRowState,
 } from '@/components/nomina/nomina-mobile';
@@ -276,7 +274,7 @@ export default function NominaClient({
   const [newValeMonto, setNewValeMonto] = useState('');
   const [newValeMotivo, setNewValeMotivo] = useState('');
   // Paso activo del flujo guiado (Nómina 2.0)
-  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
+  const [activeStep, setActiveStep] = useState<1 | 2>(1);
 
   // Pre-Nómina
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
@@ -302,6 +300,7 @@ export default function NominaClient({
   });
   const [procesadoOk, setProcesadoOk] = useState<string | null>(null);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [semanaSheetOpen, setSemanaSheetOpen] = useState(false);
 
   function handleNominaImported(result?: NominaImportResult) {
     router.refresh();
@@ -864,47 +863,6 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
     <div className="nomina-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div className="nomina-page__body nomina-page__grid min-h-0 flex-1 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
 
-        {/* ── Móvil: resumen, pasos y semana (estilo panel Doojo) ── */}
-        <div className="nomina-mobile-panel flex flex-col gap-3 lg:hidden">
-          <NominaMobileKpiStrip
-            totalSemana={totalSemana}
-            activos={data.length}
-            promedio={data.length > 0 ? totalSemana / data.length : 0}
-            valesPend={preNominaRows.reduce((s, r) => s + r.totalVales, 0)}
-            fmtMoney={fmtMoney}
-          />
-          <NominaMobileSteps activeStep={activeStep} onStep={setActiveStep} />
-          <NominaMobileStatusCard
-            cerrada={semanaActualProcesada}
-            semanaActual={semanaActual}
-            weekRange={weekRange}
-            setWeekRange={setWeekRange}
-            preNominaCount={preNominaRows.length}
-            totalSemana={totalSemana}
-            procesadoOk={procesadoOk}
-            fmtMoney={fmtMoney}
-            fmtDate={fmtDate}
-          />
-          {prevSemana && Math.abs(weekDeltaPct) > 15 && (
-            <div className="flex items-start gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-3 py-2.5">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
-              <p className="text-[10px] leading-snug text-yellow-300">
-                <strong>Anomalía:</strong> {Math.abs(weekDeltaPct).toFixed(1)}% vs semana anterior.
-              </p>
-            </div>
-          )}
-          <NominaMobileHistorial
-            semanas={semanas}
-            showHistorial={showHistorial}
-            setShowHistorial={setShowHistorial}
-            canEdit={canEdit}
-            isPending={isPending}
-            onRevertir={handleRevertirSemana}
-            fmtMoney={fmtMoney}
-            fmtDate={fmtDate}
-          />
-        </div>
-
         <aside className="nomina-page__aside scroll-y-fade hidden lg:col-span-3 lg:flex flex-col gap-3 min-h-0 lg:overflow-y-auto">
           <header className="nomina-page__aside-head shrink-0">
             <h1 className="nomina-page__title">
@@ -960,30 +918,21 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
             </div>
             <div className="flex flex-col gap-2">
               {[
-                { step: 1, title: '1. Asistencia', desc: 'Turno y días trabajados' },
-                { step: 2, title: '2. Vales & Ajustes', desc: 'Bono Trans./Adelantos' },
-                { step: 3, title: '3. Cierre & Reportes', desc: 'Consolidado & Cierre' },
-              ].map(s => {
+                { step: 1, title: 'Asistencia', desc: 'Turno y días trabajados' },
+                { step: 2, title: 'Vales & Ajustes', desc: 'Bono Trans./Adelantos' },
+              ].map((s) => {
                 const isActive = activeStep === s.step;
-                const isCompleted = activeStep > s.step;
                 return (
                   <button
                     key={s.step}
                     type="button"
-                    onClick={() => setActiveStep(s.step as 1 | 2 | 3)}
+                    onClick={() => setActiveStep(s.step as 1 | 2)}
                     className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-1.5 text-left transition-all group ${
                       isActive
                         ? 'border-amber-500/40 bg-amber-600/10 text-amber-400 shadow-md shadow-amber-500/5'
-                        : isCompleted
-                          ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400'
-                          : 'border-zinc-800/80 bg-zinc-950/30 text-white/40 hover:border-zinc-700 hover:text-white/60'
+                        : 'border-zinc-800/80 bg-zinc-950/30 text-white/40 hover:border-zinc-700 hover:text-white/60'
                     }`}
                   >
-                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                      isActive ? 'bg-amber-500 text-black' : isCompleted ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-white/60'
-                    }`}>
-                      {isCompleted ? '✓' : s.step}
-                    </div>
                     <div className="min-w-0">
                       <p className="text-[10px] font-bold leading-tight">{s.title}</p>
                       <p className="mt-0.5 text-[8px] leading-none text-white/30 group-hover:text-white/40">{s.desc}</p>
@@ -1103,9 +1052,19 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         </aside>
 
         <div className="nomina-page__content lg:col-span-9 flex min-h-0 flex-col gap-3 overflow-hidden">
-          <div className="shrink-0 lg:hidden">
-            <NominaMobileSearch value={search} onChange={setSearch} />
-          </div>
+          <NominaMobileStickyChrome
+            pageTitle={pageTitle}
+            cerrada={semanaActualProcesada}
+            weekLabel={`${fmtDate(weekRange.inicio)} – ${fmtDate(weekRange.fin)}`}
+            totalSemana={totalSemana}
+            preNominaCount={preNominaRows.length}
+            activeStep={activeStep}
+            onStep={setActiveStep}
+            onOpenSemana={() => setSemanaSheetOpen(true)}
+            search={search}
+            onSearchChange={setSearch}
+            fmtMoney={fmtMoney}
+          />
 
           <div className="nomina-page__main nomina-page__table-stack flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/30 lg:border lg:bg-zinc-900/30">
             <div className="nomina-page__toolbar hidden shrink-0 flex-col gap-2 border-b border-zinc-800/80 px-3 py-2.5 lg:flex">
@@ -1122,7 +1081,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
               <div className="nomina-page__toolbar-actions w-full min-w-0">{toolbarActions}</div>
             </div>
 
-            <div className="nomina-page__table-scroll scroll-y-fade flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto p-3 pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:gap-6 lg:pb-3">
+            <div className="nomina-page__table-scroll scroll-y-fade flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto p-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:gap-6 lg:p-3 lg:pb-3">
             {isHistoricalLoading ? (
               <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800 rounded-xl p-20 text-center flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
@@ -1153,22 +1112,22 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                 const groupBonif = rows.reduce((s, r) => s + r.bonificaciones, 0);
                 const groupVales = rows.reduce((s, r) => s + r.totalVales, 0);
                 return (
-                  <div key={cargoName} className="nomina-cargo-group shrink-0 bg-zinc-900/40 border border-zinc-800/80 rounded-xl overflow-hidden shadow-sm">
+                  <div key={cargoName} className="nomina-cargo-group shrink-0 overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-900/40 shadow-sm">
                     {/* Group Header */}
-                    <div className="px-5 py-3.5 bg-zinc-900/80 border-b border-zinc-800 flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${theme.bg} ${theme.text} border ${theme.border}`}>{cargoName}</div>
-                        <span className="text-[10px] text-white/40 font-bold uppercase tracking-wider">{rows.length} Trabajadores</span>
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-zinc-800 bg-zinc-900/80 px-3 py-2 lg:gap-2 lg:px-5 lg:py-3.5">
+                      <div className="flex min-w-0 items-center gap-2 lg:gap-3">
+                        <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider lg:px-3 lg:py-1 lg:text-[10px] ${theme.bg} ${theme.text} ${theme.border}`}>{cargoName}</div>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white/40 lg:text-[10px]">{rows.length} trab.</span>
                         {semanaActualProcesada && (
                           <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/25 text-[8px] font-bold uppercase tracking-wider">
                             <Lock className="w-2.5 h-2.5" /> Bloqueado (Historial)
                           </span>
                         )}
                       </div>
-                      <span className="text-sm font-semibold text-amber-500">Subtotal: {fmtMoney(groupTotal)}</span>
+                      <span className="shrink-0 text-xs font-semibold tabular-nums text-amber-500 lg:text-sm">Subtotal {fmtMoney(groupTotal)}</span>
                     </div>
 
-                    <div className="space-y-2.5 p-3 lg:hidden">
+                    <div className="space-y-1.5 p-2 lg:hidden">
                       {rows.map((row) => {
                         const p = row.personal;
                         return (
@@ -1209,7 +1168,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                             <th className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/10 text-amber-400 font-black border-l border-amber-500/20 shadow-sm' : ''}`}>Bono T.</th>
                             <th className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/10 text-amber-400 font-black shadow-sm' : ''}`}>Bonos</th>
                             <th className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/10 text-amber-400 font-black border-r border-amber-500/20 shadow-sm' : ''}`}>Vales</th>
-                            <th className={`px-5 py-3 text-right text-amber-500 transition-all duration-300 ${activeStep === 3 ? 'bg-amber-500/25 text-amber-300 font-black border-x border-amber-500/30 shadow-md' : ''}`}>Total</th>
+                            <th className="px-5 py-3 text-right text-amber-500">Total</th>
                             <th className="px-5 py-3 text-center">Acciones</th>
                           </tr>
                         </thead>
@@ -1344,7 +1303,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                   </button>
                                 </td>
                                 {/* Total */}
-                                <td className={`px-5 py-3 text-right font-black text-amber-500 text-xs tabular-nums transition-all duration-300 ${activeStep === 3 ? 'bg-amber-500/10 border-x border-amber-500/20' : ''}`}>{fmtMoney(row.total)}</td>
+                                <td className="px-5 py-3 text-right text-xs font-black tabular-nums text-amber-500">{fmtMoney(row.total)}</td>
                                 {/* Actions */}
                                 <td className="px-5 py-3 text-center">
                                   <div className="flex items-center justify-center gap-1">
@@ -1367,7 +1326,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                             <td className="px-5 py-2.5 text-right text-xs font-bold text-white/60 tabular-nums transition-all duration-300 border-l border-amber-500/10">{fmtMoney(groupBono)}</td>
                             <td className="px-5 py-2.5 text-right text-xs font-bold text-white/60 tabular-nums transition-all duration-300">{fmtMoney(groupBonif)}</td>
                             <td className="px-5 py-2.5 text-right text-xs font-bold text-red-400/70 tabular-nums transition-all duration-300 border-r border-amber-500/10">{groupVales > 0 ? `-${fmtMoney(groupVales)}` : '$0.00'}</td>
-                            <td className={`px-5 py-2.5 text-right text-sm font-black text-amber-500 tabular-nums transition-all duration-300 ${activeStep === 3 ? 'bg-amber-500/20 border-x border-amber-500/30 shadow-md' : ''}`}>{fmtMoney(groupTotal)}</td>
+                            <td className="px-5 py-2.5 text-right text-sm font-black tabular-nums text-amber-500">{fmtMoney(groupTotal)}</td>
                             <td></td>
                           </tr>
                         </tbody>
@@ -1404,7 +1363,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         </div>
       </div>
 
-      <NominaMobileActionBar
+      <NominaMobileDock
         cerrada={semanaActualProcesada}
         canEdit={canEdit}
         hasRows={preNominaRows.length > 0}
@@ -1413,6 +1372,60 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         onRevertir={() => semanaActual && handleRevertirSemana(semanaActual)}
         onRegistrar={() => setShowAssignModal(true)}
         onMore={() => setMobileMoreOpen(true)}
+      />
+      <NominaMobileSemanaSheet
+        open={semanaSheetOpen}
+        onClose={() => setSemanaSheetOpen(false)}
+        cerrada={semanaActualProcesada}
+        semanaActual={semanaActual}
+        weekRange={weekRange}
+        setWeekRange={setWeekRange}
+        preNominaCount={preNominaRows.length}
+        totalSemana={totalSemana}
+        activos={data.length}
+        promedio={data.length > 0 ? totalSemana / data.length : 0}
+        valesPend={preNominaRows.reduce((s, r) => s + r.totalVales, 0)}
+        procesadoOk={procesadoOk}
+        semanas={semanas}
+        showHistorial={showHistorial}
+        setShowHistorial={setShowHistorial}
+        canEdit={canEdit}
+        isPending={isPending}
+        onRevertir={handleRevertirSemana}
+        anomalyPct={prevSemana ? weekDeltaPct : null}
+        temporalHint={
+          weekRange.inicio !== temporalCtx.workingWeekStart
+            ? formatTemporalContextHint(temporalCtx)
+            : null
+        }
+        onGoWorkingWeek={() =>
+          setWeekRange({
+            inicio: temporalCtx.workingWeekStart,
+            fin: temporalCtx.workingWeekEnd,
+          })
+        }
+        distribucionPanel={
+          activeStep >= 2 || semanaActualProcesada ? (
+            <NominaDistribucionPanel
+              totalNomina={totalSemana}
+              partes={distribucion.partes}
+              lineas={distribucion.lineas}
+              sumPct={distribucion.sumPct}
+              validationOk={distribucion.validation.ok}
+              validationMessage={distribucion.validation.message}
+              onUpdateParte={distribucion.updateParte}
+              onAddParte={distribucion.addParte}
+              onRemoveParte={distribucion.removeParte}
+              onRebalance={distribucion.rebalanceIgual}
+              onSaveDefault={distribucion.saveAsDefault}
+              variant="dark"
+              compact
+              readOnly={semanaActualProcesada}
+            />
+          ) : undefined
+        }
+        fmtMoney={fmtMoney}
+        fmtDate={fmtDate}
       />
       <NominaMobileMoreSheet
         open={mobileMoreOpen}
@@ -1428,6 +1441,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
           setShowExcelPreview(true);
         }}
         onBorrar={() => setShowBorrarModal(true)}
+        onInicio={() => router.push('/dashboard')}
       />
 
       {drawerRow ? (
@@ -1515,9 +1529,15 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         }}
       />
 
-      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-xl">
-            <button type="button" onClick={() => setShowModal(false)} className="absolute right-5 top-5 rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white sm:right-6 sm:top-6" aria-label="Cerrar"><X className="w-5 h-5" /></button>
-            <h3 className="page-form-modal-title pr-10 text-xl font-bold tracking-wide text-white/90">{editItem ? 'Editar Trabajador' : 'Registrar Nuevo Trabajador'}</h3>
+      <PageFormModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        sheetTitle={editItem ? 'Editar Trabajador' : 'Registrar Nuevo Trabajador'}
+        sheetIcon={<SheetIconBadge icon={Users} tone="success" />}
+        panelClassName="sm:max-w-xl"
+      >
+            <button type="button" onClick={() => setShowModal(false)} className="absolute right-5 top-5 hidden rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white lg:flex sm:right-6 sm:top-6" aria-label="Cerrar"><X className="w-5 h-5" /></button>
+            <h3 className="page-form-modal-title hidden pr-10 text-xl font-bold tracking-wide text-white/90 lg:block">{editItem ? 'Editar Trabajador' : 'Registrar Nuevo Trabajador'}</h3>
             {formError && <p className="text-red-400 text-xs mb-4 bg-red-500/10 p-2.5 rounded-xl border border-red-500/20">{formError}</p>}
             <div className="flex border-b border-zinc-800 mb-5">
               <button onClick={() => setActiveTab('primario')} className={`pb-2.5 px-4 text-xs font-bold tracking-wider uppercase border-b-2 transition-all ${activeTab === 'primario' ? 'border-amber-500 text-amber-500' : 'border-transparent text-white/45'}`}>Datos</button>
@@ -1577,9 +1597,15 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
             </PageFormModalFooter>
       </PageFormModal>
 
-      <PageFormModal open={showProcesarModal} onClose={() => setShowProcesarModal(false)} panelClassName="sm:max-w-lg">
-            <button type="button" onClick={() => setShowProcesarModal(false)} className="absolute right-5 top-5 rounded-lg p-1.5 text-white/40 hover:text-white sm:right-6 sm:top-6" aria-label="Cerrar"><X className="w-5 h-5" /></button>
-            <h3 className="page-form-modal-title mb-2 flex items-center gap-2 pr-10 text-lg font-semibold text-white/90"><Wallet className="w-5 h-5 text-amber-500" /> Consola de Cierre</h3>
+      <PageFormModal
+        open={showProcesarModal}
+        onClose={() => setShowProcesarModal(false)}
+        sheetTitle="Consola de Cierre"
+        sheetIcon={<SheetIconBadge icon={Wallet} tone="warn" />}
+        panelClassName="sm:max-w-lg"
+      >
+            <button type="button" onClick={() => setShowProcesarModal(false)} className="absolute right-5 top-5 hidden rounded-lg p-1.5 text-white/40 hover:text-white lg:flex sm:right-6 sm:top-6" aria-label="Cerrar"><X className="w-5 h-5" /></button>
+            <h3 className="page-form-modal-title mb-2 hidden items-center gap-2 pr-10 text-lg font-semibold text-white/90 lg:flex"><Wallet className="w-5 h-5 text-amber-500" /> Consola de Cierre</h3>
             <p className="text-xs text-white/40 mb-6 uppercase tracking-wider">Rango de nómina semanal</p>
             <div className="flex items-center gap-3 mb-6">
               <div className="flex-1"><label className="input-label">Inicio</label><input type="date" value={weekRange.inicio} onChange={e => setWeekRange({...weekRange, inicio: e.target.value})} className="input-field" /></div>
@@ -1620,9 +1646,15 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         onImported={handleNominaImported}
       />
 
-      <PageFormModal open={showBorrarModal} onClose={() => setShowBorrarModal(false)} panelClassName="max-w-sm text-center">
+      <PageFormModal
+        open={showBorrarModal}
+        onClose={() => setShowBorrarModal(false)}
+        sheetTitle="¿Dar de baja todo?"
+        sheetIcon={<SheetIconBadge icon={AlertTriangle} tone="danger" />}
+        panelClassName="max-w-sm text-center"
+      >
             <AlertTriangle className="mx-auto mb-4 h-12 w-12 animate-bounce text-red-500" />
-            <h3 className="page-form-modal-title mb-2 text-lg font-bold">¿Dar de baja todo?</h3>
+            <h3 className="page-form-modal-title mb-2 hidden text-lg font-bold lg:block">¿Dar de baja todo?</h3>
             <p className="mb-6 text-xs text-white/50">{data.length} trabajadores de {area.toUpperCase()} serán desactivados.</p>
             <PageFormModalFooter className="flex gap-3">
               <button type="button" onClick={() => setShowBorrarModal(false)} className="btn-secondary flex-1 py-2.5 text-xs font-bold">Cancelar</button>
