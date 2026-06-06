@@ -33,7 +33,7 @@ export function MobileHotbar() {
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <span className="mobile-hotbar__icon-wrap flex items-center justify-center transition-[color,filter,box-shadow] duration-200">
-                <Icon className="h-3 w-3" strokeWidth={2.25} />
+                <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
               </span>
               <span className="mobile-hotbar__label max-w-full truncate px-0.5 font-semibold">
                 {item.shortLabel}

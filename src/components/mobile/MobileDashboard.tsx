@@ -140,7 +140,7 @@ export function MobileDashboard({ locations, globalData }: MobileDashboardProps)
         </div>
       </MobileSection>
 
-      {globalData.balancesPlanchas.length > 0 && (
+      { (globalData.balancesPlanchas ?? []).length > 0 && (
         <MobileSection title="Planchas" tight>
           {globalData.balancesPlanchas.map((p) => (
             <MobileListItem

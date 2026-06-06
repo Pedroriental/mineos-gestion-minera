@@ -272,6 +272,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       produccionMensual,
       oroTotalRecuperado,
       balancePlancha1,
+      balancesPlanchas:
+        balancePlancha1 > 0
+          ? [{ id: 'plancha-1', label: 'Balance Plancha 1', grams: balancePlancha1 }]
+          : [],
     };
 
     const accumMap = new Map<string, Accum>();

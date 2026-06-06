@@ -104,9 +104,10 @@ const navigation: NavSection[] = [
   },
 ];
 
-const activeClass = 'bg-amber-100/70 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium rounded-lg';
+const activeClass =
+  'bg-amber-500/15 text-amber-400 font-medium rounded-lg border border-amber-500/20 shadow-[inset_0_1px_0_0_rgba(251,191,36,0.08)]';
 const idleClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] rounded-lg transition-colors duration-150';
-const activeSubClass = 'font-medium text-amber-600 dark:text-amber-400';
+const activeSubClass = 'font-medium text-amber-400';
 const idleSubClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors duration-150';
 
 function NavTooltip({ label, show, children }: { label: string; show: boolean; children: React.ReactNode }) {
@@ -426,19 +427,12 @@ export default function Sidebar({
           isExpanded ? 'px-3 pb-3 mb-2' : 'px-3 pb-3 mb-2 justify-center',
         )}
       >
-        <div
-          className={cn(
-            'flex items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 p-1.5',
-            'h-9 w-9',
-          )}
-        >
-          <MineosLogo
-            variant="icon"
-            surface={iconSurface}
-            className="h-7 w-7 object-[center_46%]"
-            alt=""
-          />
-        </div>
+        <MineosLogo
+          variant="icon"
+          surface={iconSurface}
+          className={cn('shrink-0 object-[center_46%]', isExpanded ? 'h-9 w-9' : 'h-8 w-8')}
+          alt=""
+        />
         {isExpanded && (
           <>
             <div className="flex min-w-0 flex-1 flex-col gap-px leading-none">

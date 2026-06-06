@@ -23,4 +23,5 @@ export interface GlobalData {
   produccionMensual: number;
   oroTotalRecuperado: number;
   balancePlancha1: number;
+  balancesPlanchas: { id: string; label: string; grams: number }[];
 }
