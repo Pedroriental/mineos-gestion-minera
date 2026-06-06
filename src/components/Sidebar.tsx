@@ -201,32 +201,28 @@ function NavItemWithSubmenu({
   pathname,
   expanded,
   onNav,
-  onCollapsedClick,
-  forceOpen = false,
 }: {
   item: NavItemData;
   pathname: string;
   expanded: boolean;
   onNav: (href: string) => void;
-  onCollapsedClick?: () => void;
-  forceOpen?: boolean;
 }) {
   const subItems = item.subItems ?? [];
   const anySubActive = subItems.some(
     (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
   );
-  const [open, setOpen] = useState(anySubActive || forceOpen);
+  const [open, setOpen] = useState(anySubActive);
 
   useEffect(() => {
-    if (anySubActive || forceOpen) setOpen(true);
-  }, [anySubActive, forceOpen]);
+    if (anySubActive) setOpen(true);
+  }, [anySubActive]);
 
   if (!expanded) {
     return (
       <NavTooltip label={item.label} show>
         <button
           type="button"
-          onClick={onCollapsedClick}
+          onClick={() => onNav('#')}
           className={cn(
             'flex w-full items-center justify-center px-0 py-2 text-sm transition-all duration-150',
             anySubActive ? activeClass : idleClass,
@@ -303,7 +299,6 @@ function Section({
   onNav,
   defaultOpen,
   onCollapsedItemClick,
-  pinnedItemLabel,
 }: {
   section: NavSection;
   pathname: string;
@@ -311,7 +306,6 @@ function Section({
   onNav: (href: string) => void;
   defaultOpen: boolean;
   onCollapsedItemClick?: (item: NavItemData) => void;
-  pinnedItemLabel?: string | null;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -390,7 +384,6 @@ function Section({
                   pathname={pathname}
                   expanded
                   onNav={onNav}
-                  forceOpen={pinnedItemLabel === item.label}
                 />
               );
             }
@@ -426,42 +419,35 @@ export default function Sidebar({
   const { theme } = useTheme();
 
   const isExpanded = expanded ?? true;
-  const [pinnedSectionId, setPinnedSectionId] = useState<string | null>(null);
-  const [pinnedItemLabel, setPinnedItemLabel] = useState<string | null>(null);
+
+  const resolveSubItemHref = useCallback((item: NavItemData) => {
+    const subItems = item.subItems ?? [];
+    if (!subItems.length) return item.href;
+    const activeSub = subItems.find(
+      (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
+    );
+    return activeSub?.href ?? subItems[0].href;
+  }, [pathname]);
 
   const handleNav = useCallback(
     (href: string) => {
       if (href !== '#') {
         router.push(href);
-        if (!isExpanded) onExpandedChange?.(true);
       }
       onMobileClose?.();
     },
-    [router, onMobileClose, isExpanded, onExpandedChange],
+    [router, onMobileClose],
   );
 
   const handleCollapsedSectionItemClick = useCallback(
-    (sectionId: string, item: NavItemData) => {
-      onExpandedChange?.(true);
-      setPinnedSectionId(sectionId);
-      setPinnedItemLabel(item.subItems?.length ? item.label : null);
-      if (!item.subItems?.length && item.href !== '#') {
-        router.push(item.href);
+    (item: NavItemData) => {
+      const target = item.subItems?.length ? resolveSubItemHref(item) : item.href;
+      if (target !== '#') {
+        router.push(target);
       }
-      onMobileClose?.();
     },
-    [onExpandedChange, onMobileClose, router],
+    [resolveSubItemHref, router],
   );
-
-  useEffect(() => {
-    if (!isExpanded) return;
-    if (!pinnedSectionId && !pinnedItemLabel) return;
-    const t = window.setTimeout(() => {
-      setPinnedSectionId(null);
-      setPinnedItemLabel(null);
-    }, 400);
-    return () => window.clearTimeout(t);
-  }, [isExpanded, pinnedSectionId, pinnedItemLabel]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -563,9 +549,8 @@ export default function Sidebar({
             pathname={pathname}
             expanded={isExpanded}
             onNav={handleNav}
-            defaultOpen={defaultOpenIds.includes(section.id) || pinnedSectionId === section.id}
-            onCollapsedItemClick={(item) => handleCollapsedSectionItemClick(section.id, item)}
-            pinnedItemLabel={pinnedItemLabel}
+            defaultOpen={defaultOpenIds.includes(section.id)}
+            onCollapsedItemClick={handleCollapsedSectionItemClick}
           />
         ))}
       </nav>
