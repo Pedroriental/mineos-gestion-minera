@@ -11,6 +11,7 @@ import {
 } from '@/lib/actions/nomina-actions';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 export function NominaArchivoPanel({
   userId,
@@ -64,7 +65,6 @@ export function NominaArchivoPanel({
     const ok = await confirmDialog({
       title: 'Eliminar importación',
       message: `¿Eliminar el import "${periodo.label}"?\n\nSe borrarán las semanas y registros de este import. Los trabajadores no se eliminan.`,
-import { AppDatePicker } from '@/components/ui/AppDatePicker';
       variant: 'danger'
     });
     if (!ok) return;

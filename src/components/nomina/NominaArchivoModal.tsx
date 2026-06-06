@@ -24,6 +24,7 @@ import {
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
 import { cn } from '@/lib/utils';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 type Props = {
   open: boolean;
@@ -300,7 +301,6 @@ export function NominaArchivoModal({ open, onClose, userId, onImport, onPeriodDe
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Eliminar import vacío
-import { AppDatePicker } from '@/components/ui/AppDatePicker';
                 </button>
               ) : null}
             </div>

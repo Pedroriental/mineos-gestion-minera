@@ -54,7 +54,7 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
   const router = useRouter();
   const { user } = useAuth();
   const turnoOpts = useTurnoOptions(false);
-  const molinoOpts = useBibliotecaOptions('planta_molinos');
+  const molinoOpts = useBibliotecaOptions('molinos');
   const verticalOpts = useBibliotecaOptions('verticales_voladura', { prependEmpty: true });
   const minaOpts = useBibliotecaOptions('minas');
   const biblioteca = useBiblioteca();
@@ -95,7 +95,7 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
 
   // Extracción
   const [eFecha, setEFecha] = useState(() => new Date().toISOString().slice(0, 10));
-  const [eTurno, setETurno] = useState('dia');
+  const [eTurno, setETurno] = useState<'dia' | 'noche' | 'completo'>('dia');
   const [eVertical, setEVertical] = useState('');
   const [eMina, setEMina] = useState('');
   const [eSacos, setESacos] = useState('');
@@ -359,7 +359,7 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Turno</label>
-                  <select value={eTurno} onChange={e => setETurno(e.target.value)} className="input-field">
+                  <select value={eTurno} onChange={e => setETurno(e.target.value as 'dia' | 'noche' | 'completo')} className="input-field">
                     {turnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>

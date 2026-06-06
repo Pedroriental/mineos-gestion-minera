@@ -32,7 +32,7 @@ export function useConfirm() {
 export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
-  const resolveRef = useRef<(value: boolean) => void>();
+  const resolveRef = useRef<((value: boolean) => void) | null>(null);
 
   const confirm = useCallback((opts: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -46,7 +46,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
     setIsOpen(false);
     if (resolveRef.current) {
       resolveRef.current(false);
-      resolveRef.current = undefined;
+      resolveRef.current = null;
     }
   }, []);
 
@@ -54,7 +54,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
     setIsOpen(false);
     if (resolveRef.current) {
       resolveRef.current(true);
-      resolveRef.current = undefined;
+      resolveRef.current = null;
     }
   }, []);
 

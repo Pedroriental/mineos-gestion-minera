@@ -29,16 +29,16 @@ export default async function ProduccionPage(props: {
   const { data } = await query;
   const reportes: ReporteProduccion[] = (data as ReporteProduccion[]) ?? [];
 
-  // 2b. Cargar total oro quemado del mismo período
-  let quemadoQuery = supabase
+  // 2b. Cargar las 2 últimas quemadas registradas (independiente del período).
+  // De ahora en adelante hay 2 quemadas por mes y el balance siempre debe
+  // reflejar las 2 más recientes.
+  const { data: quemadoData } = await supabase
     .from('reportes_quemado')
-    .select('total_oro_g');
-  if (hasParams) {
-    quemadoQuery = quemadoQuery.gte('fecha', searchParams.desde!).lte('fecha', searchParams.hasta!);
-  }
-  const { data: quemadoData } = await quemadoQuery;
-  const totalOroQuemado  = (quemadoData ?? []).reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
-  const countQuemado     = (quemadoData ?? []).length;
+    .select('total_oro_g, fecha')
+    .order('fecha', { ascending: false })
+    .limit(2);
+  const totalOroQuemado = (quemadoData ?? []).reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
+  const countQuemado    = (quemadoData ?? []).length;
 
   // 3. Filtrar registros válidos para evitar caídas por datos corruptos
   const reportesValidos = reportes.filter(

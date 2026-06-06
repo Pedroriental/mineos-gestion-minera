@@ -476,9 +476,9 @@ export function downloadBalanceRecuperacionPDF(
         { content: tenorGlobal.toFixed(4), styles: { halign: 'right' as const } },
         { content: '—', styles: { halign: 'center' as const } },
       ],
-      // Fila: Quemado de Planchas (solo si hay valor)
+      // Fila: Quemado de Planchas (siempre suma las 2 últimas quemadas registradas)
       ...(oroQuemadoPlanchas > 0 ? [[
-        { content: 'QUEMADO DE PLANCHAS', styles: { fontStyle: 'bold' as const, textColor: [250, 204, 21] as [number, number, number] } },
+        { content: countQuemado > 1 ? `QUEMADO PLANCHAS (×${countQuemado})` : 'QUEMADO DE PLANCHAS', styles: { fontStyle: 'bold' as const, textColor: [250, 204, 21] as [number, number, number] } },
         { content: countQuemado > 0 ? String(countQuemado) : '-', styles: { halign: 'center' as const } },
         { content: oroQuemadoPlanchas.toFixed(4), styles: { textColor: [251, 191, 36] as [number, number, number], fontStyle: 'bold' as const, halign: 'right' as const } },
         { content: oroGranTotal > 0 ? `${((oroQuemadoPlanchas / oroGranTotal) * 100).toFixed(1)}%` : '-', styles: { halign: 'center' as const } },
