@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -111,17 +112,56 @@ const activeSubClass = 'font-medium text-amber-400';
 const idleSubClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors duration-150';
 
 function NavTooltip({ label, show, children }: { label: string; show: boolean; children: React.ReactNode }) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  const updatePos = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({ x: rect.right + 10, y: rect.top + rect.height / 2 });
+  }, []);
+
   if (!show) return <>{children}</>;
+
   return (
-    <div className="group/tip relative">
-      {children}
-      <div className="pointer-events-none absolute left-full ml-2.5 top-1/2 -translate-y-1/2 z-[60]
-                      opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150">
-        <div className="rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl whitespace-nowrap">
-          {label}
-        </div>
+    <>
+      <div
+        ref={anchorRef}
+        className="relative"
+        onMouseEnter={() => {
+          updatePos();
+          setVisible(true);
+        }}
+        onMouseLeave={() => {
+          setVisible(false);
+          setPos(null);
+        }}
+        onFocus={() => {
+          updatePos();
+          setVisible(true);
+        }}
+        onBlur={() => {
+          setVisible(false);
+          setPos(null);
+        }}
+      >
+        {children}
       </div>
-    </div>
+      {visible && pos && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              role="tooltip"
+              className="pointer-events-none fixed z-[250] -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl"
+              style={{ left: pos.x, top: pos.y }}
+            >
+              {label}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 
@@ -161,28 +201,32 @@ function NavItemWithSubmenu({
   pathname,
   expanded,
   onNav,
+  onCollapsedClick,
+  forceOpen = false,
 }: {
   item: NavItemData;
   pathname: string;
   expanded: boolean;
   onNav: (href: string) => void;
+  onCollapsedClick?: () => void;
+  forceOpen?: boolean;
 }) {
   const subItems = item.subItems ?? [];
   const anySubActive = subItems.some(
     (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
   );
-  const [open, setOpen] = useState(anySubActive);
+  const [open, setOpen] = useState(anySubActive || forceOpen);
 
   useEffect(() => {
-    if (anySubActive) setOpen(true);
-  }, [anySubActive]);
+    if (anySubActive || forceOpen) setOpen(true);
+  }, [anySubActive, forceOpen]);
 
   if (!expanded) {
     return (
       <NavTooltip label={item.label} show>
         <button
           type="button"
-          onClick={() => onNav('#')}
+          onClick={onCollapsedClick}
           className={cn(
             'flex w-full items-center justify-center px-0 py-2 text-sm transition-all duration-150',
             anySubActive ? activeClass : idleClass,
@@ -258,12 +302,16 @@ function Section({
   expanded,
   onNav,
   defaultOpen,
+  onCollapsedItemClick,
+  pinnedItemLabel,
 }: {
   section: NavSection;
   pathname: string;
   expanded: boolean;
   onNav: (href: string) => void;
   defaultOpen: boolean;
+  onCollapsedItemClick?: (item: NavItemData) => void;
+  pinnedItemLabel?: string | null;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -283,7 +331,7 @@ function Section({
               <NavTooltip key={item.label} label={item.label} show>
                 <button
                   type="button"
-                  onClick={() => onNav('#')}
+                  onClick={() => onCollapsedItemClick?.(item)}
                   className={cn(
                     'flex w-full items-center justify-center py-2 text-sm transition-all duration-150 rounded-lg',
                     anySubActive ? activeClass : idleClass,
@@ -342,6 +390,7 @@ function Section({
                   pathname={pathname}
                   expanded
                   onNav={onNav}
+                  forceOpen={pinnedItemLabel === item.label}
                 />
               );
             }
@@ -377,6 +426,8 @@ export default function Sidebar({
   const { theme } = useTheme();
 
   const isExpanded = expanded ?? true;
+  const [pinnedSectionId, setPinnedSectionId] = useState<string | null>(null);
+  const [pinnedItemLabel, setPinnedItemLabel] = useState<string | null>(null);
 
   const handleNav = useCallback(
     (href: string) => {
@@ -388,6 +439,29 @@ export default function Sidebar({
     },
     [router, onMobileClose, isExpanded, onExpandedChange],
   );
+
+  const handleCollapsedSectionItemClick = useCallback(
+    (sectionId: string, item: NavItemData) => {
+      onExpandedChange?.(true);
+      setPinnedSectionId(sectionId);
+      setPinnedItemLabel(item.subItems?.length ? item.label : null);
+      if (!item.subItems?.length && item.href !== '#') {
+        router.push(item.href);
+      }
+      onMobileClose?.();
+    },
+    [onExpandedChange, onMobileClose, router],
+  );
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    if (!pinnedSectionId && !pinnedItemLabel) return;
+    const t = window.setTimeout(() => {
+      setPinnedSectionId(null);
+      setPinnedItemLabel(null);
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [isExpanded, pinnedSectionId, pinnedItemLabel]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -489,7 +563,9 @@ export default function Sidebar({
             pathname={pathname}
             expanded={isExpanded}
             onNav={handleNav}
-            defaultOpen={defaultOpenIds.includes(section.id)}
+            defaultOpen={defaultOpenIds.includes(section.id) || pinnedSectionId === section.id}
+            onCollapsedItemClick={(item) => handleCollapsedSectionItemClick(section.id, item)}
+            pinnedItemLabel={pinnedItemLabel}
           />
         ))}
       </nav>
@@ -531,7 +607,7 @@ export default function Sidebar({
         data-sidebar
         data-sidebar-variant={variant}
         data-expanded={isExpanded}
-        className={cn('hidden md:flex', shellClass)}
+        className={cn('relative z-30 hidden md:flex', shellClass)}
       >
         {dockContent()}
 
@@ -552,7 +628,15 @@ export default function Sidebar({
             )}
             title={isExpanded ? 'Plegar menú' : 'Expandir menú'}
           >
-            {isExpanded ? <PanelLeftClose className="h-4 w-4 shrink-0" /> : <PanelLeft className="h-4 w-4" />}
+            {isExpanded ? (
+              <PanelLeftClose className="h-4 w-4 shrink-0" />
+            ) : (
+              <NavTooltip label="Expandir menú" show>
+                <span className="inline-flex">
+                  <PanelLeft className="h-4 w-4" />
+                </span>
+              </NavTooltip>
+            )}
             {isExpanded ? <span className="truncate">Plegar menú</span> : null}
           </button>
         </div>
