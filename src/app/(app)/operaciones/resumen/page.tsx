@@ -272,18 +272,12 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           {/* Fila 1: tarjeta larga ganancia + precio oro */}
           <FadeIn delay={0.1} className="shrink-0">
             <div
-              className={`resumen-ejecutivo-page__hero-bar card-glass flex flex-col overflow-hidden rounded-xl sm:rounded-2xl ${
+              className={`resumen-ejecutivo-page__hero-bar card-glass grid overflow-hidden rounded-xl sm:rounded-2xl sm:grid-cols-[1fr_auto] ${
                 isProfitable
                   ? 'resumen-ejecutivo-page__hero-bar--profit'
                   : 'resumen-ejecutivo-page__hero-bar--loss'
               }`}
             >
-              <div className="resumen-ejecutivo-page__hero-head border-b border-white/[0.06] px-3 py-2 sm:px-3.5">
-                <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-white">
-                  Resultado del período
-                </h2>
-              </div>
-              <div className="grid sm:grid-cols-[1fr_auto]">
               <div className="resumen-ejecutivo-page__ganancia flex min-w-0 items-center gap-2.5 border-b border-white/[0.06] p-2.5 sm:border-b-0 sm:border-r sm:border-white/[0.08] sm:px-3.5 sm:py-2.5">
                 <div
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 ${
@@ -340,7 +334,6 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
                   <span className="text-xs font-bold text-amber-400/80">/oz</span>
                 </p>
                 <p className="text-[10px] text-white/55 sm:text-xs">{fmtFull(rent.precio_usd_gramo)}/g</p>
-              </div>
               </div>
             </div>
           </FadeIn>
