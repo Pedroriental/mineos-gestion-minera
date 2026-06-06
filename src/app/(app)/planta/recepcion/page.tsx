@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { Plus, X, Loader2, Edit2, PackageOpen } from 'lucide-react';
+import { Plus, X, Edit2, PackageOpen } from 'lucide-react';
 import { SheetIconBadge } from '@/components/mobile';
 import type { RecepcionMaterial } from '@/lib/types';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
@@ -11,6 +11,8 @@ import { AppSelect } from '@/components/ui/AppSelect';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
+import { MobileCard, MobileCardAction } from '@/components/ui/MobileCard';
+import EmptyState from '@/components/EmptyState';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
 const PESO_SACO_KG = 50;
@@ -55,6 +57,28 @@ export default function RecepcionPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const openEdit = (r: RecepcionMaterial) => {
+    setEditItem(r);
+    setForm({
+      fecha: r.fecha,
+      turno: r.turno,
+      origen: r.origen,
+      sacos_recibidos: String(r.sacos_recibidos),
+      peso_estimado_kg: r.peso_estimado_kg ? String(r.peso_estimado_kg) : '',
+      tipo_material: r.tipo_material,
+      tenor_estimado_gpt: r.tenor_estimado_gpt ? String(r.tenor_estimado_gpt) : '',
+      transportista: r.transportista || '',
+      observaciones: r.observaciones || '',
+    });
+    setShowModal(true);
+  };
+
+  const openCreate = () => {
+    setEditItem(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const payload = {
@@ -80,52 +104,57 @@ export default function RecepcionPage() {
           </p>
         }
       >
-        <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} className="btn-primary">
+        <button onClick={openCreate} className="btn-primary">
           <Plus className="w-4 h-4" /> Nueva Recepción
         </button>
       </AppPageToolbar>
 
-      {/* Table & Cards */}
       {loading ? <CrudPageSkeleton /> : (
         <>
-          {/* Mobile Cards View */}
           <div className="block md:hidden space-y-4">
             {data.map(r => (
-              <div key={r.id} className="card-glass p-5 relative border-l-4 border-l-teal-500">
-                <div className="flex justify-between items-start mb-4">
+              <MobileCard
+                key={r.id}
+                accent="border-l-teal-500"
+                header={
                   <div>
-                    <h3 className="text-white/85 font-bold text-base">{r.origen}</h3>
-                    <p className="text-white/40 text-xs mt-0.5">{r.fecha} • {turnoLabel[r.turno]}</p>
+                    <h3 className="truncate text-base font-bold leading-tight text-white/85">{r.origen}</h3>
+                    <p className="mt-0.5 text-xs text-white/40">{r.fecha} • {turnoLabel[r.turno]}</p>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 p-3 bg-white/[0.05] rounded-lg border border-white/[0.07]">
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Sacos (×50 kg)</span>
-                    <span className="font-bold text-amber-400 text-lg">{r.sacos_recibidos}</span>
-                    <span className="text-white/35 text-xs">(= {r.sacos_recibidos * PESO_SACO_KG} kg)</span>
-                  </div>
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Peso (kg)</span>
-                    <span className="font-semibold text-white/70">{r.peso_estimado_kg || '—'}</span>
-                  </div>
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Tenor Est.</span>
-                    <span className="font-semibold text-white/70">{r.tenor_estimado_gpt ? `${r.tenor_estimado_gpt} g/t` : '—'}</span>
-                  </div>
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Flete</span>
-                    <span className="font-semibold text-white/70 truncate block">{r.transportista || '—'}</span>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-white/[0.07]">
-                  <button onClick={() => { setEditItem(r); setForm({ fecha: r.fecha, turno: r.turno, origen: r.origen, sacos_recibidos: String(r.sacos_recibidos), peso_estimado_kg: r.peso_estimado_kg ? String(r.peso_estimado_kg) : '', tipo_material: r.tipo_material, tenor_estimado_gpt: r.tenor_estimado_gpt ? String(r.tenor_estimado_gpt) : '', transportista: r.transportista || '', observaciones: r.observaciones || '' }); setShowModal(true); }} className="p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.09] text-white/50 transition-colors font-medium text-xs flex items-center gap-1"><Edit2 className="w-4 h-4" /> Editar</button>
-                </div>
-              </div>
+                }
+                details={[
+                  {
+                    label: 'Sacos (×50 kg)',
+                    value: (
+                      <>
+                        <span className="font-bold text-amber-400 text-lg">{r.sacos_recibidos}</span>
+                        <span className="text-white/35 text-xs ml-1">(= {r.sacos_recibidos * PESO_SACO_KG} kg)</span>
+                      </>
+                    ),
+                  },
+                  { label: 'Peso (kg)', value: r.peso_estimado_kg || '—' },
+                  { label: 'Tenor Est.', value: r.tenor_estimado_gpt ? `${r.tenor_estimado_gpt} g/t` : '—' },
+                  { label: 'Flete', value: r.transportista || '—' },
+                ]}
+                actions={
+                  <MobileCardAction
+                    onClick={() => openEdit(r)}
+                    label="Editar"
+                    icon={<Edit2 className="h-4 w-4" />}
+                  />
+                }
+              />
             ))}
-            {data.length === 0 && <div className="text-center py-12 text-white/40 card-glass">Sin recepciones registradas</div>}
+            {data.length === 0 && (
+              <EmptyState
+                icon={<PackageOpen className="w-8 h-8" />}
+                title="Sin recepciones registradas"
+                description="Registra la primera recepción de material en planta."
+                action={{ label: 'Nueva recepción', onClick: openCreate }}
+              />
+            )}
           </div>
 
-          {/* Desktop Table View */}
           <div className="hidden md:block table-container">
             <table className="data-table">
               <thead>
@@ -143,8 +172,8 @@ export default function RecepcionPage() {
               <tbody>
                 {data.map(r => (
                   <tr key={r.id}>
-                    <td className="whitespace-nowrap">{r.fecha}</td>
-                    <td>{turnoLabel[r.turno]}</td>
+                    <td className="whitespace-nowrap text-white/40">{r.fecha}</td>
+                    <td className="text-white/50">{turnoLabel[r.turno]}</td>
                     <td className="text-white/80 font-medium">{r.origen}</td>
                     <td className="font-semibold text-amber-400">
                       {r.sacos_recibidos}
@@ -154,11 +183,22 @@ export default function RecepcionPage() {
                     <td className="text-white/65">{r.tenor_estimado_gpt || '—'}</td>
                     <td className="text-white/40">{r.transportista || '—'}</td>
                     <td>
-                      <button onClick={() => { setEditItem(r); setForm({ fecha: r.fecha, turno: r.turno, origen: r.origen, sacos_recibidos: String(r.sacos_recibidos), peso_estimado_kg: r.peso_estimado_kg ? String(r.peso_estimado_kg) : '', tipo_material: r.tipo_material, tenor_estimado_gpt: r.tenor_estimado_gpt ? String(r.tenor_estimado_gpt) : '', transportista: r.transportista || '', observaciones: r.observaciones || '' }); setShowModal(true); }} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors"><Edit2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 ))}
-                {data.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-white/40">Sin recepciones</td></tr>}
+                {data.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="py-0">
+                      <EmptyState
+                        icon={<PackageOpen className="w-8 h-8" />}
+                        title="Sin recepciones registradas"
+                        description="Registra la primera recepción de material en planta."
+                        action={{ label: 'Nueva recepción', onClick: openCreate }}
+                      />
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -191,11 +231,11 @@ export default function RecepcionPage() {
                 <label className="input-label">Sacos Recibidos * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
                 <input type="text" inputMode="decimal" value={form.sacos_recibidos} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field text-xl font-bold" />
                 {parseFloat(form.sacos_recibidos) > 0 && (
-                  <p className="text-xs text-white/35 mt-1">{parseFloat(form.sacos_recibidos)} sacos × 50 kg = <span className="text-amber-400/60 font-semibold">{(parseFloat(form.sacos_recibidos) * PESO_SACO_KG).toFixed(1)} kg</span></p>
+                  <p className="text-xs text-slate-400 mt-1">{parseFloat(form.sacos_recibidos)} sacos × 50 kg = <span className="text-amber-600 font-semibold">{(parseFloat(form.sacos_recibidos) * PESO_SACO_KG).toFixed(1)} kg</span></p>
                 )}
               </div>
               <div>
-                <label className="input-label">Peso Real (kg) <span className="text-white/30 font-normal">(auto desde sacos)</span></label>
+                <label className="input-label">Peso Real (kg) <span className="text-slate-400 font-normal">(auto desde sacos)</span></label>
                 <input type="number" step="0.01" value={form.peso_estimado_kg} onChange={e => setForm({ ...form, peso_estimado_kg: e.target.value })} className="input-field" />
               </div>
               <div><label className="input-label">Tenor Estimado (g/t)</label><input type="number" step="0.0001" value={form.tenor_estimado_gpt} onChange={e => setForm({ ...form, tenor_estimado_gpt: e.target.value })} className="input-field" /></div>

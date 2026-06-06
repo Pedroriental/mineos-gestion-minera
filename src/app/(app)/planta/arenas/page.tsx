@@ -3,16 +3,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { Plus, X, Loader2, Trash2, Droplets, FlaskConical, Cog, AlertCircle, Waves } from 'lucide-react';
+import { Plus, X, Trash2, Droplets, FlaskConical, Cog, AlertCircle, Waves } from 'lucide-react';
 import type { VentaArenas } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
+import { MobileCard, MobileCardAction } from '@/components/ui/MobileCard';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import { mineosCell, mineosKpiValue, mineosModalDivider, mineosModalHeading, mineosPanel } from '@/lib/mineos-visual';
 
 
 const emptyForm = {
@@ -52,6 +54,17 @@ export default function ArenasPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const openCreate = () => {
+    setForm(emptyForm);
+    setFormError(null);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setFormError(null);
+  };
+
   const handleSave = async () => {
     const ton = parseFloat(form.cantidad_ton);
     const precio = parseFloat(form.precio_por_ton);
@@ -78,7 +91,7 @@ export default function ArenasPage() {
       observaciones: form.observaciones || null,
       registrado_por: user?.id,
     });
-    setSaving(false); setShowModal(false); setForm(emptyForm); loadData();
+    setSaving(false); closeModal(); setForm(emptyForm); loadData();
   };
 
   const handleDelete = async (id: string) => {
@@ -104,84 +117,65 @@ export default function ArenasPage() {
       <AppPageToolbar
         lead={
           <p className="text-white/40 text-sm">
-            <span className="text-emerald-400 font-semibold">{fmt(totalVentas)}</span> vendido —{' '}
-            <span className="mineos-cell-general font-semibold">{fmtNum(totalTon)} t</span> totales
+            <span className={`${mineosKpiValue('benefit')} font-semibold`}>{fmt(totalVentas)}</span> vendido —{' '}
+            <span className={`${mineosCell('general')} font-semibold`}>{fmtNum(totalTon)} t</span> totales
           </p>
         }
       >
-        <button onClick={() => { setForm(emptyForm); setShowModal(true); }} className="btn-primary">
+        <button onClick={openCreate} className="btn-primary">
           <Plus className="w-4 h-4" /> Nueva Venta
         </button>
       </AppPageToolbar>
 
-      {/* Table & Cards */}
       {loading ? <CrudPageSkeleton /> : (
         <>
-          {/* Mobile Cards */}
           <div className="block md:hidden space-y-4">
             {data.map(v => (
-              <div key={v.id} className="card-glass p-5 relative border-l-4 border-l-cyan-500/60">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="text-white/85 font-bold text-base leading-snug">{v.comprador}</h3>
-                    <p className="text-white/40 text-xs mt-0.5">{v.fecha}</p>
-                    {negociacion(v) !== '—' && (
-                      <span className="mineos-icon-muted text-[10px] font-semibold mt-1 block opacity-80">{negociacion(v)}</span>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-emerald-400/60 uppercase font-bold block mb-0.5">Total</span>
-                    <span className="font-black text-emerald-400 text-xl">{fmt(v.total_venta)}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5 p-3 bg-white/[0.04] rounded-lg border border-white/[0.07]">
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Toneladas</span>
-                    <span className="font-semibold text-white/80">{fmtNum(v.cantidad_kg)} t</span>
-                  </div>
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Precio/t</span>
-                    <span className="font-semibold text-white/80">{fmt(v.precio_por_kg)}</span>
-                  </div>
-                  {v.humedad_pct != null && (
-                    <div>
-                      <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Humedad</span>
-                      <span className="mineos-cell-general font-semibold opacity-90">{fmtNum(v.humedad_pct)}%</span>
+              <MobileCard
+                key={v.id}
+                accent="border-l-cyan-500"
+                header={
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-base font-bold leading-snug text-white/85">{v.comprador}</h3>
+                      <p className="mt-0.5 text-xs text-white/40">{v.fecha}</p>
+                      {negociacion(v) !== '—' && (
+                        <span className="mt-1 block text-[10px] font-semibold text-white/35">{negociacion(v)}</span>
+                      )}
                     </div>
-                  )}
-                  {v.pct_recuperacion_planta != null && (
-                    <div>
-                      <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Rec. Planta</span>
-                      <span className="font-semibold text-amber-400/80">{fmtNum(v.pct_recuperacion_planta)}%</span>
+                    <div className="shrink-0 text-right">
+                      <span className="mb-0.5 block text-[10px] font-bold uppercase text-emerald-400/60">Total</span>
+                      <span className={`text-xl font-black ${mineosKpiValue('benefit')}`}>{fmt(v.total_venta)}</span>
                     </div>
-                  )}
-                  {v.pct_molino != null && (
-                    <div>
-                      <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">% Molino</span>
-                      <span className="mineos-cell-benefit font-semibold opacity-90">{fmtNum(v.pct_molino)}%</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-end mt-3 pt-3 border-t border-white/[0.07]">
-                  <button onClick={() => handleDelete(v.id)} className="p-2 rounded-lg bg-red-500/10 text-red-400 font-medium text-xs flex items-center gap-1">
-                    <Trash2 className="w-4 h-4" /> Eliminar
-                  </button>
-                </div>
-              </div>
+                  </div>
+                }
+                details={[
+                  { label: 'Toneladas', value: `${fmtNum(v.cantidad_kg)} t` },
+                  { label: 'Precio/t', value: fmt(v.precio_por_kg) },
+                  ...(v.humedad_pct != null ? [{ label: 'Humedad', value: `${fmtNum(v.humedad_pct)}%` }] : []),
+                  ...(v.pct_recuperacion_planta != null ? [{ label: 'Rec. Planta', value: <span className="font-semibold text-amber-400/80">{fmtNum(v.pct_recuperacion_planta)}%</span> }] : []),
+                  ...(v.pct_molino != null ? [{ label: '% Molino', value: <span className={`font-semibold ${mineosCell('benefit')}`}>{fmtNum(v.pct_molino)}%</span> }] : []),
+                ]}
+                actions={
+                  <MobileCardAction
+                    onClick={() => handleDelete(v.id)}
+                    label="Eliminar"
+                    icon={<Trash2 className="h-4 w-4" />}
+                    variant="danger"
+                  />
+                }
+              />
             ))}
             {data.length === 0 && (
               <EmptyState
                 icon={<Waves className="w-8 h-8" />}
                 title="Sin ventas registradas"
                 description="Registra la primera venta de arenas (Relave) del período."
-                action={{ label: 'Registrar primera venta', onClick: () => { setForm(emptyForm); setShowModal(true); } }}
+                action={{ label: 'Registrar primera venta', onClick: openCreate }}
               />
             )}
           </div>
 
-          {/* Desktop Table */}
           <div className="hidden md:block table-container">
             <table className="data-table">
               <thead>
@@ -201,7 +195,7 @@ export default function ArenasPage() {
               <tbody>
                 {data.map(v => (
                   <tr key={v.id}>
-                    <td className="whitespace-nowrap">{v.fecha}</td>
+                    <td className="whitespace-nowrap text-white/40">{v.fecha}</td>
                     <td className="text-white/80 font-medium">{v.comprador}</td>
                     <td className="text-white/50 text-sm">{negociacion(v)}</td>
                     <td className="text-right font-semibold text-white/80">{fmtNum(v.cantidad_kg)} <span className="text-white/35 text-xs font-normal">t</span></td>
@@ -215,7 +209,7 @@ export default function ArenasPage() {
                     <td className="text-right">
                       {v.pct_molino != null ? <span className="badge badge-neutral">{fmtNum(v.pct_molino)}%</span> : <span className="text-white/25">—</span>}
                     </td>
-                    <td className="text-right font-bold text-emerald-400">{fmt(v.total_venta)}</td>
+                    <td className={`text-right font-bold ${mineosKpiValue('benefit')}`}>{fmt(v.total_venta)}</td>
                     <td>
                       <button onClick={() => handleDelete(v.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </td>
@@ -228,7 +222,7 @@ export default function ArenasPage() {
                         icon={<Waves className="w-8 h-8" />}
                         title="Sin ventas registradas"
                         description="Registra la primera venta de arenas."
-                        action={{ label: 'Registrar primera venta', onClick: () => { setForm(emptyForm); setShowModal(true); } }}
+                        action={{ label: 'Registrar primera venta', onClick: openCreate }}
                       />
                     </td>
                   </tr>
@@ -241,25 +235,24 @@ export default function ArenasPage() {
 
       <PageFormModal
         open={showModal}
-        onClose={() => { setShowModal(false); setFormError(null); }}
+        onClose={closeModal}
         sheetTitle="Nueva Venta de Arenas"
         sheetIcon={<SheetIconBadge icon={Waves} tone="info" />}
         panelClassName="sm:max-w-2xl"
       >
             <div className="mb-6 hidden items-center justify-between lg:flex">
               <h2 className="page-form-modal-title text-xl font-bold tracking-tight">Nueva Venta de Arenas</h2>
-              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
+              <button type="button" onClick={closeModal} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>
 
             {formError && (
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 mb-4">
-                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2.5">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
                 <span className="text-sm text-red-400">{formError}</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-              {/* ── Identificación ── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={(val) => f('fecha', val)} /></div>
               <div><label className="input-label">Comprador *</label><input value={form.comprador} onChange={e => f('comprador', e.target.value)} className="input-field" placeholder="Nombre del comprador" /></div>
               <div className="col-span-1 md:col-span-2">
@@ -267,7 +260,6 @@ export default function ArenasPage() {
                 <input value={form.negociacion} onChange={e => f('negociacion', e.target.value)} className="input-field" placeholder="Ej: Contrato directo, precio fijo, spot market..." />
               </div>
 
-              {/* ── Cantidad y Precio ── */}
               <div>
                 <label className="input-label">Cantidad (toneladas) *</label>
                 <input type="number" step="0.001" value={form.cantidad_ton} onChange={e => f('cantidad_ton', e.target.value)} className="input-field" placeholder="0.000" />
@@ -277,33 +269,30 @@ export default function ArenasPage() {
                 <input type="number" step="0.01" value={form.precio_por_ton} onChange={e => f('precio_por_ton', e.target.value)} className="input-field" placeholder="0.00" />
               </div>
 
-              {/* ── Total en vivo ── */}
               {liveTotal > 0 && (
-                <div className="col-span-1 md:col-span-2 flex items-center justify-between py-4 px-5 bg-emerald-500/[0.07] border border-emerald-400/20 rounded-xl">
-                  <span className="text-sm font-medium text-emerald-400/70">Total estimado</span>
-                  <span className="text-3xl font-black tracking-tight text-emerald-400">{fmt(liveTotal)}</span>
+                <div className={`col-span-1 md:col-span-2 flex items-center justify-between py-4 px-5 ${mineosPanel('benefit')}`}>
+                  <span className={`text-sm font-medium ${mineosCell('benefit')} opacity-80`}>Total estimado</span>
+                  <span className={`text-3xl font-black tracking-tight ${mineosKpiValue('benefit')}`}>{fmt(liveTotal)}</span>
                 </div>
               )}
 
-              {/* ── Parámetros técnicos ── */}
-              <div className="col-span-1 md:col-span-2 mt-1">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-px flex-1 bg-white/[0.07]" />
-                  <span className="text-[10px] text-white/35 font-bold uppercase tracking-widest">Parámetros Técnicos</span>
-                  <div className="h-px flex-1 bg-white/[0.07]" />
-                </div>
+              <div className="col-span-1 md:col-span-2">
+                <h3 className={mineosModalHeading('general')}>
+                  <span>Parámetros Técnicos</span>
+                  <span className={mineosModalDivider('general')} />
+                </h3>
               </div>
 
               <div>
-                <label className="input-label flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5 mineos-icon-general" /> Humedad (%)</label>
+                <label className="input-label flex items-center gap-1.5"><Droplets className="h-3.5 w-3.5 mineos-icon-general" /> Humedad (%)</label>
                 <input type="number" step="0.1" min="0" max="100" value={form.humedad_pct} onChange={e => f('humedad_pct', e.target.value)} className="input-field" placeholder="0.0" />
               </div>
               <div>
-                <label className="input-label flex items-center gap-1.5"><FlaskConical className="w-3.5 h-3.5 text-amber-400" /> % Recuperación Planta</label>
+                <label className="input-label flex items-center gap-1.5"><FlaskConical className="h-3.5 w-3.5 text-amber-400" /> % Recuperación Planta</label>
                 <input type="number" step="0.01" min="0" max="100" value={form.pct_recuperacion_planta} onChange={e => f('pct_recuperacion_planta', e.target.value)} className="input-field" placeholder="0.00" />
               </div>
               <div>
-                <label className="input-label flex items-center gap-1.5"><Cog className="w-3.5 h-3.5 mineos-icon-benefit" /> % para el Molino</label>
+                <label className="input-label flex items-center gap-1.5"><Cog className="h-3.5 w-3.5 mineos-icon-benefit" /> % para el Molino</label>
                 <input type="number" step="0.01" min="0" max="100" value={form.pct_molino} onChange={e => f('pct_molino', e.target.value)} className="input-field" placeholder="0.00" />
               </div>
               <div>
@@ -313,7 +302,7 @@ export default function ArenasPage() {
             </div>
 
             <PageFormModalFooter>
-              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={closeModal} className="btn-secondary">Cancelar</button>
               <button type="button" onClick={handleSave} disabled={saving} className="btn-primary">
                 {saving ? 'Guardando...' : 'Registrar Venta'}
               </button>
