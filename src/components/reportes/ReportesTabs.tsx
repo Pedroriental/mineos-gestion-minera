@@ -12,23 +12,31 @@ export function ReportesTabs({
   onTabChange: (tab: ReportModule) => void;
 }) {
   return (
-    <div className="flex flex-nowrap gap-1 overflow-x-auto border-b border-white/5 pb-2 scrollbar-thin">
-      {REPORTES_TABS.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onTabChange(tab.id)}
-          className={cn(
-            'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
-            activeTab === tab.id
-              ? 'bg-zinc-800/80 text-zinc-100 border border-zinc-600/40'
-              : 'text-zinc-500 border border-transparent hover:text-zinc-300 hover:bg-white/[0.03]',
-          )}
-        >
-          {tab.icon}
-          {tab.label}
-        </button>
-      ))}
+    <div className="reportes-tabs-scroll">
+      <div
+        className="reportes-tabs flex flex-nowrap gap-0.5 overflow-x-auto pb-1 scrollbar-thin md:overflow-visible md:border-b md:border-white/5"
+        role="tablist"
+        aria-label="Módulos de reportes"
+      >
+        {REPORTES_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => onTabChange(tab.id)}
+            className={cn(
+              'reportes-tabs__btn flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition-colors border border-transparent',
+              activeTab === tab.id
+                ? 'reportes-tabs__btn--active md:bg-zinc-800/80 md:text-zinc-100 md:border-zinc-600/40 md:font-semibold md:shadow-none'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03]',
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

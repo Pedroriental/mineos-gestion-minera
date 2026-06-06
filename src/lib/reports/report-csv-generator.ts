@@ -32,17 +32,39 @@ export function downloadReportCSV(
       r.registrosCount,
     ]);
   } else if (module === 'nomina') {
-    headers = ['Grupo / Periodo', 'Cant. Trabajadores', 'Monto Nómina USD', 'Bono Transporte USD', 'Semanas Libres', 'Socio Pedro USD', 'Socio Darinel USD', 'Socio La Fe USD'];
-    rows = aggregatedData.rows.map((r: any) => [
-      r.grupo,
-      r.trabajadoresCount,
-      r.montoPagado,
-      r.bonoTransporte,
-      r.semanasLibresCount,
-      r.montoPedro,
-      r.montoDarinel,
-      r.montoLaFe,
-    ]);
+    const divisionCols: Array<{ id: string; nombre: string }> =
+      aggregatedData.kpis?.divisiones?.length > 0
+        ? aggregatedData.kpis.divisiones
+        : [];
+    headers = [
+      'Grupo / Periodo',
+      'Cant. Trabajadores',
+      'Monto Nómina USD',
+      'Bono Transporte USD',
+      'Semanas Libres',
+      ...divisionCols.map((d) => `${d.nombre} USD`),
+    ];
+    if (!divisionCols.length) {
+      headers.push('Socio Pedro USD', 'Socio Darinel USD', 'Socio La Fe USD');
+    }
+    rows = aggregatedData.rows.map((r: any) => {
+      const base = [
+        r.grupo,
+        r.trabajadoresCount,
+        r.montoPagado,
+        r.bonoTransporte,
+        r.semanasLibresCount,
+      ];
+      if (divisionCols.length) {
+        return [
+          ...base,
+          ...divisionCols.map(
+            (d) => r.divisiones?.find((x: { id: string }) => x.id === d.id)?.montoUsd ?? 0,
+          ),
+        ];
+      }
+      return [...base, r.montoPedro, r.montoDarinel, r.montoLaFe];
+    });
   } else if (module === 'voladuras') {
     headers = ['Grupo / Periodo', 'Cantidad Disparos', 'Huecos Cantidad', 'Pies Huecos', 'Chupis Cantidad', 'Pies Chupis', 'Consumo Arroz (kg)', 'Ratio Hueco/Chupi', 'Sin Novedad Cant.'];
     rows = aggregatedData.rows.map((r: any) => [

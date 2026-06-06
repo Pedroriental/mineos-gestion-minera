@@ -1,7 +1,5 @@
 'use client';
 
-import { useRef } from 'react';
-
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 type Props = {
@@ -11,43 +9,12 @@ type Props = {
 };
 
 export function ReconciliacionDateField({ label, value, onChange }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const openPicker = () => {
-    const el = inputRef.current;
-    if (!el) return;
-    if (typeof el.showPicker === 'function') {
-      try {
-        el.showPicker();
-        return;
-      } catch {
-        /* fallback */
-      }
-    }
-    el.focus();
-    el.click();
-  };
-
   return (
-    <div className="min-w-0 space-y-0.5">
-      <span className="text-[8px] font-bold uppercase text-zinc-500">{label}</span>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={openPicker}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            openPicker();
-          }
-        }}
-        className="relative w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-900/60 px-2 py-1 transition-colors hover:border-white/20"
-      >
-        <AppDatePicker
-          value={value}
-          onChange={onChange}
-        />
-      </div>
+    <div className="app-date-range-fields__item">
+      <span className="app-date-range-fields__label text-[8px] font-bold uppercase text-zinc-500">
+        {label}
+      </span>
+      <AppDatePicker className="w-full" value={value} onChange={onChange} />
     </div>
   );
 }

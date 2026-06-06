@@ -4,7 +4,7 @@ import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 
 /** Incrementar al cambiar SVG en /public/brand (evita caché del navegador) */
-const BRAND_ASSET_VERSION = '9';
+const BRAND_ASSET_VERSION = '11';
 
 const BRAND = {
   logotipo: {
@@ -24,7 +24,6 @@ export type BrandSurface = 'light' | 'dark';
 
 type MineosLogoProps = {
   variant: MineosLogoVariant;
-  /** Si no se indica, sigue el tema de la app (login, etc.) */
   surface?: BrandSurface;
   className?: string;
   alt?: string;
@@ -47,17 +46,15 @@ export function MineosLogo({
       alt={alt}
       decoding="async"
       className={cn(
-        'block min-h-0 min-w-0 object-contain',
-        variant === 'logotipo'
-          ? 'h-full w-auto max-w-full object-left'
-          : 'h-full w-full object-center',
+        'mineos-logo block shrink-0 object-contain object-center',
+        variant === 'logotipo' && 'mineos-logo--logotipo h-7 w-auto max-h-7 max-w-[9.5rem]',
+        variant === 'icon' && 'mineos-logo--icon h-10 w-10 max-h-12 max-w-12',
         className,
       )}
     />
   );
 }
 
-/** Isotipo claro u oscuro según fondo del sidebar (dashboard + tema) */
 export function sidebarIconSurface(
   variant: 'default' | 'dashboard',
   theme: 'light' | 'dark',

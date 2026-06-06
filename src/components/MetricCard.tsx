@@ -48,24 +48,24 @@ function formatDelta(delta: number): string {
 
 // ── Variant maps ──────────────────────────────────────────────────────────
 const variantValueClass: Record<MetricVariant, string> = {
-  gold:     'text-amber-400',
-  positive: 'text-emerald-400',
-  negative: 'text-red-400',
+  gold:     'text-[var(--mineos-general-bright)]',
+  positive: 'text-[var(--mineos-benefit)]',
+  negative: 'text-[var(--mineos-expense)]',
   neutral:  'text-white/90',
 };
 
 const variantIconBg: Record<MetricVariant, string> = {
-  gold:     'bg-amber-500/10 text-amber-400',
-  positive: 'bg-emerald-500/10 text-emerald-400',
-  negative: 'bg-red-500/10 text-red-400',
+  gold:     'bg-[var(--mineos-general-soft)] text-[var(--mineos-general-bright)]',
+  positive: 'bg-[var(--mineos-benefit-soft)] text-[var(--mineos-benefit)]',
+  negative: 'bg-[var(--mineos-expense-soft)] text-[var(--mineos-expense)]',
   neutral:  'bg-zinc-800 text-zinc-400',
 };
 
 const variantDeltaClass = (delta: number): string =>
   delta > 0
-    ? 'text-emerald-400 bg-emerald-500/10'
+    ? 'text-[var(--mineos-benefit)] bg-[var(--mineos-benefit-soft)]'
     : delta < 0
-    ? 'text-red-400 bg-red-500/10'
+    ? 'text-[var(--mineos-expense)] bg-[var(--mineos-expense-soft)]'
     : 'text-zinc-400 bg-zinc-800';
 
 // ── Skeleton ──────────────────────────────────────────────────────────────

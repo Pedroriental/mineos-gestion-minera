@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { computeFixedMenuPosition } from '@/lib/popover-position';
 import { format, parse, isValid, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -62,20 +63,14 @@ export function AppDatePicker({
     const el = rootRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const estHeight = 310;
-    const spaceBelow = window.innerHeight - rect.bottom - 10;
-    const spaceAbove = rect.top - 10;
-    const dropUp = spaceBelow < estHeight && spaceAbove > spaceBelow;
-
-    setMenuPos({
-      left: rect.left,
-      width: Math.max(rect.width, 280),
-      maxHeight: Math.min(MENU_MAX_H, dropUp ? spaceAbove : spaceBelow),
-      dropUp,
-      ...(dropUp
-        ? { bottom: window.innerHeight - rect.top + 6 }
-        : { top: rect.bottom + 6 }),
+    const pos = computeFixedMenuPosition({
+      anchorRect: rect,
+      menuWidth: 300,
+      estimatedHeight: 310,
+      maxHeightCap: MENU_MAX_H,
+      centerHorizontally: true,
     });
+    setMenuPos(pos);
   }, []);
 
   useLayoutEffect(() => {
@@ -256,18 +251,18 @@ export function AppDatePicker({
     ) : null;
 
   return (
-    <div ref={rootRef} className={cn('relative w-full', className)}>
+    <div ref={rootRef} className={cn('app-date-picker block w-full min-w-0 max-w-full', className)}>
       <button
         id={id}
         type="button"
         disabled={disabled}
         className={cn(
-          'flex w-full items-center justify-between gap-2 transition-colors',
+          'app-date-picker__trigger box-border flex w-full max-w-full min-w-0 items-center justify-between gap-2 transition-colors',
           'focus:outline-none focus:ring-1 focus:ring-amber-500/50',
           'disabled:cursor-not-allowed disabled:opacity-50',
           theme === 'light'
-            ? 'rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 hover:border-slate-300 focus:border-amber-500/50'
-            : 'rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-zinc-200 focus:border-amber-500/50 hover:bg-white/10'
+            ? 'rounded-lg border border-slate-200 bg-white text-sm text-slate-900 hover:border-slate-300 focus:border-amber-500/50'
+            : 'rounded-xl border border-white/10 bg-white/5 text-sm text-zinc-200 focus:border-amber-500/50 hover:bg-white/10',
         )}
         onClick={() => {
           if (disabled) return;
@@ -277,9 +272,18 @@ export function AppDatePicker({
           setOpen((o) => !o);
         }}
       >
-        <span className={cn("truncate capitalize flex items-center gap-2", !value && (theme === 'light' ? "text-slate-400" : "text-zinc-400"))}>
-            <CalendarIcon className={cn("h-4 w-4", theme === 'light' ? "text-amber-500/80" : "text-amber-500/70")} />
-            {getDisplayValue()}
+        <span
+          className={cn(
+            'app-date-picker__value min-w-0 flex-1 truncate text-left capitalize',
+            !value && (theme === 'light' ? 'text-slate-400' : 'text-zinc-400'),
+          )}
+        >
+          <span className="inline-flex min-w-0 items-center gap-2">
+            <CalendarIcon
+              className={cn('h-4 w-4 shrink-0', theme === 'light' ? 'text-amber-500/80' : 'text-amber-500/70')}
+            />
+            <span className="truncate">{getDisplayValue()}</span>
+          </span>
         </span>
         <ChevronDown
           className={cn(

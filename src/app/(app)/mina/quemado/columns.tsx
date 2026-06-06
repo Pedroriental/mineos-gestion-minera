@@ -96,7 +96,7 @@ export const columns = (
           <button
             type="button"
             onClick={() => openEdit(row.original)}
-            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-orange-400"
+            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-[var(--mineos-general-bright)]"
             title="Editar"
           >
             <Edit2 className="h-4 w-4" />

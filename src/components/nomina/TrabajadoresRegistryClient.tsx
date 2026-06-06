@@ -21,6 +21,8 @@ import {
   PencilLine,
   Plus,
   Search,
+  ClipboardList,
+  UserCircle,
   Users,
   X,
 } from 'lucide-react';
@@ -36,6 +38,12 @@ import {
 } from '@/lib/actions/trabajadores-registry';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import {
+  MobileFilterTrigger,
+  MobileFilterSheet,
+  SheetIconBadge,
+  useMobileFilterSheet,
+} from '@/components/mobile';
 
 type EstadoLaboral = 'ACTIVO' | 'DESPEDIDO' | 'REPOSO' | 'VACACIONES' | 'REENGANCHADO';
 
@@ -348,6 +356,8 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   }, [displayPageCount, pagination.pageIndex]);
 
   const hasActiveFilters = !!(search || filterNomina || filterEstado || filterSitio);
+  const activeFilterCount = [filterNomina, filterEstado, filterSitio].filter(Boolean).length;
+  const { open: filtersOpen, setOpen: setFiltersOpen } = useMobileFilterSheet();
 
   function clearFilters() {
     setSearch('');
@@ -651,132 +661,143 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
     );
   }
 
+  const trabajadoresFiltersPanel = (
+    <>
+      <div className="trabajadores-page__filters-body space-y-3">
+        <div>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Nómina (módulo)</p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFilterNomina('')}
+              className={filterPillClass(filterNomina === '')}
+            >
+              Todas
+            </button>
+            {areaOptions.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setFilterNomina(filterNomina === o.value ? '' : o.value)}
+                className={filterPillClass(filterNomina === o.value)}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Estado laboral</p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFilterEstado('')}
+              className={filterPillClass(filterEstado === '')}
+            >
+              Todos
+            </button>
+            {ESTADOS_FILTRO.map((e) => (
+              <button
+                key={e.value}
+                type="button"
+                onClick={() => setFilterEstado(filterEstado === e.value ? '' : e.value)}
+                className={filterPillClass(filterEstado === e.value)}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {sitiosDisponibles.length > 0 ? (
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Sitio laboral</p>
+            <div className="trabajadores-page__sitios flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFilterSitio('')}
+                className={filterPillClass(filterSitio === '')}
+              >
+                Todos
+              </button>
+              {sitiosDisponibles.map((sitio) => (
+                <button
+                  key={sitio}
+                  type="button"
+                  title={sitio}
+                  onClick={() => setFilterSitio(filterSitio === sitio ? '' : sitio)}
+                  className={`${filterPillClass(filterSitio === sitio)} max-w-full truncate`}
+                >
+                  {sitio}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="trabajadores-page__filter-summary mt-4 border-t border-white/[0.08] pt-3">
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white/40">
+          <Users className="h-3.5 w-3.5" />
+          Resumen filtrado
+        </div>
+        <dl className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
+          <div>
+            <dt className="text-white/40">Total</dt>
+            <dd className="font-bold tabular-nums text-white">{filterSummary.total}</dd>
+          </div>
+          <div>
+            <dt className="text-white/40">Activos</dt>
+            <dd className="font-bold tabular-nums text-emerald-300">{filterSummary.activos}</dd>
+          </div>
+          <div>
+            <dt className="text-white/40">Reposo / vac.</dt>
+            <dd className="font-bold tabular-nums text-amber-300">{filterSummary.reposo}</dd>
+          </div>
+          <div>
+            <dt className="text-white/40">Retirados</dt>
+            <dd className="font-bold tabular-nums text-red-300">{filterSummary.despedidos}</dd>
+          </div>
+        </dl>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="btn-secondary mt-2.5 w-full !py-1.5 text-[10px]"
+          >
+            Limpiar filtros
+          </button>
+        ) : null}
+      </div>
+    </>
+  );
+
   return (
     <div className="trabajadores-page gastos-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div className="trabajadores-page__grid gastos-page__grid min-h-0 flex-1">
-        <aside className="trabajadores-page__filters app-surface-card flex min-h-0 flex-col p-3">
+        <aside className="trabajadores-page__filters app-surface-card hidden min-h-0 flex-col p-3 md:flex">
           <p className="mb-3 shrink-0 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
             Filtros
           </p>
-
-          <div className="trabajadores-page__filters-body min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-contain">
-            <div>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Nómina (módulo)</p>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setFilterNomina('')}
-                  className={filterPillClass(filterNomina === '')}
-                >
-                  Todas
-                </button>
-                {areaOptions.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => setFilterNomina(filterNomina === o.value ? '' : o.value)}
-                    className={filterPillClass(filterNomina === o.value)}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Estado laboral</p>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setFilterEstado('')}
-                  className={filterPillClass(filterEstado === '')}
-                >
-                  Todos
-                </button>
-                {ESTADOS_FILTRO.map((e) => (
-                  <button
-                    key={e.value}
-                    type="button"
-                    onClick={() => setFilterEstado(filterEstado === e.value ? '' : e.value)}
-                    className={filterPillClass(filterEstado === e.value)}
-                  >
-                    {e.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {sitiosDisponibles.length > 0 ? (
-              <div>
-                <p className="mb-1.5 text-[10px] font-semibold uppercase text-white/40">Sitio laboral</p>
-                <div className="trabajadores-page__sitios flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setFilterSitio('')}
-                    className={filterPillClass(filterSitio === '')}
-                  >
-                    Todos
-                  </button>
-                  {sitiosDisponibles.map((sitio) => (
-                    <button
-                      key={sitio}
-                      type="button"
-                      title={sitio}
-                      onClick={() => setFilterSitio(filterSitio === sitio ? '' : sitio)}
-                      className={`${filterPillClass(filterSitio === sitio)} max-w-full truncate`}
-                    >
-                      {sitio}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="trabajadores-page__filter-summary mt-auto shrink-0 border-t border-white/[0.08] pt-3">
-            <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white/40">
-              <Users className="h-3.5 w-3.5" />
-              Resumen filtrado
-            </div>
-            <dl className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
-              <div>
-                <dt className="text-white/40">Total</dt>
-                <dd className="font-bold tabular-nums text-white">{filterSummary.total}</dd>
-              </div>
-              <div>
-                <dt className="text-white/40">Activos</dt>
-                <dd className="font-bold tabular-nums text-emerald-300">{filterSummary.activos}</dd>
-              </div>
-              <div>
-                <dt className="text-white/40">Reposo / vac.</dt>
-                <dd className="font-bold tabular-nums text-amber-300">{filterSummary.reposo}</dd>
-              </div>
-              <div>
-                <dt className="text-white/40">Retirados</dt>
-                <dd className="font-bold tabular-nums text-red-300">{filterSummary.despedidos}</dd>
-              </div>
-            </dl>
-            {hasActiveFilters ? (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="btn-secondary mt-2.5 w-full !py-1.5 text-[10px]"
-              >
-                Limpiar filtros
-              </button>
-            ) : null}
-          </div>
+          {trabajadoresFiltersPanel}
         </aside>
 
         <div className="trabajadores-page__table gastos-page__table app-surface-card relative flex min-h-[min(52dvh,32rem)] min-w-0 flex-col overflow-hidden lg:min-h-0">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="trabajadores-page__table-toolbar flex shrink-0 flex-col gap-2 border-b border-white/[0.08] px-3 py-2.5 sm:flex-row sm:items-center">
+            <div className="trabajadores-page__table-toolbar flex shrink-0 flex-col gap-2 border-b border-white/[0.08] px-3 py-2.5 lg:flex-row lg:flex-wrap lg:items-center">
+              <MobileFilterTrigger
+                activeCount={activeFilterCount}
+                onOpen={() => setFiltersOpen(true)}
+                className="trabajadores-page__filter-trigger lg:hidden"
+              />
+              <div className="trabajadores-page__toolbar-row flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <div className="gastos-search-wrap flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3">
                 <Search className="gastos-icon-muted h-3.5 w-3.5 shrink-0" aria-hidden />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por nombre, cédula, cargo…"
+                  placeholder="Buscar"
                   className="min-w-0 flex-1 border-none bg-transparent text-sm outline-none"
                 />
                 {search ? (
@@ -798,6 +819,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
                 <Plus className="h-4 w-4" />
                 Agregar Trabajador
               </button>
+              </div>
             </div>
 
             <div
@@ -927,8 +949,14 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
         </div>
       )}
 
-      <PageFormModal open={open} onClose={closeModal} panelClassName="sm:max-w-3xl">
-        <h2 className="mb-4 text-lg font-bold text-white">{form.id ? 'Editar trabajador' : 'Nuevo trabajador'}</h2>
+      <PageFormModal
+        open={open}
+        onClose={closeModal}
+        sheetTitle={form.id ? 'Editar trabajador' : 'Nuevo trabajador'}
+        sheetIcon={<SheetIconBadge icon={UserCircle} tone="success" />}
+        panelClassName="sm:max-w-3xl"
+      >
+        <h2 className="mb-4 hidden text-lg font-bold text-white lg:block">{form.id ? 'Editar trabajador' : 'Nuevo trabajador'}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="input-label">Nombre y Apellido *</label>
@@ -1034,8 +1062,14 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
         </PageFormModalFooter>
       </PageFormModal>
 
-      <PageFormModal open={estadoModal.open} onClose={() => setEstadoModal(emptyEstadoModal())} panelClassName="sm:max-w-xl">
-        <h3 className="mb-3 text-lg font-bold text-white">Detalle de estado: {estadoModal.nextEstado}</h3>
+      <PageFormModal
+        open={estadoModal.open}
+        onClose={() => setEstadoModal(emptyEstadoModal())}
+        sheetTitle={`Detalle de estado: ${estadoModal.nextEstado}`}
+        sheetIcon={<SheetIconBadge icon={ClipboardList} tone="info" />}
+        panelClassName="sm:max-w-xl"
+      >
+        <h3 className="mb-3 hidden text-lg font-bold text-white lg:block">Detalle de estado: {estadoModal.nextEstado}</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           {(estadoModal.nextEstado === 'REPOSO' || estadoModal.nextEstado === 'VACACIONES') && (
             <>
@@ -1093,6 +1127,10 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
           </button>
         </PageFormModalFooter>
       </PageFormModal>
+
+      <MobileFilterSheet open={filtersOpen} onClose={() => setFiltersOpen(false)}>
+        {trabajadoresFiltersPanel}
+      </MobileFilterSheet>
     </div>
   );
 }

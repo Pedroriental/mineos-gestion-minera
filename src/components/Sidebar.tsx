@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -104,23 +105,63 @@ const navigation: NavSection[] = [
   },
 ];
 
-const activeClass = 'bg-amber-100/70 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium rounded-lg';
+const activeClass =
+  'bg-amber-500/15 text-amber-400 font-medium rounded-lg border border-amber-500/20 shadow-[inset_0_1px_0_0_rgba(251,191,36,0.08)]';
 const idleClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] rounded-lg transition-colors duration-150';
-const activeSubClass = 'font-medium text-amber-600 dark:text-amber-400';
+const activeSubClass = 'font-medium text-amber-400';
 const idleSubClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors duration-150';
 
 function NavTooltip({ label, show, children }: { label: string; show: boolean; children: React.ReactNode }) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  const updatePos = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({ x: rect.right + 10, y: rect.top + rect.height / 2 });
+  }, []);
+
   if (!show) return <>{children}</>;
+
   return (
-    <div className="group/tip relative">
-      {children}
-      <div className="pointer-events-none absolute left-full ml-2.5 top-1/2 -translate-y-1/2 z-[60]
-                      opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150">
-        <div className="rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl whitespace-nowrap">
-          {label}
-        </div>
+    <>
+      <div
+        ref={anchorRef}
+        className="relative"
+        onMouseEnter={() => {
+          updatePos();
+          setVisible(true);
+        }}
+        onMouseLeave={() => {
+          setVisible(false);
+          setPos(null);
+        }}
+        onFocus={() => {
+          updatePos();
+          setVisible(true);
+        }}
+        onBlur={() => {
+          setVisible(false);
+          setPos(null);
+        }}
+      >
+        {children}
       </div>
-    </div>
+      {visible && pos && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              role="tooltip"
+              className="pointer-events-none fixed z-[250] -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl"
+              style={{ left: pos.x, top: pos.y }}
+            >
+              {label}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 
@@ -257,12 +298,14 @@ function Section({
   expanded,
   onNav,
   defaultOpen,
+  onCollapsedItemClick,
 }: {
   section: NavSection;
   pathname: string;
   expanded: boolean;
   onNav: (href: string) => void;
   defaultOpen: boolean;
+  onCollapsedItemClick?: (item: NavItemData) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -282,7 +325,7 @@ function Section({
               <NavTooltip key={item.label} label={item.label} show>
                 <button
                   type="button"
-                  onClick={() => onNav('#')}
+                  onClick={() => onCollapsedItemClick?.(item)}
                   className={cn(
                     'flex w-full items-center justify-center py-2 text-sm transition-all duration-150 rounded-lg',
                     anySubActive ? activeClass : idleClass,
@@ -377,15 +420,33 @@ export default function Sidebar({
 
   const isExpanded = expanded ?? true;
 
+  const resolveSubItemHref = useCallback((item: NavItemData) => {
+    const subItems = item.subItems ?? [];
+    if (!subItems.length) return item.href;
+    const activeSub = subItems.find(
+      (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
+    );
+    return activeSub?.href ?? subItems[0].href;
+  }, [pathname]);
+
   const handleNav = useCallback(
     (href: string) => {
       if (href !== '#') {
         router.push(href);
-        if (!isExpanded) onExpandedChange?.(true);
       }
       onMobileClose?.();
     },
-    [router, onMobileClose, isExpanded, onExpandedChange],
+    [router, onMobileClose],
+  );
+
+  const handleCollapsedSectionItemClick = useCallback(
+    (item: NavItemData) => {
+      const target = item.subItems?.length ? resolveSubItemHref(item) : item.href;
+      if (target !== '#') {
+        router.push(target);
+      }
+    },
+    [resolveSubItemHref, router],
   );
 
   const handleSignOut = useCallback(async () => {
@@ -426,19 +487,12 @@ export default function Sidebar({
           isExpanded ? 'px-3 pb-3 mb-2' : 'px-3 pb-3 mb-2 justify-center',
         )}
       >
-        <div
-          className={cn(
-            'flex items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 p-1.5',
-            'h-9 w-9',
-          )}
-        >
-          <MineosLogo
-            variant="icon"
-            surface={iconSurface}
-            className="h-7 w-7 object-[center_46%]"
-            alt=""
-          />
-        </div>
+        <MineosLogo
+          variant="icon"
+          surface={iconSurface}
+          className={cn('shrink-0 object-[center_46%]', isExpanded ? 'h-9 w-9' : 'h-8 w-8')}
+          alt=""
+        />
         {isExpanded && (
           <>
             <div className="flex min-w-0 flex-1 flex-col gap-px leading-none">
@@ -496,6 +550,7 @@ export default function Sidebar({
             expanded={isExpanded}
             onNav={handleNav}
             defaultOpen={defaultOpenIds.includes(section.id)}
+            onCollapsedItemClick={handleCollapsedSectionItemClick}
           />
         ))}
       </nav>
@@ -537,7 +592,7 @@ export default function Sidebar({
         data-sidebar
         data-sidebar-variant={variant}
         data-expanded={isExpanded}
-        className={cn('hidden md:flex', shellClass)}
+        className={cn('relative z-30 hidden md:flex', shellClass)}
       >
         {dockContent()}
 
@@ -549,15 +604,25 @@ export default function Sidebar({
           <button
             type="button"
             onClick={() => onExpandedChange?.(!isExpanded)}
+            aria-label={isExpanded ? 'Plegar menú' : 'Expandir menú'}
             className={cn(
               'rounded-lg transition-all duration-150',
               isExpanded
-                ? 'p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]'
+                ? 'flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]'
                 : 'p-2 text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]',
             )}
-            title={isExpanded ? 'Colapsar menú' : 'Expandir menú'}
+            title={isExpanded ? 'Plegar menú' : 'Expandir menú'}
           >
-            {isExpanded ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+            {isExpanded ? (
+              <PanelLeftClose className="h-4 w-4 shrink-0" />
+            ) : (
+              <NavTooltip label="Expandir menú" show>
+                <span className="inline-flex">
+                  <PanelLeft className="h-4 w-4" />
+                </span>
+              </NavTooltip>
+            )}
+            {isExpanded ? <span className="truncate">Plegar menú</span> : null}
           </button>
         </div>
       </aside>

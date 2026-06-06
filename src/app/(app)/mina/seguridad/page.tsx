@@ -12,6 +12,8 @@ import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import EmptyState from '@/components/EmptyState';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { SheetIconBadge } from '@/components/mobile';
+import { MobileCard, MobileCardAction } from '@/components/ui/MobileCard';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 
@@ -83,35 +85,43 @@ export default function SeguridadPage() {
           {/* Mobile Cards View */}
           <div className="block md:hidden space-y-4">
             {data.map(d => (
-              <div key={d.id} className="card-glass p-5 relative border-l-4 border-l-green-600">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="pr-2">
-                    <h3 className="text-white/85 font-bold text-base leading-tight mb-1">{d.titulo}</h3>
-                    <p className="text-white/40 text-xs">{d.fecha}</p>
+              <MobileCard
+                key={d.id}
+                accent="border-l-green-600"
+                header={
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-base font-bold leading-tight text-white/85">
+                        {d.titulo}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-white/40">{d.fecha}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className={`badge ${prioridadBadge[d.prioridad]} mb-1 block`}>{d.prioridad}</span>
+                      <span className={`badge ${estadoBadge[d.estado]} block`}>{d.estado}</span>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className={`badge ${prioridadBadge[d.prioridad]} mb-1 block`}>{d.prioridad}</span>
-                    <span className={`badge ${estadoBadge[d.estado]} block`}>{d.estado}</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 p-3 app-detail-panel">
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Tipo</span>
-                    <span className={`badge ${tipoBadge[d.tipo]} inline-block`}>{tipoLabel[d.tipo]}</span>
-                  </div>
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Área</span>
-                    <span className="font-semibold text-white/70 capitalize">{d.area}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Responsable</span>
-                    <span className="font-semibold text-white/70 truncate block">{d.responsable || '—'}</span>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-white/[0.07]">
-                  <button onClick={() => { setEditItem(d); setForm({ fecha: d.fecha, tipo: d.tipo, titulo: d.titulo, descripcion: d.descripcion, area: d.area, prioridad: d.prioridad, estado: d.estado, responsable: d.responsable || '', costo_estimado: d.costo_estimado ? String(d.costo_estimado) : '' }); setShowModal(true); }} className="p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.09] text-white/50 transition-colors font-medium text-xs flex items-center gap-1"><Edit2 className="w-4 h-4" /> Editar</button>
-                </div>
-              </div>
+                }
+                details={[
+                  {
+                    label: 'Tipo',
+                    value: <span className={`badge ${tipoBadge[d.tipo]} inline-block`}>{tipoLabel[d.tipo]}</span>,
+                  },
+                  { label: 'Área', value: <span className="font-semibold text-white/70 capitalize">{d.area}</span> },
+                  { label: 'Responsable', value: d.responsable || '—', spanFull: true },
+                ]}
+                actions={
+                  <MobileCardAction
+                    onClick={() => {
+                      setEditItem(d);
+                      setForm({ fecha: d.fecha, tipo: d.tipo, titulo: d.titulo, descripcion: d.descripcion, area: d.area, prioridad: d.prioridad, estado: d.estado, responsable: d.responsable || '', costo_estimado: d.costo_estimado ? String(d.costo_estimado) : '' });
+                      setShowModal(true);
+                    }}
+                    label="Editar"
+                    icon={<Edit2 className="h-4 w-4" />}
+                  />
+                }
+              />
             ))}
             {data.length === 0 && (
               <EmptyState
@@ -169,8 +179,14 @@ export default function SeguridadPage() {
         </>
       )}
 
-      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-2xl">
-            <div className="flex items-center justify-between mb-6">
+      <PageFormModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        sheetTitle={editItem ? 'Editar Registro' : 'Nuevo Registro de Seguridad'}
+        sheetIcon={<SheetIconBadge icon={Shield} tone="info" />}
+        panelClassName="sm:max-w-2xl"
+      >
+            <div className="mb-6 hidden items-center justify-between lg:flex">
               <h2 className="page-form-modal-title text-xl font-bold tracking-tight">{editItem ? 'Editar Registro' : 'Nuevo Registro de Seguridad'}</h2>
               <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>

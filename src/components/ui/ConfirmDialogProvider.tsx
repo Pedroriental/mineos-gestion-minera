@@ -2,8 +2,14 @@
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useRef } from 'react';
 import { Dialog } from '@headlessui/react';
-import { AlertTriangle, Info, X } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
+import { MobileSheetChrome } from '@/components/mobile/MobileSheetChrome';
+import { SheetIconBadge } from '@/components/mobile/SheetIconBadge';
+import { useBottomSheetSnap } from '@/hooks/useBottomSheetSnap';
+import { useMobileOverlayLock } from '@/hooks/useMobileOverlayLock';
 import { FadeIn } from './motion';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { cn } from '@/lib/utils';
 
 type ConfirmVariant = 'danger' | 'warning' | 'info';
 
@@ -33,6 +39,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const resolveRef = useRef<((value: boolean) => void) | null>(null);
+  const isMobile = useIsMobile();
 
   const confirm = useCallback((opts: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -59,7 +66,23 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const variant = options?.variant || 'danger';
-  
+
+  const {
+    snap,
+    scrollRef,
+    sheetStyle,
+    toggleSnap,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useBottomSheetSnap({ enabled: isMobile, open: isOpen, onClose: handleClose });
+
+  useMobileOverlayLock(isOpen, isMobile);
+
+  const sheetTone =
+    variant === 'danger' ? 'danger' : variant === 'warning' ? 'warn' : 'info';
+  const SheetIcon = variant === 'info' ? Info : AlertTriangle;
+
   return (
     <ConfirmContext.Provider value={{ confirm }}>
       {children}
@@ -70,19 +93,59 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
         className="relative z-[9999]"
       >
         {/* Backdrop */}
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" aria-hidden="true" />
+        <div
+          className={cn(
+            'fixed inset-0 backdrop-blur-[6px]',
+            isMobile ? 'bg-black/72' : 'bg-black/40',
+          )}
+          aria-hidden="true"
+        />
 
         {/* Dialog Content */}
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="mx-auto flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-[#1e293b] border border-white/10 shadow-2xl">
+        <div
+          className={cn(
+            'fixed inset-0 flex p-4',
+            isMobile ? 'confirm-dialog-mobile-sheet items-end' : 'items-center justify-center',
+          )}
+        >
+          <Dialog.Panel
+            style={isMobile ? sheetStyle : undefined}
+            onTouchStart={isMobile ? handleTouchStart : undefined}
+            onTouchMove={isMobile ? handleTouchMove : undefined}
+            onTouchEnd={isMobile ? handleTouchEnd : undefined}
+            className={cn(
+              'mx-auto flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border shadow-2xl',
+              isMobile
+                ? 'confirm-dialog-panel--mobile mobile-bottom-sheet border-[var(--dashboard-border)] bg-[var(--dashboard-card-bg)]'
+                : 'border-white/10 bg-[#1e293b]',
+              isMobile && (snap === 'expanded' ? 'mobile-bottom-sheet--expanded' : 'mobile-bottom-sheet--peek'),
+            )}
+          >
+            {isMobile ? (
+              <MobileSheetChrome
+                onClose={handleClose}
+                onToggleSnap={toggleSnap}
+                snap={snap}
+                title={options?.title}
+                icon={<SheetIconBadge icon={SheetIcon} tone={sheetTone} />}
+              />
+            ) : null}
             <FadeIn>
-              <div className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className={`shrink-0 rounded-full p-2.5 ${
+              <div
+                ref={isMobile ? scrollRef : undefined}
+                className={cn(
+                  'p-6',
+                  isMobile && 'max-h-none overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3',
+                )}
+              >
+                <div className={cn('flex items-start gap-4', isMobile && 'gap-3')}>
+                  <div className={cn(
+                    'shrink-0 rounded-xl p-2.5',
                     variant === 'danger' ? 'bg-red-500/10 text-red-500' :
                     variant === 'warning' ? 'bg-amber-500/10 text-amber-500' :
-                    'bg-blue-500/10 text-blue-500'
-                  }`}>
+                    'bg-blue-500/10 text-blue-500',
+                    isMobile && 'rounded-lg p-2',
+                  )}>
                     {variant === 'info' ? (
                       <Info className="h-6 w-6" />
                     ) : (
@@ -91,31 +154,36 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                   </div>
                   
                   <div className="mt-1 flex-1">
-                    <Dialog.Title className="text-lg font-bold text-white/95">
+                    <Dialog.Title className={cn('font-bold text-white/95', isMobile ? 'text-base' : 'text-lg')}>
                       {options?.title}
                     </Dialog.Title>
-                    <Dialog.Description className="mt-2 text-sm text-slate-300 leading-relaxed">
+                    <Dialog.Description className={cn('mt-2 leading-relaxed text-slate-300', isMobile ? 'text-[13px]' : 'text-sm')}>
                       {options?.message}
                     </Dialog.Description>
                   </div>
                 </div>
 
-                <div className="mt-8 flex justify-end gap-3">
+                <div className={cn('mt-8 flex gap-3', isMobile ? 'flex-col-reverse' : 'justify-end')}>
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-[#1e293b]"
+                    className={cn(
+                      'rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-[#1e293b]',
+                      isMobile && 'min-h-[2.75rem] w-full justify-center',
+                    )}
                   >
                     {options?.cancelLabel || 'Cancelar'}
                   </button>
                   <button
                     type="button"
                     onClick={handleConfirm}
-                    className={`rounded-lg px-4 py-2 text-sm font-bold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1e293b] ${
+                    className={cn(
+                      'rounded-lg px-4 py-2 text-sm font-bold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1e293b]',
                       variant === 'danger' ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500/50' :
                       variant === 'warning' ? 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-500/50' :
-                      'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500/50'
-                    }`}
+                      'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500/50',
+                      isMobile && 'min-h-[2.75rem] w-full justify-center',
+                    )}
                   >
                     {options?.confirmLabel || 'Aceptar'}
                   </button>

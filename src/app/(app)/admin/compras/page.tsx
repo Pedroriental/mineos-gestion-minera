@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { Plus, X, Loader2, Edit2, Check } from 'lucide-react';
+import { Plus, X, Loader2, Edit2, Check, ShoppingCart } from 'lucide-react';
+import { SheetIconBadge } from '@/components/mobile';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import type { CompraProgramada } from '@/lib/types';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { MobileCard, MobileCardAction } from '@/components/ui/MobileCard';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
@@ -81,39 +83,52 @@ export default function ComprasPage() {
         <>
           <div className="block md:hidden space-y-4">
             {data.map(c => (
-              <div key={c.id} className="card-glass p-5 relative border-l-4 border-l-purple-500">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="pr-2">
-                    <h3 className="text-white/85 font-bold text-base leading-tight mb-1">{c.descripcion}</h3>
-                    <p className="text-white/40 text-xs">Req: {c.fecha_requerida}</p>
+              <MobileCard
+                key={c.id}
+                accent="border-l-purple-500"
+                header={
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-base font-bold leading-tight text-white/85">
+                        {c.descripcion}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-white/40">
+                        Req: {c.fecha_requerida}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="badge badge-neutral mb-1 block">{c.prioridad}</span>
+                      <span className={`badge ${estadoBadge[c.estado]} block`}>{estadoLabel[c.estado]}</span>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className="badge badge-neutral mb-1 block">{c.prioridad}</span>
-                    <span className={`badge ${estadoBadge[c.estado]} block`}>{estadoLabel[c.estado]}</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 p-3 bg-white/[0.05] rounded-lg border border-white/[0.07]">
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Cantidad</span>
-                    <span className="font-bold text-white/75">{c.cantidad_requerida} {c.unidad_medida}</span>
-                  </div>
-                  <div>
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Costo Est.</span>
-                    <span className="font-semibold text-white/75">{c.costo_estimado ? `$${c.costo_estimado}` : '—'}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-white/35 text-[10px] uppercase font-bold tracking-wider block mb-1">Proveedor</span>
-                    <span className="font-semibold text-white/70 truncate block">{c.proveedor_sugerido || '—'}</span>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-white/[0.07]">
-                  {c.estado === 'pendiente' && <button onClick={() => updateEstado(c.id, 'aprobada')} className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors font-medium text-xs flex items-center gap-1"><Check className="w-4 h-4" /> Aprobar</button>}
-                  {c.estado === 'aprobada' && <button onClick={() => updateEstado(c.id, 'completada')} className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors font-medium text-xs flex items-center gap-1"><Check className="w-4 h-4" /> Completar</button>}
-                  <button onClick={() => { setEditItem(c); setForm({ descripcion: c.descripcion, cantidad_requerida: String(c.cantidad_requerida), unidad_medida: c.unidad_medida, fecha_requerida: c.fecha_requerida, prioridad: c.prioridad, proveedor_sugerido: c.proveedor_sugerido || '', costo_estimado: c.costo_estimado ? String(c.costo_estimado) : '', notas: c.notas || '' }); setShowModal(true); }} className="p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.09] text-white/50 transition-colors font-medium text-xs flex items-center gap-1"><Edit2 className="w-4 h-4" /> Editar</button>
-                </div>
-              </div>
+                }
+                details={[
+                  { label: 'Cantidad', value: `${c.cantidad_requerida} ${c.unidad_medida}` },
+                  { label: 'Costo Est.', value: c.costo_estimado ? `$${c.costo_estimado}` : '—' },
+                  { label: 'Proveedor', value: c.proveedor_sugerido || '—', spanFull: true },
+                ]}
+                actions={
+                  <>
+                    {c.estado === 'pendiente' && (
+                      <MobileCardAction onClick={() => updateEstado(c.id, 'aprobada')} label="Aprobar" icon={<Check className="h-4 w-4" />} variant="primary" />
+                    )}
+                    {c.estado === 'aprobada' && (
+                      <MobileCardAction onClick={() => updateEstado(c.id, 'completada')} label="Completar" icon={<Check className="h-4 w-4" />} variant="primary" />
+                    )}
+                    <MobileCardAction
+                      onClick={() => {
+                        setEditItem(c);
+                        setForm({ descripcion: c.descripcion, cantidad_requerida: String(c.cantidad_requerida), unidad_medida: c.unidad_medida, fecha_requerida: c.fecha_requerida, prioridad: c.prioridad, proveedor_sugerido: c.proveedor_sugerido || '', costo_estimado: c.costo_estimado ? String(c.costo_estimado) : '', notas: c.notas || '' });
+                        setShowModal(true);
+                      }}
+                      label="Editar"
+                      icon={<Edit2 className="h-4 w-4" />}
+                    />
+                  </>
+                }
+              />
             ))}
-            {data.length === 0 && <div className="text-center py-12 text-white/40 card-glass">Sin compras programadas</div>}
+            {data.length === 0 && <div className="card-glass py-12 text-center text-white/40">Sin compras programadas</div>}
           </div>
 
           <div className="hidden md:block table-container">
@@ -152,8 +167,14 @@ export default function ComprasPage() {
         </>
       )}
 
-      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-2xl">
-            <div className="flex items-center justify-between mb-6">
+      <PageFormModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        sheetTitle={editItem ? 'Editar Compra' : 'Nueva Compra'}
+        sheetIcon={<SheetIconBadge icon={ShoppingCart} />}
+        panelClassName="sm:max-w-2xl"
+      >
+            <div className="mb-6 hidden items-center justify-between lg:flex">
               <h2 className="page-form-modal-title text-xl font-bold tracking-tight">{editItem ? 'Editar Compra' : 'Nueva Compra'}</h2>
               <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>

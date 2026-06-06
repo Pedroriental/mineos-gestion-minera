@@ -182,26 +182,64 @@ export function downloadReportPDF(
     addHeader(doc, 'REPORTE CONSOLIDADO DE NÓMINA', subtitle);
 
     const kpis = aggregatedData.kpis;
-    addSummaryBox(doc, 30, [
+    const divisionCols: Array<{ id: string; nombre: string; montoUsd?: number }> =
+      kpis.divisiones?.length > 0 ? kpis.divisiones : [];
+    const summaryItems = [
       { label: 'TOTAL NOMINA PAGADA', value: `$${kpis.totalPagado.toLocaleString('es-ES')}` },
       { label: 'BONO TRANSPORTE', value: `$${kpis.bonoTransporteTotal.toLocaleString('es-ES')}` },
       { label: 'TRABAJADORES UNICOS', value: kpis.trabajadoresUnicos.toString() },
-      { label: 'PARTICIPACION PEDRO', value: `$${kpis.pedroTotal.toLocaleString('es-ES')}` },
-      { label: 'PARTICIPACION DARINEL', value: `$${kpis.darinelTotal.toLocaleString('es-ES')}` },
-      { label: 'PARTICIPACION LA FE', value: `$${kpis.laFeTotal.toLocaleString('es-ES')}` },
-    ]);
+    ];
+    if (divisionCols.length) {
+      divisionCols.forEach((d) => {
+        summaryItems.push({
+          label: d.nombre.toUpperCase(),
+          value: `$${(d.montoUsd ?? 0).toLocaleString('es-ES')}`,
+        });
+      });
+    } else {
+      summaryItems.push(
+        { label: 'PARTICIPACION PEDRO', value: `$${kpis.pedroTotal.toLocaleString('es-ES')}` },
+        { label: 'PARTICIPACION DARINEL', value: `$${kpis.darinelTotal.toLocaleString('es-ES')}` },
+        { label: 'PARTICIPACION LA FE', value: `$${kpis.laFeTotal.toLocaleString('es-ES')}` },
+      );
+    }
+    addSummaryBox(doc, 30, summaryItems);
 
-    const headers = ['Grupo / Periodo', 'Cant. Trabajadores', 'Pago Nómina', 'Bono Transporte', 'Semanas Libres', 'Socio Pedro', 'Socio Darinel', 'Socio La Fe'];
-    const body = aggregatedData.rows.map((r: any) => [
-      r.grupo,
-      r.trabajadoresCount,
-      `$${r.montoPagado.toLocaleString('es-ES')}`,
-      `$${r.bonoTransporte.toLocaleString('es-ES')}`,
-      r.semanasLibresCount,
-      `$${r.montoPedro.toLocaleString('es-ES')}`,
-      `$${r.montoDarinel.toLocaleString('es-ES')}`,
-      `$${r.montoLaFe.toLocaleString('es-ES')}`,
-    ]);
+    const headers = [
+      'Grupo / Periodo',
+      'Cant. Trabajadores',
+      'Pago Nómina',
+      'Bono Transporte',
+      'Semanas Libres',
+      ...divisionCols.map((d) => d.nombre),
+    ];
+    if (!divisionCols.length) {
+      headers.push('Socio Pedro', 'Socio Darinel', 'Socio La Fe');
+    }
+    const body = aggregatedData.rows.map((r: any) => {
+      const base = [
+        r.grupo,
+        r.trabajadoresCount,
+        `$${r.montoPagado.toLocaleString('es-ES')}`,
+        `$${r.bonoTransporte.toLocaleString('es-ES')}`,
+        r.semanasLibresCount,
+      ];
+      if (divisionCols.length) {
+        return [
+          ...base,
+          ...divisionCols.map(
+            (d) =>
+              `$${(r.divisiones?.find((x: { id: string }) => x.id === d.id)?.montoUsd ?? 0).toLocaleString('es-ES')}`,
+          ),
+        ];
+      }
+      return [
+        ...base,
+        `$${r.montoPedro.toLocaleString('es-ES')}`,
+        `$${r.montoDarinel.toLocaleString('es-ES')}`,
+        `$${r.montoLaFe.toLocaleString('es-ES')}`,
+      ];
+    });
 
     autoTable(doc, {
       ...tableStyles,

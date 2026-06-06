@@ -13,8 +13,10 @@ import { AppSelect } from '@/components/ui/AppSelect';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { SheetIconBadge } from '@/components/mobile';
 import EmptyState from '@/components/EmptyState';
 import { FadeIn } from '@/components/ui/motion';
+import { GerencialMobileChartFold, GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -29,6 +31,18 @@ import {
 } from '@tanstack/react-table';
 import { columns } from './columns';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import {
+  mineosIcon,
+  mineosIconRing,
+  mineosKpiGlow,
+  mineosKpiValue,
+  mineosModalDivider,
+  mineosModalHeading,
+  mineosPanel,
+  mineosLabelAccent,
+  mineosBtnSubtleClass,
+  type MineosTone,
+} from '@/lib/mineos-visual';
 
 const QUEMADO_PAGE_MAX = 12;
 const QUEMADO_PAGE_BUTTONS_MAX = 5;
@@ -202,21 +216,25 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   const pageRows = table.getPaginationRowModel().rows;
   const colCount = table.getAllLeafColumns().length;
 
-  const kpiRows = useMemo(
-    () => [
-      { label: 'Oro Recuperado', value: `${fmtN(tableSummary.oro)} g`, glow: 'amber' as const, icon: <Gem className="h-5 w-5 text-amber-400" />, bg: 'bg-amber-500/10' },
-      { label: 'Total Amalgama', value: `${fmtN(tableSummary.amalgama)} g`, glow: 'neutral' as const, icon: <Flame className="h-5 w-5 text-orange-400" />, bg: 'bg-orange-500/10' },
-      { label: 'Planchas', value: String(tableSummary.planchas), glow: 'blue' as const, icon: <Layers className="h-5 w-5 text-sky-400" />, bg: 'bg-sky-500/10' },
+  const kpiRows = useMemo(() => {
+    const mermaTone: MineosTone =
+      tableSummary.merma > 0 && tableSummary.merma < 55
+        ? 'benefit'
+        : tableSummary.merma < 70
+          ? 'neutral'
+          : 'expense';
+    return [
+      { label: 'Oro Recuperado', value: `${fmtN(tableSummary.oro)} g`, tone: 'benefit' as MineosTone, Icon: Gem },
+      { label: 'Total Amalgama', value: `${fmtN(tableSummary.amalgama)} g`, tone: 'general' as MineosTone, Icon: Flame },
+      { label: 'Planchas', value: String(tableSummary.planchas), tone: 'general' as MineosTone, Icon: Layers },
       {
         label: 'Merma Prom.',
         value: tableSummary.merma > 0 ? `${tableSummary.merma.toFixed(1)}%` : '—',
-        glow: (tableSummary.merma > 0 && tableSummary.merma < 55 ? 'emerald' : tableSummary.merma < 70 ? 'neutral' : 'red') as 'emerald' | 'neutral' | 'red',
-        icon: <Calculator className="h-5 w-5 text-orange-400" />,
-        bg: 'bg-orange-500/10',
+        tone: mermaTone,
+        Icon: Calculator,
       },
-    ],
-    [tableSummary],
-  );
+    ] as const;
+  }, [tableSummary]);
 
   const diariaChart = useMemo(() => {
     const byDate = new Map<string, { fecha: string; oro: number }>();
@@ -316,22 +334,46 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   return (
     <div className="quemado-page produccion-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
 
-      <FadeIn className="produccion-page__toolbar shrink-0">
-        <div className="quemado-page__toolbar-grid produccion-page__toolbar-grid grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+      <FadeIn className="produccion-page__toolbar shrink-0 space-y-2">
+        <div className="quemado-page__toolbar-grid produccion-page__toolbar-grid grid grid-cols-1 gap-2 lg:grid-cols-12 lg:items-center lg:gap-4">
           <div className="quemado-page__toolbar-search min-w-0 lg:col-span-4">
             <div className="produccion-page__search produccion-surface produccion-surface--input flex h-9 w-full min-w-0 items-center rounded-lg px-3 py-2">
               <Search className="produccion-icon-muted mr-2 h-4 w-4 shrink-0" />
               <input
                 type="text"
-                placeholder="Buscar quemada, responsable..."
+                placeholder="Buscar"
                 value={globalFilter ?? ''}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 className="produccion-search-input w-full min-w-0 border-none bg-transparent text-sm outline-none"
               />
             </div>
           </div>
+          <GerencialMobileKpiStrip
+            className="lg:hidden lg:col-span-12"
+            items={kpiRows.map((k) => ({
+              label: k.label,
+              value: k.value,
+              tone: k.tone,
+              icon: k.Icon,
+            }))}
+            footer={
+              tableSummary.count > 0 ? (
+                <p className="truncate text-[9px] text-white/45">
+                  Recup.{' '}
+                  <span className="font-semibold text-amber-400">
+                    {tableSummary.recup > 0 ? `${tableSummary.recup.toFixed(1)}%` : '—'}
+                  </span>
+                  {' · '}
+                  Merma{' '}
+                  <span className="font-semibold text-emerald-400/90">
+                    {tableSummary.merma > 0 ? `${tableSummary.merma.toFixed(1)}%` : '—'}
+                  </span>
+                </p>
+              ) : null
+            }
+          />
           <div className="quemado-page__toolbar-actions flex min-w-0 w-full flex-wrap items-center gap-2 sm:flex-nowrap lg:col-span-8 lg:justify-end">
-            <div className="quemado-page__toolbar-balance produccion-surface flex min-h-9 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-3 py-1.5 sm:flex-initial lg:max-w-none">
+            <div className="quemado-page__toolbar-balance produccion-surface hidden min-h-9 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-3 py-1.5 sm:flex-initial lg:flex lg:max-w-none">
               <Scale className="h-3.5 w-3.5 shrink-0 text-amber-500/80" aria-hidden />
               <span className="produccion-section-title shrink-0 text-[9px] font-bold uppercase tracking-wider">
                 Balance del día
@@ -349,7 +391,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                   <span className="text-white/20">·</span>
                   <span>
                     <span className="produccion-muted">Merma </span>
-                    <strong className="text-orange-400">
+                    <strong className="mineos-cell-benefit">
                       {tableSummary.merma > 0 ? `${tableSummary.merma.toFixed(1)}%` : '—'}
                     </strong>
                   </span>
@@ -370,7 +412,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
               <button
                 type="button"
                 onClick={openNew}
-                className="quemado-page__toolbar-btn produccion-page__toolbar-btn flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500"
+                className="gerencial-page__new-btn quemado-page__toolbar-btn produccion-page__toolbar-btn flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 text-xs font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500 lg:h-9 lg:w-auto lg:flex-initial"
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span className="truncate">Nuevo Reporte</span>
@@ -380,28 +422,30 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
         </div>
       </FadeIn>
 
-      <div className="quemado-page__grid produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-4">
+      <div className="quemado-page__grid produccion-page__grid min-h-0 flex-1 grid grid-cols-1 gap-2 lg:grid-cols-12 lg:gap-4">
 
-        <div className="produccion-page__aside flex min-h-0 flex-col gap-2 overflow-y-auto lg:col-span-4 lg:h-full lg:overflow-hidden">
-          {kpiRows.map((k) => (
+        <div className="produccion-page__aside hidden min-h-0 flex-col gap-2 overflow-y-auto lg:col-span-4 lg:flex lg:h-full lg:overflow-hidden">
+          {kpiRows.map((k) => {
+            const KIcon = k.Icon;
+            return (
             <div
               key={k.label}
               className="produccion-surface gerencial-kpi-card flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5"
             >
-              <div className={`gerencial-kpi-glow gerencial-kpi-glow--${k.glow}`} aria-hidden />
-              <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${k.bg}`}>
-                {k.icon}
+              <div className={mineosKpiGlow(k.tone)} aria-hidden />
+              <div className={mineosIconRing(k.tone)}>
+                <KIcon className={`h-5 w-5 ${mineosIcon(k.tone)}`} />
               </div>
               <div className="relative min-w-0 flex-1">
                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight tracking-wider">
                   {k.label}
                 </span>
-                <span className={`gerencial-kpi-value gerencial-kpi-value--${k.glow} text-lg font-bold leading-tight tabular-nums`}>
+                <span className={`${mineosKpiValue(k.tone)} text-lg font-bold leading-tight tabular-nums`}>
                   {k.value}
                 </span>
               </div>
             </div>
-          ))}
+          );})}
 
           <div className="quemado-page__chart produccion-page__chart produccion-surface flex min-h-[11rem] flex-1 flex-col rounded-xl p-3 lg:min-h-0">
             <h2 className="produccion-section-title mb-2 flex shrink-0 items-center gap-2 text-xs font-bold">
@@ -486,9 +530,9 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
           </p>
         </div>
 
-        <div className="produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-4 pt-3.5 lg:col-span-8 lg:h-full">
+        <div className="gerencial-page__main produccion-page__main produccion-surface produccion-surface--panel flex min-h-0 flex-col overflow-hidden rounded-xl p-3 pt-2.5 lg:col-span-8 lg:h-full lg:p-4 lg:pt-3.5">
 
-          <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 snap-x w-full">
+          <div className="produccion-page__day-tabs mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto pb-2 pt-0.5 snap-x w-full lg:mb-4 lg:gap-2.5 lg:pb-3">
             {diasConRegistros.length === 0 && (
               <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
             )}
@@ -514,7 +558,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                   key={dia.fecha}
                   type="button"
                   onClick={() => setSelectedDate(dia.fecha)}
-                  className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
+                  className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
                 >
                   <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
                   <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>
@@ -626,15 +670,60 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
             </div>
           </div>
         </div>
+
+        <GerencialMobileChartFold title="Oro recuperado (g)" icon={LineChart}>
+          <div className="relative h-36 w-full">
+            {diariaChart.length === 0 ? (
+              <p className="produccion-muted flex h-full items-center justify-center text-center text-xs italic">
+                Sin datos para graficar
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={diariaChart} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="quemadoOroGradientMobile" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#b45309" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis
+                    dataKey="fecha"
+                    tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 8 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(val) => {
+                      const d = new Date(val + 'T12:00:00');
+                      return `${d.getDate()}/${d.getMonth() + 1}`;
+                    }}
+                  />
+                  <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 8 }} tickLine={false} axisLine={false} allowDecimals />
+                  <RechartsTooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(245,158,11,0.45)', strokeWidth: 1 }} />
+                  <Area
+                    type="monotone"
+                    dataKey="oro"
+                    name="Oro (g)"
+                    stroke="#fbbf24"
+                    strokeWidth={2}
+                    fill="url(#quemadoOroGradientMobile)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </GerencialMobileChartFold>
       </div>
 
-      <PageFormModal open={showModal} onClose={() => { setShowModal(false); setFormError(null); }} panelClassName="quemado-page__modal sm:max-w-[72rem] sm:p-5">
-        <div className="mb-4 -mt-1 flex justify-center sm:hidden">
-          <div className="h-1 w-8 rounded-full bg-[var(--dashboard-border)]" />
-        </div>
-        <div className="mb-6 flex items-center justify-between">
+      <PageFormModal
+        open={showModal}
+        onClose={() => { setShowModal(false); setFormError(null); }}
+        sheetTitle={editItem ? 'Editar Quemado' : 'Nuevo Quemado'}
+        sheetIcon={<SheetIconBadge icon={Flame} tone="warn" />}
+        panelClassName="quemado-page__modal sm:max-w-[72rem] sm:p-5"
+      >
+        <div className="mb-6 hidden items-center justify-between lg:flex">
           <h2 className="page-form-modal-title flex items-center gap-2 text-lg font-semibold">
-            <Flame className="h-5 w-5 text-orange-400" /> {editItem ? 'Editar Quemado' : 'Nuevo Quemado'}
+            <Flame className="h-5 w-5 mineos-icon-general" /> {editItem ? 'Editar Quemado' : 'Nuevo Quemado'}
           </h2>
           <button
             type="button"
@@ -655,9 +744,9 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
         <div className="voladuras-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
-              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-amber-400">
+              <h3 className={mineosModalHeading('general')}>
                 <span>📍 Identificación</span>
-                <span className="h-px flex-1 bg-amber-400/20" />
+                <span className={mineosModalDivider('general')} />
               </h3>
               <div>
                 <label className="input-label">Fecha *</label>
@@ -684,15 +773,15 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
 
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
-              <h3 className="produccion-page__modal-col-title flex items-center justify-between gap-2 text-sm font-semibold text-orange-400">
+              <h3 className={`${mineosModalHeading('general')} justify-between`}>
                 <div className="flex items-center gap-2">
                   <span>🥞 Planchas</span>
-                  <span className="h-px w-8 bg-orange-400/20" />
+                  <span className={`${mineosModalDivider('general')} !flex-none w-8`} />
                 </div>
                 <button
                   type="button"
                   onClick={addPlancha}
-                  className="flex items-center gap-1.5 rounded-lg border border-orange-400/20 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/20"
+                  className={mineosBtnSubtleClass('general')}
                 >
                   <Plus className="h-3.5 w-3.5" /> Agregar
                 </button>
@@ -718,7 +807,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                         <input type="number" step="0.01" value={p.amalgama_g} onChange={(e) => updatePlancha(i, 'amalgama_g', e.target.value)} className="input-field min-h-[36px]" placeholder="60.81" />
                       </div>
                       <div>
-                        <label className="input-label text-[10px] text-amber-400">Oro Recup.</label>
+                        <label className={mineosLabelAccent('benefit')}>Oro Recup.</label>
                         <input type="number" step="0.01" value={p.oro_recuperado_g} onChange={(e) => updatePlancha(i, 'oro_recuperado_g', e.target.value)} className="input-field min-h-[36px]" placeholder="24.62" />
                       </div>
                     </div>
@@ -730,13 +819,13 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
 
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
-              <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-blue-400">
+              <h3 className={mineosModalHeading('general')}>
                 <span>🔧 Manto y ⚗️ Retorta</span>
-                <span className="h-px flex-1 bg-blue-400/20" />
+                <span className={mineosModalDivider('general')} />
               </h3>
               <div className="app-detail-panel grid grid-cols-2 gap-3 rounded-xl p-3">
                 <div className="col-span-2">
-                  <span className="text-xs font-semibold text-blue-400">Manto. Área Raspado</span>
+                  <span className="mineos-icon-general text-xs font-semibold">Manto. Área Raspado</span>
                 </div>
                 <div>
                   <label className="input-label text-[10px]">Amalgama (g)</label>
@@ -749,16 +838,16 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
               </div>
 
               <div className="app-detail-panel rounded-xl p-3">
-                 <span className="text-xs font-semibold text-purple-400 mb-2 block">Retorta</span>
-                 <label className="input-label text-[10px] text-amber-400">Oro Recuperado (g Au)</label>
+                 <span className="mineos-icon-general mb-2 block text-xs font-semibold">Retorta</span>
+                 <label className={mineosLabelAccent('benefit')}>Oro Recuperado (g Au)</label>
                  <input type="number" step="0.01" value={form.retorta_oro_g} onChange={(e) => set('retorta_oro_g', e.target.value)} className="input-field min-h-[36px]" placeholder="0.33" />
               </div>
             </div>
 
-            <div className="mt-2 rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
+            <div className={`mt-2 ${mineosPanel('general')}`}>
               <div className="mb-2 flex items-center gap-2">
-                <Calculator className="h-3.5 w-3.5 text-amber-400" />
-                <span className="text-xs font-semibold text-amber-400">Totales (calculados)</span>
+                <Calculator className="h-3.5 w-3.5 mineos-icon-general" />
+                <span className="mineos-icon-general text-xs font-semibold">Totales (calculados)</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
@@ -769,13 +858,13 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                 </div>
                 <div className="border-x border-amber-400/10 text-center">
                   <p className="mb-0.5 text-[9px] uppercase tracking-wider text-white/40">Total Au</p>
-                  <p className="text-base font-bold text-amber-400">
+                  <p className="mineos-cell-benefit text-base font-bold">
                     {fmtN(formOro)} <span className="text-[10px]">g</span>
                   </p>
                 </div>
                 <div className="text-center">
                   <p className="mb-0.5 text-[9px] uppercase tracking-wider text-white/40">Merma</p>
-                  <p className="text-base font-bold text-orange-400">
+                  <p className="mineos-cell-expense text-base font-bold">
                     {formAmalgama > 0 ? `${(((formAmalgama - formOro) / formAmalgama) * 100).toFixed(1)}%` : '—'}
                   </p>
                 </div>

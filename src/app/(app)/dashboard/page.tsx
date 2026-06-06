@@ -4,6 +4,7 @@ import { buildDashboardAlerts } from '@/lib/dashboard-alerts';
 
 import { DashboardCommandSkeleton } from '@/components/dashboard/DashboardCommandSkeleton';
 import type { LocationData, GlobalData } from '@/components/dashboard/types';
+import DashboardMobileWrapper from './DashboardMobileWrapper';
 
 const SatelliteCommandClient = dynamic(
   () => import('@/components/dashboard/SatelliteCommandClient'),
@@ -271,6 +272,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       produccionMensual,
       oroTotalRecuperado,
       balancePlancha1,
+      balancesPlanchas:
+        balancePlancha1 > 0
+          ? [{ id: 'plancha-1', label: 'Balance Plancha 1', grams: balancePlancha1 }]
+          : [],
     };
 
     const accumMap = new Map<string, Accum>();
@@ -334,7 +339,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       origenes: Array.from(e.origenes).slice(0, 6),
     }));
 
-    return <SatelliteCommandClient locations={locations} globalData={globalData} />;
+    return <DashboardMobileWrapper locations={locations} globalData={globalData} />;
   } catch (err) {
     console.error('Dashboard error:', err);
     return (

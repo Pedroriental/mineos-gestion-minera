@@ -110,7 +110,7 @@ export const columns = (
     header: 'Tenor g/t',
     cell: ({ row }) => {
       const val = row.getValue('tenor_tonelada_gpt') as number | null;
-      return <span className="text-blue-400 font-medium">{val ? `${fmtNum(val)}` : '—'}</span>;
+      return <span className="mineos-cell-general font-medium">{val ? `${fmtNum(val)}` : '—'}</span>;
     },
   },
   {

@@ -11,7 +11,7 @@ export default async function ReportesPage() {
   const filterOptions = await fetchFilterOptions();
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+    <div className="reportes-balances-page flex min-h-0 w-full flex-1 flex-col overflow-hidden p-0">
       <ReportesClient initialOptions={filterOptions} />
     </div>
   );

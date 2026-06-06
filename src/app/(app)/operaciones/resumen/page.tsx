@@ -149,8 +149,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
   })();
 
   // ── 8 indicadores en rejilla 2×4 (incl. balance oro vs nómina total) ──
-  type KpiGlow =
-    | 'amber' | 'blue' | 'orange' | 'cyan' | 'emerald' | 'neutral' | 'violet' | 'lime' | 'red';
+  type KpiGlow = 'amber' | 'emerald' | 'neutral' | 'red';
 
   type KpiMetric = {
     icon: ReactNode;
@@ -162,35 +161,35 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
 
   const kpis: KpiMetric[] = [
     {
-      icon: <Gem className="h-3 w-3 text-amber-400" />,
+      icon: <Gem className="h-3 w-3 text-[var(--mineos-general-bright)]" />,
       label: 'Oro Recuperado',
       value: `${fmtNum(rent.oro_planta_g)} g`,
       sub: `≈ ${fmtNum(rent.prom_diario_g)} g/día`,
       glow: 'amber',
     },
     {
-      icon: <Factory className="h-3 w-3 text-blue-400" />,
+      icon: <Factory className="h-3 w-3 text-[var(--mineos-general-bright)]" />,
       label: 'Toneladas',
       value: `${fmtNum(rent.ton_procesadas)} t`,
       sub: `${fmtNum(rent.sacos_total)} sacos`,
-      glow: 'blue',
+      glow: 'amber',
     },
     {
-      icon: <Pickaxe className="h-3 w-3 text-orange-400" />,
+      icon: <Pickaxe className="h-3 w-3 text-[var(--mineos-general-bright)]" />,
       label: 'Quemado (real)',
       value: `${fmtNum(rent.oro_quemado_g, 4)} g`,
       sub: `Amalgama: ${fmtNum(rent.amalgama_total_g, 2)} g`,
-      glow: 'orange',
+      glow: 'amber',
     },
     {
-      icon: <Target className="h-3 w-3 text-cyan-400" />,
+      icon: <Target className="h-3 w-3 text-[var(--mineos-general-bright)]" />,
       label: 'Ley Cabeza',
       value: fmtNum(rent.ley_cabeza_gpt, 3),
       sub: 'g Au / t',
-      glow: 'cyan',
+      glow: 'amber',
     },
     {
-      icon: <DollarSign className="h-3 w-3 text-emerald-400" />,
+      icon: <DollarSign className="h-3 w-3 text-[var(--mineos-benefit)]" />,
       label: 'Ingreso Bruto',
       value: fmt(rent.ingreso_bruto_usd),
       sub: `Gastos: ${fmt(rent.gastos_total_usd)}`,
@@ -204,28 +203,33 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
       glow: 'neutral',
     },
     {
-      icon: <Users className="h-3 w-3 text-violet-400" />,
+      icon: <Users className="h-3 w-3 text-[var(--mineos-general-bright)]" />,
       label: 'Nómina Total',
       value: fmt(nominaTotalUsd),
       sub:
         semanasNomina > 0
           ? `Molino ${fmt(nominaPlantaUsd)} · Mina ${fmt(nominaMinaUsd)} · Admin ${fmt(nominaAdminUsd)}`
           : 'Sin nómina cerrada en el período',
-      glow: 'violet',
+      glow: 'amber',
     },
     {
-      icon: <ArrowLeftRight className="h-3 w-3 text-lime-400" />,
+      icon: <ArrowLeftRight className="h-3 w-3 text-[var(--mineos-benefit)]" />,
       label: 'Balance Au / Nómina',
       value: fmt(balanceTotalUsd),
       sub: `Oro ${fmt(valorOroPlantaUsd)} vs nómina · ${fmtNum(coberturaTotalPct, 0)}% · ${fmtNum(gramosPorMilNomina)} g/$1k`,
-      glow: balanceTotalUsd >= 0 ? 'lime' : 'red',
+      glow: balanceTotalUsd >= 0 ? 'emerald' : 'red',
     },
   ];
 
-  const bottomCards = [
+  const bottomCards: Array<{
+    title: string;
+    accent: 'amber' | 'emerald' | 'red';
+    href: string;
+    rows: { label: string; value: string | number }[];
+  }> = [
           {
             title:  'Producción Planta',
-            accent: '#10B981',
+            accent: 'emerald',
             href:   '/planta/produccion',
             rows: [
               { label: 'Turnos registrados', value: prodDiaria.reduce((s, d) => s + d.turnos, 0) },
@@ -236,7 +240,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           },
           {
             title:  'Quemada de Plancha',
-            accent: '#F59E0B',
+            accent: 'amber',
             href:   '/mina/quemado',
             rows: [
               { label: 'Au recuperado (real)', value: `${fmtNum(rent.oro_quemado_g, 4)} g` },
@@ -247,7 +251,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           },
           {
             title:  'Análisis de Costos',
-            accent: isProfitable ? '#10B981' : '#EF4444',
+            accent: isProfitable ? 'emerald' : 'red',
             href:   '/admin/gastos',
             rows: [
               { label: 'Gastos totales', value: fmt(rent.gastos_total_usd) },
@@ -324,26 +328,26 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
               </div>
 
               <div className="resumen-ejecutivo-page__precio-oro resumen-ejecutivo-page__precio-oro--accent flex shrink-0 flex-col justify-center border-t border-white/[0.06] px-3 py-2.5 sm:border-t-0 sm:px-4 sm:py-3">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-white/35">Precio Oro</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-white">Precio Oro</span>
                 <p className="text-base font-black leading-none text-amber-400 sm:text-lg">
                   {fmtFull(rent.precio_usd_gramo * 31.1)}
                   <span className="text-xs font-bold text-amber-400/80">/oz</span>
                 </p>
-                <p className="text-[10px] text-white/40 sm:text-xs">{fmtFull(rent.precio_usd_gramo)}/g</p>
+                <p className="text-[10px] text-white/55 sm:text-xs">{fmtFull(rent.precio_usd_gramo)}/g</p>
               </div>
             </div>
           </FadeIn>
 
           {/* Fila 2: KPIs (izq) | gráfico + gastos (der) */}
           <div className="resumen-ejecutivo-page__split min-h-0">
-            <StaggerGrid delay={0.2} className="resumen-ejecutivo-page__kpis grid h-full min-h-0 gap-1.5 sm:gap-2">
+            <StaggerGrid delay={0.2} className="resumen-ejecutivo-page__kpis grid h-full min-h-0">
               {kpis.map((metric, i) => (
                 <StaggerItem key={i} className="resumen-ejecutivo-page__kpi-item h-full min-h-0 min-w-0">
                   <div className="resumen-ejecutivo-page__kpi card-glass gerencial-kpi-card h-full min-h-0 min-w-0 rounded-lg p-2 sm:rounded-xl sm:p-2.5">
                     <div className={`gerencial-kpi-glow gerencial-kpi-glow--${metric.glow}`} aria-hidden />
                     <div className="resumen-ejecutivo-page__kpi-head relative flex items-center gap-1">
                       {metric.icon}
-                      <span className="truncate text-[8px] font-bold uppercase leading-tight tracking-widest text-white/35">
+                      <span className="truncate text-[8px] font-bold uppercase leading-tight tracking-widest text-white sm:text-[9px]">
                         {metric.label}
                       </span>
                     </div>
@@ -360,7 +364,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
 
             <FadeInSection delay={0.55} className="resumen-ejecutivo-page__charts-col min-h-0 h-full">
               <div className="resumen-ejecutivo-page__chart card-glass flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl p-3 sm:p-3.5">
-                <h3 className="mb-2 flex shrink-0 items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                <h3 className="mb-2 flex shrink-0 items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white">
                   <TrendingUp className="h-3.5 w-3.5 text-amber-400" /> Producción Diaria de Oro (g)
                 </h3>
                 <div className="min-h-0 flex-1 overflow-hidden">
@@ -371,7 +375,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
               </div>
 
               <div className="resumen-ejecutivo-page__gastos card-glass flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl p-3 sm:p-3.5">
-                <h3 className="mb-2 flex shrink-0 items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+                <h3 className="mb-2 flex shrink-0 items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white">
                   <DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Gastos por Categoría
                 </h3>
                 {gastosCat.length > 0 ? (
@@ -420,23 +424,16 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
 
         {/* Franja inferior: 3 tarjetas horizontales */}
         <StaggerGrid delay={0.75} className="resumen-ejecutivo-page__summary-row shrink-0">
-          {bottomCards.map((card) => {
-            const summaryAccent =
-              card.accent === '#F59E0B'
-                ? 'amber'
-                : card.accent === '#EF4444'
-                  ? 'red'
-                  : 'emerald';
-            return (
+          {bottomCards.map((card) => (
             <StaggerItem
               key={card.title}
-              className={`resumen-ejecutivo-page__summary-card resumen-ejecutivo-page__summary-card--${summaryAccent} card-glass group min-h-0 overflow-hidden rounded-xl p-0`}
+              className={`resumen-ejecutivo-page__summary-card resumen-ejecutivo-page__summary-card--${card.accent} card-glass group min-h-0 overflow-hidden rounded-xl p-0`}
             >
               <Link href={card.href} className="flex h-full min-h-0 flex-col justify-center p-3 transition-colors hover:bg-white/[0.02] sm:p-3.5">
                 <div className="mb-2 flex shrink-0 items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className={`resumen-ejecutivo-page__summary-accent resumen-ejecutivo-page__summary-accent--${summaryAccent} h-3.5 w-1 rounded-full`} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/45 transition-colors group-hover:text-white/70">
+                    <div className={`resumen-ejecutivo-page__summary-accent resumen-ejecutivo-page__summary-accent--${card.accent} h-3.5 w-1 rounded-full`} />
+                    <span className="resumen-ejecutivo-page__summary-title text-[10px] font-bold uppercase tracking-widest text-white transition-colors group-hover:text-white">
                       {card.title}
                     </span>
                   </div>
@@ -452,8 +449,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
                 </div>
               </Link>
             </StaggerItem>
-            );
-          })}
+          ))}
         </StaggerGrid>
       </div>
       </ResumenViewportShell>

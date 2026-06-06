@@ -17,10 +17,9 @@ import {
   applyNominaDivisionPorcentaje,
   createNominaDivision,
   divisionesToDistribucion,
-  formatNominaDivisionLabel,
+  isAutoNominaDivisionNombre,
   rebalanceNominaDivisionesIgual,
-  syncNominaDivisionNombre,
-  sumNominaDivisionesPct,
+  resolveNominaDivisionNombre,
   validateNominaDivisiones,
   type NominaDivisionParam,
 } from '@/lib/nomina/divisiones';
@@ -63,9 +62,11 @@ export function useNominaDivisionesConfig(totalNomina = 0) {
 
   const divisiones: NominaDivisionParam[] = useMemo(
     () =>
-      partes.map((p) =>
-        syncNominaDivisionNombre({ id: p.id, nombre: p.nombre, porcentaje: p.porcentaje }),
-      ),
+      partes.map((p) => ({
+        id: p.id,
+        nombre: resolveNominaDivisionNombre(p.porcentaje, p.nombre),
+        porcentaje: p.porcentaje,
+      })),
     [partes],
   );
 
@@ -90,7 +91,11 @@ export function useNominaDivisionesConfig(totalNomina = 0) {
         const old = prev.find((p) => p.id === d.id);
         return {
           id: d.id,
-          nombre: formatNominaDivisionLabel(d.porcentaje),
+          nombre: old
+            ? isAutoNominaDivisionNombre(old.nombre, old.porcentaje)
+              ? resolveNominaDivisionNombre(d.porcentaje, d.nombre)
+              : old.nombre
+            : resolveNominaDivisionNombre(d.porcentaje, d.nombre),
           porcentaje: d.porcentaje,
           pagoDirecto: old?.pagoDirecto ?? 0,
         };

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { Plus, X, Loader2, Edit2 } from 'lucide-react';
+import { Plus, X, Loader2, Edit2, PackageOpen } from 'lucide-react';
+import { SheetIconBadge } from '@/components/mobile';
 import type { RecepcionMaterial } from '@/lib/types';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
@@ -164,8 +165,14 @@ export default function RecepcionPage() {
         </>
       )}
 
-      <PageFormModal open={showModal} onClose={() => setShowModal(false)} panelClassName="sm:max-w-2xl">
-            <div className="flex items-center justify-between mb-6">
+      <PageFormModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        sheetTitle={editItem ? 'Editar Recepción' : 'Nueva Recepción'}
+        sheetIcon={<SheetIconBadge icon={PackageOpen} tone="accent" />}
+        panelClassName="sm:max-w-2xl"
+      >
+            <div className="mb-6 hidden items-center justify-between lg:flex">
               <h2 className="page-form-modal-title text-xl font-bold tracking-tight">{editItem ? 'Editar Recepción' : 'Nueva Recepción'}</h2>
               <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"><X className="w-5 h-5" /></button>
             </div>

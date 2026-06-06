@@ -201,8 +201,8 @@ export function BibliotecaVariableFormFields({
               placeholder="días"
             />
           </Field>
-          <div className="sm:col-span-2 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-violet-300/90">
+          <div className="sm:col-span-2 mineos-panel mineos-panel--general rounded-lg p-3">
+            <p className="mineos-plat-accent mb-2 text-[11px] font-bold uppercase tracking-wide opacity-90">
               Ámbito en nómina
             </p>
             <div className="flex flex-wrap gap-2">
@@ -240,8 +240,8 @@ export function BibliotecaVariableFormFields({
 
     case 'work_location':
       return (
-        <div className="sm:col-span-2 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-violet-300/90">
+        <div className="sm:col-span-2 mineos-panel mineos-panel--general rounded-lg p-3">
+          <p className="mineos-plat-accent mb-2 text-[11px] font-bold uppercase tracking-wide opacity-90">
             Ámbito en nómina
           </p>
           <div className="flex flex-wrap gap-2">

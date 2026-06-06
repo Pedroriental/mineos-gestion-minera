@@ -40,7 +40,7 @@ export const bitacoraColumns: ColumnDef<BitacoraEntry>[] = [
     accessorKey: 'hora',
     header: 'Hora',
     cell: ({ getValue }) => (
-      <span className="whitespace-nowrap font-medium text-blue-600">{getValue() as string}</span>
+      <span className="mineos-cell-general whitespace-nowrap font-medium">{getValue() as string}</span>
     ),
   },
   {

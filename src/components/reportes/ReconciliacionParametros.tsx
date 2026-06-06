@@ -11,6 +11,7 @@ import { metaForPeriod, periodCalendarDays } from '@/lib/reconciliation/projecti
 import type { ReconciliationRawInputs } from '@/lib/reconciliation/types';
 import type { NominaDivisionParam } from '@/lib/reconciliation/nomina-divisiones';
 import { ReconciliacionNominaDivisiones } from '@/components/reportes/ReconciliacionNominaDivisiones';
+import { AppSelect } from '@/components/ui/AppSelect';
 import { cn } from '@/lib/utils';
 
 type FieldDef = {
@@ -181,17 +182,11 @@ export function ReconciliacionParametros({
               <label key={f.key} className="block min-w-0" title={f.title}>
                 <span className="mb-1 block text-[11px] text-zinc-400">{f.label}</span>
                 {f.type === 'select' ? (
-                  <select
+                  <AppSelect
                     value={form[f.key] as string}
-                    onChange={(e) => update(f.key, e.target.value)}
-                    className={cn(inputClass, 'cursor-pointer')}
-                  >
-                    {f.options?.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => update(f.key, v)}
+                    options={f.options ?? []}
+                  />
                 ) : (
                   <input
                     type="number"
