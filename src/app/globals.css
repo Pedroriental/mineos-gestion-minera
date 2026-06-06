@@ -7958,11 +7958,12 @@ input, textarea, select {
 }
 
 .mobile-shell .resumen-ejecutivo-page {
-  padding-inline: var(--ms-pad-x);
+  padding-inline: 0;
   padding-bottom: 0.75rem;
   max-width: 100%;
   min-width: 0;
   overflow-x: clip;
+  box-sizing: border-box;
 }
 
 .mobile-shell .resumen-ejecutivo-page__viewport-host,
@@ -7988,10 +7989,23 @@ input, textarea, select {
 }
 
 .mobile-shell .resumen-ejecutivo-page__kpis {
+  --resumen-kpi-gap: 0.5rem;
   height: auto !important;
   grid-template-rows: none !important;
   grid-auto-rows: auto;
+  grid-template-columns: repeat(2, minmax(0, calc(50% - var(--resumen-kpi-gap) / 2)));
+  gap: var(--resumen-kpi-gap);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.mobile-shell .resumen-ejecutivo-page__summary-row {
   gap: 0.625rem;
+  margin-top: 0.25rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .mobile-shell .resumen-ejecutivo-page__kpi-item,
@@ -8001,8 +8015,10 @@ input, textarea, select {
 }
 
 .mobile-shell .resumen-ejecutivo-page__kpi {
-  min-height: 4.75rem;
-  padding: 0.75rem !important;
+  min-height: 4.625rem;
+  padding: 0.625rem 0.5rem !important;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .mobile-shell .resumen-ejecutivo-page__kpi-head span {
@@ -8065,11 +8081,7 @@ input, textarea, select {
 .mobile-shell .resumen-ejecutivo-page__kpis {
   max-width: 100%;
   min-width: 0;
-}
-
-.mobile-shell .resumen-ejecutivo-page__summary-row {
-  gap: 0.75rem;
-  margin-top: 0.25rem;
+  box-sizing: border-box;
 }
 
 .mobile-shell .resumen-ejecutivo-page__ganancia {

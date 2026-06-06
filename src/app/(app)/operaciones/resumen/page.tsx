@@ -340,7 +340,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
 
           {/* Fila 2: KPIs (izq) | gráfico + gastos (der) */}
           <div className="resumen-ejecutivo-page__split min-h-0">
-            <StaggerGrid delay={0.2} className="resumen-ejecutivo-page__kpis grid h-full min-h-0 gap-1.5 sm:gap-2">
+            <StaggerGrid delay={0.2} className="resumen-ejecutivo-page__kpis grid h-full min-h-0">
               {kpis.map((metric, i) => (
                 <StaggerItem key={i} className="resumen-ejecutivo-page__kpi-item h-full min-h-0 min-w-0">
                   <div className="resumen-ejecutivo-page__kpi card-glass gerencial-kpi-card h-full min-h-0 min-w-0 rounded-lg p-2 sm:rounded-xl sm:p-2.5">
