@@ -48,14 +48,17 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
   }
 
   const data = parsed.data;
+  let validatedTurno = data.turno;
+  let validatedMina = data.mina;
+  let validatedVertical = data.vertical_disparo;
 
   try {
-    await assertBibliotecaValue('turnos', data.turno, 'Turno');
+    validatedTurno = await assertBibliotecaValue('turnos', data.turno, 'Turno');
     if (data.vertical_disparo) {
-      await assertBibliotecaValue('verticales_voladura', data.vertical_disparo, 'Vertical');
+      validatedVertical = await assertBibliotecaValue('verticales_voladura', data.vertical_disparo, 'Vertical');
     }
     if (data.mina) {
-      await assertBibliotecaValue('minas', data.mina, 'Mina');
+      validatedMina = await assertBibliotecaValue('minas', data.mina, 'Mina');
     }
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : 'Valor no permitido en biblioteca.' };
@@ -65,8 +68,8 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
   const supabase = await createServerClient();
   const { error } = await supabase.from('reportes_voladuras').insert({
     fecha:                 data.fecha,
-    turno:                 data.turno,
-    mina:                  data.mina                  ?? null,
+    turno:                 validatedTurno,
+    mina:                  validatedMina                  ?? null,
     frente:                'Vertical',
     orientacion:           'vertical',
     numero_frente:         null,
@@ -75,7 +78,7 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
     hora_fin_barrenado:    data.hora_fin_barrenado      ?? null,
     numero_disparo:        data.numero_disparo          ?? null,
     hora_disparo:          data.hora_disparo            ?? null,
-    vertical_disparo:      data.vertical_disparo        ?? null,
+    vertical_disparo:      validatedVertical            ?? null,
     sin_novedad:           data.sin_novedad,
     huecos_cantidad:       data.huecos_cantidad,
     huecos_pies:           data.huecos_pies,
@@ -116,19 +119,35 @@ export async function updateVoladura(raw: unknown): Promise<ActionResult> {
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
 
+  let validatedTurno = rest.turno;
+  let validatedMina = rest.mina;
+  let validatedVertical = rest.vertical_disparo;
+
+  try {
+    validatedTurno = await assertBibliotecaValue('turnos', rest.turno, 'Turno');
+    if (rest.vertical_disparo) {
+      validatedVertical = await assertBibliotecaValue('verticales_voladura', rest.vertical_disparo, 'Vertical');
+    }
+    if (rest.mina) {
+      validatedMina = await assertBibliotecaValue('minas', rest.mina, 'Mina');
+    }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : 'Valor no permitido en biblioteca.' };
+  }
+
   const supabase = await createServerClient();
   const { error } = await supabase
     .from('reportes_voladuras')
     .update({
       fecha:                 rest.fecha,
-      turno:                 rest.turno,
-      mina:                  rest.mina                  ?? null,
+      turno:                 validatedTurno,
+      mina:                  validatedMina                  ?? null,
       responsable:           rest.responsable            ?? null,
       hora_inicio_barrenado: rest.hora_inicio_barrenado  ?? null,
       hora_fin_barrenado:    rest.hora_fin_barrenado      ?? null,
       numero_disparo:        rest.numero_disparo          ?? null,
       hora_disparo:          rest.hora_disparo            ?? null,
-      vertical_disparo:      rest.vertical_disparo        ?? null,
+      vertical_disparo:      validatedVertical            ?? null,
       sin_novedad:           rest.sin_novedad,
       huecos_cantidad:       rest.huecos_cantidad,
       huecos_pies:           rest.huecos_pies,

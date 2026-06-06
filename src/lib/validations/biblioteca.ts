@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { BibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { getBibliotecaValues, loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
+import { normalizeString } from '@/lib/reports/report-engine';
 
 const BibliotecaModuloEnum = z.enum(
   ['general', 'nomina', 'mina', 'planta', 'operaciones', 'admin'],
@@ -52,11 +53,16 @@ export async function assertBibliotecaValue(
   value: string,
   label: string,
   snapshot?: BibliotecaAppSnapshot,
-): Promise<void> {
+): Promise<string> {
   const snap = snapshot ?? (await loadBibliotecaAppSnapshot());
   const allowed = getBibliotecaValues(snap, slug);
-  if (!allowed.length) return;
-  if (!allowed.includes(value)) {
+  if (!allowed.length) return value;
+  
+  const normalizedValue = normalizeString(value);
+  const matched = allowed.find(allow => normalizeString(allow) === normalizedValue);
+  
+  if (!matched) {
     throw new Error(`${label} no válido. Valores permitidos: ${allowed.join(', ')}`);
   }
+  return matched;
 }

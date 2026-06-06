@@ -6,6 +6,7 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { createVoladura, updateVoladura, deleteVoladura } from '@/lib/actions/voladuras';
 import type { ReporteVoladura, PausaBarrenado } from '@/lib/types';
 import { downloadVoladurasPDF } from '@/lib/pdf-reports';
+import { toast } from 'sonner';
 import {
   Loader2, Plus, X, ChevronLeft, ChevronRight, Flame, Target, Package, AlertTriangle, Download, Search, Zap, LineChart, Scale,
 } from 'lucide-react';
@@ -304,15 +305,19 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
         registrado_por: user?.id,
       };
 
-      if (editItem) {
-        await updateVoladura({ ...payload, id: editItem.id });
+      const res = editItem
+        ? await updateVoladura({ ...payload, id: editItem.id })
+        : await createVoladura(payload);
+
+      if (res.ok) {
+        toast.success(res.message);
+        setShowModal(false);
+        setEditItem(null);
+        setForm({ ...emptyForm, fecha: selectedDate });
+        setPausas([]);
       } else {
-        await createVoladura(payload);
+        toast.error(res.message || 'Error al guardar el reporte');
       }
-      setShowModal(false);
-      setEditItem(null);
-      setForm({ ...emptyForm, fecha: selectedDate });
-      setPausas([]);
     });
   };
 
@@ -323,7 +328,12 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
       variant: 'danger'
     }))) return;
     startTransition(async () => {
-      await deleteVoladura(id);
+      const res = await deleteVoladura(id);
+      if (res.ok) {
+        toast.success(res.message);
+      } else {
+        toast.error(res.message || 'Error al eliminar el reporte');
+      }
     });
   };
 
