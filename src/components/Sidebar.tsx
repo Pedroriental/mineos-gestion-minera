@@ -543,15 +543,17 @@ export default function Sidebar({
           <button
             type="button"
             onClick={() => onExpandedChange?.(!isExpanded)}
+            aria-label={isExpanded ? 'Plegar menú' : 'Expandir menú'}
             className={cn(
               'rounded-lg transition-all duration-150',
               isExpanded
-                ? 'p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]'
+                ? 'flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]'
                 : 'p-2 text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]',
             )}
-            title={isExpanded ? 'Colapsar menú' : 'Expandir menú'}
+            title={isExpanded ? 'Plegar menú' : 'Expandir menú'}
           >
-            {isExpanded ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+            {isExpanded ? <PanelLeftClose className="h-4 w-4 shrink-0" /> : <PanelLeft className="h-4 w-4" />}
+            {isExpanded ? <span className="truncate">Plegar menú</span> : null}
           </button>
         </div>
       </aside>
