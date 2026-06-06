@@ -72,7 +72,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
     return dates[0] ?? new Date().toISOString().split('T')[0];
   }, [initialData]);
 
-  const [selectedDate, setSelectedDate] = useState(defaultDate);
+  const [selectedDate, setSelectedDate] = useState('todos');
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: QUEMADO_PAGE_MAX });
@@ -85,7 +85,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   const confirmDialog = useConfirm();
 
   const emptyForm = {
-    fecha: selectedDate,
+    fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate,
     turno: 'dia' as ReporteQuemado['turno'],
     numero_quemada: '',
     manto_amalgama_g: '',
@@ -107,15 +107,17 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   }, [initialData]);
 
   useEffect(() => {
-    if (diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
-      setSelectedDate(diasConRegistros[0].fecha);
+    if (selectedDate !== 'todos' && diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+      setSelectedDate('todos');
     }
   }, [diasConRegistros, initialData, selectedDate]);
 
-  const dataForSelectedDate = useMemo(
-    () => initialData.filter((d) => d.fecha === selectedDate),
-    [initialData, selectedDate],
-  );
+  const dataForSelectedDate = useMemo(() => {
+    if (selectedDate === 'todos') {
+      return initialData;
+    }
+    return initialData.filter((d) => d.fecha === selectedDate);
+  }, [initialData, selectedDate]);
 
   const openEdit = (item: ReporteQuemado) => {
     setEditItem(item);
@@ -241,7 +243,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
 
   const openNew = () => {
     setEditItem(null);
-    setForm({ ...emptyForm, fecha: selectedDate });
+    setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
     setPlanchas([emptyPlancha()]);
     setFormError(null);
     setShowModal(true);
@@ -284,7 +286,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
       } else {
         setShowModal(false);
         setEditItem(null);
-        setForm({ ...emptyForm, fecha: selectedDate });
+        setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
         setPlanchas([emptyPlancha()]);
       }
     });
@@ -489,6 +491,20 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
           <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 snap-x w-full">
             {diasConRegistros.length === 0 && (
               <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
+            )}
+            {diasConRegistros.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate('todos')}
+                className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${
+                  selectedDate === 'todos' ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''
+                }`}
+              >
+                <span>Todos los días</span>
+                <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${selectedDate === 'todos' ? 'bg-black/20 text-black' : ''}`}>
+                  {initialData.length}
+                </span>
+              </button>
             )}
             {diasConRegistros.map((dia) => {
               const d = new Date(dia.fecha + 'T12:00:00');

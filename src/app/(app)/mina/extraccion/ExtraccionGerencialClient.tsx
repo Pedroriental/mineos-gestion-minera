@@ -85,7 +85,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   });
   const minaOptions = useBibliotecaOptions('minas');
 
-  const [selectedDate, setSelectedDate] = useState(selectedDateStr);
+  const [selectedDate, setSelectedDate] = useState('todos');
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: EXTRACCION_PAGE_MAX });
@@ -104,7 +104,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   const initialData = data.registros;
 
   const emptyForm = {
-    fecha: selectedDate,
+    fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate,
     turno: 'noche' as ReporteExtraccion['turno'],
     vertical: '',
     mina: '',
@@ -126,13 +126,18 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   }, [data.diaria, initialData]);
 
   useEffect(() => {
-    if (diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
-      setSelectedDate(diasConRegistros[0].fecha);
+    if (selectedDate !== 'todos' && diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+      setSelectedDate('todos');
     }
   }, [diasConRegistros, initialData, selectedDate]);
 
   // 2. Filtrado para Vista Diaria (Tabla)
-  const filteredRegistros = useMemo(() => initialData.filter(d => d.fecha === selectedDate), [initialData, selectedDate]);
+  const filteredRegistros = useMemo(() => {
+    if (selectedDate === 'todos') {
+      return initialData;
+    }
+    return initialData.filter(d => d.fecha === selectedDate);
+  }, [initialData, selectedDate]);
 
   // 3. Cálculo de Mini KPIs Diarios
   const diaSacos = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.sacos_extraidos) || 0), 0);
@@ -321,7 +326,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
   const openNew = () => {
     setEditItem(null);
-    setForm({ ...emptyForm, fecha: selectedDate });
+    setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
     setEventos([]);
     setFormError(null);
     setShowModal(true);
@@ -381,7 +386,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
       } else {
         setShowModal(false);
         setEditItem(null);
-        setForm({ ...emptyForm, fecha: selectedDate });
+        setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
         setEventos([]);
       }
     });
@@ -603,6 +608,20 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                {diasConRegistros.length === 0 && (
                   <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
                )}
+               {diasConRegistros.length > 0 && (
+                 <button
+                   type="button"
+                   onClick={() => setSelectedDate('todos')}
+                   className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${
+                     selectedDate === 'todos' ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''
+                   }`}
+                 >
+                   <span>Todos los días</span>
+                   <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${selectedDate === 'todos' ? 'bg-black/20 text-black' : ''}`}>
+                     {initialData.length}
+                   </span>
+                 </button>
+               )}
                {diasConRegistros.map((dia) => {
                  const d = new Date(dia.fecha + 'T12:00:00');
                  const isSelected = selectedDate === dia.fecha;
@@ -623,11 +642,15 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
             <div className="produccion-page__day-kpis mb-4 grid shrink-0 grid-cols-3 gap-3">
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
-                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Sacos Día</span>
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">
+                   {selectedDate === 'todos' ? 'Sacos Totales' : 'Sacos Día'}
+                 </span>
                  <span className="text-sm font-bold leading-tight text-amber-500">{fmtNum(diaSacos)}</span>
               </div>
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
-                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Disparos Día</span>
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">
+                   {selectedDate === 'todos' ? 'Disparos Totales' : 'Disparos Día'}
+                 </span>
                  <span className="text-sm font-bold leading-tight text-blue-400">{diaDisparos}</span>
               </div>
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">

@@ -103,7 +103,7 @@ export default function ProduccionGerencialClient({
   const molinoSelectOptions = useBibliotecaOptions('molinos');
 
   // For the Form
-  const [selectedDate, setSelectedDate] = useState(selectedDateStr);
+  const [selectedDate, setSelectedDate] = useState('todos');
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: PRODUCCION_PAGE_MAX });
@@ -120,7 +120,7 @@ export default function ProduccionGerencialClient({
   const initialData = data.registros;
 
   const emptyForm = {
-    fecha: selectedDate,
+    fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate,
     turno: 'dia' as ReporteProduccion['turno'],
     molino: '',
     material: '',
@@ -151,13 +151,18 @@ export default function ProduccionGerencialClient({
 
   // Si el día seleccionado no tiene registros, usar el más reciente
   useEffect(() => {
-     if (diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
-        setSelectedDate(diasConRegistros[0].fecha);
+     if (selectedDate !== 'todos' && diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+        setSelectedDate('todos');
      }
   }, [diasConRegistros, initialData, selectedDate]);
 
   // 2. Filtrado para Vista Diaria (Tabla)
-  const filteredRegistros = useMemo(() => initialData.filter(d => d.fecha === selectedDate), [initialData, selectedDate]);
+  const filteredRegistros = useMemo(() => {
+    if (selectedDate === 'todos') {
+      return initialData;
+    }
+    return initialData.filter(d => d.fecha === selectedDate);
+  }, [initialData, selectedDate]);
 
   // 3. Cálculo de Mini KPIs para el Día Seleccionado
   const diaOro = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.oro_recuperado_g) || 0), 0);
@@ -226,7 +231,7 @@ export default function ProduccionGerencialClient({
       } else {
         setShowModal(false);
         setEditItem(null);
-        setForm({ ...emptyForm, fecha: selectedDate });
+        setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
       }
     });
   };
@@ -500,7 +505,7 @@ export default function ProduccionGerencialClient({
               <button
                 onClick={() => {
                   setEditItem(null);
-                  setForm({ ...emptyForm, fecha: selectedDate });
+                  setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
                   setFormError(null);
                   setShowModal(true);
                 }}
@@ -626,6 +631,20 @@ export default function ProduccionGerencialClient({
             
             {/* 1. Selector de Días (más reciente → más antiguo) */}
             <div className="produccion-page__day-tabs mb-4 flex shrink-0 items-center gap-2.5 overflow-x-auto pb-3 pt-0.5 snap-x w-full">
+               {diasConRegistros.length > 0 && (
+                 <button
+                   type="button"
+                   onClick={() => setSelectedDate('todos')}
+                   className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${
+                     selectedDate === 'todos' ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''
+                   }`}
+                 >
+                   <span>Todos los días</span>
+                   <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${selectedDate === 'todos' ? 'bg-black/20 text-black' : ''}`}>
+                     {initialData.length}
+                   </span>
+                 </button>
+               )}
                {diasConRegistros.length === 0 && (
                   <div className="produccion-muted text-xs italic">No hay registros en este período.</div>
                )}
@@ -650,15 +669,21 @@ export default function ProduccionGerencialClient({
             {/* 2. Mini KPIs del día */}
             <div className="produccion-page__day-kpis mb-4 grid shrink-0 grid-cols-4 gap-3">
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
-                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Oro Día</span>
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">
+                   {selectedDate === 'todos' ? 'Oro Total' : 'Oro Día'}
+                 </span>
                  <span className="text-sm font-bold leading-tight text-amber-500">{fmtNum(diaOro)}</span>
               </div>
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
-                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Sacos Día</span>
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">
+                   {selectedDate === 'todos' ? 'Sacos Totales' : 'Sacos Día'}
+                 </span>
                  <span className="produccion-kpi-value text-sm font-bold leading-tight">{fmtNum(diaSacos)}</span>
               </div>
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
-                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">Ton. Día</span>
+                 <span className="produccion-kpi-label block text-[8px] font-bold uppercase leading-tight">
+                   {selectedDate === 'todos' ? 'Ton. Totales' : 'Ton. Día'}
+                 </span>
                  <span className="produccion-kpi-value text-sm font-bold leading-tight">{fmtNum(diaToneladas)}</span>
               </div>
               <div className="produccion-page__day-kpi produccion-surface produccion-surface--compact rounded-lg px-2 py-1.5">
