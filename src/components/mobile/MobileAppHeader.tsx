@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { BellRing, Menu, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MineosLogo } from '@/components/brand/MineosLogo';
@@ -11,6 +12,7 @@ type MobileAppHeaderProps = {
   alertCount?: number;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  headerAction?: ReactNode;
 };
 
 export function MobileAppHeader({
@@ -20,6 +22,7 @@ export function MobileAppHeader({
   alertCount = 0,
   theme,
   onToggleTheme,
+  headerAction,
 }: MobileAppHeaderProps) {
   return (
     <header className="mobile-shell__header shrink-0">
@@ -37,7 +40,8 @@ export function MobileAppHeader({
           <MineosLogo variant="logotipo" className="mobile-shell__logo" alt="MineOS" />
         </div>
 
-        <div className="mobile-shell__header-actions flex items-center justify-end">
+        <div className="mobile-shell__header-actions flex min-w-0 items-center justify-end">
+          {headerAction}
           <button
             type="button"
             onClick={onToggleTheme}

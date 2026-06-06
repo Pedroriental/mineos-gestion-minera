@@ -195,6 +195,13 @@ export default function AppLayoutClient({
               alertCount={alerts.length}
               theme={theme}
               onToggleTheme={toggleTheme}
+              headerAction={
+                !pathname.startsWith('/admin/gastos') ? (
+                  <Suspense fallback={<div className="mobile-shell__header-date mobile-shell__header-date--skeleton" aria-hidden />}>
+                    <GlobalDateRangePicker variant="mobile" />
+                  </Suspense>
+                ) : null
+              }
             />
           }
         >
