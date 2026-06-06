@@ -27,7 +27,7 @@ export function MobileRouteContent({
   const isDashboard = pathname === '/dashboard' || pathname?.startsWith('/dashboard/');
   const isReportes = pathname?.startsWith('/reportes-balances');
   const isResumen = pathname?.startsWith('/operaciones/resumen');
-  const isHotbarPrimary = isDashboard || isReportes || isResumen;
+  const isHotbarPrimary = isDashboard || isReportes;
   const showLead = sectionMeta && !hideSectionLead && !isHotbarPrimary;
   const contentFlush = flush && !showLead;
 

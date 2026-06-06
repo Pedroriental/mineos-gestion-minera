@@ -8007,6 +8007,15 @@ input, textarea, select {
 
 .mobile-shell .resumen-ejecutivo-page__kpi-head span {
   font-size: 0.5625rem !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.mobile-shell .resumen-ejecutivo-page__hero-head h2,
+.mobile-shell .resumen-ejecutivo-page__chart h3,
+.mobile-shell .resumen-ejecutivo-page__gastos h3,
+.mobile-shell .resumen-ejecutivo-page__precio-oro > span:first-child,
+.mobile-shell .resumen-ejecutivo-page__summary-title {
+  color: rgba(255, 255, 255, 0.95) !important;
 }
 
 .mobile-shell .resumen-ejecutivo-page__kpi-value {
