@@ -55,11 +55,27 @@ const turnoLabel = (t: string) =>
 
 const fmtTime = (t?: string | null) => (t ? t.slice(0, 5) : '—');
 
+const fmtDate = (fecha?: string | null) => {
+  if (!fecha) return '—';
+  return new Date(fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
 export const columns = (
   onEdit: (item: ReporteExtraccion) => void,
   onDelete: (id: string) => void,
   canEdit: boolean
 ): ColumnDef<ReporteExtraccion>[] => [
+  {
+    accessorKey: 'fecha',
+    header: 'Fecha',
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap font-medium text-white/70">{fmtDate(row.original.fecha)}</span>
+    ),
+  },
   {
     accessorKey: 'turno',
     header: 'Turno',
