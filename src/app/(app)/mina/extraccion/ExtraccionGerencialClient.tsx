@@ -44,6 +44,7 @@ const EXTRACCION_PAGE_MAX = 12;
 const EXTRACCION_PAGE_BUTTONS_MAX = 5;
 const EXTRACCION_ROW_MIN_PX = 40;
 const EXTRACCION_HEAD_FALLBACK_PX = 40;
+const CHART_DAYS_MAX = 14;
 
 // ═══════════════════════════════════════════════════════════
 // CUSTOM TOOLTIP FOR RECHARTS
@@ -129,10 +130,19 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
   // 1. Días con registros (más reciente → más antiguo)
   const diasConRegistros = useMemo(() => {
-    return data.diaria
-      .filter((dia) => initialData.some((r) => r.fecha === dia.fecha))
+    const counts = new Map<string, number>();
+    for (const r of initialData) {
+      counts.set(r.fecha, (counts.get(r.fecha) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([fecha, count]) => ({ fecha, count }))
       .sort((a, b) => b.fecha.localeCompare(a.fecha));
-  }, [data.diaria, initialData]);
+  }, [initialData]);
+
+  const diariaChart = useMemo(
+    () => data.diaria.slice(-CHART_DAYS_MAX),
+    [data.diaria],
+  );
 
   useEffect(() => {
     if (selectedDate !== 'todos' && diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
@@ -152,13 +162,44 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   const diaSacos = filteredRegistros.reduce((acc, curr) => acc + (Number(curr.sacos_extraidos) || 0), 0);
   const diaDisparos = filteredRegistros.filter(d => d.numero_disparo).length;
 
+  const openEdit = useCallback((item: ReporteExtraccion) => {
+    setEditItem(item);
+    setEventos(item.eventos || []);
+    setForm({
+      fecha: item.fecha,
+      turno: item.turno,
+      vertical: item.vertical || '',
+      mina: item.mina || '',
+      responsable: item.responsable || '',
+      hora_inicio: item.hora_inicio || '',
+      hora_fin: item.hora_fin || '',
+      sacos_extraidos: String(item.sacos_extraidos ?? ''),
+      numero_disparo: item.numero_disparo || '',
+      observaciones: item.observaciones || '',
+    });
+    setFormError(null);
+    setShowModal(true);
+  }, []);
+
+  const handleDelete = useCallback(async (id: string) => {
+    if (!(await confirmDialog({
+      title: 'Eliminar reporte',
+      message: '¿Eliminar este reporte de extracción?',
+      variant: 'danger',
+    }))) return;
+    startTransition(async () => {
+      await deleteExtraccion(id);
+    });
+  }, [confirmDialog]);
+
+  const tableColumns = useMemo(
+    () => columns(openEdit, handleDelete, canEdit),
+    [openEdit, handleDelete, canEdit],
+  );
+
   const table = useReactTable({
     data: filteredRegistros,
-    columns: columns(
-      (item) => openEdit(item),
-      (id) => handleDelete(id),
-      canEdit
-    ),
+    columns: tableColumns,
     state: { sorting, globalFilter, pagination },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -208,6 +249,8 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   const colCount = table.getAllLeafColumns().length;
 
   const bitacoraEntries = useMemo(() => {
+    if (!showBitacoraModal) return [];
+
     const turnoLabel = (t: string) =>
       t === 'dia' ? 'Día' : t === 'noche' ? 'Noche' : 'Completo';
     const entries: BitacoraEntry[] = [];
@@ -233,7 +276,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
       if (byDate !== 0) return byDate;
       return b.hora.localeCompare(a.hora);
     });
-  }, [initialData]);
+  }, [initialData, showBitacoraModal]);
 
   const bitacoraTable = useReactTable({
     data: bitacoraEntries,
@@ -341,25 +384,6 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
     setShowModal(true);
   };
 
-  const openEdit = (item: ReporteExtraccion) => {
-    setEditItem(item);
-    setEventos(item.eventos || []);
-    setForm({
-      fecha: item.fecha,
-      turno: item.turno,
-      vertical: item.vertical || '',
-      mina: item.mina || '',
-      responsable: item.responsable || '',
-      hora_inicio: item.hora_inicio || '',
-      hora_fin: item.hora_fin || '',
-      sacos_extraidos: String(item.sacos_extraidos ?? ''),
-      numero_disparo: item.numero_disparo || '',
-      observaciones: item.observaciones || '',
-    });
-    setFormError(null);
-    setShowModal(true);
-  };
-
   const handleSave = () => {
     const sacosNum = parseInt(form.sacos_extraidos);
     if (isNaN(sacosNum) || sacosNum <= 0) {
@@ -401,17 +425,6 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
           setSelectedDate(form.fecha);
         }
       }
-    });
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!(await confirmDialog({
-      title: 'Eliminar reporte',
-      message: '¿Eliminar este reporte de extracción?',
-      variant: 'danger'
-    }))) return;
-    startTransition(async () => {
-      await deleteExtraccion(id);
     });
   };
 
@@ -617,7 +630,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                </h2>
                <div className="relative w-full flex-1">
                   <ResponsiveContainer width="100%" height="100%" className="absolute inset-0">
-                     <BarChart data={data.diaria} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
+                     <BarChart data={diariaChart} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                         <XAxis dataKey="fecha" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false}
                                tickFormatter={(val) => {
@@ -657,7 +670,6 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                {diasConRegistros.map((dia) => {
                  const d = new Date(dia.fecha + 'T12:00:00');
                  const isSelected = selectedDate === dia.fecha;
-                 const dRegs = initialData.filter(r => r.fecha === dia.fecha).length;
                  return (
                    <button
                      key={dia.fecha}
@@ -666,7 +678,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                      className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
                    >
                      <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
-                     <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>{dRegs}</span>
+                     <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>{dia.count}</span>
                    </button>
                  );
                })}
@@ -796,7 +808,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
          <GerencialMobileChartFold title="Sacos extraídos por día" icon={BarChart3}>
            <div className="relative h-36 w-full">
              <ResponsiveContainer width="100%" height="100%">
-               <BarChart data={data.diaria} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
+               <BarChart data={diariaChart} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                  <XAxis
                    dataKey="fecha"
