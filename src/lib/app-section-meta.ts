@@ -23,6 +23,7 @@ import {
   Zap,
   FileText,
   Receipt,
+  Truck,
 } from 'lucide-react';
 
 export type AppSectionMeta = {
@@ -140,10 +141,16 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     Icon: Factory,
     iconClassName: 'text-amber-500',
   },
+  '/planta/acarreo': {
+    title: 'Acarreo',
+    description: 'Informes de acarreo de material hacia molinos.',
+    Icon: Truck,
+    iconClassName: 'text-amber-400',
+  },
   '/planta/recepcion': {
-    title: 'Recepción',
-    description: 'Ingreso de material a planta.',
-    Icon: Layers,
+    title: 'Acarreo',
+    description: 'Informes de acarreo de material hacia molinos.',
+    Icon: Truck,
     iconClassName: 'text-amber-400',
   },
   '/planta/procesamiento': {

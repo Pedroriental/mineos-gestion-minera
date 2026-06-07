@@ -368,6 +368,27 @@ export interface RecepcionMaterial {
   updated_at: string;
 }
 
+export interface LineaAcarreo {
+  sacos: number;
+  vertical?: string;
+  disparo?: string;
+}
+
+export interface ReporteAcarreo {
+  id: string;
+  fecha: string;
+  turno: 'dia' | 'noche' | 'completo';
+  mina: string;
+  molino: string;
+  lineas: LineaAcarreo[];
+  carga_total: number;
+  sacos_libres: number;
+  observaciones?: string;
+  registrado_por?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProcesamientoPlanta {
   id: string;
   fecha: string;

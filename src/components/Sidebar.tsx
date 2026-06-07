@@ -19,6 +19,7 @@ import {
   FlaskConical,
   Flame,
   Layers,
+  Truck,
   BookOpen,
   ChevronDown,
   Database,
@@ -99,7 +100,7 @@ const navigation: NavSection[] = [
     title: 'Molino',
     items: [
       { label: 'Producción', href: '/planta/produccion', icon: <FlaskConical className="w-4 h-4" /> },
-      { label: 'Recepción', href: '/planta/recepcion', icon: <Layers className="w-4 h-4" /> },
+      { label: 'Acarreo', href: '/planta/acarreo', icon: <Truck className="w-4 h-4" /> },
       { label: 'Arenas', href: '/planta/arenas', icon: <Package className="w-4 h-4" /> },
       { label: 'Quemado', href: '/mina/quemado', icon: <Flame className="w-4 h-4" /> },
     ],

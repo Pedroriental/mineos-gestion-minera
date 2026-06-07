@@ -5,6 +5,7 @@ import type {
   ReporteExtraccion,
   ReporteQuemado,
   ReporteProduccion,
+  ReporteAcarreo,
 } from '@/lib/types';
 import {
   fmtGerencialDate,
@@ -14,6 +15,11 @@ import {
   formatOptionalText,
   turnoLabel,
 } from '@/lib/gerencial-format';
+import {
+  formatInformeAcarreoTitulo,
+  formatLineaAcarreo,
+  formatServicioTurno,
+} from '@/lib/acarreo-format';
 import { GerencialDetailField, GerencialDetailSection } from '@/components/gerencial/GerencialDetailField';
 
 const PESO_SACO_KG = 50;
@@ -226,6 +232,56 @@ export function ProduccionRecordDetail({ record }: { record: ReporteProduccion }
       {record.observaciones?.trim() ? (
         <GerencialDetailSection title="Observaciones">
           <GerencialDetailField label="Notas" value={record.observaciones} className="col-span-2 sm:col-span-3 lg:col-span-4" />
+        </GerencialDetailSection>
+      ) : null}
+
+      <GerencialDetailSection title="Auditoría">
+        <GerencialDetailField label="ID registro" value={record.id} mono />
+        <GerencialDetailField label="Registrado" value={fmtGerencialDateTime(record.created_at)} mono />
+        <GerencialDetailField label="Actualizado" value={fmtGerencialDateTime(record.updated_at)} mono />
+      </GerencialDetailSection>
+    </>
+  );
+}
+
+export function AcarreoRecordDetail({ record }: { record: ReporteAcarreo }) {
+  const lineas = record.lineas ?? [];
+
+  return (
+    <>
+      <div className="mb-4 rounded-xl border border-white/8 bg-white/[0.03] p-4">
+        <p className="gastos-detail-eyebrow text-[9px] font-bold uppercase tracking-wider">
+          {formatServicioTurno(record.turno)}
+        </p>
+        <p className="gastos-detail-title mt-1 text-sm font-semibold">{formatInformeAcarreoTitulo(record.molino)}</p>
+      </div>
+
+      <GerencialDetailSection title="Identificación">
+        <GerencialDetailField label="Fecha" value={fmtGerencialDate(record.fecha)} mono />
+        <GerencialDetailField label="Servicio" value={formatServicioTurno(record.turno)} />
+        <GerencialDetailField label="Mina" value={formatOptionalText(record.mina)} />
+        <GerencialDetailField label="Molino destino" value={formatOptionalText(record.molino)} />
+      </GerencialDetailSection>
+
+      <section>
+        <h3 className="gastos-detail-label mb-2 text-[10px] font-bold uppercase tracking-wider">Detalle de carga</h3>
+        <div className="space-y-2">
+          {lineas.map((linea, index) => (
+            <div key={index} className="app-detail-panel rounded-xl p-3">
+              <p className="text-[12px] leading-snug text-white/75">{formatLineaAcarreo(linea)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <GerencialDetailSection title="Totales">
+        <GerencialDetailField label="Carga total" value={`${record.carga_total} sacos`} highlight />
+        <GerencialDetailField label="Sacos libres para el molino" value={String(record.sacos_libres)} />
+      </GerencialDetailSection>
+
+      {record.observaciones?.trim() ? (
+        <GerencialDetailSection title="Notas">
+          <GerencialDetailField label="Observaciones" value={record.observaciones} className="col-span-2 sm:col-span-3 lg:col-span-4" />
         </GerencialDetailSection>
       ) : null}
 

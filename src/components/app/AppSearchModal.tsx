@@ -36,7 +36,7 @@ const ALL_ROUTES = [
   { label: 'Quemado de Planchas', href: '/mina/quemado', section: 'Molino', icon: Flame },
   { label: 'Equipos', href: '/mina/equipos', section: 'Mina', icon: Wrench },
   { label: 'Producción', href: '/planta/produccion', section: 'Molino', icon: BarChart2 },
-  { label: 'Recepción', href: '/planta/recepcion', section: 'Molino', icon: Package },
+  { label: 'Acarreo', href: '/planta/acarreo', section: 'Molino', icon: Package },
   { label: 'Arenas', href: '/planta/arenas', section: 'Molino', icon: FlaskConical },
   { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales', section: 'Administración', icon: Database },
   {
