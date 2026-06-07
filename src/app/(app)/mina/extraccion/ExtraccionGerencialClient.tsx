@@ -385,9 +385,10 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   };
 
   const handleSave = () => {
-    const sacosNum = parseInt(form.sacos_extraidos);
-    if (isNaN(sacosNum) || sacosNum <= 0) {
-      setFormError('Los sacos extraídos deben ser mayores que 0.');
+    const sacosRaw = form.sacos_extraidos.trim();
+    const sacosNum = sacosRaw === '' ? 0 : parseInt(sacosRaw, 10);
+    if (isNaN(sacosNum) || sacosNum < 0) {
+      setFormError('Los sacos extraídos no pueden ser negativos.');
       return;
     }
 
@@ -1035,8 +1036,8 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                   <span className="h-px flex-1 bg-emerald-400/20" />
                 </h3>
                 <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
-                  <label className="input-label !font-semibold !text-amber-400">Sacos Extraídos *</label>
-                  <input type="number" value={form.sacos_extraidos} onChange={e => setFormField('sacos_extraidos', e.target.value)} className="input-field text-lg font-bold" placeholder="133" />
+                  <label className="input-label !font-semibold !text-amber-400">Sacos Extraídos</label>
+                  <input type="number" min={0} value={form.sacos_extraidos} onChange={e => setFormField('sacos_extraidos', e.target.value)} className="input-field text-lg font-bold" placeholder="0" />
                 </div>
                 <div><label className="input-label">N° Disparo</label><input value={form.numero_disparo} onChange={e => setFormField('numero_disparo', e.target.value)} placeholder="Ej: 27" className="input-field" /></div>
                 <div className="flex min-h-0 flex-1 flex-col">
@@ -1049,7 +1050,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
             <PageFormModalFooter className="flex-col-reverse sm:flex-row">
               <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button type="button" onClick={handleSave} disabled={isPending || !form.sacos_extraidos} className="btn-primary disabled:opacity-40">
+              <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary disabled:opacity-40">
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {editItem ? 'Actualizar' : 'Registrar Turno'}
               </button>
