@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Loader2, ShieldCheck } from 'lucide-react';
+import { toast } from 'sonner';
 import { auditGastosRegistros, type AuditGastosResult } from '@/lib/actions/gastos-audit';
 import type { GastoAuditFinding } from '@/lib/gastos-audit';
 
@@ -11,19 +12,42 @@ function severityIcon(severity: GastoAuditFinding['severity']) {
   return <Info className="h-3.5 w-3.5 text-sky-400" />;
 }
 
+function formatLastRun(date: Date) {
+  return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function GastosAuditPanel() {
   const [result, setResult] = useState<AuditGastosResult | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastRunAt, setLastRunAt] = useState<Date | null>(null);
 
-  const runAudit = useCallback(() => {
-    startTransition(async () => {
+  const runAudit = useCallback(async (options?: { silent?: boolean }) => {
+    setIsLoading(true);
+    try {
       const audit = await auditGastosRegistros();
       setResult(audit);
-    });
+      setLastRunAt(new Date());
+
+      if (!options?.silent) {
+        if (!audit.ok) {
+          toast.error(audit.message);
+        } else if (audit.summary.total === 0) {
+          toast.success('Auditoría revisada: sin hallazgos.');
+        } else {
+          toast.success(
+            `Auditoría revisada: ${audit.summary.total} hallazgo${audit.summary.total === 1 ? '' : 's'}.`,
+          );
+        }
+      }
+    } catch {
+      toast.error('No se pudo ejecutar la auditoría de gastos.');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    runAudit();
+    void runAudit({ silent: true });
   }, [runAudit]);
 
   const summary = result && result.ok ? result.summary : null;
@@ -39,14 +63,21 @@ export function GastosAuditPanel() {
             Auditoría
           </span>
         </div>
-        <button
-          type="button"
-          onClick={runAudit}
-          disabled={isPending}
-          className="rounded-md border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/55 transition-colors hover:bg-white/[0.04] hover:text-white/80 disabled:opacity-50"
-        >
-          {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Revisar'}
-        </button>
+        <div className="flex items-center gap-2">
+          {lastRunAt ? (
+            <span className="hidden text-[9px] text-white/30 xl:inline">
+              {formatLastRun(lastRunAt)}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void runAudit()}
+            disabled={isLoading}
+            className="inline-flex min-w-[3.75rem] items-center justify-center rounded-md border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/55 transition-colors hover:bg-white/[0.04] hover:text-white/80 disabled:opacity-50"
+          >
+            {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Revisar'}
+          </button>
+        </div>
       </div>
 
       {result && !result.ok ? (
