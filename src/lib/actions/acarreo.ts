@@ -6,10 +6,10 @@ import { z } from 'zod';
 import { AcarreoSchema, AcarreoUpdateSchema } from '@/lib/validations/acarreo';
 import type { ReporteAcarreo } from '@/lib/types';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
+import { REPORT_PHOTO_MAX_COUNT } from '@/lib/report-photo-constants';
 import {
   parsePhotoFiles,
   parsePhotoKeepList,
-  REPORT_PHOTO_MAX_COUNT,
   saveReportPhotos,
 } from '@/lib/report-photo-upload';
 

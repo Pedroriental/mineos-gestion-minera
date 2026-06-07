@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import { ImagePlus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { REPORT_PHOTO_MAX_COUNT } from '@/lib/report-photo-upload';
+import { REPORT_PHOTO_MAX_COUNT } from '@/lib/report-photo-constants';
 
 export type ReportPhotoDraft =
   | { id: string; kind: 'existing'; url: string }

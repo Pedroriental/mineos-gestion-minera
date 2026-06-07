@@ -1,10 +1,12 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import {
+  REPORT_PHOTO_MAX_BYTES,
+  REPORT_PHOTO_MIME_TYPES,
+} from '@/lib/report-photo-constants';
 
-export const REPORT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
-export const REPORT_PHOTO_MAX_COUNT = 6;
-export const REPORT_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export { REPORT_PHOTO_MAX_BYTES, REPORT_PHOTO_MAX_COUNT, REPORT_PHOTO_MIME_TYPES } from '@/lib/report-photo-constants';
 
 export async function saveReportPhotos(
   files: File[],
