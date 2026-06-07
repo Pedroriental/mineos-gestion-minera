@@ -62,7 +62,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
   const molinoOptions = useBibliotecaOptions('molinos');
   const verticalOptions = useBibliotecaOptions('verticales_voladura', {
     prependEmpty: true,
-    emptyLabel: '— Sin especificar —',
+    emptyLabel: '—',
   });
 
   const verticalOptionsForLine = useCallback(
@@ -488,7 +488,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
           <p className="produccion-muted mb-4 text-sm italic">{formatInformeAcarreoTitulo(form.molino)}</p>
         ) : null}
 
-        <div className="acarreo-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+        <div className="acarreo-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-4 lg:gap-6">
           <section className="flex flex-col gap-2.5">
             <h3 className={mineosModalHeading('general')}>
               <span>Identificación</span>
@@ -522,7 +522,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
             </div>
           </section>
 
-          <section className="flex flex-col gap-2.5 lg:col-span-1">
+          <section className="flex min-w-0 flex-col gap-2.5 lg:col-span-2">
             <div className="flex items-center justify-between gap-2">
               <h3 className={mineosModalHeading('general')}>
                 <span>Detalle de carga</span>
@@ -534,33 +534,37 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
             </div>
             <div className="space-y-2">
               {lineas.map((linea, index) => (
-                <div key={index} className={`grid grid-cols-[5rem_1fr_1fr_auto] items-end gap-2 ${mineosPanel('neutral')}`}>
-                  <div>
+                <div
+                  key={index}
+                  className={`grid grid-cols-[minmax(0,4.25rem)_minmax(0,1fr)_minmax(0,3.75rem)_auto] items-end gap-1.5 !p-2 ${mineosPanel('neutral')}`}
+                >
+                  <div className="min-w-0">
                     <label className="input-label !text-[10px]">Sacos *</label>
                     <input
                       type="number"
                       min={1}
                       value={linea.sacos}
                       onChange={(e) => updateLinea(index, 'sacos', e.target.value)}
-                      className="input-field font-bold"
+                      className="input-field !px-2 !py-1.5 font-bold tabular-nums"
                       placeholder="116"
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="input-label !text-[10px]">Vertical</label>
                     <AppSelect
                       value={linea.vertical}
                       onChange={(v) => updateLinea(index, 'vertical', v)}
                       options={verticalOptionsForLine(linea.vertical)}
-                      placeholder="— Sin especificar —"
+                      placeholder="—"
+                      className="min-w-0 w-full [&_.app-select__trigger]:!px-2 [&_.app-select__trigger]:!py-1.5 [&_.app-select__value]:!text-sm"
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="input-label !text-[10px]">Disparo</label>
                     <input
                       value={linea.disparo}
                       onChange={(e) => updateLinea(index, 'disparo', e.target.value)}
-                      className="input-field"
+                      className="input-field !px-2 !py-1.5 text-center tabular-nums"
                       placeholder="29"
                     />
                   </div>
@@ -568,7 +572,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
                     type="button"
                     onClick={() => removeLinea(index)}
                     disabled={lineas.length <= 1}
-                    className="mb-0.5 rounded-lg p-2 text-white/30 transition-colors hover:bg-red-500/15 hover:text-red-400 disabled:opacity-30"
+                    className="mb-0.5 shrink-0 rounded-lg p-1.5 text-white/30 transition-colors hover:bg-red-500/15 hover:text-red-400 disabled:opacity-30"
                   >
                     <X className="h-4 w-4" />
                   </button>
