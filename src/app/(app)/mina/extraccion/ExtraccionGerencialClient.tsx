@@ -397,6 +397,9 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
         setEditItem(null);
         setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
         setEventos([]);
+        if (!editItem) {
+          setSelectedDate(form.fecha);
+        }
       }
     });
   };

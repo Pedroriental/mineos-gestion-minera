@@ -361,7 +361,7 @@ export default function AppLayoutClient({
                 </span>
               </button>
 
-              <Suspense fallback={<div className="hidden h-8 w-[27.5rem] max-w-[42vw] animate-pulse rounded-lg bg-[var(--dashboard-card-muted)] sm:block" />}>
+              <Suspense fallback={<div className="global-date-trigger global-date-trigger--skeleton hidden h-8 animate-pulse sm:flex" aria-hidden />}>
                 {!pathname.startsWith('/admin/gastos') && <GlobalDateRangePicker />}
               </Suspense>
 

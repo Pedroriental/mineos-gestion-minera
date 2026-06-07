@@ -1,7 +1,7 @@
 import { createServerClient } from '@/lib/supabase-server';
 import ExtraccionGerencialClient, { ExtraccionGerencialData } from './ExtraccionGerencialClient';
 import type { ReporteExtraccion } from '@/lib/types';
-import { differenceInDays, parseISO, format, subDays } from 'date-fns';
+import { differenceInDays, parseISO, format } from 'date-fns';
 
 export default async function ExtraccionPage(props: {
   searchParams: Promise<{ desde?: string; hasta?: string }>;
@@ -9,21 +9,37 @@ export default async function ExtraccionPage(props: {
   const searchParams = await props.searchParams;
   const supabase = await createServerClient();
 
-  // 1. Manejo de Fechas (Fallback 30 días)
+  const hasParams = !!searchParams?.desde && !!searchParams?.hasta;
   const hoy = new Date();
-  const fechaHasta = searchParams?.hasta || format(hoy, 'yyyy-MM-dd');
-  const fechaDesde = searchParams?.desde || format(subDays(hoy, 30), 'yyyy-MM-dd');
 
-  // 2. Consulta a Supabase con filtro de fechas estricto
-  const { data } = await supabase
+  let query = supabase
     .from('reportes_extraccion')
     .select('*')
-    .gte('fecha', fechaDesde)
-    .lte('fecha', fechaHasta)
     .order('fecha', { ascending: true })
     .order('created_at', { ascending: true });
 
+  if (hasParams) {
+    query = query.gte('fecha', searchParams.desde!).lte('fecha', searchParams.hasta!);
+  }
+
+  const { data } = await query;
+
   const reportes: ReporteExtraccion[] = (data as ReporteExtraccion[]) ?? [];
+
+  const reportesValidos = reportes.filter(
+    (r) => r && r.fecha && !Number.isNaN(Date.parse(r.fecha)),
+  );
+
+  const fechaDesde = hasParams
+    ? searchParams.desde!
+    : (reportesValidos.length > 0
+      ? reportesValidos[0].fecha
+      : format(hoy, 'yyyy-MM-dd'));
+  const fechaHasta = hasParams
+    ? searchParams.hasta!
+    : (reportesValidos.length > 0
+      ? reportesValidos[reportesValidos.length - 1].fecha
+      : format(hoy, 'yyyy-MM-dd'));
 
   // 3. Procesamiento en Memoria (Node.js Server-Side)
   let totalSacos = 0;
@@ -45,7 +61,7 @@ export default async function ExtraccionPage(props: {
   }
 
   // Llenar datos reales y calcular globales
-  reportes.forEach(r => {
+  reportesValidos.forEach(r => {
     const sacos = Number(r.sacos_extraidos) || 0;
     const isDisparo = r.numero_disparo ? 1 : 0;
     const eventos = r.eventos ? r.eventos.length : 0;
@@ -80,7 +96,7 @@ export default async function ExtraccionPage(props: {
         totalEventos
      },
      diaria: serieDiaria,
-     registros: reportes.reverse() // Reverse para mostrar lo más reciente primero en la tabla
+     registros: [...reportesValidos].reverse() // Reverse para mostrar lo más reciente primero en la tabla
   };
 
   return <ExtraccionGerencialClient data={processedData} selectedDateStr={fechaHasta} />;

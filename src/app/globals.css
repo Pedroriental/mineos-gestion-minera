@@ -6871,59 +6871,146 @@ input, textarea, select {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  max-width: min(8.75rem, 32vw);
+  max-width: min(8.25rem, 30vw);
   height: 2rem;
   min-width: 0;
   flex-shrink: 1;
-  padding: 0 0.375rem;
-  border-radius: 0.5rem;
+  padding: 0 0.4375rem;
+}
+
+.global-date-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: 2rem;
+  min-width: 0;
+  padding: 0 0.625rem;
+  border-radius: 0.75rem;
   border: 1px solid var(--dashboard-border);
   background: var(--dashboard-card-muted);
   color: var(--dashboard-text-muted);
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.mobile-shell__header-date:active {
-  border-color: color-mix(in srgb, var(--dashboard-accent) 35%, var(--dashboard-border));
+.global-date-trigger:hover {
+  border-color: color-mix(in srgb, var(--dashboard-accent) 28%, var(--dashboard-border));
   color: var(--dashboard-text);
 }
 
-.mobile-shell__header-date--active {
-  border-color: color-mix(in srgb, var(--dashboard-accent) 28%, var(--dashboard-border));
+.global-date-trigger--active {
+  border-color: color-mix(in srgb, var(--dashboard-accent) 32%, var(--dashboard-border));
+  background: var(--dashboard-accent-soft);
 }
 
-.mobile-shell__header-date--active .mobile-shell__header-date__label {
+.global-date-trigger--active .global-date-trigger__label {
   color: var(--dashboard-accent);
 }
 
-.mobile-shell__header-date__icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
+.global-date-trigger--open {
+  border-color: color-mix(in srgb, var(--dashboard-accent) 35%, var(--dashboard-border));
+  background: var(--dashboard-accent-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--dashboard-accent) 18%, transparent);
+}
+
+.global-date-trigger__icon {
+  width: 0.875rem;
+  height: 0.875rem;
   flex-shrink: 0;
   color: var(--dashboard-accent);
 }
 
-.mobile-shell__header-date__label {
+.global-date-trigger__label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: 0.01em;
 }
 
-.mobile-shell__header-date__chevron {
-  width: 0.75rem;
-  height: 0.75rem;
+.global-date-trigger__chevron {
+  width: 0.8125rem;
+  height: 0.8125rem;
   flex-shrink: 0;
   color: var(--dashboard-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.global-date-trigger--open .global-date-trigger__chevron {
+  transform: rotate(180deg);
+  color: var(--dashboard-accent);
+}
+
+.global-date-picker .global-date-trigger {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .global-date-picker .global-date-trigger {
+    display: inline-flex;
+    max-width: min(15rem, 28vw);
+    height: 2rem;
+  }
+
+  .global-date-trigger__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+}
+
+.global-date-panel {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.global-date-panel__title {
+  margin: 0;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid var(--dashboard-border);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--dashboard-text);
+}
+
+.global-date-panel__actions .btn-secondary,
+.global-date-panel__actions .btn-primary {
+  min-height: 2rem;
+}
+
+.mobile-global-date-sheet .global-date-panel__title {
+  display: none;
+}
+
+.mobile-global-date-sheet .global-date-panel__body {
+  gap: 0.75rem;
+}
+
+.mobile-global-date-sheet .global-date-panel__actions {
+  flex-direction: column-reverse;
+  align-items: stretch;
+}
+
+.mobile-global-date-sheet .global-date-panel__actions > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.mobile-global-date-sheet .global-date-panel__actions .btn-secondary:first-child {
+  width: 100%;
 }
 
 .mobile-shell__header-date--skeleton {
-  width: min(8.75rem, 32vw);
+  width: min(8.25rem, 30vw);
   height: 2rem;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--dashboard-border);
   background: var(--dashboard-card-muted);
   animation: pulse 1.5s ease-in-out infinite;
 }
