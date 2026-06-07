@@ -4490,7 +4490,7 @@ input, textarea, select {
     flex: 0 0 auto;
   }
 
-  .gastos-page__chart {
+  .gastos-page__audit {
     flex: 1 1 0;
     min-height: 0;
   }
@@ -9168,8 +9168,9 @@ input, textarea, select {
   flex: none;
 }
 
-.mobile-shell .gastos-page__chart {
-  display: none;
+.mobile-shell .gastos-page__audit {
+  min-height: 12rem;
+  max-height: min(45dvh, 28rem);
 }
 
 .mobile-shell .gastos-page__table,

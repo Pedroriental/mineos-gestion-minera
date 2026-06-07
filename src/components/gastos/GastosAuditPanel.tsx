@@ -27,11 +27,11 @@ export function GastosAuditPanel() {
   }, [runAudit]);
 
   const summary = result && result.ok ? result.summary : null;
-  const findings = result && result.ok ? result.findings.slice(0, 8) : [];
+  const findings = result && result.ok ? result.findings : [];
   const hasIssues = summary ? summary.total > 0 : false;
 
   return (
-    <div className="gastos-page__audit app-surface-card flex min-h-0 flex-col p-3">
+    <div className="gastos-page__audit app-surface-card flex min-h-0 flex-1 flex-col p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <ShieldCheck className="h-3.5 w-3.5 text-[var(--dashboard-accent)]" aria-hidden />
@@ -95,11 +95,6 @@ export function GastosAuditPanel() {
             </div>
           </div>
         ))}
-        {summary && summary.total > findings.length ? (
-          <p className="text-center text-[10px] text-white/35">
-            +{summary.total - findings.length} hallazgo(s) más
-          </p>
-        ) : null}
       </div>
     </div>
   );

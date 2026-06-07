@@ -13,7 +13,7 @@ import {
 import {
   DollarSign, Plus, Search, X, Loader2, AlertCircle,
   Download, Tag, FileText, ChevronLeft, ChevronRight,
-  Receipt, Wallet, BarChart3, FileDown, Calendar, Trash2,
+  Receipt, Wallet, FileDown, Calendar, Trash2,
 } from 'lucide-react';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { toast } from 'sonner';
@@ -265,24 +265,6 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   // ── KPIs (sobre datos filtrados por mes + categoría) ────────
   const totalGastos  = finalData.reduce((s, g) => s + Number(g.monto), 0);
   const numRegistros = finalData.length;
-
-  // Gasto más alto
-  const maxGasto = finalData.reduce((max, g) => Number(g.monto) > Number(max.monto) ? g : max, finalData[0] ?? { monto: 0, descripcion: '-' });
-
-  // Agrupación por categoría para el gráfico (sobre datos del mes, SIN filtro categoría para ver el contexto completo)
-  const porCategoria = useMemo(() => {
-    const map: Record<string, { nombre: string; total: number }> = {};
-    filteredData.forEach(g => {
-      const nombre = g.categorias_gasto?.nombre || 'Sin categoría';
-      if (!map[nombre]) map[nombre] = { nombre, total: 0 };
-      map[nombre].total += Number(g.monto);
-    });
-    return Object.values(map)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
-  }, [filteredData]);
-
-  const maxCatTotal = porCategoria[0]?.total || 1;
 
   // ── Exportación CSV ───────────────────────────────────────
   function exportToCSV() {
@@ -751,33 +733,17 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
       {/* KPIs izquierda alineados arriba; tabla + acciones a la derecha */}
       <div className="gastos-page__grid min-h-0 flex-1">
 
-        {/* PANEL IZQUIERDO — KPIs + categorías */}
+        {/* PANEL IZQUIERDO — KPI + filtros + auditoría */}
         <aside className="gastos-page__summary flex h-full min-h-0 flex-col gap-2">
 
-          <div className="grid shrink-0 grid-cols-2 gap-2">
-            <div className="app-surface-card gastos-kpi-card gastos-kpi-card--total relative col-span-2 overflow-hidden p-3">
+          <div className="shrink-0">
+            <div className="app-surface-card gastos-kpi-card gastos-kpi-card--total relative overflow-hidden p-3">
               <div className="gastos-kpi-glow gastos-kpi-glow--total" aria-hidden />
               <p className="relative mb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
                 {selectedMonth ? `Total Gastado (${new Date(selectedMonth + '-02').toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })})` : 'Total Gastado (General)'}
               </p>
               <p className="gastos-kpi-value gastos-kpi-value--total relative text-2xl font-black leading-none">{fmtShort(totalGastos)}</p>
               <p className="relative mt-0.5 text-[11px] text-[var(--dashboard-text-muted)]">{numRegistros} registros</p>
-            </div>
-
-            <div className="app-surface-card gastos-kpi-card gastos-kpi-card--accent relative overflow-hidden p-2.5">
-              <div className="gastos-kpi-glow gastos-kpi-glow--accent" aria-hidden />
-              <p className="relative mb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">Mayor Gasto</p>
-              <p className="gastos-kpi-value gastos-kpi-value--accent relative text-base font-black leading-none">{fmtShort(Number(maxGasto?.monto || 0))}</p>
-              <p className="relative mt-0.5 truncate text-[10px] text-[var(--dashboard-text-muted)]">{maxGasto?.descripcion || '-'}</p>
-            </div>
-
-            <div className="app-surface-card gastos-kpi-card gastos-kpi-card--neutral relative overflow-hidden p-2.5">
-              <div className="gastos-kpi-glow gastos-kpi-glow--neutral" aria-hidden />
-              <p className="relative mb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">Promedio</p>
-              <p className="gastos-kpi-value gastos-kpi-value--neutral relative text-base font-black leading-none">
-                {numRegistros > 0 ? fmtShort(totalGastos / numRegistros) : '$0'}
-              </p>
-              <p className="mt-0.5 text-[10px] text-[var(--dashboard-text-muted)]">por registro</p>
             </div>
           </div>
 
@@ -788,61 +754,6 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
               Filtros
             </p>
             {gastosFiltersPanel}
-          </div>
-
-          {/* Gasto por categoría — ocupa el espacio restante */}
-          <div className="gastos-page__chart app-surface-card flex min-h-0 flex-1 flex-col p-3">
-            <div className="mb-2.5 flex shrink-0 items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5 text-[var(--dashboard-accent)]" aria-hidden />
-              <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
-                Gasto por Categoría
-              </span>
-            </div>
-            {porCategoria.length === 0 ? (
-              <p className="py-2 text-center text-[10px] text-[var(--dashboard-text-muted)]">Sin datos</p>
-            ) : (
-              <div className="gastos-page__chart-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-                {porCategoria.map((cat, i) => (
-                  <div
-                    key={cat.nombre}
-                    role="button"
-                    tabIndex={0}
-                    title={cat.nombre}
-                    onClick={() => setSelectedCategory(cat.nombre === selectedCategory ? '' : cat.nombre)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelectedCategory(cat.nombre === selectedCategory ? '' : cat.nombre);
-                      }
-                    }}
-                    className={`cursor-pointer rounded-md px-1 py-1 transition-colors ${
-                      selectedCategory === cat.nombre ? 'bg-red-500/10' : 'hover:bg-white/[0.03]'
-                    }`}
-                  >
-                    <div className="mb-1.5 flex items-center justify-between gap-2">
-                      <span
-                        className={`gastos-chart-name min-w-0 flex-1 truncate text-[11px] leading-snug ${
-                          selectedCategory === cat.nombre ? 'font-bold !text-[var(--dashboard-danger)]' : ''
-                        }`}
-                      >
-                        {cat.nombre}
-                      </span>
-                      <span className="gastos-chart-value shrink-0 font-mono text-[11px] font-bold">{fmtShort(cat.total)}</span>
-                    </div>
-                    <div className="gastos-chart-track h-2 overflow-hidden rounded-full">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width: `${(cat.total / maxCatTotal) * 100}%`,
-                          backgroundColor:
-                            selectedCategory === cat.nombre ? '#ef4444' : CAT_COLORS[i % CAT_COLORS.length],
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <GastosAuditPanel />
