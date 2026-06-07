@@ -8,6 +8,15 @@ const PESO_SACO_KG = 50;
 
 const fmtNum = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(n);
 
+const fmtDate = (fecha?: string | null) => {
+  if (!fecha) return '—';
+  return new Date(fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
 const getMermaBadge = (pct: number) => {
   if (pct <= 0) return 'badge-neutral';
   if (pct < 50) return 'badge-success';
@@ -19,6 +28,13 @@ export const columns = (
   openEdit: (item: ReporteProduccion) => void,
   handleDelete: (id: string) => void
 ): ColumnDef<ReporteProduccion>[] => [
+  {
+    accessorKey: 'fecha',
+    header: 'Fecha',
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap font-medium text-white/70">{fmtDate(row.original.fecha)}</span>
+    ),
+  },
   {
     accessorKey: 'turno',
     header: 'Turno',

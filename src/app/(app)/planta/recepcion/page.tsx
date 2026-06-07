@@ -94,6 +94,14 @@ export default function RecepcionPage() {
 
   const totalSacos = data.reduce((s, r) => s + r.sacos_recibidos, 0);
   const turnoLabel: Record<string, string> = { dia: '☀ Día', noche: '🌙 Noche', completo: '🔄 Completo' };
+  const fmtDate = (fecha?: string | null) => {
+    if (!fecha) return '—';
+    return new Date(fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -119,7 +127,7 @@ export default function RecepcionPage() {
                 header={
                   <div>
                     <h3 className="truncate text-base font-bold leading-tight text-white/85">{r.origen}</h3>
-                    <p className="mt-0.5 text-xs text-white/40">{r.fecha} • {turnoLabel[r.turno]}</p>
+                    <p className="mt-0.5 text-xs text-white/40">{fmtDate(r.fecha)} • {turnoLabel[r.turno]}</p>
                   </div>
                 }
                 details={[
@@ -172,7 +180,7 @@ export default function RecepcionPage() {
               <tbody>
                 {data.map(r => (
                   <tr key={r.id}>
-                    <td className="whitespace-nowrap text-white/40">{r.fecha}</td>
+                    <td className="whitespace-nowrap font-medium text-white/70">{fmtDate(r.fecha)}</td>
                     <td className="text-white/50">{turnoLabel[r.turno]}</td>
                     <td className="text-white/80 font-medium">{r.origen}</td>
                     <td className="font-semibold text-amber-400">

@@ -7,11 +7,27 @@ import { Edit2, Trash2 } from 'lucide-react';
 const fmtN = (n: number) =>
   new Intl.NumberFormat('es-VE', { maximumFractionDigits: 4, minimumFractionDigits: 2 }).format(n);
 
+const fmtDate = (fecha?: string | null) => {
+  if (!fecha) return '—';
+  return new Date(fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
 export const columns = (
   openEdit: (item: ReporteQuemado) => void,
   handleDelete: (id: string) => void,
   canEdit: boolean,
 ): ColumnDef<ReporteQuemado>[] => [
+  {
+    accessorKey: 'fecha',
+    header: 'Fecha',
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap font-medium text-white/70">{fmtDate(row.original.fecha)}</span>
+    ),
+  },
   {
     accessorKey: 'turno',
     header: 'Turno',

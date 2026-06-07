@@ -111,6 +111,14 @@ export default function ArenasPage() {
   const liveTotal    = (parseFloat(form.cantidad_ton) || 0) * (parseFloat(form.precio_por_ton) || 0);
 
   const negociacion = (v: VentaArenas) => v.negociacion || v.factura_referencia || '—';
+  const fmtDate = (fecha?: string | null) => {
+    if (!fecha) return '—';
+    return new Date(fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -138,7 +146,7 @@ export default function ArenasPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate text-base font-bold leading-snug text-white/85">{v.comprador}</h3>
-                      <p className="mt-0.5 text-xs text-white/40">{v.fecha}</p>
+                      <p className="mt-0.5 text-xs text-white/40">{fmtDate(v.fecha)}</p>
                       {negociacion(v) !== '—' && (
                         <span className="mt-1 block text-[10px] font-semibold text-white/35">{negociacion(v)}</span>
                       )}
@@ -195,7 +203,7 @@ export default function ArenasPage() {
               <tbody>
                 {data.map(v => (
                   <tr key={v.id}>
-                    <td className="whitespace-nowrap text-white/40">{v.fecha}</td>
+                    <td className="whitespace-nowrap font-medium text-white/70">{fmtDate(v.fecha)}</td>
                     <td className="text-white/80 font-medium">{v.comprador}</td>
                     <td className="text-white/50 text-sm">{negociacion(v)}</td>
                     <td className="text-right font-semibold text-white/80">{fmtNum(v.cantidad_kg)} <span className="text-white/35 text-xs font-normal">t</span></td>

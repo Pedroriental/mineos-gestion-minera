@@ -4,11 +4,27 @@ import { ColumnDef } from '@tanstack/react-table';
 import type { ReporteVoladura } from '@/lib/types';
 import { Edit2, Trash2 } from 'lucide-react';
 
+const fmtDate = (fecha?: string | null) => {
+  if (!fecha) return '—';
+  return new Date(fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
 export const columns = (
   openEdit: (item: ReporteVoladura) => void,
   handleDelete: (id: string) => void,
   canEdit: boolean,
 ): ColumnDef<ReporteVoladura>[] => [
+  {
+    accessorKey: 'fecha',
+    header: 'Fecha',
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap font-medium text-white/70">{fmtDate(row.original.fecha)}</span>
+    ),
+  },
   {
     accessorKey: 'turno',
     header: 'Turno',
