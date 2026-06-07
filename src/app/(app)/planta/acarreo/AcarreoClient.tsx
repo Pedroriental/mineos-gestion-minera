@@ -8,7 +8,7 @@ import type { ReporteAcarreo } from '@/lib/types';
 import {
   Loader2, Plus, X, ChevronLeft, ChevronRight, AlertCircle, Search, Truck,
 } from 'lucide-react';
-import { AppSelect } from '@/components/ui/AppSelect';
+import { AppSelect, type AppSelectOption } from '@/components/ui/AppSelect';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
@@ -60,6 +60,21 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
   const turnoOptions = useTurnoOptions();
   const minaOptions = useBibliotecaOptions('minas');
   const molinoOptions = useBibliotecaOptions('molinos');
+  const verticalOptions = useBibliotecaOptions('verticales_voladura', {
+    prependEmpty: true,
+    emptyLabel: '— Sin especificar —',
+  });
+
+  const verticalOptionsForLine = useCallback(
+    (current: string): readonly AppSelectOption[] => {
+      const trimmed = current.trim();
+      if (!trimmed || verticalOptions.some((o) => o.value === trimmed)) {
+        return verticalOptions;
+      }
+      return [{ value: trimmed, label: trimmed }, ...verticalOptions];
+    },
+    [verticalOptions],
+  );
 
   const [selectedDate, setSelectedDate] = useState('todos');
   const [globalFilter, setGlobalFilter] = useState('');
@@ -533,11 +548,11 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
                   </div>
                   <div>
                     <label className="input-label !text-[10px]">Vertical</label>
-                    <input
+                    <AppSelect
                       value={linea.vertical}
-                      onChange={(e) => updateLinea(index, 'vertical', e.target.value)}
-                      className="input-field"
-                      placeholder="1pd"
+                      onChange={(v) => updateLinea(index, 'vertical', v)}
+                      options={verticalOptionsForLine(linea.vertical)}
+                      placeholder="— Sin especificar —"
                     />
                   </div>
                   <div>
