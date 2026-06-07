@@ -17,6 +17,10 @@ import { SheetIconBadge } from '@/components/mobile';
 import EmptyState from '@/components/EmptyState';
 import { FadeIn } from '@/components/ui/motion';
 import { GerencialMobileChartFold, GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
+import { GerencialRecordDetailModal } from '@/components/gerencial/GerencialRecordDetailModal';
+import { QuemadoRecordDetail } from '@/components/gerencial/gerencial-record-details';
+import { gerencialTableRowClassName, handleRowDetailKeyDown } from '@/components/gerencial/gerencial-table-row';
+import { fmtGerencialDate } from '@/lib/gerencial-format';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -93,6 +97,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
   const [showModal, setShowModal] = useState(false);
+  const [viewItem, setViewItem] = useState<ReporteQuemado | null>(null);
   const [editItem, setEditItem] = useState<ReporteQuemado | null>(null);
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
@@ -603,7 +608,14 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                     </tr>
                   ) : (
                     pageRows.map((row) => (
-                      <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                      <tr
+                        key={row.id}
+                        className={gerencialTableRowClassName}
+                        onClick={() => setViewItem(row.original)}
+                        onKeyDown={(event) => handleRowDetailKeyDown(event, row.original, setViewItem)}
+                        tabIndex={0}
+                        aria-label={`Ver detalle de quemado del ${fmtGerencialDate(row.original.fecha)}`}
+                      >
                         {row.getVisibleCells().map((cell) => (
                           <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -883,6 +895,17 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
           </button>
         </PageFormModalFooter>
       </PageFormModal>
+
+      <GerencialRecordDetailModal
+        open={!!viewItem}
+        onClose={() => setViewItem(null)}
+        title={viewItem ? `Quemado · ${fmtGerencialDate(viewItem.fecha)}` : 'Detalle de quemado'}
+        eyebrow="Detalle de quemado"
+        sheetIcon={<SheetIconBadge icon={Flame} tone="warn" />}
+        panelClassName="quemado-page__modal sm:max-w-[72rem] sm:p-5"
+      >
+        {viewItem ? <QuemadoRecordDetail record={viewItem} /> : null}
+      </GerencialRecordDetailModal>
     </div>
   );
 }

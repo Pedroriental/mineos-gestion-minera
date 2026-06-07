@@ -59,9 +59,9 @@ export const columns = (
       const mat = row.original.material;
       const cod = row.original.material_codigo;
       return (
-        <div>
-          <span className="block font-medium leading-snug text-white/75">{mat || '—'}</span>
-          {cod && <span className="mt-0.5 block text-xs text-white/35">{cod}</span>}
+        <div className="produccion-material-cell">
+          <span className="block truncate font-medium text-white/75">{mat || '—'}</span>
+          {cod && <span className="block truncate text-[10px] text-white/35">{cod}</span>}
         </div>
       );
     },
@@ -109,9 +109,11 @@ export const columns = (
     cell: ({ row }) => {
       const sacos = row.getValue('sacos') as number;
       return (
-        <div className="text-center text-white/65">
-          <span className="font-semibold">{sacos}</span>
-          <span className="text-white/30 text-xs ml-1">(= {sacos * PESO_SACO_KG}kg)</span>
+        <div className="produccion-sacos-cell text-white/65">
+          <span className="block font-semibold tabular-nums">{sacos}</span>
+          <span className="block truncate text-[10px] text-white/30 tabular-nums">
+            ×50 = {sacos * PESO_SACO_KG}kg
+          </span>
         </div>
       );
     },
@@ -133,11 +135,11 @@ export const columns = (
     id: 'acciones',
     header: 'Acciones',
     cell: ({ row }) => (
-      <div className="flex gap-1 justify-end">
-        <button onClick={() => openEdit(row.original)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors">
+      <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+        <button type="button" onClick={() => openEdit(row.original)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors">
           <Edit2 className="w-4 h-4" />
         </button>
-        <button onClick={() => handleDelete(row.original.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors">
+        <button type="button" onClick={() => handleDelete(row.original.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors">
           <Trash2 className="w-4 h-4" />
         </button>
       </div>

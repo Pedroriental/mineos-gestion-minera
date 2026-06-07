@@ -3690,6 +3690,48 @@ input, textarea, select {
   min-height: 0;
 }
 
+.produccion-page .produccion-page__table-body {
+  --produccion-row-h: 3.5rem;
+}
+
+.produccion-page .produccion-page__table-body .produccion-table-row {
+  height: var(--produccion-row-h);
+  max-height: var(--produccion-row-h);
+}
+
+.produccion-page .produccion-page__table-body .produccion-table-td {
+  height: var(--produccion-row-h);
+  max-height: var(--produccion-row-h);
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.produccion-page .produccion-page__table-body .produccion-table-th,
+.produccion-page .produccion-page__table-body .produccion-table-td {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.produccion-material-cell {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.125rem;
+  line-height: 1.15;
+}
+
+.produccion-sacos-cell {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  line-height: 1.15;
+}
+
 .produccion-page__table-footer {
   flex-shrink: 0;
   min-height: 1.65rem;
@@ -3735,6 +3777,11 @@ input, textarea, select {
 
 .produccion-table-row:hover {
   background-color: var(--prod-row-hover);
+}
+
+.produccion-table-row--clickable:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--dashboard-accent) 55%, transparent);
+  outline-offset: -2px;
 }
 
 .produccion-table-td {

@@ -19,6 +19,10 @@ import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-con
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
 import { GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
+import { GerencialRecordDetailModal } from '@/components/gerencial/GerencialRecordDetailModal';
+import { VoladurasRecordDetail } from '@/components/gerencial/gerencial-record-details';
+import { gerencialTableRowClassName, handleRowDetailKeyDown } from '@/components/gerencial/gerencial-table-row';
+import { fmtGerencialDate } from '@/lib/gerencial-format';
 import EmptyState from '@/components/EmptyState';
 import { FadeIn } from '@/components/ui/motion';
 import {
@@ -103,6 +107,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
   const [showModal, setShowModal] = useState(false);
+  const [viewItem, setViewItem] = useState<ReporteVoladura | null>(null);
   const [editItem, setEditItem] = useState<ReporteVoladura | null>(null);
   const [pausas, setPausas] = useState<PausaBarrenado[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -623,7 +628,14 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                     </tr>
                   ) : (
                     pageRows.map((row) => (
-                      <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                      <tr
+                        key={row.id}
+                        className={gerencialTableRowClassName}
+                        onClick={() => setViewItem(row.original)}
+                        onKeyDown={(event) => handleRowDetailKeyDown(event, row.original, setViewItem)}
+                        tabIndex={0}
+                        aria-label={`Ver detalle de voladura del ${fmtGerencialDate(row.original.fecha)}`}
+                      >
                         {row.getVisibleCells().map((cell) => (
                           <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -941,6 +953,17 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
           </button>
         </PageFormModalFooter>
       </PageFormModal>
+
+      <GerencialRecordDetailModal
+        open={!!viewItem}
+        onClose={() => setViewItem(null)}
+        title={viewItem ? `Voladura · ${fmtGerencialDate(viewItem.fecha)}` : 'Detalle de voladura'}
+        eyebrow="Detalle de voladura"
+        sheetIcon={<SheetIconBadge icon={Zap} />}
+        panelClassName="voladuras-page__modal sm:max-w-[72rem] sm:p-5"
+      >
+        {viewItem ? <VoladurasRecordDetail record={viewItem} /> : null}
+      </GerencialRecordDetailModal>
     </div>
   );
 }

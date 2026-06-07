@@ -14,6 +14,10 @@ import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-con
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
 import { GerencialMobileChartFold, GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
+import { GerencialRecordDetailModal } from '@/components/gerencial/GerencialRecordDetailModal';
+import { ExtraccionRecordDetail } from '@/components/gerencial/gerencial-record-details';
+import { gerencialTableRowClassName, handleRowDetailKeyDown } from '@/components/gerencial/gerencial-table-row';
+import { fmtGerencialDate } from '@/lib/gerencial-format';
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -103,6 +107,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
   const [showModal, setShowModal] = useState(false);
   const [showBitacoraModal, setShowBitacoraModal] = useState(false);
+  const [viewItem, setViewItem] = useState<ReporteExtraccion | null>(null);
   const [bitacoraPagination, setBitacoraPagination] = useState({ pageIndex: 0, pageSize: EXTRACCION_PAGE_MAX });
   const bitacoraTableBodyRef = useRef<HTMLDivElement>(null);
   const [editItem, setEditItem] = useState<ReporteExtraccion | null>(null);
@@ -738,7 +743,14 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                       </tr>
                     ) : (
                       pageRows.map((row) => (
-                        <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                        <tr
+                          key={row.id}
+                          className={gerencialTableRowClassName}
+                          onClick={() => setViewItem(row.original)}
+                          onKeyDown={(event) => handleRowDetailKeyDown(event, row.original, setViewItem)}
+                          tabIndex={0}
+                          aria-label={`Ver detalle de extracción del ${fmtGerencialDate(row.original.fecha)}`}
+                        >
                           {row.getVisibleCells().map((cell) => (
                             <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -1056,6 +1068,17 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
               </button>
             </PageFormModalFooter>
       </PageFormModal>
+
+      <GerencialRecordDetailModal
+        open={!!viewItem}
+        onClose={() => setViewItem(null)}
+        title={viewItem ? `Extracción · ${fmtGerencialDate(viewItem.fecha)}` : 'Detalle de extracción'}
+        eyebrow="Detalle de extracción"
+        sheetIcon={<SheetIconBadge icon={Pickaxe} />}
+        panelClassName="extraccion-page__modal sm:max-w-[72rem] sm:p-5"
+      >
+        {viewItem ? <ExtraccionRecordDetail record={viewItem} /> : null}
+      </GerencialRecordDetailModal>
     </div>
   );
 }

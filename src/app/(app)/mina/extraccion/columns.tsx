@@ -146,8 +146,9 @@ export const columns = (
     cell: ({ row }) => {
       if (!canEdit) return null;
       return (
-        <div className="flex gap-1 justify-end">
+        <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
           <button
+            type="button"
             onClick={() => onEdit(row.original)}
             className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors"
             title="Editar Registro"

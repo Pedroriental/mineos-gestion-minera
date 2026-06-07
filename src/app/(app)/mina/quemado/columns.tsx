@@ -108,7 +108,7 @@ export const columns = (
     cell: ({ row }) => {
       if (!canEdit) return null;
       return (
-        <div className="flex gap-1 justify-end">
+        <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => openEdit(row.original)}

@@ -17,6 +17,10 @@ import { mergeSuggestions } from '@/lib/biblioteca-catalog';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
 import { GerencialMobileChartFold, GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
+import { GerencialRecordDetailModal } from '@/components/gerencial/GerencialRecordDetailModal';
+import { ProduccionRecordDetail } from '@/components/gerencial/gerencial-record-details';
+import { gerencialTableRowClassName, handleRowDetailKeyDown } from '@/components/gerencial/gerencial-table-row';
+import { fmtGerencialDate } from '@/lib/gerencial-format';
 import EmptyState from '@/components/EmptyState';
 import {
   useReactTable,
@@ -39,7 +43,9 @@ const fmtNum = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDi
 
 const PRODUCCION_PAGE_MAX = 12;
 const PRODUCCION_PAGE_BUTTONS_MAX = 5;
-const PRODUCCION_ROW_MIN_PX = 40;
+/** Debe coincidir con --produccion-row-h (3.5rem) en globals.css */
+const PRODUCCION_ROW_PX = 56;
+const PRODUCCION_LAYOUT_SAFETY_PX = 4;
 const PRODUCCION_HEAD_FALLBACK_PX = 40;
 
 // ═══════════════════════════════════════════════════════════
@@ -112,6 +118,7 @@ export default function ProduccionGerencialClient({
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
   const [showModal, setShowModal] = useState(false);
+  const [viewItem, setViewItem] = useState<ReporteProduccion | null>(null);
   const [editItem, setEditItem] = useState<ReporteProduccion | null>(null);
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
@@ -286,11 +293,16 @@ export default function ProduccionGerencialClient({
     const el = tableBodyRef.current;
     if (!el) return;
     const headH = el.querySelector('thead')?.getBoundingClientRect().height ?? PRODUCCION_HEAD_FALLBACK_PX;
-    const bodyAvailable = el.clientHeight - headH;
-    const pageRows = Math.min(
-      PRODUCCION_PAGE_MAX,
-      Math.max(1, Math.floor(bodyAvailable / PRODUCCION_ROW_MIN_PX)),
+    const bodyAvailable = Math.max(0, el.clientHeight - headH);
+
+    const sample = el.querySelector<HTMLElement>(
+      'tbody tr:not(.produccion-table-row--pad):not(:has(td[colspan]))',
     );
+    const measuredHeight = sample?.getBoundingClientRect().height ?? 0;
+    const rowPx = Math.max(PRODUCCION_ROW_PX, measuredHeight > 8 ? measuredHeight : 0);
+
+    let pageRows = Math.floor((bodyAvailable - PRODUCCION_LAYOUT_SAFETY_PX) / rowPx);
+    pageRows = Math.max(1, Math.min(PRODUCCION_PAGE_MAX, pageRows));
     setPagination((prev) => (prev.pageSize === pageRows ? prev : { ...prev, pageSize: pageRows }));
   }, []);
 
@@ -328,7 +340,12 @@ export default function ProduccionGerencialClient({
     run();
     const ro = new ResizeObserver(run);
     ro.observe(el);
-    return () => ro.disconnect();
+    const mq = window.matchMedia('(min-width: 1024px)');
+    mq.addEventListener('change', run);
+    return () => {
+      ro.disconnect();
+      mq.removeEventListener('change', run);
+    };
   }, [syncTableLayout, filteredRegistros.length]);
 
   useEffect(() => {
@@ -723,7 +740,7 @@ export default function ProduccionGerencialClient({
                           <th
                             key={header.id}
                             onClick={header.column.getToggleSortingHandler()}
-                            className={`produccion-table-th whitespace-nowrap px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${header.column.getCanSort() ? 'cursor-pointer select-none' : ''}`}
+                            className={`produccion-table-th whitespace-nowrap px-4 text-[10px] font-bold uppercase tracking-wider ${header.column.getCanSort() ? 'cursor-pointer select-none' : ''}`}
                           >
                             {flexRender(header.column.columnDef.header, header.getContext())}
                           </th>
@@ -745,9 +762,16 @@ export default function ProduccionGerencialClient({
                     ) : (
                       <>
                         {pageRows.map((row) => (
-                          <tr key={row.id} className="produccion-table-row border-b transition-colors">
+                          <tr
+                            key={row.id}
+                            className={gerencialTableRowClassName}
+                            onClick={() => setViewItem(row.original)}
+                            onKeyDown={(event) => handleRowDetailKeyDown(event, row.original, setViewItem)}
+                            tabIndex={0}
+                            aria-label={`Ver detalle de producción del ${fmtGerencialDate(row.original.fecha)}`}
+                          >
                             {row.getVisibleCells().map((cell) => (
-                              <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
+                              <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 text-xs">
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </td>
                             ))}
@@ -755,7 +779,7 @@ export default function ProduccionGerencialClient({
                         ))}
                         {Array.from({ length: emptyRowSlots }, (_, i) => (
                           <tr key={`pad-${i}`} className="produccion-table-row produccion-table-row--pad border-b" aria-hidden>
-                            <td colSpan={colCount} className="px-4 py-2.5" />
+                            <td colSpan={colCount} className="px-4" />
                           </tr>
                         ))}
                       </>
@@ -929,6 +953,17 @@ export default function ProduccionGerencialClient({
               </button>
             </PageFormModalFooter>
       </PageFormModal>
+
+      <GerencialRecordDetailModal
+        open={!!viewItem}
+        onClose={() => setViewItem(null)}
+        title={viewItem ? `Producción · ${fmtGerencialDate(viewItem.fecha)}` : 'Detalle de producción'}
+        eyebrow="Detalle de producción"
+        sheetIcon={<SheetIconBadge icon={Factory} />}
+        panelClassName="produccion-page__modal sm:max-w-[72rem] sm:p-5"
+      >
+        {viewItem ? <ProduccionRecordDetail record={viewItem} /> : null}
+      </GerencialRecordDetailModal>
 
     </div>
   );
