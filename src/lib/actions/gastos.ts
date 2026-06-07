@@ -16,6 +16,7 @@ import { createServerClient } from '@/lib/supabase-server';
 import { GastoSchema, GastoUpdateSchema } from '@/lib/validations/gastos';
 import { GastoConceptoSchema } from '@/lib/validations/conceptos';
 import { checkGastoDuplicatesForSave } from '@/lib/actions/gastos-audit';
+import { applyGastoOroConversion } from '@/lib/actions/gastos-oro';
 import { formatDuplicateMatches, type GastoDuplicateMatch } from '@/lib/gastos-audit';
 import { z } from 'zod';
 
@@ -83,20 +84,23 @@ export async function createGasto(raw: unknown, options?: SaveOptions): Promise<
 
   const data = parsed.data;
 
-  const duplicateBlock = await ensureNoDuplicates([data], options);
+  const enriched = await applyGastoOroConversion(data);
+  const duplicateBlock = await ensureNoDuplicates([enriched], options);
   if (duplicateBlock) return duplicateBlock;
 
   // 2) Insertar en Supabase y verificar que RLS no bloquee
   const supabase = await createServerClient();
   const { data: inserted, error } = await supabase.from('gastos').insert({
-    fecha:               data.fecha,
-    categoria_id:        data.categoria_id,
-    descripcion:         data.descripcion,
-    monto:               data.monto,
-    proveedor:           data.proveedor   ?? null,
-    factura_referencia:  data.factura_referencia ?? null,
-    notas:               data.notas       ?? null,
-    registrado_por:      data.registrado_por    ?? null,
+    fecha:               enriched.fecha,
+    categoria_id:        enriched.categoria_id,
+    descripcion:         enriched.descripcion,
+    monto:               enriched.monto,
+    monto_gramos_oro:    enriched.monto_gramos_oro ?? null,
+    precio_oro_usd_gramo: enriched.precio_oro_usd_gramo ?? null,
+    proveedor:           enriched.proveedor   ?? null,
+    factura_referencia:  enriched.factura_referencia ?? null,
+    notas:               enriched.notas       ?? null,
+    registrado_por:      enriched.registrado_por    ?? null,
   }).select('id');
 
     if (error) {
@@ -134,15 +138,19 @@ export async function createGastosBulk(raws: unknown[], options?: SaveOptions): 
     const data = parsedArray.data;
     if (data.length === 0) return { ok: false, message: 'No hay gastos para registrar' };
 
-    const duplicateBlock = await ensureNoDuplicates(data, options);
+    const enrichedRows = await Promise.all(data.map((row) => applyGastoOroConversion(row)));
+
+    const duplicateBlock = await ensureNoDuplicates(enrichedRows, options);
     if (duplicateBlock) return duplicateBlock;
 
     const supabase = await createServerClient();
-    const rowsToInsert = data.map(g => ({
+    const rowsToInsert = enrichedRows.map((g) => ({
       fecha:               g.fecha,
       categoria_id:        g.categoria_id,
       descripcion:         g.descripcion,
       monto:               g.monto,
+      monto_gramos_oro:    g.monto_gramos_oro ?? null,
+      precio_oro_usd_gramo: g.precio_oro_usd_gramo ?? null,
       proveedor:           g.proveedor   ?? null,
       factura_referencia:  g.factura_referencia ?? null,
       notas:               g.notas       ?? null,
@@ -183,9 +191,10 @@ export async function updateGasto(raw: unknown, options?: SaveOptions): Promise<
   }
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
+  const enriched = await applyGastoOroConversion({ ...rest, registrado_por: parsed.data.registrado_por ?? null });
 
   const duplicateBlock = await ensureNoDuplicates(
-    [{ ...rest, registrado_por: parsed.data.registrado_por ?? null }],
+    [enriched],
     { ...options, excludeIds: [id, ...(options?.excludeIds ?? [])] },
   );
   if (duplicateBlock) return duplicateBlock;
@@ -194,13 +203,15 @@ export async function updateGasto(raw: unknown, options?: SaveOptions): Promise<
   const { data: updated, error } = await supabase
     .from('gastos')
     .update({
-      fecha:              rest.fecha,
-      categoria_id:       rest.categoria_id,
-      descripcion:        rest.descripcion,
-      monto:              rest.monto,
-      proveedor:          rest.proveedor          ?? null,
-      factura_referencia: rest.factura_referencia ?? null,
-      notas:              rest.notas              ?? null,
+      fecha:              enriched.fecha,
+      categoria_id:       enriched.categoria_id,
+      descripcion:        enriched.descripcion,
+      monto:              enriched.monto,
+      monto_gramos_oro:   enriched.monto_gramos_oro ?? null,
+      precio_oro_usd_gramo: enriched.precio_oro_usd_gramo ?? null,
+      proveedor:          enriched.proveedor          ?? null,
+      factura_referencia: enriched.factura_referencia ?? null,
+      notas:              enriched.notas              ?? null,
     })
     .eq('id', id)
     .select('id');

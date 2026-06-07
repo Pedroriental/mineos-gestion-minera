@@ -16,6 +16,7 @@
     "supabase:migrate:acarreo": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-acarreo.ps1",
     "supabase:migrate:acarreo-import": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-acarreo-import.ps1",
     "supabase:migrate:acarreo-fotos": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-acarreo-fotos.ps1",
+    "supabase:migrate:gastos-oro": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-migration.ps1 migration_gastos_pago_oro.sql",
     "supabase:check": "supabase db query --linked \"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'biblioteca_categorias') AS biblioteca, EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fiscal_entidades') AS fiscal;\"",
     "supabase:migrate:plataforma": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-plataforma.ps1",
     "supabase:migrate:nomina": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-nomina.ps1",

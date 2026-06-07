@@ -27,6 +27,20 @@ export const GastoSchema = z.object({
     .positive('El monto debe ser mayor que cero')
     .max(9_999_999, 'El monto parece fuera de rango'),
 
+  monto_gramos_oro: z
+    .number({ message: 'Los gramos deben ser un número' })
+    .positive('Los gramos deben ser mayor que cero')
+    .max(99_999, 'Los gramos parecen fuera de rango')
+    .optional()
+    .nullable(),
+
+  precio_oro_usd_gramo: z
+    .number({ message: 'El precio del oro debe ser un número' })
+    .positive('El precio del oro debe ser mayor que cero')
+    .max(9_999, 'El precio del oro parece fuera de rango')
+    .optional()
+    .nullable(),
+
   proveedor: z
     .string()
     .max(150, 'Máximo 150 caracteres')

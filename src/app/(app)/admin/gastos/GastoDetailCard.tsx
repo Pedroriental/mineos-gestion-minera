@@ -2,6 +2,7 @@
 
 import { X, Edit2, Receipt } from 'lucide-react';
 import type { Gasto } from '@/lib/types';
+import { formatGastoOroResumen, isGastoPagoOro } from '@/lib/gastos-oro';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -65,6 +66,7 @@ interface GastoDetailCardProps {
 
 export function GastoDetailCard({ gasto, registradoPor, onClose, onEdit, canEdit }: GastoDetailCardProps) {
   const cat = gasto.categorias_gasto;
+  const oroResumen = formatGastoOroResumen(gasto);
 
   return (
     <div className="gastos-detail-card rounded-xl px-4 py-3">
@@ -110,7 +112,17 @@ export function GastoDetailCard({ gasto, registradoPor, onClose, onEdit, canEdit
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
         <DetailField label="Fecha" value={gasto.fecha} mono />
-        <DetailField label="Monto" value={fmt(Number(gasto.monto))} highlight />
+        <DetailField label="Monto (USD)" value={fmt(Number(gasto.monto))} highlight />
+        {isGastoPagoOro(gasto) ? (
+          <>
+            <DetailField label="Pago en oro" value={`${Number(gasto.monto_gramos_oro)} g`} highlight />
+            <DetailField
+              label="Precio oro usado"
+              value={`$${Number(gasto.precio_oro_usd_gramo ?? 0).toFixed(2)}/g`}
+              mono
+            />
+          </>
+        ) : null}
         <DetailField label="Categoría" value={cat?.nombre ?? '—'} />
         <DetailField
           label="Tipo categoría"
@@ -123,6 +135,11 @@ export function GastoDetailCard({ gasto, registradoPor, onClose, onEdit, canEdit
         <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-4">
           <DetailField label="Descripción" value={gasto.descripcion} />
         </div>
+        {oroResumen ? (
+          <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-4">
+            <DetailField label="Conversión oro" value={oroResumen} mono />
+          </div>
+        ) : null}
         {(gasto.notas?.trim() ?? '') !== '' && (
           <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-4">
             <DetailField label="Notas" value={gasto.notas ?? ''} />

@@ -23,6 +23,13 @@ import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto, createGastosBulk } from '@/lib/actions/gastos';
 import { verifyGastosBeforeSave } from '@/lib/actions/gastos-audit';
+import { getPrecioOroParaFecha } from '@/lib/actions/gastos-oro';
+import {
+  convertGramosToUsd,
+  isLegacyGastoOroNota,
+  PRECIO_ORO_FALLBACK_USD,
+  type PrecioOroGasto,
+} from '@/lib/gastos-oro';
 import { formatDuplicateMatches } from '@/lib/gastos-audit';
 import { GastosAuditPanel } from '@/components/gastos/GastosAuditPanel';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
@@ -61,6 +68,8 @@ const createEmptyItem = () => ({
   descripcion:        '',
   cantidad:           '',
   monto:              '',
+  pago_en_oro:        false,
+  gramos_oro:         '',
   guardar_en_catalogo: false,
 });
 
@@ -102,6 +111,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   const confirmDialog = useConfirm();
 
   const [showModal, setShowModal] = useState(false);
+  const [precioOroRef, setPrecioOroRef] = useState<PrecioOroGasto | null>(null);
   const [editItem,  setEditItem]  = useState<Gasto | null>(null);
   const [baseInfo,  setBaseInfo]  = useState(EMPTY_BASE_INFO);
   const [items,     setItems]     = useState([createEmptyItem()]);
@@ -261,6 +271,17 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [detailId]);
+
+  useEffect(() => {
+    if (!showModal || !baseInfo.fecha) return;
+    let cancelled = false;
+    void getPrecioOroParaFecha(baseInfo.fecha).then((precio) => {
+      if (!cancelled) setPrecioOroRef(precio);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showModal, baseInfo.fecha]);
 
   // ── KPIs (sobre datos filtrados por mes + categoría) ────────
   const totalGastos  = finalData.reduce((s, g) => s + Number(g.monto), 0);
@@ -501,18 +522,24 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   function openNew()   { resetForm(); setShowModal(true); }
   function openEdit(item: Gasto) {
     setEditItem(item);
+    const legacyOro = !item.monto_gramos_oro && isLegacyGastoOroNota(item.notas);
+    const pagoEnOro = (item.monto_gramos_oro != null && Number(item.monto_gramos_oro) > 0) || legacyOro;
     setBaseInfo({
       fecha:              item.fecha,
       proveedor:          item.proveedor          || '',
       factura_referencia: item.factura_referencia || '',
-      notas:              item.notas              || '',
+      notas:              legacyOro ? '' : (item.notas || ''),
     });
     setItems([{
       id:                 item.id,
       categoria_nombre:   item.categorias_gasto?.nombre || '',
       descripcion:        item.descripcion,
-      cantidad:           '', // Default empty for edit
-      monto:              String(item.monto),
+      cantidad:           '',
+      monto:              pagoEnOro ? '' : String(item.monto),
+      pago_en_oro:        pagoEnOro,
+      gramos_oro:         pagoEnOro
+        ? String(item.monto_gramos_oro ?? (legacyOro ? item.monto : ''))
+        : '',
       guardar_en_catalogo: false,
     }]);
     setShowModal(true);
@@ -536,10 +563,18 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
     } else {
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
-        const montoNum = parseFloat(it.monto);
         if (!it.categoria_nombre.trim()) { setFormError(`El ítem ${i + 1} necesita una categoría.`); return; }
         if (!it.descripcion.trim()) { setFormError(`La descripción es obligatoria en el ítem ${i + 1}.`); return; }
-        if (!it.monto || isNaN(montoNum) || montoNum <= 0) { setFormError(`Monto inválido en el ítem ${i + 1}.`); return; }
+        if (it.pago_en_oro) {
+          const gramosNum = parseFloat(it.gramos_oro);
+          if (!it.gramos_oro || isNaN(gramosNum) || gramosNum <= 0) {
+            setFormError(`Gramos de oro inválidos en el ítem ${i + 1}.`);
+            return;
+          }
+        } else {
+          const montoNum = parseFloat(it.monto);
+          if (!it.monto || isNaN(montoNum) || montoNum <= 0) { setFormError(`Monto inválido en el ítem ${i + 1}.`); return; }
+        }
       }
     }
 
@@ -601,11 +636,19 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
             desc = `${it.descripcion} (Cant: ${it.cantidad})`;
           }
 
+          const precioOro = precioOroRef?.usdPorGramo ?? PRECIO_ORO_FALLBACK_USD;
+          const gramosOro = it.pago_en_oro ? parseFloat(it.gramos_oro) : null;
+          const montoUsd = it.pago_en_oro
+            ? convertGramosToUsd(gramosOro!, precioOro)
+            : parseFloat(it.monto);
+
           payloads.push({
             fecha: baseInfo.fecha, 
             categoria_id: categoriaId, 
             descripcion: desc,
-            monto: parseFloat(it.monto), 
+            monto: montoUsd,
+            monto_gramos_oro: gramosOro,
+            precio_oro_usd_gramo: it.pago_en_oro ? precioOro : null,
             proveedor: baseInfo.proveedor || null,
             factura_referencia: baseInfo.factura_referencia || null, 
             notas: baseInfo.notas || null,
@@ -1190,22 +1233,76 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
                       />
                     </div>
                     {!isGlobalAmount && (
-                      <div className="sm:col-span-4 animate-in fade-in duration-200">
-                        <label className="input-label">Monto (USD) *</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={it.monto}
-                          onChange={e => {
-                            const newItems = [...items];
-                            newItems[idx].monto = e.target.value;
-                            setItems(newItems);
-                            setFormError(null);
-                          }}
-                          className="input-field"
-                          placeholder="Total ($)"
-                        />
+                      <div className="sm:col-span-4 space-y-2 animate-in fade-in duration-200">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={it.pago_en_oro}
+                            onChange={(e) => {
+                              const newItems = [...items];
+                              newItems[idx] = {
+                                ...it,
+                                pago_en_oro: e.target.checked,
+                                gramos_oro: e.target.checked ? it.gramos_oro : '',
+                                monto: e.target.checked ? '' : it.monto,
+                              };
+                              setItems(newItems);
+                              setFormError(null);
+                            }}
+                            className="h-3.5 w-3.5 rounded border-zinc-800 bg-zinc-950 text-amber-500 focus:ring-amber-500/50"
+                          />
+                          <span className="text-[10px] text-amber-400/90">Pago en oro (gramos)</span>
+                        </label>
+
+                        {it.pago_en_oro ? (
+                          <div>
+                            <label className="input-label text-amber-400/90">Gramos de oro *</label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              min="0.0001"
+                              value={it.gramos_oro}
+                              onChange={(e) => {
+                                const newItems = [...items];
+                                newItems[idx].gramos_oro = e.target.value;
+                                setItems(newItems);
+                                setFormError(null);
+                              }}
+                              className="input-field border-amber-500/30 bg-amber-500/5"
+                              placeholder="Ej: 40"
+                            />
+                            {it.gramos_oro && precioOroRef ? (
+                              <p className="mt-1 text-[10px] leading-snug text-white/45">
+                                {parseFloat(it.gramos_oro) || 0} g × ${precioOroRef.usdPorGramo.toFixed(2)}/g
+                                {' → '}
+                                <span className="font-semibold text-amber-300">
+                                  {fmtShort(convertGramosToUsd(parseFloat(it.gramos_oro) || 0, precioOroRef.usdPorGramo))}
+                                </span>
+                                {precioOroRef.fechaReferencia ? (
+                                  <span className="text-white/30"> · ref. {precioOroRef.fechaReferencia}</span>
+                                ) : null}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="input-label">Monto (USD) *</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={it.monto}
+                              onChange={(e) => {
+                                const newItems = [...items];
+                                newItems[idx].monto = e.target.value;
+                                setItems(newItems);
+                                setFormError(null);
+                              }}
+                              className="input-field"
+                              placeholder="Total ($)"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1248,7 +1345,19 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
             {items.length > 0 && !editItem && (
               <div className="mt-2 text-right">
                 <span className="text-[11px] font-bold text-[var(--dashboard-text-muted)]">
-                  Total de Factura: <span className="text-white text-sm">{fmtShort(items.reduce((acc, it) => acc + (parseFloat(it.monto) || 0), 0))}</span>
+                  Total de Factura:{' '}
+                  <span className="text-white text-sm">
+                    {fmtShort(
+                      items.reduce((acc, it) => {
+                        if (it.pago_en_oro) {
+                          const gramos = parseFloat(it.gramos_oro) || 0;
+                          const precio = precioOroRef?.usdPorGramo ?? PRECIO_ORO_FALLBACK_USD;
+                          return acc + convertGramosToUsd(gramos, precio);
+                        }
+                        return acc + (parseFloat(it.monto) || 0);
+                      }, 0),
+                    )}
+                  </span>
                 </span>
               </div>
             )}

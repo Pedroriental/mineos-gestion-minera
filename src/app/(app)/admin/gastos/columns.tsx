@@ -8,6 +8,7 @@
 import { createColumnHelper, type FilterFn } from '@tanstack/react-table';
 import { ArrowUpDown, ArrowUp, ArrowDown, Edit2, Trash2 } from 'lucide-react';
 import type { Gasto } from '@/lib/types';
+import { formatGastoOroResumen, isGastoPagoOro } from '@/lib/gastos-oro';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -186,11 +187,18 @@ export function getGastoColumns({
           Monto <SortIcon direction={column.getIsSorted()} />
         </button>
       ),
-      cell: (info) => (
-        <span className="gastos-amount block text-[11px]">
-          {fmt(info.getValue())}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const gasto = row.original;
+        const oroResumen = formatGastoOroResumen(gasto);
+        return (
+          <span className="gastos-amount block text-[11px]" title={oroResumen || undefined}>
+            {fmt(gasto.monto)}
+            {isGastoPagoOro(gasto) ? (
+              <span className="block text-[9px] font-normal text-amber-400/85">{oroResumen}</span>
+            ) : null}
+          </span>
+        );
+      },
       sortingFn: 'basic',
     }),
 

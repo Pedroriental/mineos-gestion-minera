@@ -183,6 +183,8 @@ export interface Gasto {
   categoria_id: string;
   descripcion: string;
   monto: number;
+  monto_gramos_oro?: number | null;
+  precio_oro_usd_gramo?: number | null;
   proveedor?: string;
   factura_referencia?: string;
   notas?: string;
