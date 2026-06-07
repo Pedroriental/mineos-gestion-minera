@@ -121,6 +121,12 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
     return initialData.filter((r) => r.fecha === selectedDate);
   }, [initialData, selectedDate]);
 
+  useEffect(() => {
+    if (selectedDate !== 'todos' && diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+      setSelectedDate('todos');
+    }
+  }, [diasConRegistros, initialData, selectedDate]);
+
   const cargaTotal = useMemo(
     () => lineas.reduce((sum, linea) => sum + (parseInt(linea.sacos, 10) || 0), 0),
     [lineas],

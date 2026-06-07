@@ -5,8 +5,10 @@ import { supabase } from '@/lib/supabase';
 import { TrendingUp, TrendingDown, AlertTriangle, Target, Calculator, Gem, Pickaxe, Scale } from 'lucide-react';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+import { useGlobalDateRange } from '@/hooks/useGlobalDateRange';
 
 export default function CostoPorGramoPage() {
+  const { desde, hasta, hasRange } = useGlobalDateRange();
   const [reportes, setReportes] = useState<any[]>([]);
   const [gastos, setGastos] = useState<any[]>([]);
   const [goldPrice, setGoldPrice] = useState<{ usd_gramo: number; usd_onza: number } | null>(null);
@@ -19,9 +21,18 @@ export default function CostoPorGramoPage() {
   const loadData = useCallback(async () => {
     const gen = begin();
     setLoading(true);
+    let repQuery = supabase.from('reportes_produccion').select('*').order('fecha', { ascending: false });
+    let gastosQuery = supabase.from('gastos').select('monto, fecha, categorias_gasto(nombre)').order('fecha', { ascending: false });
+    if (hasRange && desde && hasta) {
+      repQuery = repQuery.gte('fecha', desde).lte('fecha', hasta);
+      gastosQuery = gastosQuery.gte('fecha', desde).lte('fecha', hasta);
+    } else {
+      repQuery = repQuery.limit(500);
+      gastosQuery = gastosQuery.limit(500);
+    }
     const [repRes, gastosRes, precioRes, precioFallbackRes] = await Promise.all([
-      supabase.from('reportes_produccion').select('*').order('fecha', { ascending: false }).limit(500),
-      supabase.from('gastos').select('monto, fecha, categorias_gasto(nombre)').order('fecha', { ascending: false }).limit(500),
+      repQuery,
+      gastosQuery,
       supabase.from('precio_oro_cache').select('precio_usd_por_gramo, precio_usd_por_onza').eq('fecha', new Date().toISOString().split('T')[0]).single(),
       supabase.from('precio_oro_cache').select('precio_usd_por_gramo, precio_usd_por_onza').order('fecha', { ascending: false }).limit(1).single(),
     ]);
@@ -31,7 +42,7 @@ export default function CostoPorGramoPage() {
     const p = precioRes.data || precioFallbackRes.data;
     setGoldPrice(p ? { usd_gramo: Number(p.precio_usd_por_gramo), usd_onza: Number(p.precio_usd_por_onza) } : { usd_gramo: 99.68, usd_onza: 3100.00 });
     setLoading(false);
-  }, [begin, isStale]);
+  }, [begin, isStale, hasRange, desde, hasta]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

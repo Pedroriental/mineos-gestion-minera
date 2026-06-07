@@ -14,8 +14,11 @@ import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 import type { LibroGuardia } from '@/lib/types';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import { useGlobalDateRange } from '@/hooks/useGlobalDateRange';
+import { clampFechaToGlobalRange } from '@/lib/global-date-range';
 
 export default function LibroGuardiaPage() {
+  const { desde, hasta, hasRange } = useGlobalDateRange();
   const allTurnos = useTurnoOptions();
   const climaOptions = useBibliotecaOptions('clima_guardia');
   const turnoOptions = useMemo(
@@ -54,18 +57,28 @@ export default function LibroGuardiaPage() {
   const loadData = useCallback(async () => {
     const gen = begin();
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from('libro_guardia')
       .select('*')
       .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(200);
+      .order('created_at', { ascending: false });
+    if (hasRange && desde && hasta) {
+      query = query.gte('fecha', desde).lte('fecha', hasta);
+    } else {
+      query = query.limit(200);
+    }
+    const { data } = await query;
     if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, [begin, isStale]);
+  }, [begin, isStale, hasRange, desde, hasta]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!hasRange || !desde || !hasta) return;
+    setSelectedDate((current) => clampFechaToGlobalRange(current, { desde, hasta }));
+  }, [hasRange, desde, hasta]);
 
   const handleSave = async () => {
     if (!form.jefe_saliente || !form.jefe_entrante || !form.novedades_operativas) return;
@@ -98,7 +111,11 @@ export default function LibroGuardiaPage() {
   const navigateDay = (dir: 'prev' | 'next') => {
     const d = new Date(selectedDate + 'T12:00:00');
     d.setDate(d.getDate() + (dir === 'next' ? 1 : -1));
-    setSelectedDate(d.toISOString().split('T')[0]);
+    let next = d.toISOString().split('T')[0];
+    if (hasRange && desde && hasta) {
+      next = clampFechaToGlobalRange(next, { desde, hasta });
+    }
+    setSelectedDate(next);
   };
 
   const filtered = data.filter(d => d.fecha === selectedDate);
@@ -136,7 +153,12 @@ export default function LibroGuardiaPage() {
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-4">
-            <AppDatePicker value={selectedDate} onChange={(val) => setSelectedDate(val)} />
+            <AppDatePicker
+              value={selectedDate}
+              onChange={(val) => setSelectedDate(
+                hasRange && desde && hasta ? clampFechaToGlobalRange(val, { desde, hasta }) : val,
+              )}
+            />
             <span className="text-sm text-white/40 capitalize hidden sm:block">{fmtDateDisplay(selectedDate)}</span>
             {isToday && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-400/25">

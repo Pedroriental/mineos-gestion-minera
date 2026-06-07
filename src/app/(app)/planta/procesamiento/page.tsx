@@ -13,11 +13,13 @@ import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModa
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+import { useGlobalDateRange } from '@/hooks/useGlobalDateRange';
 
 const PESO_SACO_KG = 50;
 
 export default function ProcesamientoPage() {
   const { user } = useAuth();
+  const { desde, hasta, hasRange } = useGlobalDateRange();
   const procesoOptions = useBibliotecaOptions('procesamiento_tipo');
   const estadoOptions = useBibliotecaOptions('procesamiento_estado');
   const [data, setData] = useState<ProcesamientoPlanta[]>([]);
@@ -40,11 +42,17 @@ export default function ProcesamientoPage() {
   const loadData = useCallback(async () => {
     const gen = begin();
     setLoading(true);
-    const { data } = await supabase.from('procesamiento_planta').select('*').order('fecha', { ascending: false }).limit(100);
+    let query = supabase.from('procesamiento_planta').select('*').order('fecha', { ascending: false });
+    if (hasRange && desde && hasta) {
+      query = query.gte('fecha', desde).lte('fecha', hasta);
+    } else {
+      query = query.limit(100);
+    }
+    const { data } = await query;
     if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, [begin, isStale]);
+  }, [begin, isStale, hasRange, desde, hasta]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

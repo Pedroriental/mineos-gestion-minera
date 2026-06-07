@@ -152,6 +152,7 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
     params.set('desde', dateRange.from);
     params.set('hasta', dateRange.to);
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    router.refresh();
   };
 
   const label = formatDateLabel(fromParam, toParam);
@@ -160,6 +161,7 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
   const handleClear = () => {
     setIsOpen(false);
     router.push(pathname, { scroll: false });
+    router.refresh();
   };
 
   const triggerClassName = cn(

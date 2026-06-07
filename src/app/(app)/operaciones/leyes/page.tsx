@@ -5,8 +5,10 @@ import { supabase } from '@/lib/supabase';
 import { TrendingUp, TrendingDown, Factory, Target, Scale, Info } from 'lucide-react';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+import { useGlobalDateRange } from '@/hooks/useGlobalDateRange';
 
 export default function ControlLeyesPage() {
+  const { desde, hasta, hasRange } = useGlobalDateRange();
   const [reportes, setReportes] = useState<any[]>([]);
   const [recepciones, setRecepciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,15 +18,21 @@ export default function ControlLeyesPage() {
   const loadData = useCallback(async () => {
     const gen = begin();
     setLoading(true);
-    const [repRes, recRes] = await Promise.all([
-      supabase.from('reportes_produccion').select('*').order('fecha', { ascending: false }).limit(500),
-      supabase.from('recepcion_material').select('*').order('fecha', { ascending: false }).limit(500),
-    ]);
+    let repQuery = supabase.from('reportes_produccion').select('*').order('fecha', { ascending: false });
+    let recQuery = supabase.from('recepcion_material').select('*').order('fecha', { ascending: false });
+    if (hasRange && desde && hasta) {
+      repQuery = repQuery.gte('fecha', desde).lte('fecha', hasta);
+      recQuery = recQuery.gte('fecha', desde).lte('fecha', hasta);
+    } else {
+      repQuery = repQuery.limit(500);
+      recQuery = recQuery.limit(500);
+    }
+    const [repRes, recRes] = await Promise.all([repQuery, recQuery]);
     if (isStale(gen)) return;
     setReportes(repRes.data || []);
     setRecepciones(recRes.data || []);
     setLoading(false);
-  }, [begin, isStale]);
+  }, [begin, isStale, hasRange, desde, hasta]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

@@ -1,10 +1,18 @@
 import { verifyFinancialIntegrityAction } from '@/lib/actions/verify-integrity';
 import IntegrityDashboard from '@/components/integrity/IntegrityDashboard';
+import { hasGlobalDateRange, type GlobalDateSearchParams } from '@/lib/global-date-range';
 
 export const dynamic = 'force-dynamic';
 
-export default async function IntegridadPage() {
-  const result = await verifyFinancialIntegrityAction();
+export default async function IntegridadPage(props: {
+  searchParams: Promise<GlobalDateSearchParams>;
+}) {
+  const searchParams = await props.searchParams;
+  const hasParams = hasGlobalDateRange(searchParams);
+  const result = await verifyFinancialIntegrityAction(
+    hasParams ? searchParams.desde : undefined,
+    hasParams ? searchParams.hasta : undefined,
+  );
 
   if (!result.ok) {
     return (

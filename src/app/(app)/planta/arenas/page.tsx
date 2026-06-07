@@ -12,6 +12,7 @@ import { SheetIconBadge } from '@/components/mobile';
 import { MobileCard, MobileCardAction } from '@/components/ui/MobileCard';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
+import { useGlobalDateRange } from '@/hooks/useGlobalDateRange';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { mineosCell, mineosKpiValue, mineosModalDivider, mineosModalHeading, mineosPanel } from '@/lib/mineos-visual';
@@ -31,6 +32,7 @@ const emptyForm = {
 
 export default function ArenasPage() {
   const { user } = useAuth();
+  const { desde, hasta, hasRange } = useGlobalDateRange();
   const [data, setData] = useState<VentaArenas[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -46,11 +48,17 @@ export default function ArenasPage() {
   const loadData = useCallback(async () => {
     const gen = begin();
     setLoading(true);
-    const { data } = await supabase.from('venta_arenas').select('*').order('fecha', { ascending: false }).limit(100);
+    let query = supabase.from('venta_arenas').select('*').order('fecha', { ascending: false });
+    if (hasRange && desde && hasta) {
+      query = query.gte('fecha', desde).lte('fecha', hasta);
+    } else {
+      query = query.limit(100);
+    }
+    const { data } = await query;
     if (isStale(gen)) return;
     setData(data || []);
     setLoading(false);
-  }, [begin, isStale]);
+  }, [begin, isStale, hasRange, desde, hasta]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
