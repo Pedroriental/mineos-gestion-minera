@@ -6,6 +6,12 @@ import { z } from 'zod';
 import { AcarreoSchema, AcarreoUpdateSchema } from '@/lib/validations/acarreo';
 import type { ReporteAcarreo } from '@/lib/types';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
+import {
+  parsePhotoFiles,
+  parsePhotoKeepList,
+  REPORT_PHOTO_MAX_COUNT,
+  saveReportPhotos,
+} from '@/lib/report-photo-upload';
 
 const ACARREO_PATH = '/planta/acarreo';
 
@@ -17,13 +23,49 @@ function normalizeLineas(lineas: ReporteAcarreo['lineas']): ReporteAcarreo['line
   }));
 }
 
-export async function createAcarreo(raw: Partial<ReporteAcarreo>) {
+async function resolveFotosFromForm(formData: FormData): Promise<{ ok: true; fotos: string[] } | { ok: false; message: string }> {
+  const keep = parsePhotoKeepList(formData.get('fotos_keep'));
+  const newFiles = parsePhotoFiles(formData);
+
+  if (keep.length + newFiles.length > REPORT_PHOTO_MAX_COUNT) {
+    return { ok: false, message: `Máximo ${REPORT_PHOTO_MAX_COUNT} fotos por informe.` };
+  }
+
   try {
-    const parsed = AcarreoSchema.safeParse(raw);
+    const uploaded = await saveReportPhotos(newFiles, 'acarreo', 'acarreo');
+    return { ok: true, fotos: [...keep, ...uploaded] };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al subir fotos.';
+    return { ok: false, message };
+  }
+}
+
+function parsePayload(formData: FormData) {
+  const raw = formData.get('payload');
+  if (typeof raw !== 'string') {
+    return { ok: false as const, message: 'Datos del formulario inválidos.' };
+  }
+
+  try {
+    return { ok: true as const, data: JSON.parse(raw) as unknown };
+  } catch {
+    return { ok: false as const, message: 'Datos del formulario inválidos.' };
+  }
+}
+
+export async function createAcarreoForm(formData: FormData) {
+  try {
+    const payloadParsed = parsePayload(formData);
+    if (!payloadParsed.ok) return payloadParsed;
+
+    const parsed = AcarreoSchema.safeParse(payloadParsed.data);
     if (!parsed.success) {
       const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
       return { ok: false, message: msg, error: parsed.error };
     }
+
+    const fotosResolved = await resolveFotosFromForm(formData);
+    if (!fotosResolved.ok) return fotosResolved;
 
     const data = parsed.data;
     let validatedMina = data.mina;
@@ -41,6 +83,7 @@ export async function createAcarreo(raw: Partial<ReporteAcarreo>) {
       mina: validatedMina,
       molino: validatedMolino,
       lineas: normalizeLineas(data.lineas),
+      fotos: fotosResolved.fotos,
     });
 
     if (error) {
@@ -57,13 +100,19 @@ export async function createAcarreo(raw: Partial<ReporteAcarreo>) {
   }
 }
 
-export async function updateAcarreo(raw: Partial<ReporteAcarreo> & { id: string }) {
+export async function updateAcarreoForm(formData: FormData) {
   try {
-    const parsed = AcarreoUpdateSchema.safeParse(raw);
+    const payloadParsed = parsePayload(formData);
+    if (!payloadParsed.ok) return payloadParsed;
+
+    const parsed = AcarreoUpdateSchema.safeParse(payloadParsed.data);
     if (!parsed.success) {
       const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
       return { ok: false, message: msg, error: parsed.error };
     }
+
+    const fotosResolved = await resolveFotosFromForm(formData);
+    if (!fotosResolved.ok) return fotosResolved;
 
     const { id, registrado_por, ...rest } = parsed.data;
     let validatedMina = rest.mina;
@@ -83,6 +132,7 @@ export async function updateAcarreo(raw: Partial<ReporteAcarreo> & { id: string 
         mina: validatedMina,
         molino: validatedMolino,
         lineas: normalizeLineas(rest.lineas),
+        fotos: fotosResolved.fotos,
       })
       .eq('id', id);
 

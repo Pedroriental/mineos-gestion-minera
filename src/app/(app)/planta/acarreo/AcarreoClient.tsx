@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { createAcarreo, updateAcarreo, deleteAcarreo } from '@/lib/actions/acarreo';
+import { createAcarreoForm, updateAcarreoForm, deleteAcarreo } from '@/lib/actions/acarreo';
 import type { ReporteAcarreo } from '@/lib/types';
 import {
   Loader2, Plus, X, ChevronLeft, ChevronRight, AlertCircle, Search, Truck,
@@ -17,6 +17,12 @@ import EmptyState from '@/components/EmptyState';
 import { FadeIn } from '@/components/ui/motion';
 import { GerencialRecordDetailModal } from '@/components/gerencial/GerencialRecordDetailModal';
 import { AcarreoRecordDetail } from '@/components/gerencial/gerencial-record-details';
+import {
+  ReportPhotoField,
+  reportPhotoDraftsFromUrls,
+  revokeReportPhotoPreviews,
+  type ReportPhotoDraft,
+} from '@/components/reportes/ReportPhotoField';
 import { gerencialTableRowClassName, handleRowDetailKeyDown } from '@/components/gerencial/gerencial-table-row';
 import { fmtGerencialDate } from '@/lib/gerencial-format';
 import {
@@ -99,6 +105,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
   };
   const [form, setForm] = useState(emptyForm);
   const [lineas, setLineas] = useState([emptyLinea()]);
+  const [fotos, setFotos] = useState<ReportPhotoDraft[]>([]);
   const set = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }));
 
   const diasConRegistros = useMemo(() => {
@@ -119,6 +126,24 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
     [lineas],
   );
 
+  const replaceFotos = useCallback((next: ReportPhotoDraft[]) => {
+    setFotos((prev) => {
+      revokeReportPhotoPreviews(prev);
+      return next;
+    });
+  }, []);
+
+  const clearFotos = useCallback(() => {
+    replaceFotos([]);
+  }, [replaceFotos]);
+
+  const closeFormModal = () => {
+    clearFotos();
+    setShowModal(false);
+    setFormError(null);
+    setEditItem(null);
+  };
+
   const openCreate = () => {
     setEditItem(null);
     setForm({
@@ -126,6 +151,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
       fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate,
     });
     setLineas([emptyLinea()]);
+    replaceFotos([]);
     setFormError(null);
     setShowModal(true);
   };
@@ -149,6 +175,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
           }))
         : [emptyLinea()],
     );
+    replaceFotos(reportPhotoDraftsFromUrls(item.fotos));
     setFormError(null);
     setShowModal(true);
   };
@@ -281,18 +308,27 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
       sacos_libres: parseInt(form.sacos_libres, 10) || 0,
       observaciones: form.observaciones.trim() || undefined,
       registrado_por: user?.id,
+      ...(editItem ? { id: editItem.id } : {}),
     };
+
+    const formData = new FormData();
+    formData.set('payload', JSON.stringify(payload));
+    formData.set(
+      'fotos_keep',
+      JSON.stringify(fotos.filter((photo) => photo.kind === 'existing').map((photo) => photo.url)),
+    );
+    fotos.filter((photo): photo is Extract<ReportPhotoDraft, { kind: 'new' }> => photo.kind === 'new')
+      .forEach((photo) => formData.append('fotos_nuevas', photo.file));
 
     startTransition(async () => {
       const res = editItem
-        ? await updateAcarreo({ ...payload, id: editItem.id })
-        : await createAcarreo(payload);
+        ? await updateAcarreoForm(formData)
+        : await createAcarreoForm(formData);
       if (!res.ok) {
         setFormError(res.message || 'No se pudo guardar el informe.');
         return;
       }
-      setShowModal(false);
-      setEditItem(null);
+      closeFormModal();
       setSelectedDate(form.fecha);
     });
   };
@@ -460,7 +496,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
 
       <PageFormModal
         open={showModal}
-        onClose={() => { setShowModal(false); setFormError(null); }}
+        onClose={closeFormModal}
         sheetTitle={editItem ? 'Editar informe de acarreo' : 'Nuevo informe de acarreo'}
         sheetIcon={<SheetIconBadge icon={Truck} tone="accent" />}
         panelClassName="acarreo-page__modal sm:max-w-[72rem] sm:p-5"
@@ -472,7 +508,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
               {editItem ? 'Editar informe de acarreo' : 'Nuevo informe de acarreo'}
             </h2>
           </div>
-          <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]">
+          <button type="button" onClick={closeFormModal} className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -620,11 +656,15 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
                 placeholder='Ej: los 28 sacos del disparo 31 están con el moño hacia la parte delantera del camión'
               />
             </div>
+            <div>
+              <label className="input-label">Fotos del informe</label>
+              <ReportPhotoField photos={fotos} onChange={setFotos} disabled={isPending} />
+            </div>
           </section>
         </div>
 
         <PageFormModalFooter className="flex-col-reverse sm:flex-row">
-          <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">
+          <button type="button" onClick={closeFormModal} className="btn-secondary min-h-[48px] sm:min-h-[40px]">
             Cancelar
           </button>
           <button

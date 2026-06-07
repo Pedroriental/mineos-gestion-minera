@@ -261,6 +261,9 @@ export function AcarreoRecordDetail({ record }: { record: ReporteAcarreo }) {
         <GerencialDetailField label="Servicio" value={formatServicioTurno(record.turno)} />
         <GerencialDetailField label="Mina" value={formatOptionalText(record.mina)} />
         <GerencialDetailField label="Molino destino" value={formatOptionalText(record.molino)} />
+        {record.recepcion_id ? (
+          <GerencialDetailField label="Origen" value="Importado desde Recepción" />
+        ) : null}
       </GerencialDetailSection>
 
       <section>
@@ -283,6 +286,26 @@ export function AcarreoRecordDetail({ record }: { record: ReporteAcarreo }) {
         <GerencialDetailSection title="Notas">
           <GerencialDetailField label="Observaciones" value={record.observaciones} className="col-span-2 sm:col-span-3 lg:col-span-4" />
         </GerencialDetailSection>
+      ) : null}
+
+      {record.fotos?.length ? (
+        <section>
+          <h3 className="gastos-detail-label mb-2 text-[10px] font-bold uppercase tracking-wider">Fotos</h3>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {record.fotos.map((url) => (
+              <a
+                key={url}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="block overflow-hidden rounded-xl border border-white/10 bg-black/30"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="aspect-square w-full object-cover" />
+              </a>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <GerencialDetailSection title="Auditoría">

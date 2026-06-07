@@ -384,7 +384,9 @@ export interface ReporteAcarreo {
   carga_total: number;
   sacos_libres: number;
   observaciones?: string;
+  fotos?: string[];
   registrado_por?: string;
+  recepcion_id?: string;
   created_at: string;
   updated_at: string;
 }
