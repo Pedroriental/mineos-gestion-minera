@@ -1,7 +1,7 @@
-// MineOS Service Worker — v5
-// Solo assets estáticos en caché; páginas y RSC siempre por red (evita dashboard viejo al F5).
+// MineOS Service Worker — v6
+// Network-first para /_next/static/; solo cachea respuestas OK (evita 500/404 cacheados tras deploy).
 
-const STATIC_CACHE = 'mineos-static-v5';
+const STATIC_CACHE = 'mineos-static-v6';
 
 function isLocalDevHost(hostname) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
@@ -39,33 +39,31 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // En desarrollo local no interceptar (evita "Failed to fetch" con next dev / HMR)
   if (isLocalDevHost(url.hostname)) return;
 
   if (BYPASS_HOSTS.some((h) => url.hostname.includes(h))) return;
   if (url.origin !== location.origin) return;
 
-  // Páginas / RSC: siempre red (no servir HTML/RSC cacheado en recarga normal)
   if (isAppDocumentRequest(event.request, url)) {
-    event.respondWith(
-      fetch(event.request).catch(() =>
-        Response.error(),
-      ),
-    );
+    event.respondWith(fetch(event.request).catch(() => Response.error()));
     return;
   }
 
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
-      caches.open(STATIC_CACHE).then((cache) =>
-        cache.match(event.request).then((cached) => {
-          if (cached) return cached;
-          return fetch(event.request).then((res) => {
-            cache.put(event.request, res.clone());
-            return res;
-          });
-        }),
-      ),
+      fetch(event.request)
+        .then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() =>
+          caches.open(STATIC_CACHE).then((cache) =>
+            cache.match(event.request).then((cached) => cached || Response.error()),
+          ),
+        ),
     );
   }
 });
