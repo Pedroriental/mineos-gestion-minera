@@ -15,12 +15,25 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { GastoSchema, GastoUpdateSchema } from '@/lib/validations/gastos';
 import { GastoConceptoSchema } from '@/lib/validations/conceptos';
+import { checkGastoDuplicatesForSave } from '@/lib/actions/gastos-audit';
+import { formatDuplicateMatches, type GastoDuplicateMatch } from '@/lib/gastos-audit';
 import { z } from 'zod';
 
 // ── Tipo de respuesta estándar ────────────────────────────────
 export type ActionResult =
   | { ok: true;  message: string }
-  | { ok: false; message: string; fieldErrors?: Record<string, string[]> };
+  | {
+      ok: false;
+      message: string;
+      fieldErrors?: Record<string, string[]>;
+      code?: 'DUPLICATE' | 'VALIDATION';
+      duplicates?: GastoDuplicateMatch[];
+    };
+
+type SaveOptions = {
+  acknowledgeDuplicates?: boolean;
+  excludeIds?: string[];
+};
 
 // ── Paths a revalidar cuando cambia un gasto ──────────────────
 const REVALIDATE_PATHS = [
@@ -35,10 +48,28 @@ function revalidateAll() {
   REVALIDATE_PATHS.forEach((p) => revalidatePath(p));
 }
 
+async function ensureNoDuplicates(
+  gastos: Array<z.infer<typeof GastoSchema>>,
+  options?: SaveOptions,
+): Promise<ActionResult | null> {
+  if (options?.acknowledgeDuplicates) return null;
+
+  const excludeIds = options?.excludeIds ?? [];
+  const duplicates = await checkGastoDuplicatesForSave(gastos, excludeIds);
+  if (duplicates.length === 0) return null;
+
+  return {
+    ok: false,
+    code: 'DUPLICATE',
+    duplicates,
+    message: `Posible gasto duplicado.\n${formatDuplicateMatches(duplicates)}`,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────
 // CREATE — Registrar nuevo gasto
 // ─────────────────────────────────────────────────────────────
-export async function createGasto(raw: unknown): Promise<ActionResult> {
+export async function createGasto(raw: unknown, options?: SaveOptions): Promise<ActionResult> {
   try {
     // 1) Validar con Zod
     const parsed = GastoSchema.safeParse(raw);
@@ -51,6 +82,9 @@ export async function createGasto(raw: unknown): Promise<ActionResult> {
   }
 
   const data = parsed.data;
+
+  const duplicateBlock = await ensureNoDuplicates([data], options);
+  if (duplicateBlock) return duplicateBlock;
 
   // 2) Insertar en Supabase y verificar que RLS no bloquee
   const supabase = await createServerClient();
@@ -87,7 +121,7 @@ export async function createGasto(raw: unknown): Promise<ActionResult> {
 // ─────────────────────────────────────────────────────────────
 // CREATE BULK — Registrar múltiples gastos a la vez
 // ─────────────────────────────────────────────────────────────
-export async function createGastosBulk(raws: unknown[]): Promise<ActionResult> {
+export async function createGastosBulk(raws: unknown[], options?: SaveOptions): Promise<ActionResult> {
   try {
     const parsedArray = z.array(GastoSchema).safeParse(raws);
 
@@ -99,6 +133,9 @@ export async function createGastosBulk(raws: unknown[]): Promise<ActionResult> {
 
     const data = parsedArray.data;
     if (data.length === 0) return { ok: false, message: 'No hay gastos para registrar' };
+
+    const duplicateBlock = await ensureNoDuplicates(data, options);
+    if (duplicateBlock) return duplicateBlock;
 
     const supabase = await createServerClient();
     const rowsToInsert = data.map(g => ({
@@ -135,7 +172,7 @@ export async function createGastosBulk(raws: unknown[]): Promise<ActionResult> {
 // ─────────────────────────────────────────────────────────────
 // UPDATE — Actualizar gasto existente
 // ─────────────────────────────────────────────────────────────
-export async function updateGasto(raw: unknown): Promise<ActionResult> {
+export async function updateGasto(raw: unknown, options?: SaveOptions): Promise<ActionResult> {
   try {
     const parsed = GastoUpdateSchema.safeParse(raw);
 
@@ -146,6 +183,12 @@ export async function updateGasto(raw: unknown): Promise<ActionResult> {
   }
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
+
+  const duplicateBlock = await ensureNoDuplicates(
+    [{ ...rest, registrado_por: parsed.data.registrado_por ?? null }],
+    { ...options, excludeIds: [id, ...(options?.excludeIds ?? [])] },
+  );
+  if (duplicateBlock) return duplicateBlock;
 
   const supabase = await createServerClient();
   const { data: updated, error } = await supabase

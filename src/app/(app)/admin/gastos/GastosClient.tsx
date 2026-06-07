@@ -22,6 +22,9 @@ import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto, createGastosBulk } from '@/lib/actions/gastos';
+import { verifyGastosBeforeSave } from '@/lib/actions/gastos-audit';
+import { formatDuplicateMatches } from '@/lib/gastos-audit';
+import { GastosAuditPanel } from '@/components/gastos/GastosAuditPanel';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppCombobox } from '@/components/ui/AppCombobox';
 import { AppSelect } from '@/components/ui/AppSelect';
@@ -630,9 +633,49 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
         }
       }
 
-      const result = editItem ? await updateGasto(payloads[0]) : await createGastosBulk(payloads);
+      const gastosForVerify = payloads.map(({ id: _id, ...gasto }) => gasto);
+      const verify = await verifyGastosBeforeSave({
+        gastos: gastosForVerify,
+        excludeIds: editItem ? [editItem.id] : [],
+      });
+      if (!verify.ok) {
+        setFormError(verify.message);
+        toast.error(verify.message);
+        return;
+      }
+
+      let acknowledgeDuplicates = false;
+      if (verify.duplicates.length > 0) {
+        const proceed = await confirmDialog({
+          title: 'Gasto posiblemente duplicado',
+          message: `${formatDuplicateMatches(verify.duplicates)}\n\n¿Registrar de todas formas?`,
+          confirmLabel: 'Registrar igualmente',
+          cancelLabel: 'Revisar',
+          variant: 'warning',
+        });
+        if (!proceed) {
+          setFormError('Registro cancelado: revisa los posibles duplicados.');
+          return;
+        }
+        acknowledgeDuplicates = true;
+      } else if (verify.warnings.length > 0) {
+        toast.message('Revisa los avisos del registro', {
+          description: verify.warnings.map((w) => w.message).join(' · '),
+        });
+      }
+
+      const saveOptions = { acknowledgeDuplicates };
+      const result = editItem
+        ? await updateGasto(payloads[0], saveOptions)
+        : await createGastosBulk(gastosForVerify, saveOptions);
       if (result.ok) { toast.success(result.message); closeModal(); }
-      else           { setFormError(result.message); toast.error(result.message); }
+      else if (result.code === 'DUPLICATE' && result.duplicates?.length) {
+        setFormError(result.message);
+        toast.error('Gasto duplicado detectado al guardar.');
+      } else {
+        setFormError(result.message);
+        toast.error(result.message);
+      }
     });
   }
 
@@ -801,6 +844,8 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
               </div>
             )}
           </div>
+
+          <GastosAuditPanel />
           </div>
         </aside>
 
