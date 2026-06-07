@@ -43,6 +43,7 @@ import {
   type MineosTone,
 } from '@/lib/mineos-visual';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import { AppTimePicker, normalizeAppTimeValue } from '@/components/ui/AppTimePicker';
 
 const VOLADURAS_PAGE_MAX = 12;
 const VOLADURAS_PAGE_BUTTONS_MAX = 5;
@@ -295,10 +296,10 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
     setForm({
       fecha: item.fecha, turno: item.turno,
       mina: item.mina || '', responsable: item.responsable || '',
-      hora_inicio_barrenado: item.hora_inicio_barrenado || '',
-      hora_fin_barrenado: item.hora_fin_barrenado || '',
+      hora_inicio_barrenado: normalizeAppTimeValue(item.hora_inicio_barrenado),
+      hora_fin_barrenado: normalizeAppTimeValue(item.hora_fin_barrenado),
       numero_disparo: item.numero_disparo || '',
-      hora_disparo: item.hora_disparo || '',
+      hora_disparo: normalizeAppTimeValue(item.hora_disparo),
       vertical_disparo: item.vertical_disparo || '',
       sin_novedad: item.sin_novedad,
       huecos_cantidad: String(item.huecos_cantidad),
@@ -318,9 +319,14 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
 
   const handleSave = () => {
     startTransition(async () => {
+      const pausasValidas = pausas.filter(
+        (p) => p.hora_inicio?.trim() && p.hora_fin?.trim(),
+      );
       const payload = {
         ...form,
-        pausas_barrenado: pausas.length > 0 ? pausas : null,
+        mina: form.mina || undefined,
+        vertical_disparo: form.vertical_disparo || undefined,
+        pausas_barrenado: pausasValidas.length > 0 ? pausasValidas : null,
         registrado_por: user?.id,
       };
 
@@ -334,6 +340,9 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
         setEditItem(null);
         setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
         setPausas([]);
+        if (!editItem) {
+          setSelectedDate(form.fecha);
+        }
       } else {
         toast.error(res.message || 'Error al guardar el reporte');
       }
@@ -780,6 +789,15 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                 />
               </div>
               <div>
+                <label className="input-label">Vertical</label>
+                <AppSelect
+                  value={form.vertical_disparo}
+                  onChange={(v) => set('vertical_disparo', v)}
+                  options={verticalOptions}
+                  placeholder="— Sin especificar —"
+                />
+              </div>
+              <div>
                 <label className="input-label">Responsable</label>
                 <input value={form.responsable} onChange={(e) => set('responsable', e.target.value)} className="input-field" />
               </div>
@@ -792,11 +810,11 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
               </h3>
               <div>
                 <label className="input-label">Hora Inicio</label>
-                <input type="time" value={form.hora_inicio_barrenado} onChange={(e) => set('hora_inicio_barrenado', e.target.value)} className="input-field" />
+                <AppTimePicker value={form.hora_inicio_barrenado} onChange={(val) => set('hora_inicio_barrenado', val)} />
               </div>
               <div>
                 <label className="input-label">Hora Culmina</label>
-                <input type="time" value={form.hora_fin_barrenado} onChange={(e) => set('hora_fin_barrenado', e.target.value)} className="input-field" />
+                <AppTimePicker value={form.hora_fin_barrenado} onChange={(val) => set('hora_fin_barrenado', val)} />
               </div>
               <div className="mt-1">
                 <div className="mb-2 flex items-center justify-between">
@@ -808,8 +826,8 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                 <div className="space-y-2">
                   {pausas.map((p, i) => (
                     <div key={i} className={`grid grid-cols-[1fr_1fr_2fr_auto] items-start gap-2 ${mineosPanel('neutral')}`}>
-                      <input type="time" value={p.hora_inicio} onChange={(e) => updatePausa(i, 'hora_inicio', e.target.value)} className="input-field" />
-                      <input type="time" value={p.hora_fin} onChange={(e) => updatePausa(i, 'hora_fin', e.target.value)} className="input-field" />
+                      <AppTimePicker value={p.hora_inicio} onChange={(val) => updatePausa(i, 'hora_inicio', val)} />
+                      <AppTimePicker value={p.hora_fin} onChange={(val) => updatePausa(i, 'hora_fin', val)} />
                       <input value={p.motivo} onChange={(e) => updatePausa(i, 'motivo', e.target.value)} placeholder="Motivo" className="input-field" />
                       <button type="button" onClick={() => removePausa(i)} className="rounded-lg p-2 text-white/30 transition-colors hover:bg-red-500/15 hover:text-red-400">
                         <X className="h-4 w-4" />
@@ -888,11 +906,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
             </div>
             <div>
               <label className="input-label">Hora</label>
-              <input type="time" value={form.hora_disparo} onChange={(e) => set('hora_disparo', e.target.value)} className="input-field" />
-            </div>
-            <div>
-              <label className="input-label">Vertical</label>
-              <AppSelect value={form.vertical_disparo} onChange={(v) => set('vertical_disparo', v)} options={verticalOptions} placeholder="— Sin especificar —" />
+              <AppTimePicker value={form.hora_disparo} onChange={(val) => set('hora_disparo', val)} />
             </div>
             <label className="flex cursor-pointer items-center gap-3" onClick={() => set('sin_novedad', !form.sin_novedad)}>
               <div className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${form.sin_novedad ? 'bg-emerald-500' : 'bg-red-500/70'}`}>
