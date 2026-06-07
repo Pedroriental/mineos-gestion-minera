@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   LayoutGrid,
   CircleDollarSign,
@@ -111,6 +112,15 @@ const idleClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboar
 const activeSubClass = 'font-medium text-amber-400';
 const idleSubClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors duration-150';
 
+function buildNavHref(href: string, searchParams: URLSearchParams) {
+  if (href === '#') return href;
+  const desde = searchParams.get('desde');
+  const hasta = searchParams.get('hasta');
+  if (!desde || !hasta) return href;
+  const params = new URLSearchParams({ desde, hasta });
+  return `${href}?${params.toString()}`;
+}
+
 function NavTooltip({ label, show, children }: { label: string; show: boolean; children: React.ReactNode }) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -170,28 +180,40 @@ function NavItem({
   active,
   expanded,
   onNav,
+  navHref,
 }: {
   item: NavItemData;
   active: boolean;
   expanded: boolean;
   onNav: (href: string) => void;
+  navHref: string;
 }) {
+  const className = cn(
+    'flex w-full items-center gap-3 text-sm transition-all duration-150',
+    expanded ? 'px-2.5 py-2 text-left' : 'justify-center px-0 py-2',
+    active ? activeClass : idleClass,
+  );
+
+  const content = (
+    <>
+      <span className={cn('flex-shrink-0', !active && 'text-[var(--dashboard-text-muted)]')}>
+        {item.icon}
+      </span>
+      {expanded && <span className="truncate text-[13px]">{item.label}</span>}
+    </>
+  );
+
   return (
     <NavTooltip label={item.label} show={!expanded}>
-      <button
-        type="button"
-        onClick={() => onNav(item.href)}
-        className={cn(
-          'flex w-full items-center gap-3 text-sm transition-all duration-150',
-          expanded ? 'px-2.5 py-2 text-left' : 'justify-center px-0 py-2',
-          active ? activeClass : idleClass,
-        )}
-      >
-        <span className={cn('flex-shrink-0', !active && 'text-[var(--dashboard-text-muted)]')}>
-          {item.icon}
-        </span>
-        {expanded && <span className="truncate text-[13px]">{item.label}</span>}
-      </button>
+      {item.href === '#' ? (
+        <button type="button" onClick={() => onNav(item.href)} className={className}>
+          {content}
+        </button>
+      ) : (
+        <Link href={navHref} onClick={() => onNav(item.href)} className={className}>
+          {content}
+        </Link>
+      )}
     </NavTooltip>
   );
 }
@@ -201,11 +223,13 @@ function NavItemWithSubmenu({
   pathname,
   expanded,
   onNav,
+  getNavHref,
 }: {
   item: NavItemData;
   pathname: string;
   expanded: boolean;
   onNav: (href: string) => void;
+  getNavHref: (href: string) => string;
 }) {
   const subItems = item.subItems ?? [];
   const anySubActive = subItems.some(
@@ -272,9 +296,9 @@ function NavItemWithSubmenu({
                 ? (pathname === '/admin/gastos' || (pathname.startsWith('/admin/gastos/') && !pathname.startsWith('/admin/gastos/conceptos')))
                 : (pathname === sub.href || pathname.startsWith(sub.href + '/'));
               return (
-                <button
+                <Link
                   key={sub.href}
-                  type="button"
+                  href={getNavHref(sub.href)}
                   onClick={() => onNav(sub.href)}
                   className={cn(
                     'block w-full py-2 text-left text-[13px] transition-all duration-150',
@@ -282,7 +306,7 @@ function NavItemWithSubmenu({
                   )}
                 >
                   {sub.label}
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -299,6 +323,7 @@ function Section({
   onNav,
   defaultOpen,
   onCollapsedItemClick,
+  getNavHref,
 }: {
   section: NavSection;
   pathname: string;
@@ -306,6 +331,7 @@ function Section({
   onNav: (href: string) => void;
   defaultOpen: boolean;
   onCollapsedItemClick?: (item: NavItemData) => void;
+  getNavHref: (href: string) => string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -340,7 +366,14 @@ function Section({
           }
           const active = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
-            <NavItem key={item.href} item={item} active={active} expanded={false} onNav={onNav} />
+            <NavItem
+              key={item.href}
+              item={item}
+              active={active}
+              expanded={false}
+              onNav={onNav}
+              navHref={getNavHref(item.href)}
+            />
           );
         })}
       </div>
@@ -384,12 +417,20 @@ function Section({
                   pathname={pathname}
                   expanded
                   onNav={onNav}
+                  getNavHref={getNavHref}
                 />
               );
             }
             const active = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
-              <NavItem key={item.href} item={item} active={active} expanded onNav={onNav} />
+              <NavItem
+                key={item.href}
+                item={item}
+                active={active}
+                expanded
+                onNav={onNav}
+                navHref={getNavHref(item.href)}
+              />
             );
           })}
         </div>
@@ -415,6 +456,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signOut, user } = useAuth();
   const { theme } = useTheme();
 
@@ -429,24 +471,27 @@ export default function Sidebar({
     return activeSub?.href ?? subItems[0].href;
   }, [pathname]);
 
+  const getNavHref = useCallback(
+    (href: string) => buildNavHref(href, searchParams),
+    [searchParams],
+  );
+
   const handleNav = useCallback(
-    (href: string) => {
-      if (href !== '#') {
-        router.push(href);
-      }
+    (_href: string) => {
       onMobileClose?.();
     },
-    [router, onMobileClose],
+    [onMobileClose],
   );
 
   const handleCollapsedSectionItemClick = useCallback(
     (item: NavItemData) => {
       const target = item.subItems?.length ? resolveSubItemHref(item) : item.href;
       if (target !== '#') {
-        router.push(target);
+        router.push(getNavHref(target));
       }
+      onMobileClose?.();
     },
-    [resolveSubItemHref, router],
+    [resolveSubItemHref, router, getNavHref, onMobileClose],
   );
 
   const handleSignOut = useCallback(async () => {
@@ -522,18 +567,21 @@ export default function Sidebar({
           active={pathname === '/dashboard'}
           expanded={isExpanded}
           onNav={handleNav}
+          navHref={getNavHref('/dashboard')}
         />
         <NavItem
           item={standaloneItems[1]}
           active={pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')}
           expanded={isExpanded}
           onNav={handleNav}
+          navHref={getNavHref('/reportes-balances')}
         />
         <NavItem
           item={standaloneItems[2]}
           active={pathname === '/reportes/constructor' || pathname.startsWith('/reportes/constructor')}
           expanded={isExpanded}
           onNav={handleNav}
+          navHref={getNavHref('/reportes/constructor')}
         />
       </div>
 
@@ -551,6 +599,7 @@ export default function Sidebar({
             onNav={handleNav}
             defaultOpen={defaultOpenIds.includes(section.id)}
             onCollapsedItemClick={handleCollapsedSectionItemClick}
+            getNavHref={getNavHref}
           />
         ))}
       </nav>
@@ -592,7 +641,7 @@ export default function Sidebar({
         data-sidebar
         data-sidebar-variant={variant}
         data-expanded={isExpanded}
-        className={cn('relative z-30 hidden md:flex', shellClass)}
+        className={cn('relative z-40 hidden md:flex', shellClass)}
       >
         {dockContent()}
 

@@ -294,7 +294,7 @@ export default function AppLayoutClient({
         {/* ── Right column: rounded content card ── */}
         <div className="app-main-panel flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)]">
 
-          <div className="app-viewport-canvas flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+          <div className="app-viewport-canvas relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           {/* ── Guest Banner ── */}
           {isGuest && (
             <div className="z-40 flex shrink-0 items-center justify-between gap-3 border-b border-amber-800/20 bg-amber-950/20 px-5 py-1.5">
@@ -406,22 +406,29 @@ export default function AppLayoutClient({
               </div>
             )}
           </main>
+
+          {/* Backdrop de campana: solo cubre el panel principal, no la sidebar */}
+          {bellOpen && (
+            <div
+              className="absolute inset-0 z-[8998]"
+              onClick={() => setBellOpen(false)}
+              aria-hidden
+            />
+          )}
+          {bellOpen && (
+            <div
+              id="bell-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Centro de notificaciones"
+              style={{ position: 'fixed', top: bellCoords.top, right: bellCoords.right, zIndex: 9000 }}
+            >
+              <BellPanel onClose={() => setBellOpen(false)} onNavigate={handleNav} alerts={alerts} />
+            </div>
+          )}
           </div>
         </div>
       </div>
-
-      {/* ── Dropdown overlay backdrop ── */}
-      {bellOpen && (
-        <div
-          className="fixed inset-0 z-[8998]"
-          onClick={() => setBellOpen(false)}
-        />
-      )}
-      {bellOpen && (
-        <div id="bell-panel" role="dialog" aria-modal="true" aria-label="Centro de notificaciones" style={{ position: 'fixed', top: bellCoords.top, right: bellCoords.right, zIndex: 9000 }}>
-          <BellPanel onClose={() => setBellOpen(false)} onNavigate={handleNav} alerts={alerts} />
-        </div>
-      )}
 
       {/* ── Search Modal ── */}
       {searchOpen && (

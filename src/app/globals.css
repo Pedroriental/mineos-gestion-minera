@@ -2521,6 +2521,10 @@ input, textarea, select {
   z-index: 1;
 }
 
+[data-app-shell] > [data-sidebar] {
+  z-index: 40;
+}
+
 .app-main-panel {
   position: relative;
   isolation: isolate;
