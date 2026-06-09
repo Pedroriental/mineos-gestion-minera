@@ -4416,6 +4416,37 @@ input, textarea, select {
   }
 }
 
+.gastos-subnav__tab {
+  border-color: var(--dashboard-border);
+  color: var(--dashboard-text-muted);
+  background: transparent;
+}
+
+.gastos-subnav__tab--active {
+  border-color: color-mix(in srgb, var(--dashboard-accent) 45%, var(--dashboard-border));
+  color: var(--dashboard-accent);
+  background: color-mix(in srgb, var(--dashboard-accent) 8%, transparent);
+}
+
+.gastos-subnav__tab--idle:hover {
+  color: var(--dashboard-text);
+  border-color: color-mix(in srgb, var(--dashboard-text-muted) 35%, var(--dashboard-border));
+}
+
+.gastos-resumen-page__grid {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  gap: 0.65rem;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .gastos-resumen-page__grid {
+    grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  }
+}
+
 .gastos-page__grid {
   display: grid;
   flex: 1;

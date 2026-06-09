@@ -40,6 +40,7 @@ type SaveOptions = {
 const REVALIDATE_PATHS = [
   '/admin/gastos',
   '/admin/gastos/conceptos',
+  '/admin/gastos/resumen',
   '/operaciones/resumen',
   '/operaciones/costos',
   '/dashboard',

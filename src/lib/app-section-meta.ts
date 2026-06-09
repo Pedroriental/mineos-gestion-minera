@@ -63,6 +63,12 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     Icon: Receipt,
     iconClassName: 'text-red-400',
   },
+  '/admin/gastos/resumen': {
+    title: 'Resumen Ejecutivo',
+    description: 'Consolidado de gastos de mina, molino y nómina por período.',
+    Icon: Receipt,
+    iconClassName: 'text-red-400',
+  },
   '/admin/trabajadores': {
     title: 'Base de Trabajadores',
     description: 'Registro maestro de personal para automatizar asignaciones de nómina.',

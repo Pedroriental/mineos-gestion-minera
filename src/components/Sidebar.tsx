@@ -63,6 +63,7 @@ const navigation: NavSection[] = [
         label: 'Gastos', href: '#', icon: <Receipt className="w-4 h-4" />,
         subItems: [
           { label: 'Registros de Gastos', href: '/admin/gastos' },
+          { label: 'Resumen Ejecutivo', href: '/admin/gastos/resumen' },
           { label: 'Catálogo', href: '/admin/gastos/conceptos' },
         ],
       },
@@ -293,9 +294,10 @@ function NavItemWithSubmenu({
         <div className="overflow-hidden">
           <div className="ml-9 mt-0.5 space-y-0 pb-0.5 border-l-2 border-[var(--dashboard-border)] pl-3">
             {subItems.map((sub) => {
-              const subActive = sub.href === '/admin/gastos'
-                ? (pathname === '/admin/gastos' || (pathname.startsWith('/admin/gastos/') && !pathname.startsWith('/admin/gastos/conceptos')))
-                : (pathname === sub.href || pathname.startsWith(sub.href + '/'));
+              const subActive =
+                sub.href === '/admin/gastos'
+                  ? pathname === '/admin/gastos'
+                  : pathname === sub.href || pathname.startsWith(`${sub.href}/`);
               return (
                 <Link
                   key={sub.href}
