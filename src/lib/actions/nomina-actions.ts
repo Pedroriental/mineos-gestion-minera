@@ -8,7 +8,20 @@ import { buildImportCommitPayload, type ImportCommitPayload } from '@/lib/nomina
 import { buildImportFidelityReport } from '@/lib/nomina/import-fidelity';
 import { inferAllProfiles } from '@/lib/nomina/inference';
 import type { InferredWorkerProfile, NominaPeriodoSummary, ParsedNominaPeriod } from '@/lib/nomina/types';
-import { normalizeWorkerName, resolvePeriodWorkers } from '@/lib/nomina/worker-match';
+import { applyIdentityResolutions } from '@/lib/nomina/apply-identity-resolutions';
+import {
+  computeIdentitySummary,
+  prepareIdentityImport,
+  validateClientIdentityCases,
+  type IdentityCase,
+  type IdentitySummary,
+} from '@/lib/nomina/worker-identity-cases';
+import {
+  buildIdentityAuditPayload,
+  formatIdentityAuditDetail,
+} from '@/lib/nomina/identity-audit';
+import { applyImportAliases, buildAliasUpsertRows, type ImportAliasRecord } from '@/lib/nomina/worker-alias';
+import { normalizeWorkerName } from '@/lib/nomina/worker-match';
 import type { Personal } from '@/lib/types';
 import { registrarAuditAction } from '@/lib/actions/nomina-v3';
 import { loadBibliotecaCompleta, upsertBibliotecaVariableAction } from '@/lib/actions/biblioteca-variables';
@@ -79,7 +92,72 @@ export async function getPersonalMapAction(): Promise<{ ok: boolean; data?: Pick
   }
 }
 
+async function loadImportAliases(supabase: Awaited<ReturnType<typeof createServerClient>>) {
+  const { data, error } = await supabase
+    .from('personal_import_aliases')
+    .select('id, alias_nombre_normalizado, alias_cedula_excel, personal_id, source, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    if (error.code === '42P01') return [] as ImportAliasRecord[];
+    throw error;
+  }
+
+  return (data || []) as ImportAliasRecord[];
+}
+
+async function persistImportAliases(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  cases: IdentityCase[],
+  userId?: string,
+) {
+  const rows = buildAliasUpsertRows(cases, userId);
+  if (!rows.length) return;
+
+  const { error } = await supabase.from('personal_import_aliases').upsert(rows, {
+    onConflict: 'alias_nombre_normalizado,alias_cedula_excel',
+  });
+
+  if (error && error.code !== '42P01') {
+    throw new Error(`No se pudieron guardar alias de importación: ${error.message}`);
+  }
+}
+
+export async function getImportAliasesAction(): Promise<{
+  ok: boolean;
+  data?: ImportAliasRecord[];
+  message?: string;
+}> {
+  try {
+    const supabase = await createServerClient();
+    const data = await loadImportAliases(supabase);
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Error al cargar alias',
+      data: [],
+    };
+  }
+}
+
+export async function deleteImportAliasAction(id: string): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    const { error } = await supabase.from('personal_import_aliases').delete().eq('id', id);
+    if (error) throw error;
+    return { ok: true, message: 'Alias eliminado' };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Error al eliminar alias',
+    };
+  }
+}
+
 export async function importarNominaHistoricaAction(input: {
+  rawPeriod?: ParsedNominaPeriod;
+  identityCases?: IdentityCase[];
   period: ParsedNominaPeriod;
   profiles: InferredWorkerProfile[];
   userId?: string;
@@ -88,7 +166,15 @@ export async function importarNominaHistoricaAction(input: {
 }): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
-    const { period: rawPeriod, userId, label, toleranceUsd = 0.05 } = input;
+    const {
+      rawPeriod: rawPeriodInput,
+      identityCases = [],
+      period: clientPeriod,
+      userId,
+      label,
+      toleranceUsd = 0.05,
+    } = input;
+    const rawPeriod = rawPeriodInput ?? clientPeriod;
 
     const { data: personalRows } = await supabase.from('personal').select('*');
     const workersBase = (personalRows || []).map((p: Personal) => ({
@@ -96,10 +182,40 @@ export async function importarNominaHistoricaAction(input: {
       cedula: p.cedula,
       nombre_completo: p.nombre_completo,
     }));
-    const { period } = resolvePeriodWorkers(rawPeriod, workersBase);
+
+    const importAliases = await loadImportAliases(supabase);
+    const identityPrep = prepareIdentityImport(rawPeriod, workersBase, importAliases);
+    const serverCases = identityPrep.cases;
+
+    if (serverCases.length > 0) {
+      const identityValidation = validateClientIdentityCases(serverCases, identityCases);
+      if (!identityValidation.ok) {
+        return { ok: false, message: identityValidation.message ?? 'Resoluciones de identidad incompletas.' };
+      }
+    }
+
+    const workersById = new Map(
+      workersBase.filter((w) => w.id).map((w) => [w.id!, w]),
+    );
+    const period = structuredClone(rawPeriod) as ParsedNominaPeriod;
+    if (importAliases.length) {
+      applyImportAliases(period, importAliases, workersById);
+    }
+    if (serverCases.length > 0) {
+      applyIdentityResolutions(period, identityCases);
+    }
+
+    const identitySummary: IdentitySummary = computeIdentitySummary(
+      rawPeriod,
+      identityCases,
+      identityPrep.aliasApplications.length,
+    );
+
     const weekStarts = period.weekColumns.map((c) => c.weekStart);
     const allRows = period.sections.flatMap((s) => s.rows);
-    const profiles = inferAllProfiles(allRows, weekStarts, period.weekColumns);
+    const profiles = input.profiles.length
+      ? input.profiles
+      : inferAllProfiles(allRows, weekStarts, period.weekColumns);
 
     const existingByCedula = new Map(
       (personalRows || []).map((p: Personal) => [p.cedula, p]),
@@ -108,17 +224,31 @@ export async function importarNominaHistoricaAction(input: {
       (personalRows || []).map((p: Personal) => [normalizeWorkerName(p.nombre_completo), p]),
     );
 
+    const identityAudit = buildIdentityAuditPayload(
+      identityCases,
+      identitySummary,
+      identityPrep.aliasApplications,
+    );
+
     const commitPlan = buildImportCommitPayload(period, profiles, {
       label,
       userId,
       existingPersonal: existingByCedula as Map<string, import('@/lib/types').Personal>,
     });
+    commitPlan.metadata = {
+      ...commitPlan.metadata,
+      identity_audit: identityAudit,
+    };
 
     const computedTotal = commitPlan.semanas.reduce(
       (sum, s) => sum + s.registros.reduce((sub, r) => sub + Number(r.monto_pagado), 0),
       0,
     );
-    const validation = validateImportTotals(rawPeriod.grandTotal, computedTotal, toleranceUsd);
+    const validation = validateImportTotals(
+      (rawPeriodInput ?? clientPeriod).grandTotal,
+      computedTotal,
+      toleranceUsd,
+    );
     if (!validation.ok) {
       return { ok: false, message: validation.message ?? 'Totales no cuadran' };
     }
@@ -216,16 +346,25 @@ export async function importarNominaHistoricaAction(input: {
       'IMPORT_NOMINA_HISTORICA',
       'nomina_periodos',
       String(result?.periodo_id ?? ''),
-      `Import histórico ${commitPlan.range_start} — ${commitPlan.range_end}. Total: $${commitPlan.total_usd.toFixed(2)}`,
+      `Import histórico ${commitPlan.range_start} — ${commitPlan.range_end}. Total: $${commitPlan.total_usd.toFixed(2)}. ${formatIdentityAuditDetail(identityAudit)}`,
       userId,
     );
+
+    await persistImportAliases(supabase, identityCases, userId);
 
     revalidateNominaPaths();
 
     const fidelity = buildImportFidelityReport(period, profiles, {
       existingPersonal: existingByCedula as Map<string, import('@/lib/types').Personal>,
       idByCedula,
-      workersBase,
+      identityCases: serverCases.length > 0 ? identityCases : undefined,
+      identitySummary: serverCases.length > 0 || identityPrep.aliasApplications.length > 0
+        ? identitySummary
+        : undefined,
+      identityAudit:
+        serverCases.length > 0 || identityPrep.aliasApplications.length > 0
+          ? identityAudit
+          : undefined,
     });
 
     let successMessage = `Archivo importado en Mina: $${fidelity.savedTotal?.toFixed(2) ?? commitPlan.total_usd.toFixed(2)} (${commitPlan.semanas.length} semanas, ${fidelity.workerCountSaved ?? commitPlan.personal.length} trabajadores)`;

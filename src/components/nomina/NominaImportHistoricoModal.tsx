@@ -13,7 +13,7 @@ type Props = {
 
 export function NominaImportHistoricoModal({ open, onClose, userId, onImported }: Props) {
   return (
-    <PageFormModal open={open} onClose={onClose} panelClassName="sm:max-w-2xl">
+    <PageFormModal open={open} onClose={onClose} panelClassName="sm:max-w-4xl">
       <button
         type="button"
         onClick={onClose}

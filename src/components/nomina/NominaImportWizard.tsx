@@ -12,13 +12,21 @@ import {
   Layers,
   LayoutGrid,
   Table2,
+  UserCheck,
 } from 'lucide-react';
 import { parseNominaMatrixFromFile } from '@/lib/nomina/import-parser';
 import { inferAllProfiles } from '@/lib/nomina/inference';
-import { resolvePeriodWorkers } from '@/lib/nomina/worker-match';
+import {
+  workerNameMatchesIdentityFilter,
+  type IdentityCase,
+  type IdentitySummaryFilter,
+} from '@/lib/nomina/worker-identity-cases';
 import { importarNominaHistoricaAction, getPersonalMapAction } from '@/lib/actions/nomina-actions';
+import { NominaImportIdentitySummary } from '@/components/nomina/NominaImportIdentitySummary';
+import { useNominaImportIdentity } from '@/hooks/useNominaImportIdentity';
 import type { InferredWorkerProfile, ParsedNominaPeriod, ParsedNominaSection } from '@/lib/nomina/types';
 import { NominaImportFidelityPanel, type ImportFidelityReport } from '@/components/nomina/NominaImportFidelityPanel';
+import { NominaImportIdentityPanel } from '@/components/nomina/NominaImportIdentityPanel';
 import { describePayrollWeekCount } from '@/lib/nomina/week-utils';
 import { cn } from '@/lib/utils';
 
@@ -46,9 +54,13 @@ function weekColumnLabel(w: ParsedNominaPeriod['weekColumns'][number]): string {
 function ImportPreviewTable({
   period,
   workerWarningsByName,
+  identityCases = [],
+  identityFilter = 'all',
 }: {
   period: ParsedNominaPeriod;
   workerWarningsByName?: Map<string, string>;
+  identityCases?: IdentityCase[];
+  identityFilter?: IdentitySummaryFilter;
 }) {
   const weeks = period.weekColumns;
 
@@ -130,12 +142,25 @@ function ImportPreviewTable({
                 {validRows.map((row, ri) => {
                   const cargoLabel = workerCargoLabel(row.cargo, section.title);
                   const rowBg = ri % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-900/50';
+                  const identityHit = identityCases.some((c) => c.excelNombre === row.nombre_completo);
+                  const filterMatch = workerNameMatchesIdentityFilter(
+                    row.nombre_completo,
+                    identityCases,
+                    identityFilter,
+                  );
+                  const dimRow = identityFilter !== 'all' && identityFilter !== 'matched' && !filterMatch;
+                  const highlightRow =
+                    identityFilter !== 'all' && identityFilter !== 'matched' && filterMatch;
+
                   return (
                     <tr
                       key={`${section.id}-${row.cedula}-${ri}`}
                       className={cn(
                         'border-t border-white/4 transition-colors hover:bg-white/2',
                         rowBg,
+                        dimRow && 'opacity-35',
+                        highlightRow && 'ring-1 ring-inset ring-amber-500/30',
+                        identityHit && identityFilter === 'all' && 'border-l-2 border-l-amber-500/40',
                       )}
                     >
                       {/* Nombre + cédula */}
@@ -219,7 +244,7 @@ function ImportPreviewTable({
 }
 
 
-type Step = 'upload' | 'preview' | 'inference' | 'done';
+type Step = 'upload' | 'identity' | 'preview' | 'inference' | 'done';
 
 export type NominaImportResult = {
   rangeStart: string;
@@ -229,10 +254,11 @@ export type NominaImportResult = {
 };
 
 const STEPS: { id: Step; label: string; icon: typeof Upload; num: number }[] = [
-  { id: 'upload',    label: 'Archivo',  icon: Upload,         num: 1 },
-  { id: 'preview',   label: 'Matriz',   icon: FileSpreadsheet, num: 2 },
-  { id: 'inference', label: 'Rotación', icon: Users,           num: 3 },
-  { id: 'done',      label: 'Listo',    icon: CheckCircle2,    num: 4 },
+  { id: 'upload',    label: 'Archivo',   icon: Upload,          num: 1 },
+  { id: 'identity',  label: 'Identidad', icon: UserCheck,       num: 2 },
+  { id: 'preview',   label: 'Matriz',    icon: FileSpreadsheet, num: 3 },
+  { id: 'inference', label: 'Rotación',  icon: Users,           num: 4 },
+  { id: 'done',      label: 'Listo',     icon: CheckCircle2,    num: 5 },
 ];
 
 export function NominaImportWizard({
@@ -251,67 +277,59 @@ export function NominaImportWizard({
   onComplete?: (result?: NominaImportResult) => void;
 }) {
   const [step, setStep] = useState<Step>(skipUpload && initialPeriod ? 'preview' : 'upload');
-  const [period, setPeriod] = useState<ParsedNominaPeriod | null>(initialPeriod);
   const [profiles, setProfiles] = useState<InferredWorkerProfile[]>(initialProfiles);
   const [error, setError] = useState<string | null>(null);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const [savedFidelity, setSavedFidelity] = useState<ImportFidelityReport | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [existingPersonal, setExistingPersonal] = useState<any[]>([]);
 
-  useEffect(() => {
-    getPersonalMapAction().then((res) => {
-      if (res.ok && res.data) setExistingPersonal(res.data);
-    });
-  }, []);
+  const {
+    rawPeriod,
+    period,
+    identityCases,
+    setIdentityCases,
+    existingPersonal,
+    setExistingPersonal,
+    aliasResolvedCount,
+    identityFilter,
+    setIdentityFilter,
+    pendingIdentityCount,
+    workerWarningsByName,
+    applyIdentityPrep,
+    resourcesReady,
+  } = useNominaImportIdentity(initialPeriod);
 
   const existingPersonalMap = useMemo(
     () => new Map(existingPersonal.map((p) => [p.cedula, p])),
     [existingPersonal],
   );
 
-  const workerWarningsByName = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const w of period?.stats.warnings ?? []) {
-      if (
-        w.includes('corregida') ||
-        w.includes('no encontrado') ||
-        w.includes('no está en la base') ||
-        w.includes('ambiguo')
-      ) {
-        const nombre = w.match(/«([^»]+)»/)?.[1];
-        if (nombre && !map.has(nombre)) map.set(nombre, w);
-      }
-    }
-    return map;
-  }, [period?.stats.warnings]);
+  useEffect(() => {
+    if (!period) return;
+    const weekStarts = period.weekColumns.map((c) => c.weekStart);
+    const allRows = period.sections.flatMap((s) => s.rows);
+    setProfiles(inferAllProfiles(allRows, weekStarts, period.weekColumns));
+  }, [period]);
 
   useEffect(() => {
-    if (!initialPeriod) return;
-    if (!existingPersonal.length) {
-      setPeriod(initialPeriod);
-      if (initialProfiles.length) setProfiles(initialProfiles);
-      if (skipUpload) setStep('preview');
-      return;
-    }
-    const { period: resolved } = resolvePeriodWorkers(
-      structuredClone(initialPeriod) as ParsedNominaPeriod,
-      existingPersonal,
-    );
-    const weekStarts = resolved.weekColumns.map((c) => c.weekStart);
-    const allRows = resolved.sections.flatMap((s) => s.rows);
-    const inferred = inferAllProfiles(allRows, weekStarts, resolved.weekColumns);
-    setPeriod(resolved);
-    setProfiles(inferred);
-    if (skipUpload) setStep('preview');
-  }, [initialPeriod, initialProfiles, skipUpload, existingPersonal]);
+    if (!skipUpload || !initialPeriod || !resourcesReady) return;
+    if (initialProfiles.length) setProfiles(initialProfiles);
+    setStep(identityCases.length > 0 ? 'identity' : 'preview');
+  }, [skipUpload, initialPeriod, resourcesReady, identityCases.length, initialProfiles]);
 
   const lowConfidence = useMemo(() => profiles.filter((p) => p.needsReview), [profiles]);
   const payrollMeta = useMemo(
     () => (period ? describePayrollWeekCount(period) : null),
     [period],
   );
-  const stepIndex = STEPS.findIndex((s) => s.id === step);
+  const visibleSteps = useMemo(() => {
+    if (identityCases.length > 0 || step === 'identity') {
+      return STEPS;
+    }
+    return STEPS.filter((s) => s.id !== 'identity');
+  }, [identityCases.length, step]);
+
+  const stepIndex = visibleSteps.findIndex((s) => s.id === step);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -324,13 +342,8 @@ export function NominaImportWizard({
       const workersRes = await getPersonalMapAction();
       const workers = workersRes.ok && workersRes.data ? workersRes.data : existingPersonal;
       if (workersRes.ok && workersRes.data) setExistingPersonal(workersRes.data);
-      const { period: resolved } = resolvePeriodWorkers(parsed, workers);
-      const weekStarts = resolved.weekColumns.map((c) => c.weekStart);
-      const allRows = resolved.sections.flatMap((s) => s.rows);
-      const inferred = inferAllProfiles(allRows, weekStarts, resolved.weekColumns);
-      setPeriod(resolved);
-      setProfiles(inferred);
-      setStep('preview');
+      const prep = applyIdentityPrep(parsed, workers);
+      setStep(prep.cases.length > 0 ? 'identity' : 'preview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al parsear archivo');
     }
@@ -338,9 +351,11 @@ export function NominaImportWizard({
   }
 
   function confirmImport() {
-    if (!period) return;
+    if (!period || !rawPeriod || pendingIdentityCount > 0) return;
     startTransition(async () => {
       const res = await importarNominaHistoricaAction({
+        rawPeriod,
+        identityCases,
         period,
         profiles,
         userId,
@@ -384,11 +399,11 @@ export function NominaImportWizard({
         {/* Línea de progreso */}
         <div
           className="absolute left-0 top-[18px] h-px bg-amber-500/50 transition-all duration-500"
-          style={{ width: `${(stepIndex / (STEPS.length - 1)) * 100}%` }}
+          style={{ width: `${(stepIndex / Math.max(visibleSteps.length - 1, 1)) * 100}%` }}
         />
         {/* Pasos */}
         <nav aria-label="Pasos de importación" className="relative flex justify-between">
-          {STEPS.map((s, i) => {
+          {visibleSteps.map((s, i) => {
             const done = i < stepIndex;
             const active = s.id === step;
             return (
@@ -428,6 +443,43 @@ export function NominaImportWizard({
       {/* ══════════════════════════════════════
           STEP: UPLOAD
           ══════════════════════════════════════ */}
+      {step === 'identity' && rawPeriod && (
+        <div className="flex flex-col gap-4">
+          <NominaImportIdentitySummary
+            rawPeriod={rawPeriod}
+            cases={identityCases}
+            aliasResolved={aliasResolvedCount}
+            activeFilter={identityFilter}
+            onFilterChange={setIdentityFilter}
+          />
+          <NominaImportIdentityPanel
+            cases={identityCases}
+            workers={existingPersonal}
+            activeFilter={identityFilter}
+            onChange={setIdentityCases}
+          />
+          <div className="flex gap-3 border-t border-white/5 pt-4">
+            <button
+              type="button"
+              onClick={() => setStep('upload')}
+              className="btn-secondary flex-1 justify-center py-3 text-xs"
+            >
+              Volver
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep('preview')}
+              disabled={pendingIdentityCount > 0}
+              className="btn-primary flex-[2] justify-center py-3 text-xs disabled:opacity-40"
+            >
+              {pendingIdentityCount > 0
+                ? `Confirmar ${pendingIdentityCount} pendiente${pendingIdentityCount === 1 ? '' : 's'}`
+                : 'Continuar a matriz'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {step === 'upload' && (
         <div className="relative overflow-hidden rounded-2xl border border-dashed border-zinc-700 bg-gradient-to-b from-zinc-900/30 to-zinc-950/20 transition-all hover:border-amber-500/40">
           <input
@@ -453,8 +505,19 @@ export function NominaImportWizard({
       {/* ══════════════════════════════════════
           STEPS: PREVIEW + INFERENCE
           ══════════════════════════════════════ */}
-      {period && step !== 'upload' && step !== 'done' && (
+      {period && step !== 'upload' && step !== 'identity' && step !== 'done' && (
         <div className="flex flex-col gap-4">
+
+          {rawPeriod && (identityCases.length > 0 || aliasResolvedCount > 0) ? (
+            <NominaImportIdentitySummary
+              rawPeriod={rawPeriod}
+              cases={identityCases}
+              aliasResolved={aliasResolvedCount}
+              activeFilter={identityFilter}
+              onFilterChange={setIdentityFilter}
+              compact
+            />
+          ) : null}
 
           {/* ── Barra superior: fecha/stats + total ── */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-zinc-900/50 px-5 py-3.5">
@@ -498,7 +561,9 @@ export function NominaImportWizard({
                 period={period}
                 profiles={profiles}
                 existingPersonal={existingPersonalMap}
-                workersBase={existingPersonal}
+                identityCases={identityCases}
+                aliasResolved={aliasResolvedCount}
+                rawPeriod={rawPeriod}
               />
               <div className="flex items-start gap-2.5 rounded-xl border border-zinc-700/40 bg-zinc-800/20 px-4 py-3">
                 <Layers className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-500" />
@@ -563,19 +628,36 @@ export function NominaImportWizard({
             </div>
             {/* Tabla con scroll horizontal + vertical */}
             <div className="max-h-[320px] overflow-auto">
-              <ImportPreviewTable period={period} workerWarningsByName={workerWarningsByName} />
+              <ImportPreviewTable
+                period={period}
+                workerWarningsByName={workerWarningsByName}
+                identityCases={identityCases}
+                identityFilter={identityFilter}
+              />
             </div>
           </div>
 
           {/* ── CTAs ── */}
           {step === 'preview' && (
-            <button
-              type="button"
-              onClick={() => setStep('inference')}
-              className="btn-primary w-full justify-center py-3 text-xs"
-            >
-              Revisar rotación inferida
-            </button>
+            <div className="flex gap-3">
+              {identityCases.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep('identity')}
+                  className="btn-secondary flex-1 justify-center py-3 text-xs"
+                >
+                  Identidad
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setStep('inference')}
+                disabled={pendingIdentityCount > 0}
+                className="btn-primary w-full flex-[2] justify-center py-3 text-xs disabled:opacity-40"
+              >
+                Revisar rotación inferida
+              </button>
+            </div>
           )}
 
           {step === 'inference' && (
@@ -601,8 +683,8 @@ export function NominaImportWizard({
                 <button
                   type="button"
                   onClick={confirmImport}
-                  disabled={isPending}
-                  className="btn-primary flex-[2] justify-center py-3 text-xs"
+                  disabled={isPending || pendingIdentityCount > 0}
+                  className="btn-primary flex-[2] justify-center py-3 text-xs disabled:opacity-40"
                 >
                   {isPending ? (
                     <>

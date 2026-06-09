@@ -1,10 +1,7 @@
 import { buildImportCommitPayload } from '@/lib/nomina/import-commit';
 import type { InferredWorkerProfile, ParsedNominaPeriod } from '@/lib/nomina/types';
-import {
-  resolvePeriodWorkers,
-  type WorkerMatchRecord,
-  type WorkerMatchWarning,
-} from '@/lib/nomina/worker-match';
+import type { IdentityAuditPayload } from '@/lib/nomina/identity-audit';
+import type { IdentityCase, IdentitySummary } from '@/lib/nomina/worker-identity-cases';
 import type { Personal } from '@/lib/types';
 
 const MONEY_TOLERANCE = 0.05;
@@ -37,9 +34,9 @@ export type ImportFidelityReport = {
   status: 'ok' | 'warn' | 'error';
   issues: string[];
   droppedWorkers: ImportFidelityDroppedWorker[];
-  workerMatchWarnings?: WorkerMatchWarning[];
-  workerMatchCorrected?: number;
-  workerMatchUnmatched?: number;
+  identitySummary?: IdentitySummary;
+  identityCases?: IdentityCase[];
+  identityAudit?: IdentityAuditPayload;
 };
 
 function roundMoney(n: number): number {
@@ -64,7 +61,8 @@ function resolveStatus(report: Omit<ImportFidelityReport, 'status'>): ImportFide
 
   const workerIssues =
     report.droppedWorkers.length > 0 ||
-    (report.workerMatchUnmatched ?? 0) > 0 ||
+    (report.identitySummary?.pending ?? 0) > 0 ||
+    (report.identitySummary?.conflict ?? 0) > 0 ||
     (report.workerCountSaved != null && report.workerCountSaved < report.workerCountCommit);
 
   if (moneyIssues || report.droppedWorkers.some((w) => w.total >= 50)) return 'error';
@@ -81,16 +79,12 @@ export function buildImportFidelityReport(
   options?: {
     existingPersonal?: Map<string, Personal>;
     idByCedula?: Map<string, string>;
-    workersBase?: WorkerMatchRecord[];
+    identityCases?: IdentityCase[];
+    identitySummary?: IdentitySummary;
+    identityAudit?: IdentityAuditPayload;
   },
 ): ImportFidelityReport {
-  const workerMatch = options?.workersBase?.length
-    ? resolvePeriodWorkers(
-        structuredClone(period) as ParsedNominaPeriod,
-        options.workersBase,
-      )
-    : null;
-  const resolvedPeriod = workerMatch?.period ?? period;
+  const resolvedPeriod = period;
 
   const allRows = resolvedPeriod.sections.flatMap((s) => s.rows);
   const validRows = allRows.filter((r) => r._valid);
@@ -213,19 +207,22 @@ export function buildImportFidelityReport(
   if (duplicateCellCount > 0) {
     issues.push(`${duplicateCellCount} celda(s) duplicada(s) (misma cédula y semana).`);
   }
-  if (workerMatch) {
-    if (workerMatch.correctedCount > 0) {
-      issues.push(
-        `${workerMatch.correctedCount} cédula(s) corregida(s) según la Base de Trabajadores (nombre).`,
-      );
+  if (options?.identitySummary) {
+    const s = options.identitySummary;
+    if (s.aliasResolved > 0) {
+      issues.push(`${s.aliasResolved} trabajador(es) vinculado(s) por alias guardado.`);
     }
-    if (workerMatch.unmatchedCount > 0) {
-      issues.push(
-        `${workerMatch.unmatchedCount} trabajador(es) sin coincidencia en la Base de Trabajadores.`,
-      );
+    if (s.corrected > 0) {
+      issues.push(`${s.corrected} cédula(s) corregida(s) tras confirmación manual.`);
     }
-    for (const w of workerMatch.warnings.filter((x) => x.kind === 'ambiguous')) {
-      issues.push(w.message);
+    if (s.shared > 0) {
+      issues.push(`${s.shared} caso(s) de cédula compartida en el archivo.`);
+    }
+    if (s.unknown > 0) {
+      issues.push(`${s.unknown} trabajador(es) sin coincidencia en la Base de Trabajadores.`);
+    }
+    if (s.conflict > 0) {
+      issues.push(`${s.conflict} conflicto(s) de identidad resueltos manualmente.`);
     }
   }
   if (
@@ -253,9 +250,9 @@ export function buildImportFidelityReport(
     deltas: { sourceToParsed, parsedToCommit, commitToSaved },
     issues,
     droppedWorkers: droppedWorkers.sort((a, b) => b.total - a.total),
-    workerMatchWarnings: workerMatch?.warnings,
-    workerMatchCorrected: workerMatch?.correctedCount,
-    workerMatchUnmatched: workerMatch?.unmatchedCount,
+    identitySummary: options?.identitySummary,
+    identityCases: options?.identityCases,
+    identityAudit: options?.identityAudit,
   };
 
   return { ...base, status: resolveStatus(base) };

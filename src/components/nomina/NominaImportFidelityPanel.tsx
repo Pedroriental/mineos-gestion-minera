@@ -8,7 +8,10 @@ import {
   type ImportFidelityReport,
 } from '@/lib/nomina/import-fidelity';
 import type { InferredWorkerProfile, ParsedNominaPeriod } from '@/lib/nomina/types';
-import type { WorkerMatchRecord } from '@/lib/nomina/worker-match';
+import {
+  computeIdentitySummary,
+  type IdentityCase,
+} from '@/lib/nomina/worker-identity-cases';
 import { cn } from '@/lib/utils';
 
 function fmtUsd(value: number | null | undefined): string {
@@ -100,21 +103,37 @@ export function NominaImportFidelityPanel({
   savedReport = null,
   compact = false,
   existingPersonal,
-  workersBase,
+  identityCases = [],
+  aliasResolved = 0,
+  rawPeriod,
 }: {
   period: ParsedNominaPeriod;
   profiles: InferredWorkerProfile[];
   savedReport?: ImportFidelityReport | null;
   compact?: boolean;
   existingPersonal?: Map<string, any>;
-  workersBase?: WorkerMatchRecord[];
+  identityCases?: IdentityCase[];
+  aliasResolved?: number;
+  rawPeriod?: ParsedNominaPeriod | null;
 }) {
   const [showDropped, setShowDropped] = useState(false);
+  const identitySummary = useMemo(
+    () =>
+      identityCases.length || aliasResolved > 0
+        ? computeIdentitySummary(rawPeriod ?? period, identityCases, aliasResolved)
+        : undefined,
+    [rawPeriod, period, identityCases, aliasResolved],
+  );
+
   const report = useMemo(
     () =>
       savedReport ??
-      buildImportFidelityReport(period, profiles, { existingPersonal, workersBase }),
-    [savedReport, period, profiles, existingPersonal, workersBase],
+      buildImportFidelityReport(period, profiles, {
+        existingPersonal,
+        identityCases,
+        identitySummary,
+      }),
+    [savedReport, period, profiles, existingPersonal, identityCases, identitySummary],
   );
 
   const rows: FidelityRow[] = [
@@ -189,6 +208,18 @@ export function NominaImportFidelityPanel({
       <FidelityTable rows={rows} />
 
       {/* Issues o mensaje OK */}
+      {report.identityAudit ? (
+        <div className="mt-3 rounded-xl border border-violet-500/15 bg-violet-500/5 px-3 py-2.5 text-[11px] text-violet-100/90">
+          <p className="font-semibold text-violet-200">Auditoría de identidad</p>
+          <p className="mt-1 text-violet-100/80">
+            {report.identityAudit.summary.autoMatched} identificados ·{' '}
+            {report.identityAudit.aliasApplied} alias ·{' '}
+            {report.identityAudit.cases.filter((c) => c.status === 'confirmed').length} confirmados
+            manualmente
+          </p>
+        </div>
+      ) : null}
+
       {report.issues.length > 0 ? (
         <ul className="mt-3 space-y-1 text-[11px] leading-relaxed text-zinc-400">
           {report.issues.map((issue) => (

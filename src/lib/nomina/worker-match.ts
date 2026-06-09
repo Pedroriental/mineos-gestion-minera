@@ -1,4 +1,5 @@
 import type { ParsedNominaPeriod, ParsedWorkerRow } from '@/lib/nomina/types';
+import { nameVariants } from '@/lib/nomina/worker-name-fuzzy';
 
 export type WorkerMatchRecord = {
   id?: string;
@@ -64,6 +65,25 @@ function isSyntheticCedula(cedula: string): boolean {
   return /^SC-/i.test(cedula);
 }
 
+/** Coincidencia por variante de orden (ej. Mendez Alfredo ↔ Alfredo Mendez). */
+function findWorkerByNameVariants(
+  nameKey: string,
+  lookup: WorkerLookup,
+): WorkerMatchRecord | null {
+  let found: WorkerMatchRecord | null = null;
+
+  for (const variant of nameVariants(nameKey)) {
+    if (variant === nameKey) continue;
+    if (lookup.duplicateNames.has(variant)) continue;
+    const worker = lookup.byName.get(variant);
+    if (!worker) continue;
+    if (found && found.cedula !== worker.cedula) return null;
+    found = worker;
+  }
+
+  return found;
+}
+
 export function resolveRowWorker(
   row: Pick<ParsedWorkerRow, 'nombre_completo' | 'cedula'>,
   lookup: WorkerLookup,
@@ -87,7 +107,7 @@ export function resolveRowWorker(
     };
   }
 
-  const byName = lookup.byName.get(nameKey);
+  const byName = lookup.byName.get(nameKey) ?? findWorkerByNameVariants(nameKey, lookup);
   if (byName) {
     const dbCedula = byName.cedula;
     if (excelCedula === dbCedula || (isSyntheticCedula(excelCedula) && dbCedula)) {

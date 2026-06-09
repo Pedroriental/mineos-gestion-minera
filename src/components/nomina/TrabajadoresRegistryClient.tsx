@@ -44,6 +44,7 @@ import {
   SheetIconBadge,
   useMobileFilterSheet,
 } from '@/components/mobile';
+import { TrabajadoresImportAliasesPanel } from '@/components/nomina/TrabajadoresImportAliasesPanel';
 
 type EstadoLaboral = 'ACTIVO' | 'DESPEDIDO' | 'REPOSO' | 'VACACIONES' | 'REENGANCHADO';
 
@@ -330,6 +331,17 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
     setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
   }, [search, filterNomina, filterEstado, filterSitio]);
 
+  const trabajadoresById = useMemo(
+    () =>
+      new Map(
+        trabajadores.map((t) => [
+          t.id,
+          { nombre_completo: t.nombre_completo, cedula: t.cedula },
+        ]),
+      ),
+    [trabajadores],
+  );
+
   const filteredCount = table.getFilteredRowModel().rows.length;
   const pageRows = table.getPaginationRowModel().rows;
   const emptyRowSlots = Math.max(0, pagination.pageSize - pageRows.length);
@@ -604,7 +616,11 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
             </p>
           ) : null}
         </td>
-        <td className="gastos-table__cell gastos-td px-3 text-white/80">{t.cargo || '-'}</td>
+        <td className="gastos-table__cell gastos-td max-w-[9rem] px-3 text-white/80">
+          <span className="line-clamp-2 text-[11px] leading-snug" title={t.cargo || undefined}>
+            {t.cargo || '-'}
+          </span>
+        </td>
         <td className="gastos-table__cell gastos-td px-3">
           <div className="relative inline-flex max-w-full">
             <button
@@ -774,8 +790,8 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   );
 
   return (
-    <div className="trabajadores-page gastos-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-      <div className="trabajadores-page__grid gastos-page__grid min-h-0 flex-1">
+    <div className="trabajadores-page gastos-page flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden">
+      <div className="trabajadores-page__grid gastos-page__grid min-h-[min(58dvh,36rem)] shrink-0 lg:min-h-0 lg:flex-1">
         <aside className="trabajadores-page__filters app-surface-card hidden min-h-0 flex-col p-3 md:flex">
           <p className="mb-3 shrink-0 text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
             Filtros
@@ -824,7 +840,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
 
             <div
               ref={tableBodyRef}
-              className="gastos-page__table-body min-h-0 flex-1 overflow-x-auto overflow-y-hidden"
+              className="gastos-page__table-body min-h-0 flex-1"
               style={
                 {
                   '--trabajadores-page-rows': pagination.pageSize,
@@ -917,6 +933,10 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="shrink-0">
+        <TrabajadoresImportAliasesPanel trabajadoresById={trabajadoresById} />
       </div>
 
       {estadoMenu && (

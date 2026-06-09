@@ -2838,7 +2838,6 @@ input, textarea, select {
 
 /* Gastos / Inventario — sin scroll de página; tabla + pie fijos en el viewport */
 .app-page-scroll:has(.gastos-page),
-.app-page-scroll:has(.trabajadores-page),
 .app-page-scroll:has(.inventario-page),
 .app-page-scroll:has(.resumen-ejecutivo-page),
 .app-page-scroll:has(.produccion-page),
@@ -4796,23 +4795,35 @@ input, textarea, select {
 }
 
 .trabajadores-page .gastos-page__table-body {
-  --gastos-row-h: 3.5rem;
+  --gastos-row-h: 4.25rem;
   --trabajadores-page-rows: 10;
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .trabajadores-page .gastos-table.trabajadores-table--uniform {
-  height: calc(var(--gastos-row-h) * (var(--trabajadores-page-rows) + 1));
+  min-height: calc(var(--gastos-row-h) * (var(--trabajadores-page-rows) + 1));
+  height: auto;
 }
 
-.trabajadores-page .gastos-table.trabajadores-table--uniform thead tr.gastos-table__row,
+.trabajadores-page .gastos-table.trabajadores-table--uniform thead tr.gastos-table__row {
+  height: var(--gastos-row-h);
+}
+
 .trabajadores-page .gastos-table.trabajadores-table--uniform tbody tr.gastos-table__row {
+  min-height: var(--gastos-row-h);
+}
+
+.trabajadores-page .gastos-table.trabajadores-table--uniform tbody tr.trabajadores-table__row--pad {
   height: var(--gastos-row-h);
   max-height: var(--gastos-row-h);
 }
 
 .trabajadores-page .gastos-table.trabajadores-table--uniform .gastos-table__cell {
-  padding-top: 0;
-  padding-bottom: 0;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  vertical-align: middle;
 }
 
 .trabajadores-row-worker {

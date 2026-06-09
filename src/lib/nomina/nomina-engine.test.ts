@@ -565,6 +565,409 @@ describe('resolvePeriodWorkers', () => {
   });
 });
 
+describe('worker identity cases', () => {
+  it('builds shared-cedula cases for duplicate CI with different names', async () => {
+    const { buildIdentityCases, confirmIdentityCase } = await import(
+      '@/lib/nomina/worker-identity-cases'
+    );
+    const { applyIdentityResolutions } = await import('@/lib/nomina/apply-identity-resolutions');
+    const { buildImportCommitPayload } = await import('@/lib/nomina/import-commit');
+
+    const workers = [
+      { id: 'a1', cedula: '11111111', nombre_completo: 'Alfredo Mendez' },
+      { id: 'a2', cedula: '22222222', nombre_completo: 'Ismael Mendez' },
+    ];
+
+    const period = {
+      source: 'excel' as const,
+      rangeStart: '2026-05-18',
+      rangeEnd: '2026-05-24',
+      weekColumns: [
+        {
+          weekStart: '2026-05-18',
+          weekEnd: '2026-05-24',
+          colIndex: 3,
+          rawHeader: '',
+          rawRange: { inicio: null, fin: null },
+          header: '',
+        },
+      ],
+      sections: [
+        {
+          id: 'mina__v1',
+          rawTitle: 'Vertical',
+          title: 'Vertical',
+          area: 'mina' as const,
+          cargo: 'Vertical',
+          areaDetalle: 'Vertical',
+          weekColumns: [],
+          sectionTotal: 200,
+          rows: [
+            {
+              nombre_completo: 'Alfredo Mendez',
+              cedula: '28374511',
+              cargo: 'Vertical',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: { '2026-05-18': { amount: 100 } },
+              total: 100,
+              _valid: true,
+            },
+            {
+              nombre_completo: 'Ismael Mendez',
+              cedula: '28374511',
+              cargo: 'Vertical',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: { '2026-05-18': { amount: 100 } },
+              total: 100,
+              _valid: true,
+            },
+          ],
+        },
+      ],
+      flatCells: [
+        {
+          sectionId: 'mina__v1',
+          weekStart: '2026-05-18',
+          worker: {
+            nombre_completo: 'Alfredo Mendez',
+            cedula: '28374511',
+            cargo: 'Vertical',
+            area: 'mina' as const,
+            fecha_ingreso: '2026-05-18',
+            weeks: { '2026-05-18': { amount: 100 } },
+            total: 100,
+            _valid: true,
+          },
+          cell: { amount: 100 },
+        },
+        {
+          sectionId: 'mina__v1',
+          weekStart: '2026-05-18',
+          worker: {
+            nombre_completo: 'Ismael Mendez',
+            cedula: '28374511',
+            cargo: 'Vertical',
+            area: 'mina' as const,
+            fecha_ingreso: '2026-05-18',
+            weeks: { '2026-05-18': { amount: 100 } },
+            total: 100,
+            _valid: true,
+          },
+          cell: { amount: 100 },
+        },
+      ],
+      stats: { workerCount: 2, cellCount: 2, skippedRows: 0, warnings: [] },
+      grandTotal: 200,
+    };
+
+    const cases = buildIdentityCases(period, workers);
+    assert.equal(cases.length, 2);
+    assert.ok(cases.every((c) => c.kind === 'cedula_shared'));
+    assert.ok(cases.every((c) => c.status === 'pending'));
+
+    const confirmed = cases.map((c) => confirmIdentityCase(c, 'use_suggested'));
+    const resolved = applyIdentityResolutions(structuredClone(period) as typeof period, confirmed);
+    assert.equal(resolved.sections[0].rows[0].cedula, '11111111');
+    assert.equal(resolved.sections[0].rows[1].cedula, '22222222');
+
+    const payload = buildImportCommitPayload(resolved, []);
+    assert.equal(payload.semanas[0]?.registros.length, 2);
+  });
+
+  it('blocks import validation when identity cases remain pending', async () => {
+    const { buildIdentityCases, validateClientIdentityCases } = await import(
+      '@/lib/nomina/worker-identity-cases'
+    );
+
+    const workers = [{ id: 'a1', cedula: '11111111', nombre_completo: 'Alfredo Mendez' }];
+    const period = {
+      source: 'excel' as const,
+      rangeStart: '2026-05-18',
+      rangeEnd: '2026-05-24',
+      weekColumns: [],
+      sections: [
+        {
+          id: 's1',
+          rawTitle: 'T',
+          title: 'T',
+          area: 'mina' as const,
+          cargo: 'T',
+          areaDetalle: null,
+          weekColumns: [],
+          sectionTotal: 100,
+          rows: [
+            {
+              nombre_completo: 'Alfredo Mendez',
+              cedula: '28374511',
+              cargo: 'T',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: { '2026-05-18': { amount: 100 } },
+              total: 100,
+              _valid: true,
+            },
+          ],
+        },
+      ],
+      flatCells: [],
+      stats: { workerCount: 1, cellCount: 1, skippedRows: 0, warnings: [] },
+      grandTotal: 100,
+    };
+
+    const serverCases = buildIdentityCases(period, workers);
+    const result = validateClientIdentityCases(serverCases, serverCases);
+    assert.equal(result.ok, false);
+  });
+});
+
+describe('identity policy and aliases', () => {
+  it('rejects keep_excel for cedula conflict cases', async () => {
+    const { validateResolutionPolicy } = await import('@/lib/nomina/worker-identity-policy');
+    const result = validateResolutionPolicy({
+      id: 'x',
+      kind: 'cedula_conflict',
+      excelNombre: 'Juan',
+      excelCedula: '111',
+      rowRefs: ['x'],
+      status: 'confirmed',
+      resolution: {
+        personalId: '',
+        cedula: '111',
+        nombre: 'Juan',
+        action: 'keep_excel',
+      },
+    });
+    assert.equal(result.ok, false);
+  });
+
+  it('applies import aliases before building manual cases', async () => {
+    const { prepareIdentityImport } = await import('@/lib/nomina/worker-identity-cases');
+
+    const workers = [{ id: 'w1', cedula: '11111111', nombre_completo: 'Alfredo Mendez' }];
+    const aliases = [
+      {
+        id: 'a1',
+        alias_nombre_normalizado: 'alfredo mendez',
+        alias_cedula_excel: '28374511',
+        personal_id: 'w1',
+      },
+    ];
+    const period = {
+      source: 'excel' as const,
+      rangeStart: '2026-05-18',
+      rangeEnd: '2026-05-24',
+      weekColumns: [],
+      sections: [
+        {
+          id: 's1',
+          rawTitle: 'T',
+          title: 'T',
+          area: 'mina' as const,
+          cargo: 'T',
+          areaDetalle: null,
+          weekColumns: [],
+          sectionTotal: 100,
+          rows: [
+            {
+              nombre_completo: 'Alfredo Mendez',
+              cedula: '28374511',
+              cargo: 'T',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: { '2026-05-18': { amount: 100 } },
+              total: 100,
+              _valid: true,
+            },
+          ],
+        },
+      ],
+      flatCells: [],
+      stats: { workerCount: 1, cellCount: 1, skippedRows: 0, warnings: [] },
+      grandTotal: 100,
+    };
+
+    const prep = prepareIdentityImport(period, workers, aliases);
+    assert.equal(prep.cases.length, 0);
+    assert.equal(prep.aliasApplications.length, 1);
+    assert.equal(prep.periodForMatching.sections[0].rows[0].cedula, '11111111');
+    assert.equal(prep.summary.aliasResolved, 1);
+  });
+
+  it('computes identity summary counters', async () => {
+    const { computeIdentitySummary } = await import('@/lib/nomina/worker-identity-cases');
+    const period = {
+      source: 'excel' as const,
+      rangeStart: '2026-05-18',
+      rangeEnd: '2026-05-24',
+      weekColumns: [],
+      sections: [
+        {
+          id: 's1',
+          rawTitle: 'T',
+          title: 'T',
+          area: 'mina' as const,
+          cargo: 'T',
+          areaDetalle: null,
+          weekColumns: [],
+          sectionTotal: 200,
+          rows: [
+            {
+              nombre_completo: 'A',
+              cedula: '1',
+              cargo: 'T',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: {},
+              total: 100,
+              _valid: true,
+            },
+            {
+              nombre_completo: 'B',
+              cedula: '2',
+              cargo: 'T',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: {},
+              total: 100,
+              _valid: true,
+            },
+          ],
+        },
+      ],
+      flatCells: [],
+      stats: { workerCount: 2, cellCount: 0, skippedRows: 0, warnings: [] },
+      grandTotal: 200,
+    };
+
+    const summary = computeIdentitySummary(
+      period,
+      [
+        {
+          id: 'c1',
+          kind: 'cedula_shared',
+          excelNombre: 'A',
+          excelCedula: '9',
+          rowRefs: ['c1'],
+          status: 'pending',
+        },
+      ],
+      0,
+    );
+
+    assert.equal(summary.totalWorkers, 2);
+    assert.equal(summary.shared, 1);
+    assert.equal(summary.autoMatched, 1);
+    assert.equal(summary.pending, 1);
+  });
+});
+
+describe('worker name fuzzy matching', () => {
+  it('suggests similar names without auto-assigning', async () => {
+    const { findFuzzyWorkerCandidates } = await import('@/lib/nomina/worker-name-fuzzy');
+    const workers = [{ id: 'w1', cedula: '123', nombre_completo: 'Enio Martinez' }];
+    const candidates = findFuzzyWorkerCandidates('Enio Mrtinez', workers);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].worker.cedula, '123');
+    assert.ok(candidates[0].score >= 0.85);
+  });
+
+  it('matches reversed name order in resolveRowWorker', async () => {
+    const { resolveRowWorker, buildWorkerLookup } = await import('@/lib/nomina/worker-match');
+    const lookup = buildWorkerLookup([
+      { cedula: '111', nombre_completo: 'Alfredo Mendez' },
+    ]);
+    const result = resolveRowWorker(
+      { nombre_completo: 'Mendez Alfredo', cedula: '999' },
+      lookup,
+    );
+    assert.equal(result.kind, 'corrected');
+    assert.equal(result.cedula, '111');
+  });
+
+  it('adds fuzzy candidates to identity cases for unknown workers', async () => {
+    const { buildIdentityCases } = await import('@/lib/nomina/worker-identity-cases');
+    const workers = [{ id: 'w1', cedula: '123', nombre_completo: 'Enio Martinez' }];
+    const period = {
+      source: 'excel' as const,
+      rangeStart: '2026-05-18',
+      rangeEnd: '2026-05-24',
+      weekColumns: [],
+      sections: [
+        {
+          id: 's1',
+          rawTitle: 'T',
+          title: 'Vertical',
+          area: 'mina' as const,
+          cargo: 'Vertical',
+          areaDetalle: null,
+          weekColumns: [],
+          sectionTotal: 100,
+          rows: [
+            {
+              nombre_completo: 'Enio Mrtinez',
+              cedula: '99999',
+              cargo: 'Vertical',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: { '2026-05-18': { amount: 100 } },
+              total: 100,
+              _valid: true,
+            },
+          ],
+        },
+      ],
+      flatCells: [],
+      stats: { workerCount: 1, cellCount: 1, skippedRows: 0, warnings: [] },
+      grandTotal: 100,
+    };
+
+    const cases = buildIdentityCases(period, workers);
+    assert.equal(cases.length, 1);
+    assert.ok(cases[0].fuzzyCandidates?.length);
+    assert.equal(cases[0].suggested?.cedula, '123');
+    assert.equal(cases[0].rowTotal, 100);
+  });
+});
+
+describe('identity audit payload', () => {
+  it('builds audit metadata for period import', async () => {
+    const { buildIdentityAuditPayload } = await import('@/lib/nomina/identity-audit');
+    const audit = buildIdentityAuditPayload(
+      [
+        {
+          id: 'c1',
+          kind: 'cedula_shared',
+          excelNombre: 'A',
+          excelCedula: '9',
+          rowRefs: ['c1'],
+          status: 'confirmed',
+          resolution: {
+            personalId: 'w1',
+            cedula: '1',
+            nombre: 'A',
+            action: 'use_suggested',
+          },
+        },
+      ],
+      {
+        totalWorkers: 2,
+        autoMatched: 1,
+        corrected: 0,
+        shared: 1,
+        unknown: 0,
+        conflict: 0,
+        aliasResolved: 0,
+        pending: 0,
+      },
+    );
+    assert.equal(audit.cases.length, 1);
+    assert.equal(audit.summary.shared, 1);
+    assert.ok(audit.importedAt);
+  });
+});
+
 describe('Excel Row Observations Parsing', () => {
   it('correctly maps trailing observations like reposo or retirado to weekly novelties', async () => {
     const { buildImportCommitPayload } = await import('@/lib/nomina/import-commit');
