@@ -19,6 +19,10 @@ import {
   AssignToNominaAreaSchema,
   CrearValeSchema,
 } from '@/lib/validations/nomina-v3';
+import {
+  vincularSemanaACicloAction,
+  cerrarCicloAutomaticoAction,
+} from './nomina-ciclos-automatizacion';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
@@ -420,6 +424,48 @@ export async function procesarCierreNominaV3Action(payload: {
       `Cierre Nómina V3 de ${area.toUpperCase()} del ${inicio} al ${fin}. Total: $${totalNomina.toFixed(2)} for ${rows.length} trabajadores.`,
       userId
     );
+
+    // ── FASE 4: Automatización de Ciclos ─────────────────────────────────
+    // Vincular semana a ciclos automáticamente (crea o vincula a ciclo existente)
+    const personalIds = rows.map(r => r.personal.id);
+    const vinculoResult = await vincularSemanaACicloAction({
+      semanaId,
+      semanaInicio: inicio,
+      area,
+      personalIds,
+      userId,
+    });
+
+    if (vinculoResult.ok && vinculoResult.data) {
+      const { ciclosCreados, ciclosVinculados } = vinculoResult.data;
+      if (ciclosCreados > 0 || ciclosVinculados > 0) {
+        await registrarAuditAction(
+          'CICLO_AUTOMATIZADO',
+          'nomina_ciclos',
+          semanaId,
+          `Ciclos procesados: ${ciclosCreados} creados, ${ciclosVinculados} vinculados`,
+          userId
+        );
+      }
+    }
+
+    // Intentar cerrar ciclo si es la última semana
+    const cierreCicloResult = await cerrarCicloAutomaticoAction({
+      semanaId,
+      userId,
+    });
+
+    if (cierreCicloResult.ok && cierreCicloResult.data) {
+      const { cicloId, totalCiclo } = cierreCicloResult.data;
+      await registrarAuditAction(
+        'CICLO_CERRADO',
+        'nomina_ciclos',
+        cicloId,
+        `Ciclo cerrado automáticamente. Total consolidado: $${totalCiclo.toFixed(2)}`,
+        userId
+      );
+    }
+    // ── FIN FASE 4 ───────────────────────────────────────────────────────
 
     revalidateAll();
     return {
