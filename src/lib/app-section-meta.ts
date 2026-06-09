@@ -64,7 +64,7 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     iconClassName: 'text-red-400',
   },
   '/admin/gastos/resumen': {
-    title: 'Resumen Ejecutivo',
+    title: 'Resumen de Gastos',
     description: 'Consolidado de gastos de mina, molino y nómina por período.',
     Icon: Receipt,
     iconClassName: 'text-red-400',

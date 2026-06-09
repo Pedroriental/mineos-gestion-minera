@@ -63,7 +63,7 @@ const navigation: NavSection[] = [
         label: 'Gastos', href: '#', icon: <Receipt className="w-4 h-4" />,
         subItems: [
           { label: 'Registros de Gastos', href: '/admin/gastos' },
-          { label: 'Resumen Ejecutivo', href: '/admin/gastos/resumen' },
+          { label: 'Resumen de Gastos', href: '/admin/gastos/resumen' },
           { label: 'Catálogo', href: '/admin/gastos/conceptos' },
         ],
       },
