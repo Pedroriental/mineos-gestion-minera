@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { BibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { getBibliotecaValues, loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
+import { resolveBibliotecaLabel } from '@/lib/biblioteca-display';
 import { normalizeString } from '@/lib/reports/report-engine';
 
 const BibliotecaModuloEnum = z.enum(
@@ -59,10 +60,14 @@ export async function assertBibliotecaValue(
   if (!allowed.length) return value;
   
   const normalizedValue = normalizeString(value);
-  const matched = allowed.find(allow => normalizeString(allow) === normalizedValue);
-  
+  const matched = allowed.find((allow) => normalizeString(allow) === normalizedValue);
+
   if (!matched) {
-    throw new Error(`${label} no válido. Valores permitidos: ${allowed.join(', ')}`);
+    const displayAllowed = Array.from(
+      new Set(allowed.map((a) => resolveBibliotecaLabel(snap, slug, a)).filter(Boolean)),
+    );
+    throw new Error(`${label} no válido. Valores permitidos: ${displayAllowed.join(', ')}`);
   }
-  return matched;
+
+  return resolveBibliotecaLabel(snap, slug, matched) || matched;
 }

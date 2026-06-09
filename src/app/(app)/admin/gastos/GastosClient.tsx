@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/app-toast';
 import type { Gasto, CategoriaGasto } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
@@ -665,7 +666,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
       });
       if (!verify.ok) {
         setFormError(verify.message);
-        toast.error(verify.message);
+        toastError(verify.message);
         return;
       }
 
@@ -696,10 +697,10 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
       if (result.ok) { toast.success(result.message); closeModal(); }
       else if (result.code === 'DUPLICATE' && result.duplicates?.length) {
         setFormError(result.message);
-        toast.error('Gasto duplicado detectado al guardar.');
+        toastError('Gasto duplicado detectado al guardar.');
       } else {
         setFormError(result.message);
-        toast.error(result.message);
+        toastError(result.message);
       }
     });
   }
@@ -716,7 +717,7 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
         if (detailId === id) setDetailId(null);
         toast.success(result.message);
       } else {
-        toast.error(result.message);
+        toastError(result.message);
       }
     });
   }

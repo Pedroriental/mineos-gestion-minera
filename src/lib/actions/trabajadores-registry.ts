@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
+import { toUserFriendlyError } from '@/lib/app-toast';
 import { normalizeAreaDetalle, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 
@@ -189,7 +190,7 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       }));
     }
 
-    if (error) return { ok: false, message: error.message };
+    if (error) return { ok: false, message: toUserFriendlyError(error.message) };
     revalidateAll();
     return { ok: true, message: id ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
   } catch (e) {
@@ -231,7 +232,7 @@ export async function updateTrabajadorEstadoAction(raw: {
       })
       .eq('id', raw.id);
 
-    if (error) return { ok: false, message: error.message };
+    if (error) return { ok: false, message: toUserFriendlyError(error.message) };
     revalidateAll();
     return { ok: true, message: 'Estado actualizado.' };
   } catch (e) {

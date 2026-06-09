@@ -7,6 +7,7 @@ import { createVoladura, updateVoladura, deleteVoladura } from '@/lib/actions/vo
 import type { ReporteVoladura, PausaBarrenado } from '@/lib/types';
 import { downloadVoladurasPDF } from '@/lib/pdf-reports';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/app-toast';
 import {
   Loader2, Plus, X, ChevronLeft, ChevronRight, Flame, Target, Package, AlertTriangle, Download, Search, Zap, LineChart, Scale,
 } from 'lucide-react';
@@ -15,7 +16,8 @@ import {
 } from 'recharts';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
-import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { useBiblioteca, useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { resolveBibliotecaLabel } from '@/lib/biblioteca-display';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
 import { GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
@@ -93,6 +95,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
     prependEmpty: true,
     emptyLabel: '— Sin especificar —',
   });
+  const biblioteca = useBiblioteca();
   const minaOptions = useBibliotecaOptions('minas');
 
   const defaultDate = useMemo(() => {
@@ -300,7 +303,8 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
     setPausas(item.pausas_barrenado || []);
     setForm({
       fecha: item.fecha, turno: item.turno,
-      mina: item.mina || '', responsable: item.responsable || '',
+      mina: resolveBibliotecaLabel(biblioteca, 'minas', item.mina) || '',
+      responsable: item.responsable || '',
       hora_inicio_barrenado: normalizeAppTimeValue(item.hora_inicio_barrenado),
       hora_fin_barrenado: normalizeAppTimeValue(item.hora_fin_barrenado),
       numero_disparo: item.numero_disparo || '',
@@ -329,7 +333,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
       );
       const payload = {
         ...form,
-        mina: form.mina || undefined,
+        mina: resolveBibliotecaLabel(biblioteca, 'minas', form.mina) || undefined,
         vertical_disparo: form.vertical_disparo || undefined,
         pausas_barrenado: pausasValidas.length > 0 ? pausasValidas : null,
         registrado_por: user?.id,
@@ -349,7 +353,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
           setSelectedDate(form.fecha);
         }
       } else {
-        toast.error(res.message || 'Error al guardar el reporte');
+        toastError(res.message || 'Error al guardar el reporte');
       }
     });
   };
@@ -365,7 +369,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
       if (res.ok) {
         toast.success(res.message);
       } else {
-        toast.error(res.message || 'Error al eliminar el reporte');
+        toastError(res.message || 'Error al eliminar el reporte');
       }
     });
   };

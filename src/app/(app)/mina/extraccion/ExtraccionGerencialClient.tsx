@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
-import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { useBiblioteca, useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { resolveBibliotecaLabel } from '@/lib/biblioteca-display';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
 import { GerencialMobileChartFold, GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
@@ -31,6 +32,7 @@ import {
 import { columns, bitacoraColumns, type BitacoraEntry } from './columns';
 import { FadeIn } from '@/components/ui/motion';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import { AppTimePicker } from '@/components/ui/AppTimePicker';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
@@ -97,7 +99,12 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
     prependEmpty: true,
     emptyLabel: '— Sin especificar —',
   });
+  const biblioteca = useBiblioteca();
   const minaOptions = useBibliotecaOptions('minas');
+  const formatMina = useCallback(
+    (raw?: string | null) => resolveBibliotecaLabel(biblioteca, 'minas', raw) || '—',
+    [biblioteca],
+  );
 
   const [selectedDate, setSelectedDate] = useState('todos');
   const [globalFilter, setGlobalFilter] = useState('');
@@ -174,7 +181,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
       fecha: item.fecha,
       turno: item.turno,
       vertical: item.vertical || '',
-      mina: item.mina || '',
+      mina: resolveBibliotecaLabel(biblioteca, 'minas', item.mina) || '',
       responsable: item.responsable || '',
       hora_inicio: item.hora_inicio || '',
       hora_fin: item.hora_fin || '',
@@ -184,7 +191,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
     });
     setFormError(null);
     setShowModal(true);
-  }, []);
+  }, [biblioteca]);
 
   const handleDelete = useCallback(async (id: string) => {
     if (!(await confirmDialog({
@@ -198,8 +205,8 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
   }, [confirmDialog]);
 
   const tableColumns = useMemo(
-    () => columns(openEdit, handleDelete, canEdit),
-    [openEdit, handleDelete, canEdit],
+    () => columns(openEdit, handleDelete, canEdit, formatMina),
+    [openEdit, handleDelete, canEdit, formatMina],
   );
 
   const table = useReactTable({
@@ -269,7 +276,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
           fecha: reporte.fecha,
           turno: turnoLabel(reporte.turno),
           vertical: reporte.vertical || '—',
-          mina: reporte.mina || '—',
+          mina: formatMina(reporte.mina),
           hora: ev.hora || '—',
           descripcion: ev.descripcion?.trim() || '—',
         });
@@ -281,7 +288,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
       if (byDate !== 0) return byDate;
       return b.hora.localeCompare(a.hora);
     });
-  }, [initialData, showBitacoraModal]);
+  }, [initialData, showBitacoraModal, formatMina]);
 
   const bitacoraTable = useReactTable({
     data: bitacoraEntries,
@@ -404,7 +411,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
         sacos_extraidos: sacosNum,
         eventos: eventos.length > 0 ? eventos : undefined,
         vertical: form.vertical || undefined,
-        mina: form.mina || undefined,
+        mina: resolveBibliotecaLabel(biblioteca, 'minas', form.mina) || undefined,
         responsable: form.responsable || undefined,
         hora_inicio: form.hora_inicio || undefined,
         hora_fin: form.hora_fin || undefined,
@@ -1004,8 +1011,8 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                   <AppSelect value={form.mina} onChange={(v) => setFormField('mina', v)} options={minaOptions} placeholder="— Seleccionar mina —" />
                 </div>
                 <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => setFormField('responsable', e.target.value)} className="input-field" /></div>
-                <div><label className="input-label">Hora Inicio</label><input type="time" value={form.hora_inicio} onChange={e => setFormField('hora_inicio', e.target.value)} className="input-field" /></div>
-                <div><label className="input-label">Hora Culmina</label><input type="time" value={form.hora_fin} onChange={e => setFormField('hora_fin', e.target.value)} className="input-field" /></div>
+                <div><label className="input-label">Hora Inicio</label><AppTimePicker value={form.hora_inicio} onChange={(val) => setFormField('hora_inicio', val)} /></div>
+                <div><label className="input-label">Hora Culmina</label><AppTimePicker value={form.hora_fin} onChange={(val) => setFormField('hora_fin', val)} /></div>
               </section>
 
               <section className="extraccion-page__modal-col flex flex-col gap-2.5">
@@ -1023,10 +1030,10 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                 ) : (
                   <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5">
                     {eventos.map((ev, i) => (
-                      <div key={i} className={`grid grid-cols-[minmax(0,5.5rem)_1fr_auto] gap-2 ${mineosPanel('neutral')}`}>
+                      <div key={i} className={`grid grid-cols-[minmax(0,7.25rem)_1fr_auto] gap-2 ${mineosPanel('neutral')}`}>
                         <div>
                           <label className={`${mineosLabelAccent('general')} !text-[10px] opacity-70`}>Hora</label>
-                          <input type="time" value={ev.hora} onChange={e => updateEvento(i, 'hora', e.target.value)} className="input-field !py-1.5" />
+                          <AppTimePicker value={ev.hora} onChange={(val) => updateEvento(i, 'hora', val)} className="!min-w-0" />
                         </div>
                         <div>
                           <label className={`${mineosLabelAccent('general')} !text-[10px] opacity-70`}>Descripción</label>

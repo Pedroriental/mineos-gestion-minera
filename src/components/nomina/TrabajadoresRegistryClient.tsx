@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/app-toast';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useBiblioteca, useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
@@ -440,7 +441,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
 
   function submitForm() {
     if (!form.nombre_completo.trim() || !form.cedula.trim() || !form.cargo.trim()) {
-      toast.error('Nombre, cédula y cargo son obligatorios.');
+      toastError('Nombre, cédula y cargo son obligatorios.');
       return;
     }
 
@@ -452,7 +453,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
       (form.estado_laboral === 'DESPEDIDO' || form.estado_laboral === 'REENGANCHADO') &&
       (!form.id || estadoChanged)
     ) {
-      toast.error(
+      toastError(
         'Para Despedido o Reenganchado use el menú de estado en la tabla (requiere fecha y detalle).',
       );
       return;
@@ -478,7 +479,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
     startTransition(async () => {
       const res = await upsertTrabajadorRegistroAction(fd);
       if (!res.ok) {
-        toast.error(res.message);
+        toastError(res.message);
         return;
       }
       closeModal();
@@ -496,7 +497,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
           estado_laboral: 'ACTIVO',
           observacion_estado: '',
         });
-        if (!res.ok) toast.error(res.message);
+        if (!res.ok) toastError(res.message);
         else {
           toast.success('Estado actualizado exitosamente');
           router.refresh();
@@ -539,21 +540,21 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
       estadoModal.nextEstado === 'DESPEDIDO' &&
       (!estadoModal.despidoFecha || !estadoModal.despidoCausa.trim())
     ) {
-      toast.error('Para despido debes indicar fecha y causa.');
+      toastError('Para despido debes indicar fecha y causa.');
       return;
     }
     if (
       estadoModal.nextEstado === 'REENGANCHADO' &&
       (!estadoModal.reengancheFecha || !estadoModal.reengancheCargo.trim())
     ) {
-      toast.error('Para reenganchado debes indicar fecha de reintegro y cargo.');
+      toastError('Para reenganchado debes indicar fecha de reintegro y cargo.');
       return;
     }
 
     startTransition(async () => {
       const res = await updateTrabajadorEstadoAction(payload);
       if (!res.ok) {
-        toast.error(res.message);
+        toastError(res.message);
         return;
       }
       setEstadoModal(emptyEstadoModal());

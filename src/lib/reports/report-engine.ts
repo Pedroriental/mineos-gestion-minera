@@ -73,6 +73,20 @@ export function getBestCanonicalName(names: (string | undefined | null)[]): stri
   return bestName;
 }
 
+/** Agrupa variantes del mismo nombre (mayúsculas, acentos, guiones) en una sola etiqueta legible. */
+export function getCanonicalList(rawValues: (string | undefined | null)[]): string[] {
+  const groups = new Map<string, Set<string>>();
+  rawValues.forEach((val) => {
+    if (!val?.trim()) return;
+    const key = normalizeString(val);
+    if (!groups.has(key)) groups.set(key, new Set());
+    groups.get(key)!.add(val.trim());
+  });
+  return Array.from(groups.values())
+    .map((set) => getBestCanonicalName(Array.from(set)))
+    .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+}
+
 // ── 1. Módulo: Producción ───────────────────────────────────
 
 export interface ProduccionSummary {

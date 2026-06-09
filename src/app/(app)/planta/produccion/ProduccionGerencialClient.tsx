@@ -11,9 +11,12 @@ import {
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { AppCombobox } from '@/components/ui/AppCombobox';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useBiblioteca, useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
+import { MATERIAL_ORIGEN_SUGERENCIAS, MOLINOS_NODOS_REGISTRADOS } from '@/lib/planta-nodos';
+import { buildCanonicalSelectOptions, mergeMolinoSelectOptions } from '@/lib/select-options';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
 import { GerencialMobileChartFold, GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
@@ -108,6 +111,7 @@ export default function ProduccionGerencialClient({
   const { user } = useAuth();
   const canEdit = useCanEdit();
   const turnoOptions = useTurnoOptions();
+  const biblioteca = useBiblioteca();
   const molinoSelectOptions = useBibliotecaOptions('molinos');
 
   // For the Form
@@ -148,8 +152,25 @@ export default function ProduccionGerencialClient({
   };
   const [form, setForm] = useState(emptyForm);
 
-  const molinosSug = useMemo(() => Array.from(new Set(initialData.map(d => d.molino).filter(Boolean))), [initialData]);
-  const materialesSug = useMemo(() => Array.from(new Set(initialData.map(d => d.material).filter(Boolean))), [initialData]);
+  const molinosSug = useMemo(() => initialData.map((d) => d.molino), [initialData]);
+  const materialesSug = useMemo(() => initialData.map((d) => d.material), [initialData]);
+
+  const molinoComboboxOptions = useMemo(
+    () =>
+      mergeMolinoSelectOptions(
+        molinoSelectOptions,
+        molinosSug,
+        MOLINOS_NODOS_REGISTRADOS,
+        biblioteca.labelsBySlug.molinos || {},
+      ),
+    [molinoSelectOptions, molinosSug, biblioteca.labelsBySlug.molinos],
+  );
+
+  const materialComboboxOptions = useMemo(
+    () =>
+      buildCanonicalSelectOptions([...materialesSug, ...MATERIAL_ORIGEN_SUGERENCIAS]),
+    [materialesSug],
+  );
 
   // 1. Selector Inteligente: Días con Registros
   const diasConRegistros = useMemo(() => {
@@ -905,8 +926,24 @@ export default function ProduccionGerencialClient({
                 <div><label className="input-label">Turno *</label>
                   <AppSelect value={form.turno} onChange={(v) => handleFieldChange('turno', v)} options={turnoOptions} />
                 </div>
-                <div><label className="input-label">Molino *</label><input list="molinos-list" value={form.molino} onChange={e => handleFieldChange('molino', e.target.value)} className="input-field" placeholder="Escribir molino..." /><datalist id="molinos-list">{molinoSelectOptions.map(m => <option key={m.value} value={m.value} />)}{molinosSug.map(m => <option key={m} value={m} />)}</datalist></div>
-                <div><label className="input-label">Material / Mina de Origen *</label><input list="materiales-list" value={form.material} onChange={e => handleFieldChange('material', e.target.value)} className="input-field" placeholder="Escribir material o mina..." /><datalist id="materiales-list">{materialesSug.map(m => <option key={m} value={m} />)}</datalist></div>
+                <div>
+                  <label className="input-label">Molino *</label>
+                  <AppCombobox
+                    value={form.molino}
+                    onChange={(val) => handleFieldChange('molino', val)}
+                    options={molinoComboboxOptions}
+                    placeholder="Seleccionar o escribir molino…"
+                  />
+                </div>
+                <div>
+                  <label className="input-label">Material / Mina de Origen *</label>
+                  <AppCombobox
+                    value={form.material}
+                    onChange={(val) => handleFieldChange('material', val)}
+                    options={materialComboboxOptions}
+                    placeholder="Seleccionar o escribir material…"
+                  />
+                </div>
                 <div><label className="input-label">Código Lote/Veta</label><input value={form.material_codigo} onChange={e => handleFieldChange('material_codigo', e.target.value)} className="input-field" placeholder="V-2D19" /></div>
               </section>
 

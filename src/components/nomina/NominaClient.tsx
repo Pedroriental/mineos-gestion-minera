@@ -13,6 +13,7 @@ import {
   Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet, Archive
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/app-toast';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 import { getGrupoNominaKey } from '@/lib/personal-master';
@@ -700,11 +701,11 @@ export default function NominaClient({
 
   async function handleProcesarNomina() {
     if (preNominaRows.length === 0) {
-      toast.error('No hay trabajadores activos.');
+      toastError('No hay trabajadores activos.');
       return;
     }
     if (!distribucion.validation.ok) {
-      toast.error(distribucion.validation.message ?? 'Revisa la distribución de pagos.');
+      toastError(distribucion.validation.message ?? 'Revisa la distribución de pagos.');
       return;
     }
     if (semanaActual && !(await confirmDialog({
@@ -740,7 +741,7 @@ export default function NominaClient({
         distribucion.saveAsDefault();
         await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
         setProcesadoOk(`✓ ${res.message}`); setShowProcesarModal(false);
-      } else toast.error(res.message);
+      } else toastError(res.message);
     });
   }
 
@@ -754,7 +755,7 @@ export default function NominaClient({
       const res = await revertirSemanaAction(sem);
       if (res.ok) {
         await registrarAuditAction('REVERTIR_NOMINA', 'nomina_semanas', sem.id, `Revertida: ${fmtDate(sem.semana_inicio)} a ${fmtDate(sem.semana_fin)}`, user?.id, user?.email);
-      } else toast.error(sem.notas || 'Error al revertir');
+      } else toastError(sem.notas || 'Error al revertir');
     });
   }
 
@@ -765,7 +766,7 @@ export default function NominaClient({
         await registrarAuditAction('BORRAR_TODO_PERSONAL', 'personal', area, `Todos los trabajadores de ${area} desactivados`, user?.id, user?.email);
         setShowBorrarModal(false);
         toast.success('Todos los trabajadores desactivados.');
-      } else toast.error(res.message);
+      } else toastError(res.message);
     });
   }
 

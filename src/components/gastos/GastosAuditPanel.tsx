@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/app-toast';
 import { auditGastosRegistros, type AuditGastosResult } from '@/lib/actions/gastos-audit';
 import type { GastoAuditFinding } from '@/lib/gastos-audit';
 
@@ -30,7 +31,7 @@ export function GastosAuditPanel() {
 
       if (!options?.silent) {
         if (!audit.ok) {
-          toast.error(audit.message);
+          toastError(audit.message);
         } else if (audit.summary.total === 0) {
           toast.success('Auditoría revisada: sin hallazgos.');
         } else {
@@ -40,7 +41,7 @@ export function GastosAuditPanel() {
         }
       }
     } catch {
-      toast.error('No se pudo ejecutar la auditoría de gastos.');
+      toastError('No se pudo ejecutar la auditoría de gastos.');
     } finally {
       setIsLoading(false);
     }

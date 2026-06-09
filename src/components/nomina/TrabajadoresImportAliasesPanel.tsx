@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { Link2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/app-toast';
 import {
   deleteImportAliasAction,
   getImportAliasesAction,
@@ -35,7 +36,7 @@ export function TrabajadoresImportAliasesPanel({
         toast.success('Alias eliminado');
         setAliases((prev) => prev.filter((a) => a.id !== id));
       } else {
-        toast.error(res.message);
+        toastError(res.message);
       }
     });
   }

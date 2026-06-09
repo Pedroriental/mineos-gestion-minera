@@ -24,26 +24,12 @@ import type {
   NominaRegistro,
   NominaCierre,
 } from '../types';
-import { normalizeString, getBestCanonicalName } from '../reports/report-engine';
+import { normalizeString, getCanonicalList } from '../reports/report-engine';
 
 // ── 1. Fetch Dynamic Dropdown Options ──────────────────────
 
 export async function fetchFilterOptions(): Promise<FilterOptions> {
   const supabase = await createServerClient();
-
-  const getCanonicalList = (rawValues: (string | undefined | null)[]) => {
-    const groups = new Map<string, Set<string>>();
-    rawValues.forEach((val) => {
-      if (val) {
-        const key = normalizeString(val);
-        if (!groups.has(key)) groups.set(key, new Set());
-        groups.get(key)!.add(val);
-      }
-    });
-    return Array.from(groups.values())
-      .map((set) => getBestCanonicalName(Array.from(set)))
-      .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
-  };
 
   // 1. Producción
   const { data: prodData } = await supabase

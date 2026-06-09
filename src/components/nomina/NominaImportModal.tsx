@@ -1,6 +1,7 @@
 'use client';
 
 import { toast } from 'sonner';
+import { toastError } from '@/lib/app-toast';
 
 import { useMemo, useState, useTransition } from 'react';
 import {
@@ -236,7 +237,7 @@ export function NominaImportModal({
   function handleImportConfirm() {
     const valid = parsedEmps.filter((e) => e._valid);
     if (valid.length === 0) {
-      toast.error('No hay empleados válidos.');
+      toastError('No hay empleados válidos.');
       return;
     }
     startTransition(async () => {
@@ -246,7 +247,7 @@ export function NominaImportModal({
         setImportResult(res.data);
         onImported?.();
       } else {
-        toast.error(res.message);
+        toastError(res.message);
       }
     });
   }

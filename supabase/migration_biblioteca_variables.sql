@@ -124,7 +124,7 @@ INSERT INTO biblioteca_variables (categoria_id, clave, etiqueta, valor, unidad, 
 SELECT c.id, v.clave, v.etiqueta, v.valor, v.unidad, v.orden
 FROM biblioteca_categorias c
 JOIN (VALUES
-  ('minas', 'mina_belen', 'Mina Belén', 'mina_belen', '', 1),
+  ('minas', 'mina_belen', 'Mina Belén', 'Mina Belén', '', 1),
   ('minas', 'mina_la_fe', 'Mina La Fé', 'mina_la_fe', '', 2)
 ) AS v(cat_slug, clave, etiqueta, valor, unidad, orden) ON c.slug = v.cat_slug
 ON CONFLICT (categoria_id, clave) DO NOTHING;
@@ -165,6 +165,6 @@ INSERT INTO biblioteca_variables (categoria_id, clave, etiqueta, valor, unidad, 
 SELECT c.id, v.clave, v.etiqueta, v.valor, v.unidad, v.orden
 FROM biblioteca_categorias c
 JOIN (VALUES
-  ('molinos', 'molino_la_fe', 'Molino La Fé', 'molino_la_fe', '', 1)
+  ('molinos', 'molino_la_fe', 'Molino La Fé', 'Molino La Fé', '', 1)
 ) AS v(cat_slug, clave, etiqueta, valor, unidad, orden) ON c.slug = v.cat_slug
 ON CONFLICT (categoria_id, clave) DO NOTHING;

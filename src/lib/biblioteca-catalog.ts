@@ -1,5 +1,6 @@
 import { loadBibliotecaCompleta } from '@/lib/actions/biblioteca-variables';
 import { variableDisplayLabel } from '@/lib/biblioteca-metadata';
+import { shouldStoreBibliotecaLabel } from '@/lib/biblioteca-display';
 import { FALLBACK_BIBLIOTECA_CATALOGO } from '@/lib/biblioteca-fallbacks';
 import {
   DEFAULT_NOMINA_DIVISIONES,
@@ -81,15 +82,28 @@ export function buildBibliotecaAppSnapshot(
     const vars = cat.variables
       .filter((v) => v.activo)
       .sort((a, b) => a.orden - b.orden || a.etiqueta.localeCompare(b.etiqueta));
-    const opts = vars.map((v) => ({
-      value: varValue(v),
-      label: variableDisplayLabel(v),
-    }));
+    const opts = vars.map((v) => {
+      const code = varValue(v);
+      const label = variableDisplayLabel(v);
+      const value = shouldStoreBibliotecaLabel(cat.slug, code, label) ? label : code;
+      return { value, label };
+    });
     options[cat.slug] = opts;
-    valuesBySlug[cat.slug] = opts.map((o) => o.value);
-    const labelMap: Record<string, string> = {};
+    const allowedValues = new Set<string>();
     opts.forEach((o) => {
-      labelMap[o.value] = o.label;
+      allowedValues.add(o.value);
+      allowedValues.add(o.label);
+    });
+    vars.forEach((v) => allowedValues.add(varValue(v)));
+    valuesBySlug[cat.slug] = Array.from(allowedValues);
+    const labelMap: Record<string, string> = {};
+    vars.forEach((v) => {
+      const code = varValue(v);
+      const label = variableDisplayLabel(v);
+      const stored = shouldStoreBibliotecaLabel(cat.slug, code, label) ? label : code;
+      labelMap[code] = label;
+      labelMap[stored] = label;
+      labelMap[code.replace(/_/g, '-')] = label;
     });
     labelsBySlug[cat.slug] = labelMap;
   }

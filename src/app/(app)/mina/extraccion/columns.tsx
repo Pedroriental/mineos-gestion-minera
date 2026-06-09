@@ -67,7 +67,8 @@ const fmtDate = (fecha?: string | null) => {
 export const columns = (
   onEdit: (item: ReporteExtraccion) => void,
   onDelete: (id: string) => void,
-  canEdit: boolean
+  canEdit: boolean,
+  formatMina: (raw?: string | null) => string = (raw) => raw || '—',
 ): ColumnDef<ReporteExtraccion>[] => [
   {
     accessorKey: 'fecha',
@@ -89,7 +90,9 @@ export const columns = (
   {
     accessorKey: 'mina',
     header: 'Mina',
-    cell: ({ row }) => <span className="text-white/80 font-medium whitespace-nowrap">{row.original.mina || '—'}</span>,
+    cell: ({ row }) => (
+      <span className="text-white/80 font-medium whitespace-nowrap">{formatMina(row.original.mina)}</span>
+    ),
   },
   {
     accessorKey: 'numero_disparo',

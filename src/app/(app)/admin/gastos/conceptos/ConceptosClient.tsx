@@ -17,6 +17,7 @@ import {
   Receipt, Wallet, Trash2, Edit2, CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/app-toast';
 import type { GastoConcepto, CategoriaGasto } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
@@ -291,7 +292,7 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
   const handleCreateCategory = async () => {
     const cleanName = newCatName.trim();
     if (!cleanName) {
-      toast.error('El nombre de la categoría no puede estar vacío.');
+      toastError('El nombre de la categoría no puede estar vacío.');
       return;
     }
     setIsCreatingCat(true);
@@ -304,10 +305,10 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
         setShowNewCatInput(false);
         router.refresh();
       } else {
-        toast.error(res.message || 'Error al registrar categoría.');
+        toastError(res.message || 'Error al registrar categoría.');
       }
     } catch (err) {
-      toast.error('Error de red al crear categoría.');
+      toastError('Error de red al crear categoría.');
     } finally {
       setIsCreatingCat(false);
     }
@@ -342,7 +343,7 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
         closeModal();
       } else {
         setFormError(result.message);
-        toast.error(result.message);
+        toastError(result.message);
       }
     });
   }
@@ -358,7 +359,7 @@ export default function ConceptosClient({ conceptos, categorias }: ConceptosClie
       if (result.ok) {
         toast.success(result.message);
       } else {
-        toast.error(result.message);
+        toastError(result.message);
       }
     });
   }

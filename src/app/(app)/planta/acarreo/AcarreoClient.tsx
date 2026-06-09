@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { AppSelect, type AppSelectOption } from '@/components/ui/AppSelect';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
-import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { useBiblioteca, useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
+import { resolveBibliotecaLabel } from '@/lib/biblioteca-display';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
 import EmptyState from '@/components/EmptyState';
@@ -64,6 +65,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
   const { user } = useAuth();
   const canEdit = useCanEdit();
   const turnoOptions = useTurnoOptions();
+  const biblioteca = useBiblioteca();
   const minaOptions = useBibliotecaOptions('minas');
   const molinoOptions = useBibliotecaOptions('molinos');
   const verticalOptions = useBibliotecaOptions('verticales_voladura', {
@@ -167,8 +169,8 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
     setForm({
       fecha: item.fecha,
       turno: item.turno,
-      mina: item.mina,
-      molino: item.molino,
+      mina: resolveBibliotecaLabel(biblioteca, 'minas', item.mina),
+      molino: resolveBibliotecaLabel(biblioteca, 'molinos', item.molino),
       sacos_libres: String(item.sacos_libres),
       observaciones: item.observaciones || '',
     });
@@ -307,8 +309,8 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
     const payload = {
       fecha: form.fecha,
       turno: form.turno,
-      mina: form.mina.trim(),
-      molino: form.molino.trim(),
+      mina: resolveBibliotecaLabel(biblioteca, 'minas', form.mina.trim()),
+      molino: resolveBibliotecaLabel(biblioteca, 'molinos', form.molino.trim()),
       lineas: parsedLineas,
       carga_total: sumLineasAcarreo(parsedLineas),
       sacos_libres: parseInt(form.sacos_libres, 10) || 0,
