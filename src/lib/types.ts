@@ -36,6 +36,10 @@ export interface Personal {
   foto_carnet_url?: string | null;
   esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15';
   rotacion_inicio_fecha?: string;
+  // --- Campos V7: Perfiles de Compensación ---
+  perfil_compensacion_id?: string | null;
+  vertical_asignada?: string | null;
+  grupo_turno?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -80,8 +84,94 @@ export interface NominaRegistro {
   estado_asistencia?: 'trabajada' | 'libre' | 'no_laborado' | null;
   dias_trabajados?: number | null;
   salario_base_calculado?: number | null;
+  // --- Campos V7: Ciclos de Nómina ---
+  ciclo_id?: string | null;
+  posicion_en_ciclo?: number | null;
+  es_finiquito?: boolean;
+  perfil_compensacion_snapshot?: Record<string, any> | null;
+  bonificaciones?: number;
+  total_vales?: number;
+  novedad_turno?: string;
+  novedad_turno_obs?: string;
+  origen?: string;
+  periodo_id?: string | null;
   created_at: string;
   personal?: Personal;
+}
+
+// --- V7: Perfiles de Compensación y Ciclos ---
+
+export type PoliticaDiaLibre = 'SALARIO_LIBRE' | 'TARIFA_PLANA' | 'SIN_PAGO' | 'GARANTIZADO';
+export type PoliticaReposo = 'PAGO_COMPLETO' | 'PARCIAL' | 'SIN_PAGO';
+export type EsquemaRotacion = 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15';
+
+export interface BonoAutomatico {
+  tipo: string;
+  condicion: string;
+  monto: number;
+}
+
+export interface PerfilCompensacion {
+  id: string;
+  nombre: string;
+  descripcion?: string | null;
+  esquema_rotacion_default: EsquemaRotacion;
+  politica_dia_libre: PoliticaDiaLibre;
+  politica_reposo: PoliticaReposo;
+  duracion_ciclo_dias: number;
+  semanas_trabajadas_por_ciclo: number;
+  semanas_libres_por_ciclo: number;
+  bonos_automaticos: BonoAutomatico[];
+  multiplicadores: Record<string, number>;
+  activo: boolean;
+  creado_por?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EstadoCiclo = 'ABIERTO' | 'CERRADO' | 'REVERTIDO';
+
+export interface NominaCiclo {
+  id: string;
+  label: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  perfil_compensacion_id: string;
+  area: 'mina' | 'planta' | 'administracion' | 'seguridad' | 'transporte';
+  vertical?: string | null;
+  total_ciclo_usd: number;
+  total_trabajadores: number;
+  estado: EstadoCiclo;
+  notas?: string | null;
+  cerrado_por?: string | null;
+  cerrado_at?: string | null;
+  creado_por?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Relaciones opcionales (JOINs)
+  perfil_compensacion?: PerfilCompensacion;
+  semanas?: NominaCicloSemana[];
+}
+
+export type RolSemana = 'libre' | 'trabajada' | 'no_laborada' | 'reposo' | 'vacaciones';
+
+export interface NominaCicloSemana {
+  ciclo_id: string;
+  semana_id: string;
+  posicion_en_ciclo: number;
+  rol_semana: RolSemana;
+  created_at: string;
+  // Relaciones opcionales (JOINs)
+  semana?: NominaSemana;
+  registros?: NominaRegistro[];
+}
+
+export interface DetalleCicloCompleto extends NominaCiclo {
+  trabajadores: {
+    personal: Personal;
+    registros: (NominaRegistro & { semana: NominaSemana; ciclo_semana: NominaCicloSemana })[];
+    total_ciclo: number;
+  }[];
 }
 
 export interface NominaCierre {
