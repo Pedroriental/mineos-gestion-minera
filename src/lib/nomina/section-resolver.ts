@@ -71,6 +71,9 @@ function isAdminCargo(cargo: string): boolean {
 
 export function buildParsedSectionId(area: string, cargo: string): string {
   if (cargo.includes('Novedades Especiales')) return `${area}__novedades`;
+  const cargoLower = cargo.toLowerCase();
+  if (/despedido/.test(cargoLower)) return `${area}__despedidos`;
+  if (/pago\s+semana\s+libre/.test(cargoLower)) return `${area}__pago_semana_libre`;
   if (area === 'planta' && isAdminCargo(cargo)) return 'planta_admin';
   if (area === 'planta') return 'planta_operativos';
   if (area === 'administracion') return 'admin_mina';
@@ -119,6 +122,22 @@ export function resolveSectionMeta(area: string, cargo: string): {
       title: 'Nómina Administrativos Mina',
       subtitle: 'Administración central y soporte mina',
       areaDetalle,
+    };
+  }
+  if (id.endsWith('__despedidos')) {
+    return {
+      id,
+      title: 'Personal despedido',
+      subtitle: 'Pagos o liquidaciones de personal retirado',
+      areaDetalle: 'Despedidos',
+    };
+  }
+  if (id.endsWith('__pago_semana_libre')) {
+    return {
+      id,
+      title: 'Pago semana libre',
+      subtitle: 'Compensación de semana libre pendiente',
+      areaDetalle: 'Pago semana libre',
     };
   }
   if (id.startsWith('mina__')) {

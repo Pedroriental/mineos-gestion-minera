@@ -20,6 +20,8 @@ export const NOMINA_SECTION_HEADER_PATTERNS: RegExp[] = [
   /t[eé]cnico\s+operador/i,
   /t[eé]cnico\s+compresor/i,
   /vertical\s+\d/i,
+  /personal\s+despedido/i,
+  /pago\s+semana\s+libre/i,
   /transporte/i,
   /seguridad/i,
   /operador\s+de\s+molino/i,
@@ -84,6 +86,9 @@ export const NOMINA_SECTION_KEYWORDS = [
   'operador',
   'transporte',
   'seguridad',
+  'despedido',
+  'pago semana libre',
+  'semana libre',
 ] as const;
 
 export function isNominaSectionHeaderLoose(firstCell: string, rowText?: string): boolean {

@@ -51,7 +51,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
     .select('area, total_pagado, semana_inicio, semana_fin');
 
   if (hasParams) {
-    nominaQuery = nominaQuery.lte('semana_inicio', hasta).gte('semana_fin', desde);
+    nominaQuery = nominaQuery.gte('semana_fin', desde).lte('semana_fin', hasta);
   }
 
   // RPCs + nóminas del período en paralelo

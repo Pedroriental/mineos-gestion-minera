@@ -34,8 +34,9 @@ export function listWeekStartsInRange(rangeStart: string, rangeEnd: string): str
   return weeks;
 }
 
-export function inferColumnKind(header: string): 'libre' | 'trabajada' | 'unknown' {
+export function inferColumnKind(header: string): 'libre' | 'trabajada' | 'bono' | 'unknown' {
   const h = header.toLowerCase();
+  if (/bono.*transporte|transporte.*bono|^bono\b/i.test(h)) return 'bono';
   if (/libre|reposo|vacacion/i.test(h)) return 'libre';
   if (/trabajad|1ra|2da|primera|segunda/i.test(h)) return 'trabajada';
   return 'unknown';

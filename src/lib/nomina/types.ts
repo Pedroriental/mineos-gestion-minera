@@ -27,7 +27,7 @@ export type ParsedWeekColumn = {
   rawHeader: string;
   rawRange: { inicio: string | null; fin: string | null };
   header: string;
-  columnKind?: 'libre' | 'trabajada' | 'unknown';
+  columnKind?: 'libre' | 'trabajada' | 'bono' | 'unknown';
   isPartialInRange?: boolean;
 };
 

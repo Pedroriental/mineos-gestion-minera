@@ -113,17 +113,39 @@ function isCedula(cell: unknown): boolean {
   return CI_WITH_DOTS.test(s) || CI_PLAIN.test(s);
 }
 
+function isValidCalendarDate(iso: string): boolean {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+}
+
 function parseDate(cell: unknown): string | null {
   if (!cell) return null;
   if (typeof cell === 'number' && cell > 40000 && cell < 55000) {
     const d = XLSX.SSF.parse_date_code(cell);
     if (d) {
-      return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+      const iso = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+      return isValidCalendarDate(iso) ? iso : null;
     }
   }
   const s = String(cell).trim();
-  const m = s.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (DATE_REGEX.test(s)) {
+    const m = s.match(DATE_REGEX);
+    if (m) {
+      const iso = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+      return isValidCalendarDate(iso) ? iso : null;
+    }
+  }
+  const loose = s.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
+  if (loose) {
+    const iso = `${loose[3]}-${loose[2].padStart(2, '0')}-${loose[1].padStart(2, '0')}`;
+    return isValidCalendarDate(iso) ? iso : null;
+  }
   return null;
 }
 
@@ -808,16 +830,42 @@ function extractWeekColumnsFromHeaderRow(row: unknown[], defaultYear: string): P
   return dedupeWeekCols(cols);
 }
 
+function columnLabelsFromHeaderRow(row: unknown[]): Map<number, string> {
+  const labels = new Map<number, string>();
+  for (let i = 0; i < row.length; i++) {
+    const t = String(row[i] ?? '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    if (t) labels.set(i, t);
+  }
+  return labels;
+}
+
+function applyColumnLabels(
+  cols: ParsedWeekColumn[],
+  labels: Map<number, string>,
+): ParsedWeekColumn[] {
+  return cols.map((col) => {
+    const label = labels.get(col.colIndex) ?? col.header;
+    return {
+      ...col,
+      header: label,
+      columnKind: inferColumnKind(label),
+    };
+  });
+}
+
 function extractWeekColumnsFromExcelContext(
   rows: unknown[][],
   rowIndex: number,
   defaultYear: string,
 ): ParsedWeekColumn[] {
+  const labels = columnLabelsFromHeaderRow((rows[rowIndex] as unknown[]) ?? []);
   for (let offset = 0; offset <= 2; offset++) {
     const row = rows[rowIndex + offset] as unknown[] | undefined;
     if (!row) break;
     const cols = extractWeekColumnsFromHeaderRow(row, defaultYear);
-    if (cols.length) return cols;
+    if (cols.length) return applyColumnLabels(cols, labels);
   }
   return [];
 }
@@ -828,6 +876,73 @@ function isExcelWeekSubHeaderRow(rowText: string): boolean {
     (/\bal\b/i.test(rowText) || /\d{1,2}\/\d{1,2}/.test(rowText)) &&
     !/nombres?/i.test(rowText)
   );
+}
+
+function isExcelPartialColHeaderRow(rowText: string): boolean {
+  if (/nombres?/i.test(rowText)) return false;
+  return /c\.?i\.?/i.test(rowText) && /semana/i.test(rowText);
+}
+
+function findWeekColumnsAbove(
+  rows: unknown[][],
+  rowIndex: number,
+  defaultYear: string,
+): ParsedWeekColumn[] {
+  for (let back = rowIndex - 1; back >= Math.max(0, rowIndex - 10); back--) {
+    const row = rows[back] as unknown[];
+    const headerText = row.map((c) => String(c ?? '')).join(' ');
+    if (/nombres?/i.test(headerText) && /c\.?i\.?/i.test(headerText)) {
+      const cols = extractWeekColumnsFromExcelContext(rows, back, defaultYear);
+      if (cols.length) return cols;
+      continue;
+    }
+    if (!isExcelWeekSubHeaderRow(headerText)) continue;
+    const cols = extractWeekColumnsFromHeaderRow(row, defaultYear);
+    if (cols.length) return cols;
+  }
+  return [];
+}
+
+function mergeWeekColumnMetadata(
+  next: ParsedWeekColumn[],
+  prev: ParsedWeekColumn[],
+): ParsedWeekColumn[] {
+  const prevByCol = new Map(prev.map((c) => [c.colIndex, c]));
+  return next.map((col) => {
+    const old = prevByCol.get(col.colIndex);
+    if (!old) return col;
+    const header = /bono/i.test(old.header) ? old.header : col.header;
+    const columnKind =
+      old.columnKind && old.columnKind !== 'unknown' ? old.columnKind : inferColumnKind(header);
+    return { ...col, header, columnKind };
+  });
+}
+
+function isExcelStatusBannerRow(firstCell: string): boolean {
+  const t = firstCell.trim();
+  if (!t) return false;
+  if (/^(?:salen\s+libre\s*){2,}/i.test(t)) return true;
+  if (/^salen\s+libre\b/i.test(t) && !isCedula(t)) return true;
+  return false;
+}
+
+function isExcelSubtotalRow(row: unknown[]): boolean {
+  const first = String(row[0] ?? '').trim();
+  if (first) return false;
+  if (row.some((c) => isCedula(c))) return false;
+  const numericCells = row.filter((c) => {
+    if (c === '' || c == null) return false;
+    const n = typeof c === 'number' ? c : normAmount(String(c));
+    return n > 0;
+  });
+  return numericCells.length >= 2;
+}
+
+function isExcelOrphanSummaryNumberRow(row: unknown[]): boolean {
+  const nonEmpty = row.filter((c) => c !== '' && c != null);
+  if (nonEmpty.length !== 1) return false;
+  const n = typeof nonEmpty[0] === 'number' ? nonEmpty[0] : normAmount(String(nonEmpty[0]));
+  return n >= 500 && n <= 99999;
 }
 
 function readWorkerWeekAmounts(
@@ -1075,7 +1190,8 @@ function parseWorkerRow(
   for (let k = 0; k < sortedCols.length; k++) {
     const col = sortedCols[k];
     const amount = amountValues[k] ?? 0;
-    if (fechaIngreso > col.weekEnd) {
+    const isBonoCol = col.columnKind === 'bono';
+    if (!isBonoCol && isValidCalendarDate(fechaIngreso) && fechaIngreso > col.weekEnd) {
       weeks[col.weekStart] = { amount: 0, rawValue: amount, estado: 'no_laborado' };
       continue;
     }
@@ -1188,6 +1304,8 @@ export function parseExcelNominaMatrix(
   const sections: ParsedNominaSection[] = [];
   const warnings: string[] = [];
   let declaredSourceTotal: number | null = null;
+  let documentRangeStart: string | null = null;
+  let documentRangeEnd: string | null = null;
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
@@ -1232,17 +1350,31 @@ export function parseExcelNominaMatrix(
       const isColHeader =
         /nombres?/i.test(rowText) &&
         (/c\.?i\.?/i.test(rowText) || /fecha\s+de\s+ingreso/i.test(rowText));
+      const isPartialColHeader = isExcelPartialColHeaderRow(rowText);
       const isSpecialRow =
         /^total\s+n[oó]mina/i.test(firstCell) ||
         isExcelSummaryTotalRow(firstCell, row) ||
         isExcelDocumentBannerRow(firstCell, rowText) ||
+        isExcelStatusBannerRow(firstCell) ||
+        isExcelSubtotalRow(row) ||
+        isExcelOrphanSummaryNumberRow(row) ||
         isColHeader ||
+        isPartialColHeader ||
         isExcelWeekSubHeaderRow(rowText) ||
         /^(?:el\s+)?trabajador/i.test(firstCell) ||
         /^(?:el\s+)?trabajador/i.test(rowText) ||
         isSectionHeader(firstCell, rowText);
 
       if (nonEmpty.length < 2 && !isSpecialRow) continue;
+
+      if (/^semana\s+del\s+/i.test(firstCell)) {
+        const range = detectWeekRangeInCell(firstCell.replace(/\s+/g, ' '), defaultYear);
+        if (range.inicio) {
+          documentRangeStart = normalizeWeekStart(range.inicio);
+          documentRangeEnd = range.fin ?? getWeekEnd(documentRangeStart);
+        }
+        continue;
+      }
 
       if (/^total\s+n[oó]mina/i.test(firstCell)) {
         for (const c of row) {
@@ -1259,27 +1391,46 @@ export function parseExcelNominaMatrix(
 
       if (isExcelDocumentBannerRow(firstCell, rowText)) continue;
 
+      if (isExcelStatusBannerRow(firstCell)) continue;
+
+      if (isExcelSubtotalRow(row) || isExcelOrphanSummaryNumberRow(row)) continue;
+
+      if (!shouldSkipRow(firstCell) && isSectionHeader(firstCell, rowText)) {
+        flushSection();
+        currentSectionRaw = rowText.length > firstCell.length ? rowText : firstCell;
+        currentArea = inferAreaFromSection(currentSectionRaw);
+        const keepsWeekCols = /pago\s+semana\s+libre|personal\s+despedido/i.test(
+          currentSectionRaw,
+        );
+        if (!keepsWeekCols) weekColumns = [];
+        continue;
+      }
+
       if (isColHeader) {
         const cols = extractWeekColumnsFromExcelContext(rows as unknown[][], rowIndex, defaultYear);
         if (cols.length) weekColumns = cols;
         continue;
       }
 
+      if (isPartialColHeader) {
+        if (!weekColumns.length) {
+          const cols = findWeekColumnsAbove(rows as unknown[][], rowIndex, defaultYear);
+          if (cols.length) weekColumns = cols;
+        }
+        continue;
+      }
+
       if (isExcelWeekSubHeaderRow(rowText)) {
         const cols = extractWeekColumnsFromHeaderRow(row, defaultYear);
-        if (cols.length) weekColumns = cols;
+        if (cols.length) {
+          weekColumns = weekColumns.length
+            ? mergeWeekColumnMetadata(cols, weekColumns)
+            : cols;
+        }
         continue;
       }
 
       if (shouldSkipRow(firstCell)) continue;
-
-      if (isSectionHeader(firstCell, rowText)) {
-        flushSection();
-        currentSectionRaw = rowText.length > firstCell.length ? rowText : firstCell;
-        currentArea = inferAreaFromSection(currentSectionRaw);
-        weekColumns = [];
-        continue;
-      }
 
       if (!weekColumns.length) continue;
 
@@ -1310,6 +1461,11 @@ export function parseExcelNominaMatrix(
   }
 
   const period = finalizePeriod(sections, 'excel', sourceFileName, workbook.SheetNames[0]);
+  if (documentRangeStart && documentRangeEnd) {
+    const { start, end } = normalizePreviewRange(documentRangeStart, documentRangeEnd);
+    period.rangeStart = start;
+    period.rangeEnd = end;
+  }
   if (declaredSourceTotal != null) {
     period.stats.declaredSourceTotal = declaredSourceTotal;
     if (Math.abs(period.grandTotal - declaredSourceTotal) > 1) {

@@ -118,6 +118,43 @@ describe('parseExcelNominaMatrix', () => {
     assert.equal(period.stats.workerCount, 1);
     assert.equal(period.weekColumns.length, 1);
   });
+
+  it('handles bono transporte, invalid ingreso dates, and pago semana libre blocks', async () => {
+    const XLSX = await import('xlsx');
+    const { parseExcelNominaMatrix } = await import('@/lib/nomina/import-parser');
+
+    const rows: unknown[][] = [
+      ['Semana del 13 ABRIL al 03 MAYO 2026'],
+      ['Total Nomina', '', '', '', '', 605],
+      ['Semanas Molinos- Grupo (mixto)'],
+      ['Nombres', '', 'C.I.', 'Fecha de Ingreso', 'Bono de Transporte', 'Semana trabajada', '', 'Total'],
+      ['', '', '', '', 'Del 06 ABRIL al 12 ABRIL', 'Del 27 ABRIL al 03 Mayo'],
+      ['Gregorio Martines', '', 14132905, 46126, 30, 75, '', 105],
+      ['Semanas Mina Belen - Tecnico Operador Compresor'],
+      ['Nombres', 'C.I.', 'Fecha de Ingreso', 'Semana trabajada', 'Total'],
+      ['', '', '', 'Del 27 ABRIL al 03 Mayo'],
+      ['Lugo A, Dixon Antonio', 7776964, 46069, 100, 100],
+      ['PERSONAL DESPEDIDO MINA'],
+      ['PAGO SEMANA LIBRE'],
+      ['', 'C.I.', 'Fecha de Ingreso', 'SEMANA'],
+      ['Vidal Geraldo', 22981255, 45992, 100],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+    const period = parseExcelNominaMatrix(wb, 'mayo-fixture.xlsx');
+
+    const molinos = period.sections.find((s) => s.id === 'planta_operativos');
+    assert.ok(molinos);
+    assert.equal(molinos!.rows.find((r) => r.nombre_completo.includes('Gregorio'))?.total, 105);
+
+    const pagoLibre = period.sections.find((s) => s.id === 'mina__pago_semana_libre');
+    assert.ok(pagoLibre);
+    assert.equal(pagoLibre!.rows.length, 1);
+    assert.equal(pagoLibre!.sectionTotal, 100);
+    assert.equal(period.stats.declaredSourceTotal, 605);
+  });
 });
 
 describe('buildImportFidelityReport', () => {

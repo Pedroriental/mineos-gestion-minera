@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase-server';
 import {
   GASTOS_RESUMEN_CATEGORIAS,
   buildGastosResumenSummary,
+  buildNominaSemanasDateFilter,
   resolveGastosResumenPeriod,
   type GastosResumenGastoRow,
   type GastosResumenNominaRow,
@@ -33,12 +34,22 @@ export default async function GastosResumenPage({ searchParams }: { searchParams
           .order('fecha', { ascending: true })
       : Promise.resolve({ data: [] as GastosResumenGastoRow[], error: null });
 
-  const nominaQuery = supabase
+  const nominaFilter = buildNominaSemanasDateFilter(period);
+  let nominaQuery = supabase
     .from('nomina_semanas')
-    .select('id, semana_inicio, semana_fin, area, total_pagado, total_trabajadores')
-    .lte('semana_inicio', period.hasta)
-    .gte('semana_fin', period.desde)
-    .order('semana_inicio', { ascending: true });
+    .select('id, semana_inicio, semana_fin, area, total_pagado, total_trabajadores');
+
+  if (nominaFilter.mode === 'semana_fin') {
+    nominaQuery = nominaQuery
+      .gte('semana_fin', nominaFilter.semanaFinGte)
+      .lte('semana_fin', nominaFilter.semanaFinLte);
+  } else {
+    nominaQuery = nominaQuery
+      .lte('semana_inicio', nominaFilter.semanaInicioLte)
+      .gte('semana_fin', nominaFilter.semanaFinGte);
+  }
+
+  nominaQuery = nominaQuery.order('semana_inicio', { ascending: true });
 
   const [gastosRes, nominaRes] = await Promise.all([gastosQuery, nominaQuery]);
 

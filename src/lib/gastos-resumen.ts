@@ -118,6 +118,54 @@ export function gastoCategoriaNombre(gasto: GastosResumenGastoRow): string {
   return gasto.categorias_gasto?.nombre ?? '';
 }
 
+/** Filtro de nómina: mes calendario por cierre de semana (`semana_fin`). */
+export type NominaSemanasSemanaFinFilter = {
+  mode: 'semana_fin';
+  semanaFinGte: string;
+  semanaFinLte: string;
+};
+
+/** Filtro puntual: semana que contiene el día seleccionado. */
+export type NominaSemanasContieneDiaFilter = {
+  mode: 'contiene_dia';
+  semanaInicioLte: string;
+  semanaFinGte: string;
+};
+
+export type NominaSemanasDateFilter =
+  | NominaSemanasSemanaFinFilter
+  | NominaSemanasContieneDiaFilter;
+
+/**
+ * Agrupa nómina por mes usando la fecha de cierre de la semana.
+ * Evita que una misma semana cuente en dos meses al sumar ene…dic.
+ * Con filtro por día, usa solapamiento (la semana que contiene ese día).
+ */
+export function buildNominaSemanasDateFilter(
+  period: GastosResumenPeriod,
+): NominaSemanasDateFilter {
+  if (period.dia) {
+    return {
+      mode: 'contiene_dia',
+      semanaInicioLte: period.dia,
+      semanaFinGte: period.dia,
+    };
+  }
+  return {
+    mode: 'semana_fin',
+    semanaFinGte: period.desde,
+    semanaFinLte: period.hasta,
+  };
+}
+
+export function nominaSemanaCierraEnMes(
+  semanaFin: string,
+  mes: string,
+): boolean {
+  const bounds = monthBounds(mes);
+  return semanaFin >= bounds.desde && semanaFin <= bounds.hasta;
+}
+
 export function buildGastosResumenSummary(
   gastos: GastosResumenGastoRow[],
   nominaSemanas: GastosResumenNominaRow[],
