@@ -448,48 +448,120 @@ describe('Fidelity and Commit for previously DESPEDIDO workers', () => {
   });
 });
 
-describe('mergeRegistrosByCedula', () => {
-  it('sums duplicate worker rows in the same week before RPC insert', async () => {
-    const { mergeRegistrosByCedula } = await import('@/lib/nomina/import-commit');
-    const snapshot = {
-      cedula: '28374511',
-      nombre_completo: 'Ismael Mendez',
-      cargo: 'Vertical',
-      area: 'mina',
-      area_detalle: 'Vertical',
-      salario_base: 100,
-      salario_libre: 0,
-      bono_transporte: 0,
-      esquema_rotacion: 'FIJO_SEMANAL',
-      rotacion_inicio_fecha: null,
+describe('resolvePeriodWorkers', () => {
+  it('assigns distinct cédulas when Excel repeats the same CI for different names', async () => {
+    const { resolvePeriodWorkers } = await import('@/lib/nomina/worker-match');
+    const { buildImportCommitPayload } = await import('@/lib/nomina/import-commit');
+
+    const workers = [
+      { cedula: '11111111', nombre_completo: 'Alfredo Mendez' },
+      { cedula: '22222222', nombre_completo: 'Ismael Mendez' },
+    ];
+
+    const period = {
+      source: 'excel' as const,
+      rangeStart: '2026-05-18',
+      rangeEnd: '2026-05-24',
+      weekColumns: [
+        {
+          weekStart: '2026-05-18',
+          weekEnd: '2026-05-24',
+          colIndex: 3,
+          rawHeader: '',
+          rawRange: { inicio: null, fin: null },
+          header: '',
+        },
+      ],
+      sections: [
+        {
+          id: 'mina__v1',
+          rawTitle: 'Vertical',
+          title: 'Vertical',
+          area: 'mina' as const,
+          cargo: 'Vertical',
+          areaDetalle: 'Vertical',
+          weekColumns: [],
+          sectionTotal: 200,
+          rows: [
+            {
+              nombre_completo: 'Alfredo Mendez',
+              cedula: '28374511',
+              cargo: 'Vertical',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: { '2026-05-18': { amount: 100 } },
+              total: 100,
+              _valid: true,
+            },
+            {
+              nombre_completo: 'Ismael Mendez',
+              cedula: '28374511',
+              cargo: 'Vertical',
+              area: 'mina' as const,
+              fecha_ingreso: '2026-05-18',
+              weeks: { '2026-05-18': { amount: 100 } },
+              total: 100,
+              _valid: true,
+            },
+          ],
+        },
+      ],
+      flatCells: [
+        {
+          sectionId: 'mina__v1',
+          weekStart: '2026-05-18',
+          worker: {
+            nombre_completo: 'Alfredo Mendez',
+            cedula: '28374511',
+            cargo: 'Vertical',
+            area: 'mina' as const,
+            fecha_ingreso: '2026-05-18',
+            weeks: { '2026-05-18': { amount: 100 } },
+            total: 100,
+            _valid: true,
+          },
+          cell: { amount: 100 },
+        },
+        {
+          sectionId: 'mina__v1',
+          weekStart: '2026-05-18',
+          worker: {
+            nombre_completo: 'Ismael Mendez',
+            cedula: '28374511',
+            cargo: 'Vertical',
+            area: 'mina' as const,
+            fecha_ingreso: '2026-05-18',
+            weeks: { '2026-05-18': { amount: 100 } },
+            total: 100,
+            _valid: true,
+          },
+          cell: { amount: 100 },
+        },
+      ],
+      stats: { workerCount: 2, cellCount: 2, skippedRows: 0, warnings: [] },
+      grandTotal: 200,
     };
-    const { registros, mergedCount } = mergeRegistrosByCedula([
-      {
-        cedula: '28374511',
-        monto_pagado: 100,
-        es_semana_libre: false,
-        estado_asistencia: 'trabajada',
-        dias_trabajados: 7,
-        salario_base_calculado: 100,
-        bonificaciones: 0,
-        total_vales: 0,
-        personal_snapshot: snapshot,
-      },
-      {
-        cedula: '28374511',
-        monto_pagado: 100,
-        es_semana_libre: false,
-        estado_asistencia: 'trabajada',
-        dias_trabajados: 7,
-        salario_base_calculado: 100,
-        bonificaciones: 0,
-        total_vales: 0,
-        personal_snapshot: { ...snapshot, nombre_completo: 'Alfredo Mendez' },
-      },
-    ]);
-    assert.equal(mergedCount, 1);
-    assert.equal(registros.length, 1);
-    assert.equal(registros[0].monto_pagado, 200);
+
+    const { period: resolved, correctedCount, warnings } = resolvePeriodWorkers(period, workers);
+    assert.equal(correctedCount, 2);
+    assert.equal(resolved.sections[0].rows[0].cedula, '11111111');
+    assert.equal(resolved.sections[0].rows[1].cedula, '22222222');
+    assert.equal(warnings.length, 2);
+
+    const payload = buildImportCommitPayload(resolved, []);
+    assert.equal(payload.semanas[0]?.registros.length, 2);
+    assert.equal(payload.semanas[0]?.total_pagado, 200);
+  });
+
+  it('flags unmatched workers not in Base de Trabajadores', async () => {
+    const { resolveRowWorker, buildWorkerLookup } = await import('@/lib/nomina/worker-match');
+    const lookup = buildWorkerLookup([{ cedula: '12345678', nombre_completo: 'Juan Perez' }]);
+    const result = resolveRowWorker(
+      { nombre_completo: 'Desconocido Gomez', cedula: '99999999' },
+      lookup,
+    );
+    assert.equal(result.kind, 'unmatched');
+    assert.match(result.message ?? '', /no encontrado/i);
   });
 });
 

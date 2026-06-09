@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { parseNominaMatrixFromFile } from '@/lib/nomina/import-parser';
 import { inferAllProfiles } from '@/lib/nomina/inference';
+import { resolvePeriodWorkers } from '@/lib/nomina/worker-match';
 import { importarNominaHistoricaAction, getPersonalMapAction } from '@/lib/actions/nomina-actions';
 import type { InferredWorkerProfile, ParsedNominaPeriod, ParsedNominaSection } from '@/lib/nomina/types';
 import { NominaImportFidelityPanel, type ImportFidelityReport } from '@/components/nomina/NominaImportFidelityPanel';
@@ -42,7 +43,13 @@ function weekColumnLabel(w: ParsedNominaPeriod['weekColumns'][number]): string {
    Componente de tabla de vista previa
    ───────────────────────────────────────────────────────────────────────────── */
 
-function ImportPreviewTable({ period }: { period: ParsedNominaPeriod }) {
+function ImportPreviewTable({
+  period,
+  workerWarningsByName,
+}: {
+  period: ParsedNominaPeriod;
+  workerWarningsByName?: Map<string, string>;
+}) {
   const weeks = period.weekColumns;
 
   // Agrupar filas por sección
@@ -137,6 +144,11 @@ function ImportPreviewTable({ period }: { period: ParsedNominaPeriod }) {
                         <p className="truncate font-mono text-[9px] text-zinc-500">{row.cedula}</p>
                         {cargoLabel ? (
                           <p className="mt-0.5 truncate text-[9px] text-zinc-600">{cargoLabel}</p>
+                        ) : null}
+                        {workerWarningsByName?.get(row.nombre_completo) ? (
+                          <p className="mt-0.5 line-clamp-2 text-[9px] leading-tight text-amber-400/90">
+                            {workerWarningsByName.get(row.nombre_completo)}
+                          </p>
                         ) : null}
                       </td>
                       {/* Cédula (referencia rápida en scroll horizontal) */}
@@ -258,13 +270,41 @@ export function NominaImportWizard({
     [existingPersonal],
   );
 
+  const workerWarningsByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of period?.stats.warnings ?? []) {
+      if (
+        w.includes('corregida') ||
+        w.includes('no encontrado') ||
+        w.includes('no está en la base') ||
+        w.includes('ambiguo')
+      ) {
+        const nombre = w.match(/«([^»]+)»/)?.[1];
+        if (nombre && !map.has(nombre)) map.set(nombre, w);
+      }
+    }
+    return map;
+  }, [period?.stats.warnings]);
+
   useEffect(() => {
-    if (initialPeriod) {
+    if (!initialPeriod) return;
+    if (!existingPersonal.length) {
       setPeriod(initialPeriod);
       if (initialProfiles.length) setProfiles(initialProfiles);
       if (skipUpload) setStep('preview');
+      return;
     }
-  }, [initialPeriod, initialProfiles, skipUpload]);
+    const { period: resolved } = resolvePeriodWorkers(
+      structuredClone(initialPeriod) as ParsedNominaPeriod,
+      existingPersonal,
+    );
+    const weekStarts = resolved.weekColumns.map((c) => c.weekStart);
+    const allRows = resolved.sections.flatMap((s) => s.rows);
+    const inferred = inferAllProfiles(allRows, weekStarts, resolved.weekColumns);
+    setPeriod(resolved);
+    setProfiles(inferred);
+    if (skipUpload) setStep('preview');
+  }, [initialPeriod, initialProfiles, skipUpload, existingPersonal]);
 
   const lowConfidence = useMemo(() => profiles.filter((p) => p.needsReview), [profiles]);
   const payrollMeta = useMemo(
@@ -281,10 +321,14 @@ export function NominaImportWizard({
     setSavedFidelity(null);
     try {
       const parsed = await parseNominaMatrixFromFile(file);
-      const weekStarts = parsed.weekColumns.map((c) => c.weekStart);
-      const allRows = parsed.sections.flatMap((s) => s.rows);
-      const inferred = inferAllProfiles(allRows, weekStarts, parsed.weekColumns);
-      setPeriod(parsed);
+      const workersRes = await getPersonalMapAction();
+      const workers = workersRes.ok && workersRes.data ? workersRes.data : existingPersonal;
+      if (workersRes.ok && workersRes.data) setExistingPersonal(workersRes.data);
+      const { period: resolved } = resolvePeriodWorkers(parsed, workers);
+      const weekStarts = resolved.weekColumns.map((c) => c.weekStart);
+      const allRows = resolved.sections.flatMap((s) => s.rows);
+      const inferred = inferAllProfiles(allRows, weekStarts, resolved.weekColumns);
+      setPeriod(resolved);
       setProfiles(inferred);
       setStep('preview');
     } catch (err) {
@@ -454,6 +498,7 @@ export function NominaImportWizard({
                 period={period}
                 profiles={profiles}
                 existingPersonal={existingPersonalMap}
+                workersBase={existingPersonal}
               />
               <div className="flex items-start gap-2.5 rounded-xl border border-zinc-700/40 bg-zinc-800/20 px-4 py-3">
                 <Layers className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-500" />
@@ -518,7 +563,7 @@ export function NominaImportWizard({
             </div>
             {/* Tabla con scroll horizontal + vertical */}
             <div className="max-h-[320px] overflow-auto">
-              <ImportPreviewTable period={period} />
+              <ImportPreviewTable period={period} workerWarningsByName={workerWarningsByName} />
             </div>
           </div>
 

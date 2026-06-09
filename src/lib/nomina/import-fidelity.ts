@@ -1,5 +1,10 @@
 import { buildImportCommitPayload } from '@/lib/nomina/import-commit';
 import type { InferredWorkerProfile, ParsedNominaPeriod } from '@/lib/nomina/types';
+import {
+  resolvePeriodWorkers,
+  type WorkerMatchRecord,
+  type WorkerMatchWarning,
+} from '@/lib/nomina/worker-match';
 import type { Personal } from '@/lib/types';
 
 const MONEY_TOLERANCE = 0.05;
@@ -32,6 +37,9 @@ export type ImportFidelityReport = {
   status: 'ok' | 'warn' | 'error';
   issues: string[];
   droppedWorkers: ImportFidelityDroppedWorker[];
+  workerMatchWarnings?: WorkerMatchWarning[];
+  workerMatchCorrected?: number;
+  workerMatchUnmatched?: number;
 };
 
 function roundMoney(n: number): number {
@@ -56,6 +64,7 @@ function resolveStatus(report: Omit<ImportFidelityReport, 'status'>): ImportFide
 
   const workerIssues =
     report.droppedWorkers.length > 0 ||
+    (report.workerMatchUnmatched ?? 0) > 0 ||
     (report.workerCountSaved != null && report.workerCountSaved < report.workerCountCommit);
 
   if (moneyIssues || report.droppedWorkers.some((w) => w.total >= 50)) return 'error';
@@ -72,13 +81,22 @@ export function buildImportFidelityReport(
   options?: {
     existingPersonal?: Map<string, Personal>;
     idByCedula?: Map<string, string>;
+    workersBase?: WorkerMatchRecord[];
   },
 ): ImportFidelityReport {
-  const allRows = period.sections.flatMap((s) => s.rows);
+  const workerMatch = options?.workersBase?.length
+    ? resolvePeriodWorkers(
+        structuredClone(period) as ParsedNominaPeriod,
+        options.workersBase,
+      )
+    : null;
+  const resolvedPeriod = workerMatch?.period ?? period;
+
+  const allRows = resolvedPeriod.sections.flatMap((s) => s.rows);
   const validRows = allRows.filter((r) => r._valid);
   const invalidRows = allRows.filter((r) => !r._valid);
 
-  const commitPlan = buildImportCommitPayload(period, profiles, {
+  const commitPlan = buildImportCommitPayload(resolvedPeriod, profiles, {
     existingPersonal: options?.existingPersonal,
   });
 
@@ -91,7 +109,7 @@ export function buildImportFidelityReport(
 
   const cellKeys = new Map<string, number>();
   let duplicateCellCount = 0;
-  for (const flat of period.flatCells) {
+  for (const flat of resolvedPeriod.flatCells) {
     const key = `${flat.worker.cedula}|${flat.weekStart}`;
     const prev = cellKeys.get(key) ?? 0;
     if (prev > 0) duplicateCellCount += 1;
@@ -142,8 +160,8 @@ export function buildImportFidelityReport(
     workerCountSaved = savedCedulas.size;
   }
 
-  const sourceDeclaredTotal = period.stats.declaredSourceTotal ?? null;
-  const parsedTotal = period.grandTotal;
+  const sourceDeclaredTotal = resolvedPeriod.stats.declaredSourceTotal ?? null;
+  const parsedTotal = resolvedPeriod.grandTotal;
   const parsedToCommit = moneyDelta(parsedTotal, commitTotal);
   const sourceToParsed =
     sourceDeclaredTotal != null ? moneyDelta(sourceDeclaredTotal, parsedTotal) : null;
@@ -195,6 +213,21 @@ export function buildImportFidelityReport(
   if (duplicateCellCount > 0) {
     issues.push(`${duplicateCellCount} celda(s) duplicada(s) (misma cédula y semana).`);
   }
+  if (workerMatch) {
+    if (workerMatch.correctedCount > 0) {
+      issues.push(
+        `${workerMatch.correctedCount} cédula(s) corregida(s) según la Base de Trabajadores (nombre).`,
+      );
+    }
+    if (workerMatch.unmatchedCount > 0) {
+      issues.push(
+        `${workerMatch.unmatchedCount} trabajador(es) sin coincidencia en la Base de Trabajadores.`,
+      );
+    }
+    for (const w of workerMatch.warnings.filter((x) => x.kind === 'ambiguous')) {
+      issues.push(w.message);
+    }
+  }
   if (
     options?.idByCedula &&
     workerCountSaved != null &&
@@ -210,7 +243,7 @@ export function buildImportFidelityReport(
     parsedTotal,
     commitTotal,
     savedTotal,
-    workerCountParsed: period.stats.workerCount,
+    workerCountParsed: resolvedPeriod.stats.workerCount,
     workerCountValid: validRows.length,
     workerCountCommit: commitPlan.personal.length,
     workerCountSaved,
@@ -220,6 +253,9 @@ export function buildImportFidelityReport(
     deltas: { sourceToParsed, parsedToCommit, commitToSaved },
     issues,
     droppedWorkers: droppedWorkers.sort((a, b) => b.total - a.total),
+    workerMatchWarnings: workerMatch?.warnings,
+    workerMatchCorrected: workerMatch?.correctedCount,
+    workerMatchUnmatched: workerMatch?.unmatchedCount,
   };
 
   return { ...base, status: resolveStatus(base) };

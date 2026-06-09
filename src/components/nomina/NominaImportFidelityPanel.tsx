@@ -8,6 +8,7 @@ import {
   type ImportFidelityReport,
 } from '@/lib/nomina/import-fidelity';
 import type { InferredWorkerProfile, ParsedNominaPeriod } from '@/lib/nomina/types';
+import type { WorkerMatchRecord } from '@/lib/nomina/worker-match';
 import { cn } from '@/lib/utils';
 
 function fmtUsd(value: number | null | undefined): string {
@@ -99,17 +100,21 @@ export function NominaImportFidelityPanel({
   savedReport = null,
   compact = false,
   existingPersonal,
+  workersBase,
 }: {
   period: ParsedNominaPeriod;
   profiles: InferredWorkerProfile[];
   savedReport?: ImportFidelityReport | null;
   compact?: boolean;
   existingPersonal?: Map<string, any>;
+  workersBase?: WorkerMatchRecord[];
 }) {
   const [showDropped, setShowDropped] = useState(false);
   const report = useMemo(
-    () => savedReport ?? buildImportFidelityReport(period, profiles, { existingPersonal }),
-    [savedReport, period, profiles, existingPersonal],
+    () =>
+      savedReport ??
+      buildImportFidelityReport(period, profiles, { existingPersonal, workersBase }),
+    [savedReport, period, profiles, existingPersonal, workersBase],
   );
 
   const rows: FidelityRow[] = [

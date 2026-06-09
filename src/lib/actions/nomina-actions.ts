@@ -6,7 +6,9 @@ import { PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { mapPeriodoRow, validateImportTotals } from '@/lib/nomina/archive';
 import { buildImportCommitPayload, type ImportCommitPayload } from '@/lib/nomina/import-commit';
 import { buildImportFidelityReport } from '@/lib/nomina/import-fidelity';
+import { inferAllProfiles } from '@/lib/nomina/inference';
 import type { InferredWorkerProfile, NominaPeriodoSummary, ParsedNominaPeriod } from '@/lib/nomina/types';
+import { normalizeWorkerName, resolvePeriodWorkers } from '@/lib/nomina/worker-match';
 import type { Personal } from '@/lib/types';
 import { registrarAuditAction } from '@/lib/actions/nomina-v3';
 import { loadBibliotecaCompleta, upsertBibliotecaVariableAction } from '@/lib/actions/biblioteca-variables';
@@ -67,16 +69,6 @@ function revalidateNominaPaths() {
   }
 }
 
-function normalizeName(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Quitar acentos
-    .replace(/[^a-z0-9]/g, ' ') // Quitar puntuación
-    .replace(/\s+/g, ' ') // Quitar espacios extra
-    .trim();
-}
-
 export async function getPersonalMapAction(): Promise<{ ok: boolean; data?: Pick<Personal, 'id' | 'cedula' | 'nombre_completo' | 'estado_laboral' | 'despido_causa' | 'observacion_estado'>[] }> {
   try {
     const supabase = await createServerClient();
@@ -96,14 +88,24 @@ export async function importarNominaHistoricaAction(input: {
 }): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
-    const { period, profiles, userId, label, toleranceUsd = 0.05 } = input;
+    const { period: rawPeriod, userId, label, toleranceUsd = 0.05 } = input;
 
     const { data: personalRows } = await supabase.from('personal').select('*');
+    const workersBase = (personalRows || []).map((p: Personal) => ({
+      id: p.id,
+      cedula: p.cedula,
+      nombre_completo: p.nombre_completo,
+    }));
+    const { period } = resolvePeriodWorkers(rawPeriod, workersBase);
+    const weekStarts = period.weekColumns.map((c) => c.weekStart);
+    const allRows = period.sections.flatMap((s) => s.rows);
+    const profiles = inferAllProfiles(allRows, weekStarts, period.weekColumns);
+
     const existingByCedula = new Map(
       (personalRows || []).map((p: Personal) => [p.cedula, p]),
     );
     const existingByName = new Map(
-      (personalRows || []).map((p: Personal) => [normalizeName(p.nombre_completo), p]),
+      (personalRows || []).map((p: Personal) => [normalizeWorkerName(p.nombre_completo), p]),
     );
 
     const commitPlan = buildImportCommitPayload(period, profiles, {
@@ -116,7 +118,7 @@ export async function importarNominaHistoricaAction(input: {
       (sum, s) => sum + s.registros.reduce((sub, r) => sub + Number(r.monto_pagado), 0),
       0,
     );
-    const validation = validateImportTotals(period.grandTotal, computedTotal, toleranceUsd);
+    const validation = validateImportTotals(rawPeriod.grandTotal, computedTotal, toleranceUsd);
     if (!validation.ok) {
       return { ok: false, message: validation.message ?? 'Totales no cuadran' };
     }
@@ -128,17 +130,10 @@ export async function importarNominaHistoricaAction(input: {
       
       // Búsqueda alternativa por nombre normalizado si no se encuentra por cédula
       if (!existing) {
-        existing = existingByName.get(normalizeName(p.nombre_completo));
+        existing = existingByName.get(normalizeWorkerName(p.nombre_completo));
       }
-      
+
       if (existing?.id) {
-        // Si el trabajador ya existe por nombre pero su cédula en la base es distinta (o SC-...),
-        // actualizamos la cédula real en la base de datos a la del histórico.
-        if (existing.cedula !== p.cedula) {
-          await supabase.from('personal').update({ cedula: p.cedula }).eq('id', existing.id);
-          existing.cedula = p.cedula;
-          existingByCedula.set(p.cedula, existing);
-        }
         continue;
       }
 
@@ -230,6 +225,7 @@ export async function importarNominaHistoricaAction(input: {
     const fidelity = buildImportFidelityReport(period, profiles, {
       existingPersonal: existingByCedula as Map<string, import('@/lib/types').Personal>,
       idByCedula,
+      workersBase,
     });
 
     let successMessage = `Archivo importado en Mina: $${fidelity.savedTotal?.toFixed(2) ?? commitPlan.total_usd.toFixed(2)} (${commitPlan.semanas.length} semanas, ${fidelity.workerCountSaved ?? commitPlan.personal.length} trabajadores)`;
