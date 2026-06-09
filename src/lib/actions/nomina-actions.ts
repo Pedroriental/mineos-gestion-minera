@@ -201,7 +201,15 @@ export async function importarNominaHistoricaAction(input: {
     });
 
     if (rpcError) {
-      return { ok: false, message: rpcError.message };
+      const msg = rpcError.message ?? '';
+      if (msg.includes('idx_nomina_registros_semana_personal')) {
+        return {
+          ok: false,
+          message:
+            'No se pudo importar: hay dos o más líneas del archivo que corresponden al mismo trabajador en la misma semana (cédula duplicada o ya registrado). Revise cédulas repetidas en el Excel o elimine la importación previa de ese período.',
+        };
+      }
+      return { ok: false, message: msg };
     }
 
     const result = rpcResult as { ok?: boolean; message?: string; periodo_id?: string };

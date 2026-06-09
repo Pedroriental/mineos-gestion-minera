@@ -448,6 +448,51 @@ describe('Fidelity and Commit for previously DESPEDIDO workers', () => {
   });
 });
 
+describe('mergeRegistrosByCedula', () => {
+  it('sums duplicate worker rows in the same week before RPC insert', async () => {
+    const { mergeRegistrosByCedula } = await import('@/lib/nomina/import-commit');
+    const snapshot = {
+      cedula: '28374511',
+      nombre_completo: 'Ismael Mendez',
+      cargo: 'Vertical',
+      area: 'mina',
+      area_detalle: 'Vertical',
+      salario_base: 100,
+      salario_libre: 0,
+      bono_transporte: 0,
+      esquema_rotacion: 'FIJO_SEMANAL',
+      rotacion_inicio_fecha: null,
+    };
+    const { registros, mergedCount } = mergeRegistrosByCedula([
+      {
+        cedula: '28374511',
+        monto_pagado: 100,
+        es_semana_libre: false,
+        estado_asistencia: 'trabajada',
+        dias_trabajados: 7,
+        salario_base_calculado: 100,
+        bonificaciones: 0,
+        total_vales: 0,
+        personal_snapshot: snapshot,
+      },
+      {
+        cedula: '28374511',
+        monto_pagado: 100,
+        es_semana_libre: false,
+        estado_asistencia: 'trabajada',
+        dias_trabajados: 7,
+        salario_base_calculado: 100,
+        bonificaciones: 0,
+        total_vales: 0,
+        personal_snapshot: { ...snapshot, nombre_completo: 'Alfredo Mendez' },
+      },
+    ]);
+    assert.equal(mergedCount, 1);
+    assert.equal(registros.length, 1);
+    assert.equal(registros[0].monto_pagado, 200);
+  });
+});
+
 describe('Excel Row Observations Parsing', () => {
   it('correctly maps trailing observations like reposo or retirado to weekly novelties', async () => {
     const { buildImportCommitPayload } = await import('@/lib/nomina/import-commit');

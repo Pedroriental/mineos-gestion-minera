@@ -59,6 +59,36 @@ export type ImportCommitPayload = {
   personal: ImportCommitPersonalRow[];
 };
 
+/** Un trabajador solo puede tener un registro por semana (índice único en BD). */
+export function mergeRegistrosByCedula(
+  registros: ImportCommitRegistro[],
+): { registros: ImportCommitRegistro[]; mergedCount: number } {
+  const merged = new Map<string, ImportCommitRegistro>();
+  let mergedCount = 0;
+
+  for (const reg of registros) {
+    const prev = merged.get(reg.cedula);
+    if (!prev) {
+      merged.set(reg.cedula, {
+        ...reg,
+        personal_snapshot: { ...reg.personal_snapshot },
+      });
+      continue;
+    }
+
+    mergedCount += 1;
+    prev.monto_pagado = parseFloat((prev.monto_pagado + reg.monto_pagado).toFixed(2));
+    prev.salario_base_calculado = prev.monto_pagado;
+    prev.es_semana_libre = prev.es_semana_libre && reg.es_semana_libre;
+    if (reg.novedad_turno_obs) {
+      const parts = [prev.novedad_turno_obs, reg.novedad_turno_obs].filter(Boolean);
+      prev.novedad_turno_obs = [...new Set(parts)].join(' · ');
+    }
+  }
+
+  return { registros: [...merged.values()], mergedCount };
+}
+
 export function buildImportCommitPayload(
   period: ParsedNominaPeriod,
   profiles: InferredWorkerProfile[],
@@ -111,6 +141,7 @@ export function buildImportCommitPayload(
 
   const semanaMap = new Map<string, ImportCommitSemana>();
   const sectionMap = new Map(period.sections.map((s) => [s.id, s]));
+  let mergedDuplicateRegistros = 0;
 
   // Mapa cedula -> área real para usarlo al construir semanas
   const areaBySection = new Map<string, Personal['area']>();
@@ -216,12 +247,15 @@ export function buildImportCommitPayload(
   }
 
   const semanas = [...semanaMap.values()].map((s) => {
+    const { registros, mergedCount } = mergeRegistrosByCedula(s.registros);
+    mergedDuplicateRegistros += mergedCount;
     const total_pagado = parseFloat(
-      s.registros.reduce((n, r) => n + r.monto_pagado, 0).toFixed(2),
+      registros.reduce((n, r) => n + r.monto_pagado, 0).toFixed(2),
     );
-    const ids = new Set(s.registros.map((r) => r.cedula));
+    const ids = new Set(registros.map((r) => r.cedula));
     return {
       ...s,
+      registros,
       total_pagado,
       total_trabajadores: ids.size,
     };
@@ -246,6 +280,7 @@ export function buildImportCommitPayload(
       sourceFileName: period.sourceFileName,
       sectionTotals,
       stats: period.stats,
+      mergedDuplicateRegistros,
     },
     semanas,
     personal: [...personalMap.values()],
