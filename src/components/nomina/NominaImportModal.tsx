@@ -20,6 +20,7 @@ import {
 } from '@/components/nomina/NominaImportWizard';
 import { parseNominaMatrixFromFile } from '@/lib/nomina/import-parser';
 import { inferAllProfiles } from '@/lib/nomina/inference';
+import { describePayrollWeekCount } from '@/lib/nomina/week-utils';
 import type { InferredWorkerProfile, ParsedNominaPeriod } from '@/lib/nomina/types';
 import type { EmpleadoParseado } from '@/lib/parse-nomina-file';
 import { cn } from '@/lib/utils';
@@ -84,10 +85,10 @@ export function NominaImportModal({
 
     try {
       const period = await parseNominaMatrixFromFile(file);
-      const weekCount = period.weekColumns.length;
+      const { payrollWeeks, hasBonoColumn } = describePayrollWeekCount(period);
       const hasData = period.stats.workerCount > 0 && period.grandTotal > 0;
 
-      if (weekCount >= 1 && hasData) {
+      if (payrollWeeks >= 1 && hasData) {
         const weekStarts = period.weekColumns.map((c) => c.weekStart);
         const allRows = period.sections.flatMap((s) => s.rows);
         const profiles = inferAllProfiles(allRows, weekStarts, period.weekColumns);
@@ -100,8 +101,11 @@ export function NominaImportModal({
         setPlanillaProfiles(profiles);
         setStage('planilla');
 
-        if (weekCount > 1) {
-          setDetectHint(`Histórico: ${weekCount} semanas detectadas (${period.rangeStart} — ${period.rangeEnd})`);
+        if (payrollWeeks > 1) {
+          const bonoNote = hasBonoColumn ? ' · incl. columna bono transporte' : '';
+          setDetectHint(
+            `Histórico: ${payrollWeeks} semanas laborales (${period.rangeStart} — ${period.rangeEnd})${bonoNote}`,
+          );
         } else if (firstWeek === weekStart) {
           setDetectHint('Semana actual detectada — al importar quedará en archivo y podrá verse en vista previa');
         } else {
@@ -112,7 +116,7 @@ export function NominaImportModal({
         return;
       }
 
-      if (weekCount >= 1 && !hasData) {
+      if (payrollWeeks >= 1 && !hasData) {
         setParseError(
           'Se reconoció la estructura pero sin montos ni trabajadores. Revise que el archivo tenga cédulas y valores en las columnas de semana.',
         );

@@ -95,6 +95,33 @@ describe('validateImportTotals', () => {
   });
 });
 
+describe('describePayrollWeekCount', () => {
+  it('counts labor weeks in document range excluding bono auxiliary column', async () => {
+    const { describePayrollWeekCount } = await import('@/lib/nomina/week-utils');
+    const col = (weekStart: string, weekEnd: string, columnKind: 'bono' | 'libre' | 'trabajada') => ({
+      weekStart,
+      weekEnd,
+      colIndex: 0,
+      rawHeader: '',
+      rawRange: { inicio: weekStart, fin: weekEnd },
+      header: '',
+      columnKind,
+    });
+    const meta = describePayrollWeekCount({
+      rangeStart: '2026-04-13',
+      rangeEnd: '2026-05-03',
+      weekColumns: [
+        col('2026-04-06', '2026-04-12', 'bono'),
+        col('2026-04-13', '2026-04-19', 'libre'),
+        col('2026-04-20', '2026-04-26', 'trabajada'),
+        col('2026-04-27', '2026-05-03', 'trabajada'),
+      ],
+    });
+    assert.equal(meta.payrollWeeks, 3);
+    assert.equal(meta.hasBonoColumn, true);
+  });
+});
+
 describe('parseExcelNominaMatrix', () => {
   it('reads Del/al week headers on the row after Nombres/C.I.', async () => {
     const XLSX = await import('xlsx');

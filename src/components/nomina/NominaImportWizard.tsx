@@ -18,7 +18,25 @@ import { inferAllProfiles } from '@/lib/nomina/inference';
 import { importarNominaHistoricaAction, getPersonalMapAction } from '@/lib/actions/nomina-actions';
 import type { InferredWorkerProfile, ParsedNominaPeriod, ParsedNominaSection } from '@/lib/nomina/types';
 import { NominaImportFidelityPanel, type ImportFidelityReport } from '@/components/nomina/NominaImportFidelityPanel';
+import { describePayrollWeekCount } from '@/lib/nomina/week-utils';
 import { cn } from '@/lib/utils';
+
+function workerCargoLabel(cargo: string, sectionTitle: string): string | null {
+  const c = cargo.trim();
+  if (!c) return null;
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ');
+  if (norm(c) === norm(sectionTitle)) return null;
+  if (norm(sectionTitle).includes(norm(c)) || norm(c).includes(norm(sectionTitle))) return null;
+  if (/^pago\s+semana\s+libre$/i.test(c) || /^personal\s+despedido/i.test(c)) return null;
+  return c;
+}
+
+function weekColumnLabel(w: ParsedNominaPeriod['weekColumns'][number]): string {
+  if (w.columnKind === 'bono') return 'Bono transp.';
+  const h = (w.header || w.rawHeader || '').replace(/\s+/g, ' ').trim();
+  if (h.length <= 24) return h || 'Semana';
+  return w.weekStart.slice(5);
+}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Componente de tabla de vista previa
@@ -59,11 +77,18 @@ function ImportPreviewTable({ period }: { period: ParsedNominaPeriod }) {
             </th>
             {weeks.map((w) => (
               <th
-                key={w.weekStart}
-                className="min-w-[88px] px-2 py-2.5 text-right font-semibold uppercase tracking-wider text-zinc-400"
+                key={`${w.weekStart}-${w.colIndex}`}
+                className={cn(
+                  'min-w-[88px] px-2 py-2.5 text-right font-semibold uppercase tracking-wider',
+                  w.columnKind === 'bono' ? 'text-violet-400/90' : 'text-zinc-400',
+                )}
               >
-                <span className="block text-[9px] text-zinc-600">{w.weekStart}</span>
-                <span>{w.header || w.rawHeader || 'Sem'}</span>
+                <span className="block text-[9px] text-zinc-600">
+                  {w.columnKind === 'bono' ? 'Auxiliar' : w.weekStart}
+                </span>
+                <span className="line-clamp-2 text-[10px] normal-case leading-tight">
+                  {weekColumnLabel(w)}
+                </span>
               </th>
             ))}
             <th className="min-w-[88px] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-amber-500/80">
@@ -96,23 +121,26 @@ function ImportPreviewTable({ period }: { period: ParsedNominaPeriod }) {
 
                 {/* Filas de trabajadores */}
                 {validRows.map((row, ri) => {
+                  const cargoLabel = workerCargoLabel(row.cargo, section.title);
+                  const rowBg = ri % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-900/50';
                   return (
                     <tr
                       key={`${section.id}-${row.cedula}-${ri}`}
                       className={cn(
                         'border-t border-white/4 transition-colors hover:bg-white/2',
-                        ri % 2 === 0 ? 'bg-zinc-950/20' : 'bg-transparent',
+                        rowBg,
                       )}
                     >
-                      {/* Nombre */}
-                      <td className="sticky left-0 z-10 min-w-[180px] bg-inherit px-3 py-2">
-                        <span className="block max-w-[170px] truncate font-medium text-zinc-200">
-                          {row.nombre_completo}
-                        </span>
-                        <span className="text-[9px] text-zinc-500">{row.cargo}</span>
+                      {/* Nombre + cédula */}
+                      <td className={cn('sticky left-0 z-10 min-w-[180px] px-3 py-2', rowBg)}>
+                        <p className="truncate font-medium text-zinc-200">{row.nombre_completo}</p>
+                        <p className="truncate font-mono text-[9px] text-zinc-500">{row.cedula}</p>
+                        {cargoLabel ? (
+                          <p className="mt-0.5 truncate text-[9px] text-zinc-600">{cargoLabel}</p>
+                        ) : null}
                       </td>
-                      {/* Cédula */}
-                      <td className="px-2 py-2 text-center tabular-nums text-zinc-500">
+                      {/* Cédula (referencia rápida en scroll horizontal) */}
+                      <td className={cn('whitespace-nowrap px-2 py-2 text-center tabular-nums text-zinc-500', rowBg)}>
                         {row.cedula}
                       </td>
                       {/* Semanas */}
@@ -239,6 +267,10 @@ export function NominaImportWizard({
   }, [initialPeriod, initialProfiles, skipUpload]);
 
   const lowConfidence = useMemo(() => profiles.filter((p) => p.needsReview), [profiles]);
+  const payrollMeta = useMemo(
+    () => (period ? describePayrollWeekCount(period) : null),
+    [period],
+  );
   const stepIndex = STEPS.findIndex((s) => s.id === step);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -391,8 +423,9 @@ export function NominaImportWizard({
                   {period.rangeStart} — {period.rangeEnd}
                 </p>
                 <p className="text-[11px] text-zinc-500">
-                  {period.stats.workerCount} trabajadores · {period.weekColumns.length} semana
-                  {period.weekColumns.length !== 1 ? 's' : ''}
+                  {period.stats.workerCount} trabajadores · {payrollMeta?.payrollWeeks ?? 0} semana
+                  {(payrollMeta?.payrollWeeks ?? 0) !== 1 ? 's' : ''} laborales
+                  {payrollMeta?.hasBonoColumn ? ' (+ bono transp.)' : ''}
                 </p>
               </div>
             </div>

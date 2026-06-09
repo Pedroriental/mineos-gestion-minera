@@ -34,6 +34,31 @@ export function listWeekStartsInRange(rangeStart: string, rangeEnd: string): str
   return weeks;
 }
 
+import type { ParsedWeekColumn } from '@/lib/nomina/types';
+
+/** Columnas de semana laboral (excluye bono de transporte u otros auxiliares). */
+export function getPayrollWeekColumns(weekColumns: ParsedWeekColumn[]): ParsedWeekColumn[] {
+  return weekColumns.filter((c) => c.columnKind !== 'bono');
+}
+
+/** Semanas laborales en el rango del documento (p. ej. 13 abr–3 may → 3 semanas). */
+export function countPayrollWeeksInRange(rangeStart: string, rangeEnd: string): number {
+  if (!rangeStart || !rangeEnd) return 0;
+  return listWeekStartsInRange(rangeStart, rangeEnd).length;
+}
+
+export function describePayrollWeekCount(period: {
+  rangeStart: string;
+  rangeEnd: string;
+  weekColumns: ParsedWeekColumn[];
+}): { payrollWeeks: number; hasBonoColumn: boolean } {
+  const inRange = countPayrollWeeksInRange(period.rangeStart, period.rangeEnd);
+  const payrollWeeks =
+    inRange > 0 ? inRange : getPayrollWeekColumns(period.weekColumns).length;
+  const hasBonoColumn = period.weekColumns.some((c) => c.columnKind === 'bono');
+  return { payrollWeeks, hasBonoColumn };
+}
+
 export function inferColumnKind(header: string): 'libre' | 'trabajada' | 'bono' | 'unknown' {
   const h = header.toLowerCase();
   if (/bono.*transporte|transporte.*bono|^bono\b/i.test(h)) return 'bono';
