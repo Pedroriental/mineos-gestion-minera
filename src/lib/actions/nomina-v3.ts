@@ -427,7 +427,6 @@ export async function procesarCierreNominaV3Action(payload: {
 
     // ── FASE 4: Automatización de Ciclos ─────────────────────────────────
     // Vincular semana a ciclos automáticamente (crea o vincula a ciclo existente)
-    const personalIds = rows.map(r => r.personal.id);
     const vinculoResult = await vincularSemanaACicloAction({
       semanaId,
       semanaInicio: inicio,
