@@ -26,6 +26,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useBiblioteca, useBibliotecaOptions } from '@/contexts/biblioteca-context';
@@ -202,6 +203,7 @@ function emptyEstadoModal(): EstadoModal {
 }
 
 export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
+  const router = useRouter();
   const biblioteca = useBiblioteca();
   const areaOptions = useBibliotecaOptions('areas_nomina');
   const [search, setSearch] = useState('');
@@ -437,6 +439,25 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   }
 
   function submitForm() {
+    if (!form.nombre_completo.trim() || !form.cedula.trim() || !form.cargo.trim()) {
+      toast.error('Nombre, cédula y cargo son obligatorios.');
+      return;
+    }
+
+    const originalEstado = form.id
+      ? ((trabajadores.find((t) => t.id === form.id)?.estado_laboral || 'ACTIVO') as EstadoLaboral)
+      : null;
+    const estadoChanged = originalEstado !== null && originalEstado !== form.estado_laboral;
+    if (
+      (form.estado_laboral === 'DESPEDIDO' || form.estado_laboral === 'REENGANCHADO') &&
+      (!form.id || estadoChanged)
+    ) {
+      toast.error(
+        'Para Despedido o Reenganchado use el menú de estado en la tabla (requiere fecha y detalle).',
+      );
+      return;
+    }
+
     const fd = new FormData();
     if (form.id) fd.set('id', form.id);
     fd.set('nombre_completo', form.nombre_completo);
@@ -462,6 +483,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
       }
       closeModal();
       toast.success(res.message);
+      router.refresh();
     });
   }
 
@@ -475,7 +497,10 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
           observacion_estado: '',
         });
         if (!res.ok) toast.error(res.message);
-        else toast.success('Estado actualizado exitosamente');
+        else {
+          toast.success('Estado actualizado exitosamente');
+          router.refresh();
+        }
       });
       return;
     }
@@ -533,6 +558,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
       }
       setEstadoModal(emptyEstadoModal());
       toast.success(res.message);
+      router.refresh();
     });
   }
 
@@ -1052,13 +1078,21 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
             <AppSelect
               value={form.estado_laboral}
               onChange={(val) => setForm((p) => ({ ...p, estado_laboral: val as EstadoLaboral }))}
-              options={[
-                { value: 'ACTIVO', label: 'Activo' },
-                { value: 'REPOSO', label: 'Reposo' },
-                { value: 'VACACIONES', label: 'Vacaciones' },
-                { value: 'DESPEDIDO', label: 'Despedido' },
-                { value: 'REENGANCHADO', label: 'Reenganchado' },
-              ]}
+              options={
+                form.id
+                  ? [
+                      { value: 'ACTIVO', label: 'Activo' },
+                      { value: 'REPOSO', label: 'Reposo' },
+                      { value: 'VACACIONES', label: 'Vacaciones' },
+                      { value: 'DESPEDIDO', label: 'Despedido' },
+                      { value: 'REENGANCHADO', label: 'Reenganchado' },
+                    ]
+                  : [
+                      { value: 'ACTIVO', label: 'Activo' },
+                      { value: 'REPOSO', label: 'Reposo' },
+                      { value: 'VACACIONES', label: 'Vacaciones' },
+                    ]
+              }
             />
           </div>
           <div className="sm:col-span-2">

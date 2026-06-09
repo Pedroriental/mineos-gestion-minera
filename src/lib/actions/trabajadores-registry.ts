@@ -111,7 +111,16 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       .eq('cedula', cedula)
       .maybeSingle();
 
-    const targetId = id || existingByCedula?.id;
+    if (existingByCedula?.id) {
+      if (!id) {
+        return { ok: false, message: 'Ya existe un trabajador con esa cédula.' };
+      }
+      if (existingByCedula.id !== id) {
+        return { ok: false, message: 'Ya existe otro trabajador con esa cédula.' };
+      }
+    }
+
+    const targetId = id || undefined;
 
     let existingDoc: string | null = null;
     let existingFoto: string | null = null;
@@ -146,7 +155,7 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       cargo,
       fecha_nacimiento: fechaNacimiento || null,
       area,
-      area_detalle: normalizeAreaDetalle(areaDetalle, area) || existingAreaDetalle || null,
+      area_detalle: normalizeAreaDetalle(areaDetalle, area) || existingAreaDetalle || 'General',
       ubicacion_laboral: ubicacionRaw || biblioteca.ubicacionDefaultPorArea[area] || null,
       notas: observacion || null,
       estado_laboral: estadoLaboral,
