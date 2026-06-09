@@ -20,6 +20,7 @@ import { getGrupoNominaKey } from '@/lib/personal-master';
 import { PersonalQuickAssignModal } from '@/components/nomina/PersonalQuickAssignModal';
 import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
 import NominaTrabajadorModal from '@/components/nomina/NominaTrabajadorModal';
+import NominaCiclosTable from '@/components/nomina/NominaCiclosTable';
 import { NominaVistaPreviaModal } from '@/components/nomina/NominaVistaPreviaModal';
 import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
 import type { NominaImportResult } from '@/components/nomina/NominaImportWizard';
@@ -276,6 +277,9 @@ export default function NominaClient({
   const [newValeMotivo, setNewValeMotivo] = useState('');
   // Paso activo del flujo guiado (Nómina 2.0)
   const [activeStep, setActiveStep] = useState<1 | 2>(1);
+
+  // Vista activa: Semanal (tradicional) o Ciclos (21 días)
+  const [viewMode, setViewMode] = useState<'semanal' | 'ciclos'>('semanal');
 
   // Pre-Nómina
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
@@ -1068,6 +1072,40 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
           />
 
           <div className="nomina-page__main nomina-page__table-stack flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/30 lg:border lg:bg-zinc-900/30">
+            {/* Tabs de Vista */}
+            <div className="shrink-0 border-b border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('semanal')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                    viewMode === 'semanal'
+                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                      : 'text-white/50 hover:text-white/70 border border-transparent'
+                  }`}
+                >
+                  Vista Semanal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('ciclos')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                    viewMode === 'ciclos'
+                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                      : 'text-white/50 hover:text-white/70 border border-transparent'
+                  }`}
+                >
+                  Vista por Ciclo 21 Días
+                </button>
+              </div>
+            </div>
+
+            {viewMode === 'ciclos' ? (
+              <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:p-3 lg:pb-3">
+                <NominaCiclosTable area={area} canEdit={canEdit} />
+              </div>
+            ) : (
+            <>
             <div className="nomina-page__toolbar hidden shrink-0 flex-col gap-2 border-b border-zinc-800/80 px-3 py-2.5 lg:flex">
               <div className="nomina-page__toolbar-search flex w-full min-w-0 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2">
                 <Search className="h-4 w-4 shrink-0 text-white/40" aria-hidden />
@@ -1360,6 +1398,8 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
               </div>
             ) : null}
           </div>
+          </>
+            )}
         </div>
         </div>
       </div>
