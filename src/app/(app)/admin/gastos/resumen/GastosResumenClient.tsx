@@ -71,8 +71,8 @@ export default function GastosResumenClient({ summary }: Props) {
     combined.total > 0 ? Math.round((part / combined.total) * 100) : 0;
 
   return (
-    <div className="gastos-page gastos-resumen-page flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-      <div className="gastos-resumen-page__grid min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+    <div className="gastos-page gastos-resumen-page flex min-h-0 w-full flex-1 flex-col">
+      <div className="gastos-resumen-page__grid min-h-0 flex-1 custom-scrollbar">
         <aside className="gastos-resumen-page__filters app-surface-card flex flex-col gap-3 p-3">
           <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
             Período
@@ -229,13 +229,13 @@ export default function GastosResumenClient({ summary }: Props) {
           </div>
 
           {daily.length > 0 ? (
-            <div className="app-surface-card flex min-h-0 flex-col overflow-hidden">
+            <div className="gastos-resumen-page__table-card app-surface-card flex min-h-0 flex-col">
               <div className="shrink-0 border-b border-[var(--dashboard-border)] px-3 py-2">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
                   Desglose diario — gastos mina y molino
                 </p>
               </div>
-              <div className="gastos-page__table-body min-h-0 overflow-x-auto overflow-y-auto custom-scrollbar">
+              <div className="gastos-resumen-page__table-scroll gastos-page__table-body min-h-0 custom-scrollbar">
                 <table className="w-full min-w-[28rem] text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-[var(--dashboard-surface)]">
                     <tr className="text-[10px] uppercase tracking-wider text-[var(--dashboard-text-muted)]">
@@ -274,13 +274,13 @@ export default function GastosResumenClient({ summary }: Props) {
           ) : null}
 
           {nominaSemanas.length > 0 ? (
-            <div className="app-surface-card flex min-h-0 flex-col overflow-hidden">
+            <div className="gastos-resumen-page__table-card app-surface-card flex min-h-0 flex-col">
               <div className="shrink-0 border-b border-[var(--dashboard-border)] px-3 py-2">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--dashboard-text-muted)]">
                   Semanas de nómina en el período
                 </p>
               </div>
-              <div className="gastos-page__table-body min-h-0 overflow-x-auto overflow-y-auto custom-scrollbar">
+              <div className="gastos-resumen-page__table-scroll gastos-page__table-body min-h-0 custom-scrollbar">
                 <table className="w-full min-w-[24rem] text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-[var(--dashboard-surface)]">
                     <tr className="text-[10px] uppercase tracking-wider text-[var(--dashboard-text-muted)]">

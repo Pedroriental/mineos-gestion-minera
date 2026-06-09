@@ -4433,18 +4433,46 @@ input, textarea, select {
   border-color: color-mix(in srgb, var(--dashboard-text-muted) 35%, var(--dashboard-border));
 }
 
+.gastos-resumen-page {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .gastos-resumen-page__grid {
   display: grid;
   flex: 1;
   min-height: 0;
   gap: 0.65rem;
   align-items: start;
+  overflow-y: auto;
+  overflow-x: clip;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
 }
 
 @media (min-width: 1024px) {
   .gastos-resumen-page__grid {
     grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
   }
+}
+
+/* Resumen: el scroll vertical lo lleva la página; tablas solo horizontal si hace falta */
+.gastos-resumen-page .gastos-resumen-page__table-scroll {
+  flex: none;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gastos-resumen-page__filters {
+  min-width: 0;
+}
+
+.gastos-resumen-page__main {
+  min-width: 0;
 }
 
 .gastos-page__grid {
@@ -9186,6 +9214,37 @@ input, textarea, select {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
+}
+
+/* Resumen de Gastos — scroll en mobile-shell__content, sin trampas internas */
+.mobile-shell .gastos-resumen-page {
+  height: auto !important;
+  min-height: min-content !important;
+  overflow: visible !important;
+  flex: none !important;
+}
+
+.mobile-shell .gastos-resumen-page__grid {
+  display: flex;
+  flex-direction: column;
+  flex: none !important;
+  min-height: min-content;
+  overflow: visible !important;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.mobile-shell .gastos-resumen-page__filters,
+.mobile-shell .gastos-resumen-page__main {
+  flex: none;
+  min-height: min-content;
+  overflow: visible;
+}
+
+.mobile-shell .gastos-resumen-page .gastos-resumen-page__table-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mobile-shell .gastos-page__summary {
