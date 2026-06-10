@@ -33,7 +33,12 @@ import { toastError } from '@/lib/app-toast';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { useBiblioteca, useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
-import { areaNominaLabel, getAsignacionNomina, getUbicacionLaboralLabel } from '@/lib/personal-master';
+import {
+  areaNominaLabel,
+  ASIGNACION_NOMINA_OPCIONES,
+  getAsignacionNomina,
+  getUbicacionLaboralLabel,
+} from '@/lib/personal-master';
 import type { Personal } from '@/lib/types';
 import {
   upsertTrabajadorRegistroAction,
@@ -216,6 +221,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   const router = useRouter();
   const biblioteca = useBiblioteca();
   const areaOptions = useBibliotecaOptions('areas_nomina');
+  const [localTrabajadores, setLocalTrabajadores] = useState(trabajadores);
   const [search, setSearch] = useState('');
   const [filterNomina, setFilterNomina] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
@@ -234,6 +240,10 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   const [isPending, startTransition] = useTransition();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [perfilesCompensacion, setPerfilesCompensacion] = useState<PerfilCompensacion[]>([]);
+
+  useEffect(() => {
+    setLocalTrabajadores(trabajadores);
+  }, [trabajadores]);
 
   // Cargar perfiles de compensación
   useEffect(() => {
@@ -260,12 +270,15 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
     () =>
       mergeSuggestions(
         biblioteca.cargoSuggestions,
-        trabajadores.map((t) => (t.cargo || '').trim()).filter(Boolean),
+        localTrabajadores.map((t) => (t.cargo || '').trim()).filter(Boolean),
       ),
-    [biblioteca.cargoSuggestions, trabajadores],
+    [biblioteca.cargoSuggestions, localTrabajadores],
   );
 
-  const asignacionOptions = useMemo(() => biblioteca.asignacionSuggestions, [biblioteca.asignacionSuggestions]);
+  const asignacionOptions = useMemo(
+    () => ASIGNACION_NOMINA_OPCIONES.map((value) => ({ value, label: value })),
+    [],
+  );
 
   const ubicacionSugerencias = useMemo(
     () => biblioteca.ubicacionSugerenciasPorArea,
@@ -274,16 +287,16 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
 
   const sitiosDisponibles = useMemo(() => {
     const set = new Set<string>();
-    for (const t of trabajadores) {
+    for (const t of localTrabajadores) {
       const u = getUbicacionLaboralLabel(t);
       if (u) set.add(u);
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
-  }, [trabajadores]);
+  }, [localTrabajadores]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return trabajadores.filter((t) => {
+    return localTrabajadores.filter((t) => {
       const estado = (t.estado_laboral || 'ACTIVO') as EstadoLaboral;
       if (filterNomina && t.area !== filterNomina) return false;
       if (filterEstado && estado !== filterEstado) return false;
@@ -303,7 +316,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
         .toLowerCase()
         .includes(q);
     });
-  }, [trabajadores, search, filterNomina, filterEstado, filterSitio, biblioteca]);
+  }, [localTrabajadores, search, filterNomina, filterEstado, filterSitio, biblioteca]);
 
   const filterSummary = useMemo(() => {
     let activos = 0;
@@ -369,12 +382,12 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   const trabajadoresById = useMemo(
     () =>
       new Map(
-        trabajadores.map((t) => [
+        localTrabajadores.map((t) => [
           t.id,
           { nombre_completo: t.nombre_completo, cedula: t.cedula },
         ]),
       ),
-    [trabajadores],
+    [localTrabajadores],
   );
 
   const filteredCount = table.getFilteredRowModel().rows.length;
@@ -485,8 +498,18 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
       return;
     }
 
+    if (!form.perfil_compensacion_id) {
+      toastError('Selecciona un perfil de compensación.');
+      return;
+    }
+
+    if (!form.area_detalle) {
+      toastError('Selecciona la asignación nómina (vertical/sector).');
+      return;
+    }
+
     const originalEstado = form.id
-      ? ((trabajadores.find((t) => t.id === form.id)?.estado_laboral || 'ACTIVO') as EstadoLaboral)
+      ? ((localTrabajadores.find((t) => t.id === form.id)?.estado_laboral || 'ACTIVO') as EstadoLaboral)
       : null;
     const estadoChanged = originalEstado !== null && originalEstado !== form.estado_laboral;
     if (
@@ -553,16 +576,27 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
 
   function handleBulkDelete() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`¿Eliminar ${selectedIds.size} trabajador(es)? Esta acción los marcará como DESPEDIDO/INACTIVO.`)) {
+    const idsToDelete = Array.from(selectedIds);
+    if (
+      !confirm(
+        `¿Eliminar ${idsToDelete.length} trabajador(es)? Esta acción es permanente y no se puede deshacer.`,
+      )
+    ) {
       return;
     }
+
+    const snapshot = localTrabajadores;
+    setLocalTrabajadores((prev) => prev.filter((t) => !idsToDelete.includes(t.id)));
+    setSelectedIds(new Set());
+
     startTransition(async () => {
-      const res = await bulkDeleteTrabajadoresAction(Array.from(selectedIds));
+      const res = await bulkDeleteTrabajadoresAction(idsToDelete);
       if (!res.ok) {
+        setLocalTrabajadores(snapshot);
+        setSelectedIds(new Set(idsToDelete));
         toastError(res.message);
         return;
       }
-      setSelectedIds(new Set());
       toast.success(res.message);
       router.refresh();
     });
@@ -948,10 +982,10 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
                   type="button"
                   onClick={handleBulkDelete}
                   disabled={isPending}
-                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border-2 border-cyan-400/70 bg-cyan-500/15 px-4 text-[11px] font-extrabold uppercase tracking-wide text-cyan-100 shadow-[3px_3px_0_0_rgba(34,211,238,0.45)] transition-all hover:-translate-y-px hover:bg-cyan-500/25 hover:shadow-[4px_4px_0_0_rgba(34,211,238,0.55)] disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Eliminar {selectedIds.size} seleccionado{selectedIds.size > 1 ? 's' : ''}
+                  <Trash2 className="h-4 w-4 shrink-0" />
+                  Eliminar ({selectedIds.size}) Trabajadores Seleccionados
                 </button>
               )}
               <button
@@ -1081,7 +1115,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
           style={{ left: `${estadoMenu.x}px`, top: `${estadoMenu.y}px` }}
         >
           {(['ACTIVO', 'REPOSO', 'VACACIONES', 'DESPEDIDO', 'REENGANCHADO'] as EstadoLaboral[]).map((opt) => {
-            const worker = trabajadores.find((w) => w.id === estadoMenu.id);
+            const worker = localTrabajadores.find((w) => w.id === estadoMenu.id);
             const current = ((worker?.estado_laboral || 'ACTIVO') as EstadoLaboral);
             return (
               <button
@@ -1147,7 +1181,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
             <AppSelect
               value={form.area_detalle}
               onChange={(val) => setForm((p) => ({ ...p, area_detalle: val }))}
-              options={asignacionOptions.map((a) => ({ value: a, label: a }))}
+              options={asignacionOptions}
               placeholder="Seleccionar vertical/sector"
             />
           </div>

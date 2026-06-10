@@ -1,6 +1,20 @@
 import { FALLBACK_SNAPSHOT, type BibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import type { Personal } from '@/lib/types';
 
+/** Opciones cerradas para asignación nómina (vertical/sector). Evita duplicar ciclos por typos. */
+export const ASIGNACION_NOMINA_OPCIONES = [
+  'Vertical 1PD',
+  'Vertical 2',
+  'Molinos- Grupo (mixto)',
+  'Administración',
+] as const;
+
+export type AsignacionNominaOpcion = (typeof ASIGNACION_NOMINA_OPCIONES)[number];
+
+export function isAsignacionNominaValid(value: string): value is AsignacionNominaOpcion {
+  return (ASIGNACION_NOMINA_OPCIONES as readonly string[]).includes(value);
+}
+
 /** Rutas que deben refrescarse cuando cambia el maestro de personal. */
 export const PERSONAL_SYNC_PATHS = [
   '/admin/trabajadores',

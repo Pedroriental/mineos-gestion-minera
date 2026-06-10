@@ -7,7 +7,11 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { toUserFriendlyError } from '@/lib/app-toast';
-import { normalizeAreaDetalle, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
+import {
+  ASIGNACION_NOMINA_OPCIONES,
+  isAsignacionNominaValid,
+  PERSONAL_SYNC_PATHS,
+} from '@/lib/personal-master';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 
 export type RegistryActionResult =
@@ -86,6 +90,17 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       return { ok: false, message: 'Nombre, cédula y cargo son obligatorios.' };
     }
 
+    if (!areaDetalle || !isAsignacionNominaValid(areaDetalle)) {
+      return {
+        ok: false,
+        message: `La asignación nómina es obligatoria. Opciones: ${ASIGNACION_NOMINA_OPCIONES.join(', ')}.`,
+      };
+    }
+
+    if (!perfilCompensacionId) {
+      return { ok: false, message: 'El perfil de compensación es obligatorio.' };
+    }
+
     const ajusteAntiguedad = Number(ajusteAntiguedadRaw || '0');
     if (!Number.isFinite(ajusteAntiguedad) || ajusteAntiguedad < 0 || ajusteAntiguedad > 36500) {
       return { ok: false, message: 'Ajuste de antiguedad inválido.' };
@@ -103,8 +118,8 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     
     // Validar salario_base (obligatorio)
     const salarioBase = salarioBaseRaw ? Number(salarioBaseRaw) : null;
-    if (salarioBase === null || !Number.isFinite(salarioBase) || salarioBase < 0) {
-      return { ok: false, message: 'El sueldo base semanal es obligatorio y debe ser un número válido.' };
+    if (salarioBase === null || !Number.isFinite(salarioBase) || salarioBase <= 0) {
+      return { ok: false, message: 'El sueldo base semanal es obligatorio y debe ser mayor a 0.' };
     }
     
     // Validar bono_transporte (opcional)
@@ -122,6 +137,17 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     }
 
     const supabase = await createServerClient();
+
+    const { data: perfil, error: perfilError } = await supabase
+      .from('perfiles_compensacion')
+      .select('id, esquema_rotacion_default')
+      .eq('id', perfilCompensacionId)
+      .eq('activo', true)
+      .maybeSingle();
+
+    if (perfilError || !perfil) {
+      return { ok: false, message: 'El perfil de compensación seleccionado no es válido.' };
+    }
 
     const { data: existingByCedula } = await supabase
       .from('personal')
@@ -143,17 +169,15 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     let existingDoc: string | null = null;
     let existingFoto: string | null = null;
     let existingIngreso: string | null = null;
-    let existingAreaDetalle: string | null = null;
     if (targetId) {
       const { data: current } = await supabase
         .from('personal')
-        .select('doc_cedula_url, foto_carnet_url, fecha_ingreso, area_detalle')
+        .select('doc_cedula_url, foto_carnet_url, fecha_ingreso')
         .eq('id', targetId)
         .maybeSingle();
       existingDoc = (current?.doc_cedula_url as string | null) ?? null;
       existingFoto = (current?.foto_carnet_url as string | null) ?? null;
       existingIngreso = (current?.fecha_ingreso as string | null) ?? null;
-      existingAreaDetalle = (current?.area_detalle as string | null) ?? null;
     }
 
     let docCedulaUrl = existingDoc;
@@ -167,13 +191,18 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       return { ok: false, message: err instanceof Error ? err.message : 'Error al subir archivo.' };
     }
 
+    const verticalAsignada = areaDetalle.startsWith('Vertical') ? areaDetalle : null;
+    const grupoTurno = areaDetalle === 'Molinos- Grupo (mixto)' ? areaDetalle : null;
+
     const payloadBase = {
       cedula,
       nombre_completo: nombre,
       cargo,
       fecha_nacimiento: fechaNacimiento || null,
       area,
-      area_detalle: normalizeAreaDetalle(areaDetalle, area) || existingAreaDetalle || 'General',
+      area_detalle: areaDetalle,
+      vertical_asignada: verticalAsignada,
+      grupo_turno: grupoTurno,
       ubicacion_laboral: ubicacionRaw || biblioteca.ubicacionDefaultPorArea[area] || null,
       notas: observacion || null,
       estado_laboral: estadoLaboral,
@@ -193,9 +222,10 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       estatus: estadoLaboral === 'DESPEDIDO' ? 'LIQUIDADO' : estadoLaboral === 'ACTIVO' || estadoLaboral === 'REENGANCHADO' ? 'ACTIVO' : 'INACTIVO',
       fecha_ingreso: fechaIngresoRaw || existingIngreso || new Date().toISOString().split('T')[0],
       // Nuevos campos financieros
-      perfil_compensacion_id: perfilCompensacionId || null,
+      perfil_compensacion_id: perfilCompensacionId,
       salario_base: salarioBase,
       bono_transporte: bonoTransporte,
+      esquema_rotacion: perfil.esquema_rotacion_default,
     };
 
     let error;
@@ -205,7 +235,6 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       ({ error } = await supabase.from('personal').insert({
         ...payloadBase,
         salario_libre: 0,
-        esquema_rotacion: 'FIJO_SEMANAL',
       }));
     }
 
@@ -266,23 +295,29 @@ export async function bulkDeleteTrabajadoresAction(ids: string[]): Promise<Regis
       return { ok: false, message: 'No se seleccionaron trabajadores.' };
     }
 
-    const supabase = await createServerClient();
-    
-    // Soft delete: marcar como INACTIVO y DESPEDIDO
-    const { error } = await supabase
-      .from('personal')
-      .update({
-        activo: false,
-        estatus: 'INACTIVO',
-        estado_laboral: 'DESPEDIDO',
-        despido_fecha: new Date().toISOString().split('T')[0],
-        despido_causa: 'Eliminación masiva desde Base de Trabajadores',
-      })
-      .in('id', ids);
+    const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return { ok: false, message: 'No se seleccionaron trabajadores.' };
+    }
 
-    if (error) return { ok: false, message: toUserFriendlyError(error.message) };
+    const supabase = await createServerClient();
+
+    const { error } = await supabase.from('personal').delete().in('id', uniqueIds);
+
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes('foreign key') || msg.includes('violates')) {
+        return {
+          ok: false,
+          message:
+            'No se pueden eliminar trabajadores con registros de nómina asociados. Ejecuta el script de limpieza o elimina sus registros primero.',
+        };
+      }
+      return { ok: false, message: toUserFriendlyError(error.message) };
+    }
+
     revalidateAll();
-    return { ok: true, message: `${ids.length} trabajador(es) eliminado(s).` };
+    return { ok: true, message: `${uniqueIds.length} trabajador(es) eliminado(s).` };
   } catch (e) {
     console.error('[trabajadores-registry] bulk delete error:', e);
     return { ok: false, message: 'No se pudieron eliminar los trabajadores.' };
