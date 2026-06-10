@@ -1,21 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { Loader2, Search, X } from 'lucide-react';
+import Link from 'next/link';
+import { ExternalLink, Loader2, Search, X } from 'lucide-react';
 import { PageFormModal } from '@/components/ui/PageFormModal';
-import { AppSelect } from '@/components/ui/AppSelect';
 import {
   areaNominaLabel,
-  ASIGNACION_NOMINA_OPCIONES,
   getAsignacionNomina,
+  getEstadoLaboral,
   getUbicacionLaboralLabel,
   isAsignacionNominaValid,
   normalizeCedula,
   searchPersonalMaster,
 } from '@/lib/personal-master';
-import { upsertPersonalV3Action } from '@/lib/actions/nomina-v3';
-import { useBiblioteca } from '@/contexts/biblioteca-context';
-import type { PerfilCompensacion, Personal } from '@/lib/types';
+import { assignPersonalToNominaAreaAction } from '@/lib/actions/nomina-v3';
+import type { Personal } from '@/lib/types';
 
 type Props = {
   open: boolean;
@@ -26,54 +25,35 @@ type Props = {
   onAssigned: () => void;
 };
 
-type FormState = {
-  id?: string;
-  cedula: string;
-  nombre_completo: string;
-  cargo: string;
-  area_detalle: string;
-  perfil_compensacion_id: string;
-  salario_base: string;
-  bono_transporte: string;
-  telefono: string;
-  fecha_ingreso: string;
-};
-
-function emptyForm(): FormState {
-  return {
-    cedula: '',
-    nombre_completo: '',
-    cargo: '',
-    area_detalle: '',
-    perfil_compensacion_id: '',
-    salario_base: '',
-    bono_transporte: '',
-    telefono: '',
-    fecha_ingreso: new Date().toISOString().split('T')[0],
-  };
+function workerProfileReady(p: Personal): { ok: true } | { ok: false; message: string } {
+  if (!p.perfil_compensacion_id) {
+    return {
+      ok: false,
+      message:
+        'Este trabajador no tiene perfil de compensación. Complétalo en Base de Trabajadores antes de asignarlo.',
+    };
+  }
+  const asignacion = getAsignacionNomina(p) || p.area_detalle || '';
+  if (!isAsignacionNominaValid(asignacion)) {
+    return {
+      ok: false,
+      message:
+        'Este trabajador no tiene una asignación nómina válida. Actualízalo en Base de Trabajadores.',
+    };
+  }
+  if (!p.salario_base || Number(p.salario_base) <= 0) {
+    return {
+      ok: false,
+      message:
+        'Este trabajador no tiene sueldo base configurado. Actualízalo en Base de Trabajadores.',
+    };
+  }
+  return { ok: true };
 }
 
-function resolveAsignacion(person: Personal): string {
-  const candidate = getAsignacionNomina(person) || person.area_detalle || '';
-  return isAsignacionNominaValid(candidate) ? candidate : '';
+function fmtMoney(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 }
-
-function personToForm(p: Personal): FormState {
-  return {
-    id: p.id,
-    cedula: p.cedula || '',
-    nombre_completo: p.nombre_completo || '',
-    cargo: p.cargo || '',
-    area_detalle: resolveAsignacion(p),
-    perfil_compensacion_id: p.perfil_compensacion_id || '',
-    salario_base: String(p.salario_base ?? ''),
-    bono_transporte: String(p.bono_transporte ?? ''),
-    telefono: p.telefono || '',
-    fecha_ingreso: p.fecha_ingreso || new Date().toISOString().split('T')[0],
-  };
-}
-
-const asignacionOptions = ASIGNACION_NOMINA_OPCIONES.map((value) => ({ value, label: value }));
 
 export function PersonalQuickAssignModal({
   open,
@@ -83,76 +63,63 @@ export function PersonalQuickAssignModal({
   assignedIds,
   onAssigned,
 }: Props) {
-  const biblioteca = useBiblioteca();
-  const cargoSuggestions = biblioteca.cargoSuggestions;
-
   const [query, setQuery] = useState('');
-  const [form, setForm] = useState<FormState>(emptyForm);
   const [selected, setSelected] = useState<Personal | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
   const [isPending, startTransition] = useTransition();
-  const [perfilesCompensacion, setPerfilesCompensacion] = useState<PerfilCompensacion[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    async function loadPerfiles() {
-      try {
-        const { createClient } = await import('@/lib/supabase-client');
-        const supabase = createClient();
-        const { data, error: loadError } = await supabase
-          .from('perfiles_compensacion')
-          .select('*')
-          .eq('activo', true)
-          .order('nombre');
-        if (!loadError && data) {
-          setPerfilesCompensacion(data);
-        }
-      } catch (err) {
-        console.error('[PersonalQuickAssign] Error loading perfiles:', err);
-      }
-    }
-    if (open) loadPerfiles();
-  }, [open]);
-
-  const hits = useMemo(
-    () => searchPersonalMaster(query, masterCatalog, 8),
-    [query, masterCatalog],
+  const assignableCatalog = useMemo(
+    () => masterCatalog.filter((p) => !assignedIds.has(p.id)),
+    [masterCatalog, assignedIds],
   );
 
-  const enEstaNomina =
-    !!selected && assignedIds.has(selected.id) && selected.area === area;
+  const hits = useMemo(
+    () => searchPersonalMaster(query, assignableCatalog, 8),
+    [query, assignableCatalog],
+  );
+
+  const profileCheck = useMemo(
+    () => (selected ? workerProfileReady(selected) : null),
+    [selected],
+  );
 
   const statusLabel = useMemo(() => {
-    if (!selected && !form.id) {
+    if (!selected) {
       if (query.trim().length >= 2 && hits.length === 0) {
-        return { tone: 'new' as const, text: 'Sin coincidencias — completa el formulario para un trabajador nuevo.' };
+        return {
+          tone: 'empty' as const,
+          text: 'Sin coincidencias en la base. Registra al trabajador en Base de Trabajadores y vuelve aquí.',
+        };
       }
-      return { tone: 'new' as const, text: 'Trabajador nuevo en esta nómina.' };
-    }
-    if (enEstaNomina) {
       return {
-        tone: 'here' as const,
-        text: 'Ya está en esta nómina. Puedes actualizar cargo, vertical y salarios.',
+        tone: 'idle' as const,
+        text: 'Busca un trabajador existente para vincularlo a esta nómina.',
       };
     }
-    if (selected && selected.area !== area) {
+    if (assignedIds.has(selected.id)) {
+      return {
+        tone: 'here' as const,
+        text: 'Este trabajador ya está en esta nómina.',
+      };
+    }
+    if (selected.area !== area) {
       return {
         tone: 'move' as const,
-        text: `Viene de ${areaNominaLabel(selected.area)} (${getUbicacionLaboralLabel(selected)}). Se asignará aquí al guardar.`,
+        text: `Viene de ${areaNominaLabel(selected.area)}. Se moverá a ${areaNominaLabel(area)} al confirmar.`,
       };
     }
     return {
-      tone: 'base' as const,
-      text: 'Datos cargados desde la base de trabajadores.',
+      tone: 'ready' as const,
+      text: 'Perfil listo para asignar con los datos registrados en la base.',
     };
-  }, [selected, form.id, query, hits.length, enEstaNomina, area]);
+  }, [selected, query, hits.length, assignedIds, area]);
 
   useEffect(() => {
     if (!open) return;
     setQuery('');
-    setForm(emptyForm());
     setSelected(null);
     setShowSuggestions(false);
     setError(null);
@@ -167,7 +134,6 @@ export function PersonalQuickAssignModal({
 
   function pickPerson(person: Personal) {
     setSelected(person);
-    setForm(personToForm(person));
     setQuery(person.nombre_completo);
     setShowSuggestions(false);
     setError(null);
@@ -175,57 +141,43 @@ export function PersonalQuickAssignModal({
 
   function clearSelection() {
     setSelected(null);
-    setForm(emptyForm());
     setQuery('');
     setShowSuggestions(false);
     searchRef.current?.focus();
   }
 
-  // Auto-selección por cédula exacta al escribir
   useEffect(() => {
     const q = query.trim();
     if (q.length < 3) return;
     const qCed = normalizeCedula(q);
     if (qCed.length < 5) return;
-    const exact = masterCatalog.find((p) => normalizeCedula(p.cedula || '') === qCed);
+    const exact = assignableCatalog.find((p) => normalizeCedula(p.cedula || '') === qCed);
     if (exact && selected?.id !== exact.id) {
       pickPerson(exact);
     }
-  }, [query, masterCatalog, selected?.id, area]);
+  }, [query, assignableCatalog, selected?.id]);
 
-  function save() {
+  function assign() {
     setError(null);
-    if (!form.cedula.trim() || !form.nombre_completo.trim() || !form.cargo.trim()) {
-      setError('Cédula, nombre y cargo son obligatorios.');
+    if (!selected) {
+      setError('Selecciona un trabajador de la lista.');
       return;
     }
-    if (!form.perfil_compensacion_id) {
-      setError('Selecciona un perfil de compensación.');
+    if (assignedIds.has(selected.id)) {
+      setError('Este trabajador ya está en esta nómina.');
       return;
     }
-    if (!form.area_detalle) {
-      setError('Selecciona la asignación nómina (vertical/sector).');
-      return;
-    }
-    if (!form.salario_base || Number(form.salario_base) <= 0) {
-      setError('El sueldo base semanal es obligatorio y debe ser mayor a 0.');
+    const check = workerProfileReady(selected);
+    if (!check.ok) {
+      setError(check.message);
       return;
     }
 
     startTransition(async () => {
-      const res = await upsertPersonalV3Action({
-        id: form.id,
-        cedula: form.cedula.trim(),
-        nombre_completo: form.nombre_completo.trim(),
-        cargo: form.cargo.trim(),
-        area,
-        area_detalle: form.area_detalle,
-        perfil_compensacion_id: form.perfil_compensacion_id,
-        salario_base: Number(form.salario_base),
-        bono_transporte: Number(form.bono_transporte) || 0,
-        telefono: form.telefono.trim(),
-        notas: '',
-        fecha_ingreso: form.fecha_ingreso,
+      const res = await assignPersonalToNominaAreaAction({
+        personalId: selected.id,
+        targetArea: area,
+        areaDetalle: getAsignacionNomina(selected) || selected.area_detalle || undefined,
       });
       if (!res.ok) {
         setError(res.message);
@@ -237,11 +189,14 @@ export function PersonalQuickAssignModal({
   }
 
   const statusColors = {
-    new: 'border-amber-500/25 bg-amber-500/10 text-amber-200/90',
+    idle: 'border-zinc-700 bg-zinc-900/60 text-white/55',
+    empty: 'border-amber-500/25 bg-amber-500/10 text-amber-200/90',
     here: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200/90',
     move: 'border-cyan-500/25 bg-cyan-500/10 text-cyan-200/90',
-    base: 'border-zinc-700 bg-zinc-900/60 text-white/55',
+    ready: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200/90',
   };
+
+  const canAssign = !!selected && !assignedIds.has(selected.id) && profileCheck?.ok;
 
   return (
     <PageFormModal
@@ -255,7 +210,7 @@ export function PersonalQuickAssignModal({
             <div>
               <h3 className="text-lg font-bold text-white">Asignar trabajador</h3>
               <p className="mt-1 text-xs text-white/45">
-                Busca por nombre o cédula, revisa los datos y guárdalos en esta nómina.
+                Busca en la base maestra y vincula un trabajador existente a esta nómina.
               </p>
             </div>
             <button type="button" onClick={onClose} className="text-white/40 hover:text-white">
@@ -272,8 +227,8 @@ export function PersonalQuickAssignModal({
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setShowSuggestions(true);
-                  if (!selected) {
-                    setForm((prev) => ({ ...prev, nombre_completo: e.target.value }));
+                  if (selected && e.target.value !== selected.nombre_completo) {
+                    setSelected(null);
                   }
                 }}
                 onFocus={() => setShowSuggestions(true)}
@@ -298,7 +253,7 @@ export function PersonalQuickAssignModal({
                   }
                 }}
               />
-              {(selected || form.id) && (
+              {selected && (
                 <button
                   type="button"
                   onClick={clearSelection}
@@ -310,7 +265,7 @@ export function PersonalQuickAssignModal({
             </div>
 
             {showSuggestions && query.trim().length >= 2 && hits.length > 0 && (
-              <ul className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 max-h-44 space-y-0.5 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-1 shadow-xl">
+              <ul className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 max-h-52 space-y-0.5 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-1 shadow-xl">
                 {hits.map(({ person, reason }, index) => (
                   <li key={person.id}>
                     <button
@@ -330,7 +285,8 @@ export function PersonalQuickAssignModal({
                     >
                       <span className="text-sm font-semibold text-white">{person.nombre_completo}</span>
                       <span className="text-[11px] text-white/45">
-                        CI {person.cedula} · {getUbicacionLaboralLabel(person)}
+                        CI {person.cedula} · {getUbicacionLaboralLabel(person)} ·{' '}
+                        {areaNominaLabel(person.area)}
                         {reason === 'cedula-exact' && ' · cédula exacta'}
                       </span>
                     </button>
@@ -354,112 +310,87 @@ export function PersonalQuickAssignModal({
             {statusLabel.text}
           </p>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="input-label">Nombre completo *</label>
-              <input
-                className="input-field"
-                value={form.nombre_completo}
-                onChange={(e) => setForm((p) => ({ ...p, nombre_completo: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="input-label">Cédula *</label>
-              <input
-                className="input-field"
-                value={form.cedula}
-                onChange={(e) => setForm((p) => ({ ...p, cedula: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="input-label">Cargo *</label>
-              <input
-                className="input-field"
-                list="quick-assign-cargo-options"
-                placeholder="Capataz, Palero…"
-                value={form.cargo}
-                onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))}
-              />
-              <datalist id="quick-assign-cargo-options">
-                {cargoSuggestions.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <div className="col-span-2">
-              <label className="input-label">Asignación Nómina (Vertical/Sector) *</label>
-              <AppSelect
-                value={form.area_detalle}
-                onChange={(val) => setForm((p) => ({ ...p, area_detalle: val }))}
-                options={asignacionOptions}
-                placeholder="Seleccionar vertical/sector"
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="input-label">Perfil de Compensación *</label>
-              <AppSelect
-                value={form.perfil_compensacion_id}
-                onChange={(val) => setForm((p) => ({ ...p, perfil_compensacion_id: val }))}
-                options={perfilesCompensacion.map((p) => ({ value: p.id, label: p.nombre }))}
-                placeholder="Seleccionar perfil"
-              />
-              <p className="mt-1 text-[10px] text-white/35">
-                Define esquema de rotación y reglas de pago. No editable manualmente.
+          {statusLabel.tone === 'empty' && (
+            <Link
+              href="/admin/trabajadores"
+              className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 hover:text-amber-200"
+            >
+              Ir a Base de Trabajadores
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          )}
+
+          {selected && (
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                Datos del perfil (solo lectura)
               </p>
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div className="col-span-2">
+                  <dt className="text-[10px] text-white/40">Nombre</dt>
+                  <dd className="font-semibold text-white">{selected.nombre_completo}</dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] text-white/40">Cédula</dt>
+                  <dd className="text-white/80">{selected.cedula}</dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] text-white/40">Estado</dt>
+                  <dd className="text-white/80">{getEstadoLaboral(selected)}</dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] text-white/40">Cargo</dt>
+                  <dd className="text-white/80">{selected.cargo || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] text-white/40">Asignación</dt>
+                  <dd className="text-white/80">
+                    {getAsignacionNomina(selected) || selected.area_detalle || '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] text-white/40">Nómina actual</dt>
+                  <dd className="text-white/80">{areaNominaLabel(selected.area)}</dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] text-white/40">Sueldo base</dt>
+                  <dd className="tabular-nums text-white/80">
+                    {selected.salario_base ? fmtMoney(Number(selected.salario_base)) : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] text-white/40">Bono transporte</dt>
+                  <dd className="tabular-nums text-white/80">
+                    {fmtMoney(Number(selected.bono_transporte ?? 0))}
+                  </dd>
+                </div>
+              </dl>
+
+              {profileCheck && !profileCheck.ok && (
+                <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                  <p className="text-xs text-amber-200">{profileCheck.message}</p>
+                  <Link
+                    href="/admin/trabajadores"
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200"
+                  >
+                    Editar en Base de Trabajadores
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="input-label">Sueldo Base Semanal (USD) *</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="input-field"
-                value={form.salario_base}
-                onChange={(e) => setForm((p) => ({ ...p, salario_base: e.target.value }))}
-                placeholder="Ej: 100.00"
-              />
-            </div>
-            <div>
-              <label className="input-label">Bono Transporte (USD)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="input-field"
-                value={form.bono_transporte}
-                onChange={(e) => setForm((p) => ({ ...p, bono_transporte: e.target.value }))}
-                placeholder="Ej: 20.00"
-              />
-            </div>
-            <div>
-              <label className="input-label">Teléfono</label>
-              <input
-                className="input-field"
-                value={form.telefono}
-                onChange={(e) => setForm((p) => ({ ...p, telefono: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="input-label">Fecha ingreso</label>
-              <input
-                type="date"
-                className="input-field"
-                value={form.fecha_ingreso}
-                onChange={(e) => setForm((p) => ({ ...p, fecha_ingreso: e.target.value }))}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
         <div className="shrink-0 border-t border-zinc-800/80 p-5 pt-4">
           <button
             type="button"
-            onClick={save}
-            disabled={isPending}
+            onClick={assign}
+            disabled={isPending || !canAssign}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 py-3 text-sm font-bold text-black disabled:opacity-50"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {enEstaNomina ? 'Actualizar en esta nómina' : 'Guardar y asignar'}
+            Asignar a esta nómina
           </button>
         </div>
       </div>

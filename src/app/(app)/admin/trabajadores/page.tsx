@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase-server';
-import type { Personal } from '@/lib/types';
+import type { PerfilCompensacion, Personal } from '@/lib/types';
 import TrabajadoresRegistryClient from '@/components/nomina/TrabajadoresRegistryClient';
 
 export const metadata = {
@@ -8,10 +8,19 @@ export const metadata = {
 
 export default async function AdminTrabajadoresPage() {
   const supabase = await createServerClient();
-  const { data } = await supabase
-    .from('personal')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const [{ data: trabajadores }, { data: perfiles }] = await Promise.all([
+    supabase.from('personal').select('*').order('created_at', { ascending: false }),
+    supabase
+      .from('perfiles_compensacion')
+      .select('*')
+      .eq('activo', true)
+      .order('nombre'),
+  ]);
 
-  return <TrabajadoresRegistryClient trabajadores={(data as Personal[]) || []} />;
+  return (
+    <TrabajadoresRegistryClient
+      trabajadores={(trabajadores as Personal[]) || []}
+      perfilesCompensacion={(perfiles as PerfilCompensacion[]) || []}
+    />
+  );
 }

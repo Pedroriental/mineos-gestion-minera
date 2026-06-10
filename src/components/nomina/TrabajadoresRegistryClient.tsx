@@ -58,7 +58,10 @@ import { TrabajadoresImportAliasesPanel } from '@/components/nomina/Trabajadores
 
 type EstadoLaboral = 'ACTIVO' | 'DESPEDIDO' | 'REPOSO' | 'VACACIONES' | 'REENGANCHADO';
 
-type Props = { trabajadores: Personal[] };
+type Props = {
+  trabajadores: Personal[];
+  perfilesCompensacion: PerfilCompensacion[];
+};
 
 type FormState = {
   id?: string;
@@ -217,7 +220,10 @@ function emptyEstadoModal(): EstadoModal {
   };
 }
 
-export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
+export default function TrabajadoresRegistryClient({
+  trabajadores,
+  perfilesCompensacion,
+}: Props) {
   const router = useRouter();
   const biblioteca = useBiblioteca();
   const areaOptions = useBibliotecaOptions('areas_nomina');
@@ -239,32 +245,10 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   const [estadoMenu, setEstadoMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [isPending, startTransition] = useTransition();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [perfilesCompensacion, setPerfilesCompensacion] = useState<PerfilCompensacion[]>([]);
 
   useEffect(() => {
     setLocalTrabajadores(trabajadores);
   }, [trabajadores]);
-
-  // Cargar perfiles de compensación
-  useEffect(() => {
-    async function loadPerfiles() {
-      try {
-        const { createClient } = await import('@/lib/supabase-client');
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from('perfiles_compensacion')
-          .select('*')
-          .eq('activo', true)
-          .order('nombre');
-        if (!error && data) {
-          setPerfilesCompensacion(data);
-        }
-      } catch (err) {
-        console.error('[TrabajadoresRegistry] Error loading perfiles:', err);
-      }
-    }
-    loadPerfiles();
-  }, []);
 
   const cargoOptions = useMemo(
     () =>
@@ -1194,6 +1178,11 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
               placeholder="Seleccionar perfil"
             />
             <p className="mt-1 text-[10px] text-white/35">Define esquema de rotación y reglas de pago.</p>
+            {perfilesCompensacion.length === 0 && (
+              <p className="mt-1 text-[10px] text-amber-300/80">
+                No hay perfiles activos en la base. Ejecuta el script de seed en Supabase.
+              </p>
+            )}
           </div>
           <div>
             <label className="input-label">Sueldo Base Semanal (USD) *</label>
