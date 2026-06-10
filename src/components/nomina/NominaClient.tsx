@@ -248,7 +248,13 @@ const TITLES = {
 
 function getCargoTheme(cargo: string): { bg: string; text: string; border: string } {
   const l = cargo.toLowerCase();
-  if (l.includes('administrativo')) return { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' };
+  if (l.includes('administrativo') || l === 'administración' || l === 'administracion') {
+    return { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' };
+  }
+  if (l === 'cocina') return { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/20' };
+  if (l === 'técnicos' || l === 'tecnicos') {
+    return { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20' };
+  }
   if (l.includes('vertical 1') || l.includes('1pd')) return { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20' };
   if (l.includes('vertical 2')) return { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' };
   if (l.includes('cocinera') || l.includes('nurbelis')) return { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/20' };

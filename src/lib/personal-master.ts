@@ -7,6 +7,8 @@ export const ASIGNACION_NOMINA_OPCIONES = [
   'Vertical 2',
   'Molinos- Grupo (mixto)',
   'Administración',
+  'Cocina',
+  'Técnicos',
 ] as const;
 
 export type AsignacionNominaOpcion = (typeof ASIGNACION_NOMINA_OPCIONES)[number];
