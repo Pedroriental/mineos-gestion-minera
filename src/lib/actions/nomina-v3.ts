@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
-import { normalizeAreaDetalle, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
+import { isAsignacionNominaValid, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { AUTO_ROTACION_OBS, tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
 import {
@@ -40,14 +40,15 @@ export async function upsertPersonalV3Action(raw: {
   cargo: string;
   area: string;
   area_detalle: string;
+  perfil_compensacion_id: string;
   salario_base: number;
-  salario_libre: number;
+  salario_libre?: number;
   bono_transporte: number;
   telefono: string;
   notas: string;
   fecha_ingreso: string;
-  esquema_rotacion: string;
-  rotacion_inicio_fecha: string;
+  esquema_rotacion?: string;
+  rotacion_inicio_fecha?: string | null;
 }): Promise<ActionResult> {
   const schema = raw.id ? PersonalV3UpdateSchema : PersonalV3Schema;
   const parsed = schema.safeParse(raw);
@@ -58,7 +59,31 @@ export async function upsertPersonalV3Action(raw: {
   const data = parsed.data as typeof parsed.data & { id?: string };
   try {
     const supabase = await createServerClient();
-    const areaDetalle = normalizeAreaDetalle(data.area_detalle || '', data.area);
+
+    if (!isAsignacionNominaValid(data.area_detalle)) {
+      return { ok: false, message: 'La asignación nómina no es válida.' };
+    }
+
+    const { data: perfil, error: perfilError } = await supabase
+      .from('perfiles_compensacion')
+      .select('id, esquema_rotacion_default')
+      .eq('id', data.perfil_compensacion_id)
+      .eq('activo', true)
+      .maybeSingle();
+
+    if (perfilError || !perfil) {
+      return { ok: false, message: 'El perfil de compensación seleccionado no es válido.' };
+    }
+
+    const esquemaRotacion = perfil.esquema_rotacion_default;
+    const verticalAsignada = data.area_detalle.startsWith('Vertical') ? data.area_detalle : null;
+    const grupoTurno = data.area_detalle === 'Molinos- Grupo (mixto)' ? data.area_detalle : null;
+    const rotacionInicio =
+      tieneEsquemaConRotacion(esquemaRotacion) && data.rotacion_inicio_fecha
+        ? data.rotacion_inicio_fecha
+        : tieneEsquemaConRotacion(esquemaRotacion)
+          ? data.fecha_ingreso
+          : null;
 
     const { data: existingByCedula } = await supabase
       .from('personal')
@@ -77,15 +102,18 @@ export async function upsertPersonalV3Action(raw: {
       nombre_completo: data.nombre_completo,
       cargo: data.cargo,
       area: data.area,
-      area_detalle: areaDetalle,
+      area_detalle: data.area_detalle,
+      vertical_asignada: verticalAsignada,
+      grupo_turno: grupoTurno,
+      perfil_compensacion_id: data.perfil_compensacion_id,
       salario_base: data.salario_base,
-      salario_libre: data.salario_libre,
+      salario_libre: 0,
       bono_transporte: data.bono_transporte,
       telefono: data.telefono,
       notas: data.notas,
       fecha_ingreso: data.fecha_ingreso,
-      esquema_rotacion: data.esquema_rotacion || 'FIJO_SEMANAL',
-      rotacion_inicio_fecha: data.rotacion_inicio_fecha || null,
+      esquema_rotacion: esquemaRotacion,
+      rotacion_inicio_fecha: rotacionInicio,
     };
 
     if (estadoActual === 'DESPEDIDO') {
@@ -149,10 +177,14 @@ export async function assignPersonalToNominaAreaAction(input: {
     if (fetchError) return { ok: false, message: fetchError.message };
     if (!row) return { ok: false, message: 'Trabajador no encontrado en la base.' };
 
-    const areaDetalle = normalizeAreaDetalle(
-      data.areaDetalle || String(row.area_detalle || ''),
-      data.targetArea,
-    );
+    const rawDetalle = (data.areaDetalle || String(row.area_detalle || '')).trim();
+    if (!isAsignacionNominaValid(rawDetalle)) {
+      return {
+        ok: false,
+        message: 'El trabajador debe tener una asignación nómina válida antes de asignarse al área.',
+      };
+    }
+    const areaDetalle = rawDetalle;
     const estadoActual = String(row.estado_laboral || 'ACTIVO');
 
     const payload: Record<string, unknown> = {

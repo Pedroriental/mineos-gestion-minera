@@ -16,7 +16,11 @@ import { toast } from 'sonner';
 import { toastError } from '@/lib/app-toast';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
-import { getGrupoNominaKey } from '@/lib/personal-master';
+import {
+  ASIGNACION_NOMINA_OPCIONES,
+  getGrupoNominaKey,
+  isAsignacionNominaValid,
+} from '@/lib/personal-master';
 import { PersonalQuickAssignModal } from '@/components/nomina/PersonalQuickAssignModal';
 import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
 import NominaTrabajadorModal from '@/components/nomina/NominaTrabajadorModal';
@@ -655,9 +659,11 @@ export default function NominaClient({
   // ── Actions ────────────────────────────────────────────────────────────
   function openEdit(item: Personal) {
     setEditItem(item);
+    const asignacion = item.area_detalle || '';
     setForm({
       cedula: item.cedula, nombre_completo: item.nombre_completo, cargo: item.cargo,
-      area: item.area as typeof area, area_detalle: item.area_detalle || '',
+      area: item.area as typeof area,
+      area_detalle: isAsignacionNominaValid(asignacion) ? asignacion : '',
       salario_base: String(item.salario_base), salario_libre: String(item.salario_libre || ''),
       bono_transporte: String(item.bono_transporte || ''), telefono: item.telefono || '',
       notas: item.notas || '', fecha_ingreso: item.fecha_ingreso || new Date().toISOString().split('T')[0],
@@ -679,10 +685,11 @@ export default function NominaClient({
       const res = await upsertPersonalV3Action({
         id: editItem?.id, cedula: form.cedula, nombre_completo: form.nombre_completo,
         cargo: form.cargo, area, area_detalle: form.area_detalle,
-        salario_base: Number(form.salario_base) || 0, salario_libre: Number(form.salario_libre) || 0,
+        perfil_compensacion_id: editItem?.perfil_compensacion_id || '',
+        salario_base: Number(form.salario_base) || 0,
         bono_transporte: Number(form.bono_transporte) || 0, telefono: form.telefono, notas: form.notas,
-        fecha_ingreso: form.fecha_ingreso, esquema_rotacion: form.esquema_rotacion,
-        rotacion_inicio_fecha: form.rotacion_inicio_fecha,
+        fecha_ingreso: form.fecha_ingreso,
+        rotacion_inicio_fecha: form.rotacion_inicio_fecha || null,
       });
       if (res.ok) {
         await registrarAuditAction(editItem ? 'EDITAR_PERSONAL' : 'CREAR_PERSONAL', 'personal', editItem?.id || form.cedula, `${form.nombre_completo} - ${form.cargo}`, user?.id, user?.email);
@@ -1609,12 +1616,11 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                   </div>
                   <div className="space-y-1">
                     <label className="input-label">Asignación (Vertical / Sector)</label>
-                    <input
-                      type="text"
-                      placeholder="Ej: Vertical 2"
+                    <AppSelect
                       value={form.area_detalle}
-                      onChange={e => setForm({ ...form, area_detalle: e.target.value })}
-                      className="input-field"
+                      onChange={(val) => setForm({ ...form, area_detalle: val })}
+                      options={ASIGNACION_NOMINA_OPCIONES.map((value) => ({ value, label: value }))}
+                      placeholder="Seleccionar vertical/sector"
                     />
                   </div>
                   <div className="space-y-1"><label className="input-label">Salario Labor Semanal ($)</label><input type="number" placeholder="150.00" value={form.salario_base} onChange={e => setForm({...form, salario_base: e.target.value})} className="input-field" /></div>

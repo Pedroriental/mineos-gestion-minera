@@ -6,15 +6,16 @@ import { PageFormModal } from '@/components/ui/PageFormModal';
 import { AppSelect } from '@/components/ui/AppSelect';
 import {
   areaNominaLabel,
+  ASIGNACION_NOMINA_OPCIONES,
   getAsignacionNomina,
   getUbicacionLaboralLabel,
+  isAsignacionNominaValid,
   normalizeCedula,
   searchPersonalMaster,
 } from '@/lib/personal-master';
 import { upsertPersonalV3Action } from '@/lib/actions/nomina-v3';
 import { useBiblioteca } from '@/contexts/biblioteca-context';
-import { tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
-import type { Personal } from '@/lib/types';
+import type { PerfilCompensacion, Personal } from '@/lib/types';
 
 type Props = {
   open: boolean;
@@ -31,51 +32,48 @@ type FormState = {
   nombre_completo: string;
   cargo: string;
   area_detalle: string;
+  perfil_compensacion_id: string;
   salario_base: string;
-  salario_libre: string;
   bono_transporte: string;
   telefono: string;
   fecha_ingreso: string;
-  esquema_rotacion: Personal['esquema_rotacion'];
-  rotacion_inicio_fecha: string;
 };
 
-function emptyForm(area: Props['area'], esquemaDefault: string): FormState {
-  const esquema = (esquemaDefault || 'FIJO_SEMANAL') as Personal['esquema_rotacion'];
+function emptyForm(): FormState {
   return {
     cedula: '',
     nombre_completo: '',
     cargo: '',
     area_detalle: '',
+    perfil_compensacion_id: '',
     salario_base: '',
-    salario_libre: '',
     bono_transporte: '',
     telefono: '',
     fecha_ingreso: new Date().toISOString().split('T')[0],
-    esquema_rotacion: esquema,
-    rotacion_inicio_fecha: tieneEsquemaConRotacion(esquema)
-      ? new Date().toISOString().split('T')[0]
-      : '',
   };
 }
 
-function personToForm(p: Personal, area: Props['area'], esquemaDefault: string): FormState {
-  const esquema = (p.esquema_rotacion || esquemaDefault || 'FIJO_SEMANAL') as Personal['esquema_rotacion'];
+function resolveAsignacion(person: Personal): string {
+  const candidate = getAsignacionNomina(person) || person.area_detalle || '';
+  return isAsignacionNominaValid(candidate) ? candidate : '';
+}
+
+function personToForm(p: Personal): FormState {
   return {
     id: p.id,
     cedula: p.cedula || '',
     nombre_completo: p.nombre_completo || '',
     cargo: p.cargo || '',
-    area_detalle: getAsignacionNomina(p) || p.area_detalle || '',
+    area_detalle: resolveAsignacion(p),
+    perfil_compensacion_id: p.perfil_compensacion_id || '',
     salario_base: String(p.salario_base ?? ''),
-    salario_libre: String(p.salario_libre ?? ''),
     bono_transporte: String(p.bono_transporte ?? ''),
     telefono: p.telefono || '',
     fecha_ingreso: p.fecha_ingreso || new Date().toISOString().split('T')[0],
-    esquema_rotacion: esquema,
-    rotacion_inicio_fecha: p.rotacion_inicio_fecha || '',
   };
 }
+
+const asignacionOptions = ASIGNACION_NOMINA_OPCIONES.map((value) => ({ value, label: value }));
 
 export function PersonalQuickAssignModal({
   open,
@@ -86,19 +84,37 @@ export function PersonalQuickAssignModal({
   onAssigned,
 }: Props) {
   const biblioteca = useBiblioteca();
-  const esquemaDefault = biblioteca.esquemaDefaultPorArea[area] || 'FIJO_SEMANAL';
-  const esquemaOpciones = biblioteca.esquemasPorArea[area] || ['FIJO_SEMANAL'];
   const cargoSuggestions = biblioteca.cargoSuggestions;
-  const asignacionSuggestions = biblioteca.asignacionSuggestions;
 
   const [query, setQuery] = useState('');
-  const [form, setForm] = useState(() => emptyForm(area, esquemaDefault));
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [selected, setSelected] = useState<Personal | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const [perfilesCompensacion, setPerfilesCompensacion] = useState<PerfilCompensacion[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    async function loadPerfiles() {
+      try {
+        const { createClient } = await import('@/lib/supabase-client');
+        const supabase = createClient();
+        const { data, error: loadError } = await supabase
+          .from('perfiles_compensacion')
+          .select('*')
+          .eq('activo', true)
+          .order('nombre');
+        if (!loadError && data) {
+          setPerfilesCompensacion(data);
+        }
+      } catch (err) {
+        console.error('[PersonalQuickAssign] Error loading perfiles:', err);
+      }
+    }
+    if (open) loadPerfiles();
+  }, [open]);
 
   const hits = useMemo(
     () => searchPersonalMaster(query, masterCatalog, 8),
@@ -136,7 +152,7 @@ export function PersonalQuickAssignModal({
   useEffect(() => {
     if (!open) return;
     setQuery('');
-    setForm(emptyForm(area, esquemaDefault));
+    setForm(emptyForm());
     setSelected(null);
     setShowSuggestions(false);
     setError(null);
@@ -151,7 +167,7 @@ export function PersonalQuickAssignModal({
 
   function pickPerson(person: Personal) {
     setSelected(person);
-    setForm(personToForm(person, area, esquemaDefault));
+    setForm(personToForm(person));
     setQuery(person.nombre_completo);
     setShowSuggestions(false);
     setError(null);
@@ -159,7 +175,7 @@ export function PersonalQuickAssignModal({
 
   function clearSelection() {
     setSelected(null);
-    setForm(emptyForm(area, esquemaDefault));
+    setForm(emptyForm());
     setQuery('');
     setShowSuggestions(false);
     searchRef.current?.focus();
@@ -183,6 +199,19 @@ export function PersonalQuickAssignModal({
       setError('Cédula, nombre y cargo son obligatorios.');
       return;
     }
+    if (!form.perfil_compensacion_id) {
+      setError('Selecciona un perfil de compensación.');
+      return;
+    }
+    if (!form.area_detalle) {
+      setError('Selecciona la asignación nómina (vertical/sector).');
+      return;
+    }
+    if (!form.salario_base || Number(form.salario_base) <= 0) {
+      setError('El sueldo base semanal es obligatorio y debe ser mayor a 0.');
+      return;
+    }
+
     startTransition(async () => {
       const res = await upsertPersonalV3Action({
         id: form.id,
@@ -190,15 +219,13 @@ export function PersonalQuickAssignModal({
         nombre_completo: form.nombre_completo.trim(),
         cargo: form.cargo.trim(),
         area,
-        area_detalle: form.area_detalle.trim(),
-        salario_base: Number(form.salario_base) || 0,
-        salario_libre: Number(form.salario_libre) || 0,
+        area_detalle: form.area_detalle,
+        perfil_compensacion_id: form.perfil_compensacion_id,
+        salario_base: Number(form.salario_base),
         bono_transporte: Number(form.bono_transporte) || 0,
         telefono: form.telefono.trim(),
         notas: '',
         fecha_ingreso: form.fecha_ingreso,
-        esquema_rotacion: form.esquema_rotacion,
-        rotacion_inicio_fecha: form.rotacion_inicio_fecha,
       });
       if (!res.ok) {
         setError(res.message);
@@ -348,57 +375,60 @@ export function PersonalQuickAssignModal({
               <label className="input-label">Cargo *</label>
               <input
                 className="input-field"
+                list="quick-assign-cargo-options"
                 placeholder="Capataz, Palero…"
                 value={form.cargo}
                 onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))}
               />
+              <datalist id="quick-assign-cargo-options">
+                {cargoSuggestions.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </div>
             <div className="col-span-2">
-              <label className="input-label">Vertical / sector (asignación nómina)</label>
-              <input
-                className="input-field"
-                placeholder="Ej: Vertical 2"
+              <label className="input-label">Asignación Nómina (Vertical/Sector) *</label>
+              <AppSelect
                 value={form.area_detalle}
-                onChange={(e) => setForm((p) => ({ ...p, area_detalle: e.target.value }))}
+                onChange={(val) => setForm((p) => ({ ...p, area_detalle: val }))}
+                options={asignacionOptions}
+                placeholder="Seleccionar vertical/sector"
               />
             </div>
+            <div className="col-span-2">
+              <label className="input-label">Perfil de Compensación *</label>
+              <AppSelect
+                value={form.perfil_compensacion_id}
+                onChange={(val) => setForm((p) => ({ ...p, perfil_compensacion_id: val }))}
+                options={perfilesCompensacion.map((p) => ({ value: p.id, label: p.nombre }))}
+                placeholder="Seleccionar perfil"
+              />
+              <p className="mt-1 text-[10px] text-white/35">
+                Define esquema de rotación y reglas de pago. No editable manualmente.
+              </p>
+            </div>
             <div>
-              <label className="input-label flex items-center gap-1.5">
-                Salario labor ($)
-                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500/70">Perfil</span>
-              </label>
+              <label className="input-label">Sueldo Base Semanal (USD) *</label>
               <input
                 type="number"
-                className="input-field bg-zinc-900/50 cursor-not-allowed"
+                step="0.01"
+                min="0"
+                className="input-field"
                 value={form.salario_base}
-                readOnly
-                title="Heredado del perfil de compensación asignado al trabajador"
+                onChange={(e) => setForm((p) => ({ ...p, salario_base: e.target.value }))}
+                placeholder="Ej: 100.00"
               />
             </div>
             <div>
-              <label className="input-label flex items-center gap-1.5">
-                Sueldo libre ($)
-                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500/70">Perfil</span>
-              </label>
+              <label className="input-label">Bono Transporte (USD)</label>
               <input
                 type="number"
-                className="input-field bg-zinc-900/50 cursor-not-allowed"
-                value={form.salario_libre}
-                readOnly
-                title="Heredado del perfil de compensación asignado al trabajador"
-              />
-            </div>
-            <div>
-              <label className="input-label flex items-center gap-1.5">
-                Bono transporte ($)
-                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500/70">Perfil</span>
-              </label>
-              <input
-                type="number"
-                className="input-field bg-zinc-900/50 cursor-not-allowed"
+                step="0.01"
+                min="0"
+                className="input-field"
                 value={form.bono_transporte}
-                readOnly
-                title="Heredado del perfil de compensación asignado al trabajador"
+                onChange={(e) => setForm((p) => ({ ...p, bono_transporte: e.target.value }))}
+                placeholder="Ej: 20.00"
               />
             </div>
             <div>
@@ -418,39 +448,6 @@ export function PersonalQuickAssignModal({
                 onChange={(e) => setForm((p) => ({ ...p, fecha_ingreso: e.target.value }))}
               />
             </div>
-            <div className="col-span-2">
-              <label className="input-label">Esquema de rotación</label>
-              <AppSelect
-                value={form.esquema_rotacion}
-                onChange={(val) => {
-                  const esquema = val as Personal['esquema_rotacion'];
-                  setForm((p) => ({
-                    ...p,
-                    esquema_rotacion: esquema,
-                    rotacion_inicio_fecha: tieneEsquemaConRotacion(esquema)
-                      ? p.rotacion_inicio_fecha || new Date().toISOString().split('T')[0]
-                      : '',
-                  }));
-                }}
-                options={esquemaOpciones.map((e) => ({
-                  value: e,
-                  label: biblioteca.esquemaLabels[e] || e,
-                }))}
-              />
-            </div>
-            {tieneEsquemaConRotacion(form.esquema_rotacion) && (
-              <div className="col-span-2">
-                <label className="input-label">Inicio de ciclo</label>
-                <input
-                  type="date"
-                  className="input-field"
-                  value={form.rotacion_inicio_fecha}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, rotacion_inicio_fecha: e.target.value }))
-                  }
-                />
-              </div>
-            )}
           </div>
         </div>
 
