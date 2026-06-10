@@ -472,8 +472,8 @@ export default function TrabajadoresRegistryClient({
   }
 
   function submitForm() {
-    if (!form.nombre_completo.trim() || !form.cedula.trim() || !form.cargo.trim()) {
-      toastError('Nombre, cédula y cargo son obligatorios.');
+    if (!form.nombre_completo.trim() || !form.cedula.trim()) {
+      toastError('Nombre y cédula son obligatorios.');
       return;
     }
 
@@ -1152,7 +1152,7 @@ export default function TrabajadoresRegistryClient({
             <input className="input-field" type="number" value={form.ajuste_antiguedad_dias} onChange={(e) => setForm((p) => ({ ...p, ajuste_antiguedad_dias: e.target.value }))} />
           </div>
           <div>
-            <label className="input-label">Cargo *</label>
+            <label className="input-label">Cargo</label>
             <input list="cargo-options" className="input-field" value={form.cargo} onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))} placeholder="Ej: Capataz, Palero, Cocinero" />
             <datalist id="cargo-options">
               {cargoOptions.map((c) => (

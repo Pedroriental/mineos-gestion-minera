@@ -86,8 +86,8 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     const salarioBaseRaw = String(formData.get('salario_base') ?? '').trim();
     const bonoTransporteRaw = String(formData.get('bono_transporte') ?? '').trim();
 
-    if (!nombre || !cedula || !cargo) {
-      return { ok: false, message: 'Nombre, cédula y cargo son obligatorios.' };
+    if (!nombre || !cedula) {
+      return { ok: false, message: 'Nombre y cédula son obligatorios.' };
     }
 
     if (!areaDetalle || !isAsignacionNominaValid(areaDetalle)) {
@@ -197,7 +197,7 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     const payloadBase = {
       cedula,
       nombre_completo: nombre,
-      cargo,
+      cargo: cargo || '',
       fecha_nacimiento: fechaNacimiento || null,
       area,
       area_detalle: areaDetalle,
