@@ -2,6 +2,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import type { ReporteExtraccion } from '@/lib/types';
 import { Edit2, Trash2 } from 'lucide-react';
 import { formatTime12h } from '@/lib/format-time';
+import { MINEOS_TABLE_ACTION_DELETE, MINEOS_TABLE_ACTION_EDIT } from '@/lib/mineos-visual';
 
 export type BitacoraEntry = {
   id: string;
@@ -154,14 +155,14 @@ export const columns = (
           <button
             type="button"
             onClick={() => onEdit(row.original)}
-            className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors"
+            className={MINEOS_TABLE_ACTION_EDIT}
             title="Editar Registro"
           >
             <Edit2 className="w-4 h-4" />
           </button>
           <button
             onClick={() => onDelete(row.original.id)}
-            className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"
+            className={MINEOS_TABLE_ACTION_DELETE}
             title="Eliminar Registro"
           >
             <Trash2 className="w-4 h-4" />

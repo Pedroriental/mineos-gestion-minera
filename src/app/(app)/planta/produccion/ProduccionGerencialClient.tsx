@@ -37,6 +37,7 @@ import {
 import { columns } from './columns';
 import { FadeIn } from '@/components/ui/motion';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import { MINEOS_BTN_GERENCIAL_BALANCE, MINEOS_BTN_GERENCIAL_NEW } from '@/lib/mineos-visual';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
@@ -550,7 +551,7 @@ export default function ProduccionGerencialClient({
               onClick={handleExportBalance}
               disabled={initialData.length === 0 || isExportingBalance}
               title="Balance de recuperación por origen: Vertical 1/2/3, Mantenimiento, Repaso, Molino Continuo"
-              className="produccion-page__toolbar-btn produccion-page__balance-btn flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-40 lg:h-9 lg:flex-initial"
+              className={`${MINEOS_BTN_GERENCIAL_BALANCE} flex h-8 min-w-0 flex-1 lg:h-9 lg:flex-initial`}
             >
               {isExportingBalance ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Calculator className="h-3.5 w-3.5 shrink-0" />}
               <span className="hidden truncate lg:inline">{isExportingBalance ? 'Calculando...' : 'Balance de recuperación'}</span>
@@ -564,7 +565,7 @@ export default function ProduccionGerencialClient({
                   setFormError(null);
                   setShowModal(true);
                 }}
-                className="gerencial-page__new-btn produccion-page__toolbar-btn flex h-8 min-w-0 flex-[1.15] items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 text-xs font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500 lg:h-9 lg:w-auto lg:flex-initial"
+                className={`${MINEOS_BTN_GERENCIAL_NEW} flex h-8 min-w-0 flex-[1.15] lg:h-9 lg:w-auto lg:flex-initial`}
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span className="truncate">Nuevo Registro</span>
@@ -691,7 +692,7 @@ export default function ProduccionGerencialClient({
                    type="button"
                    onClick={() => setSelectedDate('todos')}
                    className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${
-                     selectedDate === 'todos' ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''
+                     selectedDate === 'todos' ? 'produccion-day-pill--active' : ''
                    }`}
                  >
                    <span>Todos los días</span>
@@ -712,7 +713,7 @@ export default function ProduccionGerencialClient({
                    <button 
                      key={dia.fecha} 
                      onClick={() => setSelectedDate(dia.fecha)}
-                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
+                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active' : ''}`}
                    >
                      <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
                      <span className={`produccion-day-pill__badge px-1.5 py-0.5 rounded-full text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>{dRegs}</span>

@@ -5,6 +5,7 @@ import {
   type BibliotecaVariableMetadata,
 } from '@/lib/biblioteca-metadata';
 import type { BibliotecaCategorySchema } from '@/lib/biblioteca-schemas';
+import { AppSelect } from '@/components/ui/AppSelect';
 
 type FieldProps = {
   label: string;
@@ -63,16 +64,16 @@ export function BibliotecaVariableFormFields({
       return (
         <>
           <Field label="Nivel jerárquico" className="sm:col-span-2">
-            <select
-              className="input-field w-full"
+            <AppSelect
               value={metadata.nivel_jerarquico || 'operativo'}
-              onChange={(e) => onMetadataChange({ nivel_jerarquico: e.target.value })}
-            >
-              <option value="operativo">Operativo (palero, ayudante…)</option>
-              <option value="supervision">Supervisión (capataz)</option>
-              <option value="jefatura">Jefatura</option>
-              <option value="administrativo">Administrativo</option>
-            </select>
+              onChange={(v) => onMetadataChange({ nivel_jerarquico: v })}
+              options={[
+                { value: 'operativo', label: 'Operativo (palero, ayudante…)' },
+                { value: 'supervision', label: 'Supervisión (capataz)' },
+                { value: 'jefatura', label: 'Jefatura' },
+                { value: 'administrativo', label: 'Administrativo' },
+              ]}
+            />
           </Field>
           <Field label="Sueldo base semanal ref. ($)">
             <input
@@ -131,16 +132,16 @@ export function BibliotecaVariableFormFields({
       return (
         <>
           <Field label="Tipo de insumo" className="sm:col-span-2">
-            <select
-              className="input-field w-full"
+            <AppSelect
               value={metadata.tipo_insumo || 'accesorio'}
-              onChange={(e) => onMetadataChange({ tipo_insumo: e.target.value })}
-            >
-              <option value="detonante">Detonante (fósforos, espaguetis…)</option>
-              <option value="carga">Carga / explosivo principal</option>
-              <option value="accesorio">Accesorio</option>
-              <option value="reforzante">Reforzante (arroz, vitamina E…)</option>
-            </select>
+              onChange={(v) => onMetadataChange({ tipo_insumo: v })}
+              options={[
+                { value: 'detonante', label: 'Detonante (fósforos, espaguetis…)' },
+                { value: 'carga', label: 'Carga / explosivo principal' },
+                { value: 'accesorio', label: 'Accesorio' },
+                { value: 'reforzante', label: 'Reforzante (arroz, vitamina E…)' },
+              ]}
+            />
           </Field>
           <Field
             label="Campo en reporte de voladura"
@@ -221,18 +222,17 @@ export function BibliotecaVariableFormFields({
               ))}
             </div>
             <Field label="Área por defecto" className="mt-3">
-              <select
-                className="input-field w-full"
+              <AppSelect
                 value={metadata.default_for_area || ''}
-                onChange={(e) => onMetadataChange({ default_for_area: e.target.value || undefined })}
-              >
-                <option value="">— Ninguna —</option>
-                {(metadata.areas?.length ? metadata.areas : [...BIBLIOTECA_AREA_KEYS]).map((a) => (
-                  <option key={a} value={a}>
-                    {AREA_LABELS[a] || a}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => onMetadataChange({ default_for_area: v || undefined })}
+                options={[
+                  { value: '', label: '— Ninguna —' },
+                  ...(metadata.areas?.length ? metadata.areas : [...BIBLIOTECA_AREA_KEYS]).map((a) => ({
+                    value: a,
+                    label: AREA_LABELS[a] || a,
+                  })),
+                ]}
+              />
             </Field>
           </div>
         </>
@@ -260,18 +260,17 @@ export function BibliotecaVariableFormFields({
             ))}
           </div>
           <Field label="Área por defecto" className="mt-3">
-            <select
-              className="input-field w-full"
+            <AppSelect
               value={metadata.default_for_area || ''}
-              onChange={(e) => onMetadataChange({ default_for_area: e.target.value || undefined })}
-            >
-              <option value="">— Ninguna —</option>
-              {(metadata.areas?.length ? metadata.areas : [...BIBLIOTECA_AREA_KEYS]).map((a) => (
-                <option key={a} value={a}>
-                  {AREA_LABELS[a] || a}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => onMetadataChange({ default_for_area: v || undefined })}
+              options={[
+                { value: '', label: '— Ninguna —' },
+                ...(metadata.areas?.length ? metadata.areas : [...BIBLIOTECA_AREA_KEYS]).map((a) => ({
+                  value: a,
+                  label: AREA_LABELS[a] || a,
+                })),
+              ]}
+            />
           </Field>
         </div>
       );
@@ -308,16 +307,16 @@ export function BibliotecaVariableFormFields({
     case 'priority_level':
       return (
         <Field label="Severidad" className="sm:col-span-2">
-          <select
-            className="input-field w-full"
+          <AppSelect
             value={metadata.severidad || 'media'}
-            onChange={(e) => onMetadataChange({ severidad: e.target.value })}
-          >
-            <option value="baja">Baja</option>
-            <option value="media">Media</option>
-            <option value="alta">Alta</option>
-            <option value="critica">Crítica</option>
-          </select>
+            onChange={(v) => onMetadataChange({ severidad: v })}
+            options={[
+              { value: 'baja', label: 'Baja' },
+              { value: 'media', label: 'Media' },
+              { value: 'alta', label: 'Alta' },
+              { value: 'critica', label: 'Crítica' },
+            ]}
+          />
         </Field>
       );
 

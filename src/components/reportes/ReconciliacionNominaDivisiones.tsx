@@ -10,12 +10,10 @@ import {
   sumNominaDivisionesPct,
   type NominaDivisionParam,
 } from '@/lib/reconciliation/nomina-divisiones';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
 import { cn } from '@/lib/utils';
 
 const MAX_PARTES = 8;
-
-const inputClass =
-  'w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2 py-1 text-sm text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15';
 
 export function ReconciliacionNominaDivisiones({
   divisiones,
@@ -121,7 +119,7 @@ export function ReconciliacionNominaDivisiones({
                 value={d.nombre}
                 onChange={(e) => updateNombre(d.id, e.target.value)}
                 placeholder={`Parte ${i + 1}`}
-                className={cn(inputClass, 'font-medium')}
+                className={cn(ui.input, 'font-medium')}
                 aria-label={`Nombre parte ${i + 1}`}
               />
               <label className="flex items-center gap-1">
@@ -134,7 +132,7 @@ export function ReconciliacionNominaDivisiones({
                   onChange={(e) =>
                     onChange(applyNominaDivisionPorcentaje(divisiones, d.id, Number(e.target.value)))
                   }
-                  className={cn(inputClass, 'text-right tabular-nums')}
+                  className={cn(ui.input, 'text-right tabular-nums')}
                 />
                 <span className="text-[10px] text-zinc-500 shrink-0">%</span>
               </label>

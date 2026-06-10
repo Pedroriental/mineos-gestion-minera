@@ -83,3 +83,26 @@ export function mineosCell(tone: MineosTone): string {
 /** Botón primario (toolbar) — oro */
 export const MINEOS_BTN_PRIMARY =
   'rounded-lg bg-[var(--mineos-general)] px-4 font-bold text-black shadow-lg shadow-black/20 transition-colors hover:bg-[var(--mineos-general-bright)]';
+
+/** Toolbar gerencial — “Nuevo registro” (estilos en globals.css) */
+export const MINEOS_BTN_GERENCIAL_NEW = 'gerencial-page__new-btn produccion-page__toolbar-btn';
+
+/** Toolbar nómina — acción primaria oro (misma base que gerencial) */
+export const MINEOS_BTN_NOMINA_PRIMARY = 'gerencial-page__new-btn nomina-page__toolbar-btn';
+
+/** Toolbar voladuras — “Nuevo reporte” */
+export const MINEOS_BTN_VOLADURAS_NEW =
+  'voladuras-page__new-btn voladuras-page__toolbar-btn produccion-page__toolbar-btn';
+
+/** Toolbar gerencial — acción secundaria oro (balance, export…) */
+export const MINEOS_BTN_GERENCIAL_BALANCE = 'gerencial-page__balance-btn produccion-page__toolbar-btn';
+
+/** Píldora de día en vistas gerenciales */
+export const MINEOS_DAY_PILL =
+  'produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs';
+
+export const MINEOS_DAY_PILL_ACTIVE = 'produccion-day-pill--active';
+
+/** Acciones icono en tablas */
+export const MINEOS_TABLE_ACTION_EDIT = 'mineos-table-action mineos-table-action--edit';
+export const MINEOS_TABLE_ACTION_DELETE = 'mineos-table-action mineos-table-action--danger';

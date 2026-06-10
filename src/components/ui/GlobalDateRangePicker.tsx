@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useCloseOnRouteChange } from '@/hooks/useCloseOnRouteChange';
 import { MobileActionSheet } from '@/components/mobile/MobileActionSheet';
 import { SheetIconBadge } from '@/components/mobile/SheetIconBadge';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 type GlobalDateRangePickerProps = {
   variant?: 'default' | 'mobile';
@@ -40,21 +41,11 @@ function DateRangeFields({
     <div className="global-date-panel__fields space-y-3">
       <div>
         <label className="input-label">Desde</label>
-        <input
-          type="date"
-          value={dateRange.from}
-          onChange={(e) => setDateRange((prev) => ({ ...prev, from: e.target.value }))}
-          className="input-field"
-        />
+        <AppDatePicker value={dateRange.from} onChange={(v) => setDateRange((prev) => ({ ...prev, from: v }))} />
       </div>
       <div>
         <label className="input-label">Hasta</label>
-        <input
-          type="date"
-          value={dateRange.to}
-          onChange={(e) => setDateRange((prev) => ({ ...prev, to: e.target.value }))}
-          className="input-field"
-        />
+        <AppDatePicker value={dateRange.to} onChange={(v) => setDateRange((prev) => ({ ...prev, to: v }))} />
       </div>
     </div>
   );

@@ -47,6 +47,7 @@ import {
   mineosModalDivider,
   mineosModalHeading,
   mineosPanel,
+  MINEOS_BTN_GERENCIAL_NEW,
 } from '@/lib/mineos-visual';
 
 const ACARREO_PAGE_MAX = 12;
@@ -348,7 +349,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
           </div>
           <div className="produccion-page__toolbar-actions flex min-w-0 lg:col-span-7 lg:justify-end">
             {canEdit && (
-              <button type="button" onClick={openCreate} className="produccion-page__toolbar-btn btn-primary w-full lg:w-auto">
+              <button type="button" onClick={openCreate} className={`${MINEOS_BTN_GERENCIAL_NEW} w-full lg:w-auto`}>
                 <Plus className="mr-2 h-4 w-4" /> Nuevo informe de acarreo
               </button>
             )}
@@ -363,7 +364,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
               type="button"
               onClick={() => setSelectedDate('todos')}
               className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${
-                selectedDate === 'todos' ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''
+                selectedDate === 'todos' ? 'produccion-day-pill--active' : ''
               }`}
             >
               <span>Todos los días</span>
@@ -381,7 +382,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
                 type="button"
                 onClick={() => setSelectedDate(dia.fecha)}
                 className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${
-                  isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''
+                  isSelected ? 'produccion-day-pill--active' : ''
                 }`}
               >
                 <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>

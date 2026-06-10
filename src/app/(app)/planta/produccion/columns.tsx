@@ -3,6 +3,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import type { ReporteProduccion } from '@/lib/types';
 import { Edit2, Trash2 } from 'lucide-react';
+import { MINEOS_TABLE_ACTION_DELETE, MINEOS_TABLE_ACTION_EDIT } from '@/lib/mineos-visual';
 
 const PESO_SACO_KG = 50;
 
@@ -136,10 +137,10 @@ export const columns = (
     header: 'Acciones',
     cell: ({ row }) => (
       <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-        <button type="button" onClick={() => openEdit(row.original)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-amber-400 transition-colors">
+        <button type="button" onClick={() => openEdit(row.original)} className={MINEOS_TABLE_ACTION_EDIT}>
           <Edit2 className="w-4 h-4" />
         </button>
-        <button type="button" onClick={() => handleDelete(row.original.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors">
+        <button type="button" onClick={() => handleDelete(row.original.id)} className={MINEOS_TABLE_ACTION_DELETE}>
           <Trash2 className="w-4 h-4" />
         </button>
       </div>

@@ -30,6 +30,8 @@ import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaCo
 import type { NominaImportResult } from '@/components/nomina/NominaImportWizard';
 import { NominaArchivoModal } from '@/components/nomina/NominaArchivoModal';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import { MINEOS_BTN_NOMINA_PRIMARY } from '@/lib/mineos-visual';
 import {
   hasNovedadTurno,
   nominaNovedadDraftKey,
@@ -867,15 +869,15 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
   const toolbarActions = (
     <>
       {!semanaActualProcesada ? (
-        <button onClick={() => setShowProcesarModal(true)} disabled={!canEdit || preNominaRows.length === 0} title="Cerrar y Distribuir" className="nomina-page__toolbar-btn bg-amber-600 hover:bg-amber-500 text-black font-bold h-9 px-3 rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-40 text-xs">
+        <button onClick={() => setShowProcesarModal(true)} disabled={!canEdit || preNominaRows.length === 0} title="Cerrar y Distribuir" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 text-xs`}>
           <Wallet className="w-3.5 h-3.5 shrink-0" /> Cerrar
         </button>
       ) : (
-        <button onClick={() => semanaActual && handleRevertirSemana(semanaActual)} disabled={!canEdit || isPending} title="Revertir cierre" className="nomina-page__toolbar-btn h-9 px-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40">
+        <button onClick={() => semanaActual && handleRevertirSemana(semanaActual)} disabled={!canEdit || isPending} title="Revertir cierre" className="nomina-page__toolbar-btn btn-danger h-9 text-xs disabled:opacity-40">
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
         </button>
       )}
-      <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className="nomina-page__toolbar-btn bg-amber-600 hover:bg-amber-500 text-black font-bold h-9 px-3 rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-40 text-xs">
+      <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 text-xs`}>
         <Plus className="w-3.5 h-3.5 shrink-0" /> Trabajador
       </button>
       <button onClick={() => setShowImport(true)} disabled={!canEdit} title="Importar planilla o roster (detecta histórico / semana actual)" className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5 border border-emerald-500/25 text-emerald-200/90 hover:bg-emerald-500/10">
@@ -1182,7 +1184,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                   <button
                     type="button"
                     onClick={() => setShowAssignModal(true)}
-                    className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-black"
+                    className={`${MINEOS_BTN_NOMINA_PRIMARY} mt-4 px-4 py-2 text-xs`}
                   >
                     <Plus className="h-3.5 w-3.5" /> Asignar desde la base
                   </button>
@@ -1680,7 +1682,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1"><label className="input-label">Teléfono</label><input type="text" placeholder="0414-1234567" value={form.telefono} onChange={e => setForm({...form, telefono: e.target.value})} className="input-field" /></div>
-                    <div className="space-y-1"><label className="input-label">Fecha Ingreso</label><input type="date" value={form.fecha_ingreso} onChange={e => setForm({...form, fecha_ingreso: e.target.value})} className="input-field" /></div>
+                    <div className="space-y-1"><label className="input-label">Fecha Ingreso</label><AppDatePicker value={form.fecha_ingreso} onChange={(v) => setForm({ ...form, fecha_ingreso: v })} /></div>
                   </div>
                   <div className="pt-3 border-t border-zinc-800 space-y-3">
                     <div className="flex items-center gap-2"><RotateCcw className="w-3.5 h-3.5 text-cyan-400" /><label className="input-label !mb-0">Esquema de Rotación</label></div>
@@ -1693,7 +1695,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                       }))}
                     />
                     {(form.esquema_rotacion === 'MINA_2X1' || form.esquema_rotacion === 'MOLINO_ROTATIVO' || form.esquema_rotacion === 'MINA_ROTATIVA_3G' || form.esquema_rotacion === 'MOLINO_15X15') && (
-                      <div className="space-y-1"><label className="input-label">Fecha Inicio Ciclo</label><input type="date" value={form.rotacion_inicio_fecha} onChange={e => setForm({...form, rotacion_inicio_fecha: e.target.value})} className="input-field" /><p className="text-[10px] text-white/30">Primera semana laboral del trabajador.</p></div>
+                      <div className="space-y-1"><label className="input-label">Fecha Inicio Ciclo</label><AppDatePicker value={form.rotacion_inicio_fecha} onChange={(v) => setForm({ ...form, rotacion_inicio_fecha: v })} /><p className="text-[10px] text-white/30">Primera semana laboral del trabajador.</p></div>
                     )}
                   </div>
                   <div className="space-y-1"><label className="input-label">Notas</label><textarea placeholder="Observaciones..." value={form.notas} onChange={e => setForm({...form, notas: e.target.value})} className="input-field h-20 resize-none text-xs" /></div>
@@ -1717,9 +1719,9 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
             <h3 className="page-form-modal-title mb-2 hidden items-center gap-2 pr-10 text-lg font-semibold text-white/90 lg:flex"><Wallet className="w-5 h-5 text-amber-500" /> Consola de Cierre</h3>
             <p className="text-xs text-white/40 mb-6 uppercase tracking-wider">Rango de nómina semanal</p>
             <div className="flex items-center gap-3 mb-6">
-              <div className="flex-1"><label className="input-label">Inicio</label><input type="date" value={weekRange.inicio} onChange={e => setWeekRange({...weekRange, inicio: e.target.value})} className="input-field" /></div>
+              <div className="flex-1"><label className="input-label">Inicio</label><AppDatePicker value={weekRange.inicio} onChange={(v) => setWeekRange({ ...weekRange, inicio: v })} /></div>
               <span className="text-white/40 self-end mb-3">a</span>
-              <div className="flex-1"><label className="input-label">Fin</label><input type="date" value={weekRange.fin} onChange={e => setWeekRange({...weekRange, fin: e.target.value})} className="input-field" /></div>
+              <div className="flex-1"><label className="input-label">Fin</label><AppDatePicker value={weekRange.fin} onChange={(v) => setWeekRange({ ...weekRange, fin: v })} /></div>
             </div>
             <p className="mb-4 text-[10px] text-white/40 uppercase tracking-wider">
               {preNominaRows.length} trabajadores · {preNominaRows.filter((r) => r.totalVales > 0).length} con vales

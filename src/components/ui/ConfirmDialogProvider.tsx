@@ -168,7 +168,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                     type="button"
                     onClick={handleClose}
                     className={cn(
-                      'rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-[#1e293b]',
+                      'btn-secondary',
                       isMobile && 'min-h-[2.75rem] w-full justify-center',
                     )}
                   >
@@ -178,10 +178,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                     type="button"
                     onClick={handleConfirm}
                     className={cn(
-                      'rounded-lg px-4 py-2 text-sm font-bold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1e293b]',
-                      variant === 'danger' ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500/50' :
-                      variant === 'warning' ? 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-500/50' :
-                      'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500/50',
+                      variant === 'danger' ? 'btn-danger' : 'btn-primary',
                       isMobile && 'min-h-[2.75rem] w-full justify-center',
                     )}
                   >

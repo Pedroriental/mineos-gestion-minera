@@ -387,7 +387,7 @@ export function PersonalQuickAssignModal({
             type="button"
             onClick={assign}
             disabled={isPending || !canAssign}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 py-3 text-sm font-bold text-black disabled:opacity-50"
+            className="btn-primary w-full py-3 text-sm disabled:opacity-50"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Asignar a esta nómina

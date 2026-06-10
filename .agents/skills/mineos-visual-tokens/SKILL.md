@@ -41,9 +41,47 @@ Preferir funciones exportadas sobre clases ad hoc:
 - `mineosKpiValue`, `mineosKpiGlow`
 - `mineosPanel`, `mineosModalHeading`, `mineosBtnSubtleClass`
 - `mineosLabelAccent`, `mineosCell`
-- `MINEOS_BTN_PRIMARY` para botón primario toolbar
+- `MINEOS_BTN_PRIMARY` — botón primario modal / acciones globales
+- `MINEOS_BTN_GERENCIAL_NEW` — toolbar gerencial “Nuevo registro” (oro + texto negro)
+- `MINEOS_BTN_GERENCIAL_BALANCE` — toolbar gerencial secundario oro
+- `MINEOS_BTN_VOLADURAS_NEW`, `MINEOS_BTN_NOMINA_PRIMARY` — variantes por módulo
+- `MINEOS_DAY_PILL`, `MINEOS_DAY_PILL_ACTIVE` — píldoras de día
+- `MINEOS_TABLE_ACTION_EDIT`, `MINEOS_TABLE_ACTION_DELETE` — iconos en tablas
 
 Si necesitas un patrón nuevo que se repite ≥2 veces, **añádelo aquí** en lugar de copiar strings.
+
+## Controles de formulario (desplegables y horas)
+
+**Siempre** usar los componentes canónicos; los estilos viven en `globals.css`:
+
+| Control | Componente | Clases CSS |
+|---------|------------|------------|
+| Selección | `AppSelect` | `.app-select__*` |
+| Hora (12h AM/PM) | `AppTimePicker` | `.app-time-picker__*` |
+| Texto + lista | `AppCombobox` | reutiliza `.app-select__menu` / `__option` |
+| Fecha | `AppDatePicker` | `.app-date-picker__*` |
+
+### Reglas
+
+- **Prohibido** en pantallas nuevas: `<select className="input-field">`, `<input type="time">`, clases sueltas tipo `border-white/5 bg-zinc-900/40` en filtros.
+- **No** poner colores Tailwind (`slate-*`, `zinc-*`, `amber-*`) en `AppSelect` / `AppTimePicker`; el estilo va en CSS, no en el `.tsx`.
+- Tema claro en modales: `theme="light"` en el componente (propaga `data-theme` al menú portal).
+- Variante compacta: solo overrides con `[&_.app-select__trigger]:…` documentados; no reescribir colores.
+- Si hace falta un tamaño nuevo (ej. `sm`), añadir modificador en `globals.css` (`.app-select--sm`), no copiar estilos por archivo.
+
+### Reportes y filtros
+
+- Filtros dinámicos / presets / reconciliación: `reportesUi` en `src/components/reportes/reportes-ui.ts` (`input`, `sectionTitle`, `fieldLabel`, `kpiCard`, …)
+- No usar `FIELD_CLASSES` ni `border-zinc` / `bg-zinc-900` en paneles de reportes
+
+### Excepción intencional — vista previa nómina (modo blanco)
+
+**No migrar** a tokens oscuros ni gerencial inline:
+
+- `NominaVistaPreviaContent.tsx`, `NominaVistaPreviaModal.tsx`, `NominaVistaPreviaClient.tsx`
+- `NominaPreviewOptionsMenu.tsx`, `NominaPreviewReport.tsx`, `NominaDivisionesToolbar.tsx`
+
+El resto de nómina (toolbar, modales, registro) sí usa tokens canónicos.
 
 ## Tailwind y Tremor
 

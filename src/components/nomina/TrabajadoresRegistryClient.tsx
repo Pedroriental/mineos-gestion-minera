@@ -1141,11 +1141,11 @@ export default function TrabajadoresRegistryClient({
           </div>
           <div>
             <label className="input-label">Fecha de Nacimiento</label>
-            <input className="input-field" type="date" value={form.fecha_nacimiento} onChange={(e) => setForm((p) => ({ ...p, fecha_nacimiento: e.target.value }))} />
+            <AppDatePicker value={form.fecha_nacimiento} onChange={(v) => setForm((p) => ({ ...p, fecha_nacimiento: v }))} />
           </div>
           <div>
             <label className="input-label">Fecha de Ingreso</label>
-            <input className="input-field" type="date" value={form.fecha_ingreso} onChange={(e) => setForm((p) => ({ ...p, fecha_ingreso: e.target.value }))} />
+            <AppDatePicker value={form.fecha_ingreso} onChange={(v) => setForm((p) => ({ ...p, fecha_ingreso: v }))} />
           </div>
           <div>
             <label className="input-label">Ajuste Antiguedad (días)</label>
@@ -1316,7 +1316,7 @@ export default function TrabajadoresRegistryClient({
             <>
               <div>
                 <label className="input-label">Fecha de despido *</label>
-                <input className="input-field" type="date" value={estadoModal.despidoFecha} onChange={(e) => setEstadoModal((p) => ({ ...p, despidoFecha: e.target.value }))} />
+                <AppDatePicker value={estadoModal.despidoFecha} onChange={(v) => setEstadoModal((p) => ({ ...p, despidoFecha: v }))} />
               </div>
               <div className="sm:col-span-2">
                 <label className="input-label">Causa / Observación *</label>
@@ -1328,7 +1328,7 @@ export default function TrabajadoresRegistryClient({
             <>
               <div>
                 <label className="input-label">Fecha de reintegro *</label>
-                <input className="input-field" type="date" value={estadoModal.reengancheFecha} onChange={(e) => setEstadoModal((p) => ({ ...p, reengancheFecha: e.target.value }))} />
+                <AppDatePicker value={estadoModal.reengancheFecha} onChange={(v) => setEstadoModal((p) => ({ ...p, reengancheFecha: v }))} />
               </div>
               <div>
                 <label className="input-label">Cargo de reintegro *</label>

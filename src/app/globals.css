@@ -644,14 +644,44 @@ button, a, [role="button"] {
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     min-height: 2.65rem;
     padding: 0.6rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
     font-size: 14px;
     font-weight: 450;
     text-align: left;
     cursor: pointer;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .app-date-picker__icon {
+    color: color-mix(in srgb, var(--mineos-general-bright) 75%, transparent);
+  }
+
+  .app-date-picker__chevron {
+    transition: transform 0.15s ease;
+    color: var(--text-muted);
+    opacity: 0.85;
+  }
+
+  .app-date-picker__chevron--open {
+    transform: rotate(180deg);
+  }
+
+  .app-date-picker__placeholder {
+    color: var(--text-muted);
+  }
+
+  .app-date-picker__trigger:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .app-date-picker__value {
@@ -686,8 +716,15 @@ button, a, [role="button"] {
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     min-height: 2.65rem;
-    padding: 0.6rem 0.75rem;
+    padding: 0.6rem 2.5rem 0.6rem 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
     font-size: 14px;
     font-weight: 450;
     text-align: left;
@@ -699,6 +736,26 @@ button, a, [role="button"] {
   .app-time-picker__value {
     display: block;
     min-width: 0;
+    flex: 1;
+    text-align: left;
+  }
+
+  .app-time-picker__placeholder {
+    color: var(--text-muted);
+  }
+
+  .app-time-picker__icon {
+    color: color-mix(in srgb, var(--mineos-general-bright) 75%, transparent);
+  }
+
+  .app-time-picker__chevron {
+    transition: transform 0.15s ease;
+    color: var(--text-muted);
+    opacity: 0.85;
+  }
+
+  .app-time-picker__chevron--open {
+    transform: rotate(180deg);
   }
 
   .app-time-picker__trigger:hover:not(:disabled) {
@@ -712,8 +769,116 @@ button, a, [role="button"] {
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.16);
   }
 
+  .app-time-picker__trigger:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .app-time-picker__menu {
+    z-index: 10050;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: #1c1c1f;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.42);
+    padding: 0.75rem;
+  }
+
+  .app-time-picker__preview {
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+  }
+
+  .app-time-picker__apply {
+    border-radius: 8px;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--mineos-general);
+    color: #000;
+    transition: background-color 0.15s ease;
+  }
+
+  .app-time-picker__apply:hover {
+    background: var(--mineos-general-bright);
+  }
+
+  .app-time-picker__section-label {
+    margin-bottom: 0.25rem;
+    padding-inline: 0.25rem;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
   .app-time-picker__list {
+    max-height: 10rem;
+    overflow-y: auto;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.25rem;
     scrollbar-width: thin;
+  }
+
+  .app-time-picker__option {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+
+  .app-time-picker__option:hover {
+    background: rgba(212, 175, 55, 0.22);
+    color: #fffbeb;
+  }
+
+  .app-time-picker__option--selected {
+    background: var(--mineos-general);
+    color: #000;
+    font-weight: 600;
+  }
+
+  .app-time-picker__option--selected:hover {
+    background: var(--mineos-general-bright);
+    color: #000;
+  }
+
+  .app-time-picker__footer {
+    margin-top: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 0.75rem;
+    padding-inline: 0.25rem;
+  }
+
+  .app-time-picker__link {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: color 0.15s ease;
+  }
+
+  .app-time-picker__link:hover {
+    color: var(--text-secondary);
+  }
+
+  .app-time-picker__link--accent {
+    color: var(--mineos-general-bright);
+  }
+
+  .app-time-picker__link--accent:hover {
+    color: var(--mineos-general);
   }
 
   .app-date-range-fields {
@@ -1217,6 +1382,85 @@ button, a, [role="button"] {
 [data-theme="light"] .app-select__option--selected.app-select__option--active,
 [data-theme="light"].app-select__menu .app-select__option--selected.app-select__option--active {
   background: color-mix(in srgb, var(--mineos-general-soft) 180%, transparent);
+}
+
+[data-theme="light"] .app-date-picker__trigger,
+[data-theme="light"].app-date-picker__trigger--light,
+[data-theme="light"] .app-date-picker__trigger--light {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  color: #1e293b;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="light"] .app-date-picker__trigger:hover:not(:disabled),
+[data-theme="light"].app-date-picker__trigger--light:hover:not(:disabled) {
+  border-color: var(--mineos-general-border);
+  background: #ffffff;
+}
+
+[data-theme="light"] .app-date-picker__trigger:focus-visible,
+[data-theme="light"].app-date-picker__trigger--light:focus-visible {
+  border-color: var(--mineos-general-bright);
+  box-shadow: 0 0 0 3px var(--mineos-general-soft);
+}
+
+[data-theme="light"] .app-time-picker__trigger,
+[data-theme="light"].app-time-picker__trigger {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  color: #1e293b;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="light"] .app-time-picker__trigger:hover:not(:disabled),
+[data-theme="light"].app-time-picker__trigger:hover:not(:disabled) {
+  border-color: var(--mineos-general-border);
+  background: #ffffff;
+}
+
+[data-theme="light"] .app-time-picker__trigger:focus-visible,
+[data-theme="light"].app-time-picker__trigger:focus-visible {
+  border-color: var(--mineos-general-bright);
+  box-shadow: 0 0 0 3px var(--mineos-general-soft);
+}
+
+[data-theme="light"] .app-time-picker__menu,
+[data-theme="light"].app-time-picker__menu {
+  border-color: rgba(0, 0, 0, 0.06);
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="light"] .app-time-picker__preview {
+  color: #1e293b;
+}
+
+[data-theme="light"] .app-time-picker__list {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .app-time-picker__option {
+  color: #334155;
+}
+
+[data-theme="light"] .app-time-picker__option:hover {
+  background: var(--mineos-general-soft);
+  color: var(--mineos-general-deep);
+}
+
+[data-theme="light"] .app-time-picker__option--selected,
+[data-theme="light"] .app-time-picker__option--selected:hover {
+  background: var(--mineos-general);
+  color: #000;
+}
+
+[data-theme="light"] .app-time-picker__footer {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .app-time-picker__section-label {
+  color: #94a3b8;
 }
 
 .page-form-modal-backdrop select.input-field {
@@ -3195,6 +3439,103 @@ input, textarea, select {
 .produccion-day-pill:not(.produccion-day-pill--active) .produccion-day-pill__badge {
   background-color: var(--prod-pill-badge-bg);
   color: var(--prod-pill-badge-text);
+}
+
+.produccion-day-pill--active {
+  border-color: var(--mineos-general);
+  background-color: var(--mineos-general);
+  color: #000;
+  font-weight: 700;
+}
+
+.produccion-day-pill--active .produccion-day-pill__badge {
+  background-color: rgba(0, 0, 0, 0.2);
+  color: #000;
+}
+
+/* Toolbar gerencial — primario oro (texto negro) */
+.gerencial-page__new-btn,
+.voladuras-page__new-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--mineos-general);
+  padding-inline: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #000;
+  box-shadow: 0 10px 15px -3px rgba(180, 134, 11, 0.2);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+
+.gerencial-page__new-btn:hover:not(:disabled),
+.voladuras-page__new-btn:hover:not(:disabled) {
+  background: var(--mineos-general-bright);
+}
+
+.gerencial-page__new-btn:disabled,
+.voladuras-page__new-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.gerencial-page__balance-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--mineos-general-border);
+  background: var(--mineos-general-soft);
+  padding-inline: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mineos-general-bright);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+}
+
+.gerencial-page__balance-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mineos-general-soft) 80%, var(--mineos-general) 20%);
+  border-color: color-mix(in srgb, var(--mineos-general-border) 70%, var(--mineos-general) 30%);
+}
+
+.gerencial-page__balance-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Acciones de tabla (editar / eliminar) */
+.mineos-table-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mineos-table-action--edit:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--mineos-general-bright);
+}
+
+.mineos-table-action--danger:hover {
+  background: var(--mineos-expense-soft);
+  color: var(--mineos-expense);
+}
+
+.mineos-table-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .produccion-page__table-stack,

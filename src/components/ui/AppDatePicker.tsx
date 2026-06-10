@@ -257,12 +257,8 @@ export function AppDatePicker({
         type="button"
         disabled={disabled}
         className={cn(
-          'app-date-picker__trigger box-border flex w-full max-w-full min-w-0 items-center justify-between gap-2 transition-colors',
-          'focus:outline-none focus:ring-1 focus:ring-amber-500/50',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-          theme === 'light'
-            ? 'rounded-lg border border-slate-200 bg-white text-sm text-slate-900 hover:border-slate-300 focus:border-amber-500/50'
-            : 'rounded-xl border border-white/10 bg-white/5 text-sm text-zinc-200 focus:border-amber-500/50 hover:bg-white/10',
+          'app-date-picker__trigger',
+          theme === 'light' && 'app-date-picker__trigger--light',
         )}
         onClick={() => {
           if (disabled) return;
@@ -275,22 +271,16 @@ export function AppDatePicker({
         <span
           className={cn(
             'app-date-picker__value min-w-0 flex-1 truncate text-left capitalize',
-            !value && (theme === 'light' ? 'text-slate-400' : 'text-zinc-400'),
+            !value && 'app-date-picker__placeholder',
           )}
         >
           <span className="inline-flex min-w-0 items-center gap-2">
-            <CalendarIcon
-              className={cn('h-4 w-4 shrink-0', theme === 'light' ? 'text-amber-500/80' : 'text-amber-500/70')}
-            />
+            <CalendarIcon className="app-date-picker__icon h-4 w-4 shrink-0" />
             <span className="truncate">{getDisplayValue()}</span>
           </span>
         </span>
         <ChevronDown
-          className={cn(
-            'h-4 w-4 shrink-0 transition-transform',
-            open && 'rotate-180',
-            theme === 'light' ? 'text-slate-400' : 'text-zinc-500'
-          )}
+          className={cn('app-date-picker__chevron h-4 w-4 shrink-0', open && 'app-date-picker__chevron--open')}
         />
       </button>
       {menu}
