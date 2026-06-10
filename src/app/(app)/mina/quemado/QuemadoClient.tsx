@@ -273,15 +273,6 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   };
 
   const handleSave = () => {
-    if (planchas.length === 0) {
-      setFormError('Agrega al menos 1 plancha.');
-      return;
-    }
-    if (formOro <= 0) {
-      setFormError('El total de oro recuperado debe ser mayor que 0.');
-      return;
-    }
-
     setFormError(null);
     startTransition(async () => {
       const planchasPayload = planchas.map((p) => ({

@@ -4,6 +4,8 @@ import { useRef } from 'react';
 import { ImagePlus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { REPORT_PHOTO_MAX_COUNT } from '@/lib/report-photo-constants';
+import { resolveReportPhotoUrl } from '@/lib/report-photo-url';
+import { ReportPhotoImage } from '@/components/reportes/ReportPhotoImage';
 
 export type ReportPhotoDraft =
   | { id: string; kind: 'existing'; url: string }
@@ -64,14 +66,18 @@ export function ReportPhotoField({
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="flex flex-wrap gap-2">
         {photos.map((photo) => {
-          const src = photo.kind === 'existing' ? photo.url : photo.previewUrl;
+          const src = photo.kind === 'existing' ? resolveReportPhotoUrl(photo.url) : photo.previewUrl;
           return (
             <div
               key={photo.id}
               className="group relative h-20 w-20 overflow-hidden rounded-xl border border-white/10 bg-black/30"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              {photo.kind === 'existing' ? (
+                <ReportPhotoImage url={photo.url} imgClassName="h-full w-full" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={src} alt="" className="h-full w-full object-cover" />
+              )}
               {!disabled ? (
                 <button
                   type="button"

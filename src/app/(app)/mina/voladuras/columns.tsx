@@ -1,6 +1,7 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
+import { formatTime12h } from '@/lib/format-time';
 import type { ReporteVoladura } from '@/lib/types';
 import { Edit2, Trash2 } from 'lucide-react';
 
@@ -62,7 +63,7 @@ export const columns = (
       return (
         <div className="text-white/55 whitespace-nowrap">
           {nd ? `N°${nd}` : '—'}
-          {hd && <span className="text-white/30 text-xs ml-1">— {hd.slice(0, 5)}</span>}
+          {hd && <span className="text-white/30 text-xs ml-1">— {formatTime12h(hd)}</span>}
           {vd && <span className="mineos-icon-muted block text-[10px] mt-0.5 opacity-80">{vd}</span>}
         </div>
       );

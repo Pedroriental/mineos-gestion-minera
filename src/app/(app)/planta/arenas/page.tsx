@@ -76,9 +76,8 @@ export default function ArenasPage() {
   const handleSave = async () => {
     const ton = parseFloat(form.cantidad_ton);
     const precio = parseFloat(form.precio_por_ton);
-    if (!form.comprador.trim()) { setFormError('El comprador es obligatorio.'); return; }
-    if (isNaN(ton) || ton <= 0) { setFormError('La cantidad en toneladas debe ser mayor que cero.'); return; }
-    if (isNaN(precio) || precio <= 0) { setFormError('El precio por tonelada debe ser mayor que cero.'); return; }
+    if (isNaN(ton) || ton < 0) { setFormError('La cantidad en toneladas no puede ser negativa.'); return; }
+    if (isNaN(precio) || precio < 0) { setFormError('El precio por tonelada no puede ser negativo.'); return; }
     if (form.humedad_pct && (parseFloat(form.humedad_pct) < 0 || parseFloat(form.humedad_pct) > 100)) {
       setFormError('Humedad debe estar entre 0 y 100.');
       return;
@@ -87,10 +86,10 @@ export default function ArenasPage() {
     setSaving(true);
     await supabase.from('venta_arenas').insert({
       fecha: form.fecha,
-      comprador: form.comprador,
-      cantidad_kg: ton,                          // columna existente, ahora guarda toneladas
-      precio_por_kg: precio,                     // columna existente, ahora guarda precio/ton
-      total_venta: ton * precio,
+      comprador: form.comprador.trim() || 'Pendiente',
+      cantidad_kg: isNaN(ton) ? 0 : ton,
+      precio_por_kg: isNaN(precio) ? 0 : precio,
+      total_venta: (isNaN(ton) ? 0 : ton) * (isNaN(precio) ? 0 : precio),
       factura_referencia: form.negociacion || null,
       negociacion: form.negociacion || null,
       humedad_pct: parseFloat(form.humedad_pct) || null,

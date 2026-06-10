@@ -33,6 +33,7 @@ import { columns, bitacoraColumns, type BitacoraEntry } from './columns';
 import { FadeIn } from '@/components/ui/motion';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { AppTimePicker } from '@/components/ui/AppTimePicker';
+import { formatTime12h } from '@/lib/format-time';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
@@ -498,7 +499,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
       const tableData = visibleRows.map(row => {
         const d = new Date(row.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
         const turno = row.turno === 'dia' ? 'Día' : row.turno === 'noche' ? 'Noche' : 'Completo';
-        const horario = `${row.hora_inicio ? row.hora_inicio.slice(0, 5) : '—'} -> ${row.hora_fin ? row.hora_fin.slice(0, 5) : '—'}`;
+        const horario = `${formatTime12h(row.hora_inicio)} -> ${formatTime12h(row.hora_fin)}`;
         const disp = row.numero_disparo ? `N°${row.numero_disparo}` : '—';
         return [
           d, turno, row.vertical || '-', row.mina || '-', horario, disp, String(row.sacos_extraidos)

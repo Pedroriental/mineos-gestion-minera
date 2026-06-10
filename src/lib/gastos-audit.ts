@@ -133,7 +133,8 @@ export function findGastoDuplicates(
 
 export function auditGastosDataset(
   gastos: Array<
-    Pick<Gasto, 'id' | 'fecha' | 'categoria_id' | 'descripcion' | 'monto' | 'proveedor' | 'factura_referencia' | 'created_at'> & {
+    Pick<Gasto, 'id' | 'fecha' | 'categoria_id' | 'descripcion' | 'monto' | 'proveedor' | 'factura_referencia'> & {
+      created_at?: string;
       categorias_gasto?: { nombre?: string | null } | null;
     }
   >,

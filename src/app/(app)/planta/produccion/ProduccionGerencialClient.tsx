@@ -229,9 +229,9 @@ export default function ProduccionGerencialClient({
   const handleSave = () => {
     const oroG = parseFloat(form.oro_recuperado_g);
     const sacosN = parseFloat(form.sacos);
-    
-    if (isNaN(oroG) || oroG < 0) { setFormError('El oro recuperado no puede ser negativo.'); return; }
-    if (isNaN(sacosN) || sacosN < 0) { setFormError('Los sacos procesados no pueden ser negativos.'); return; }
+
+    if (!Number.isNaN(oroG) && oroG < 0) { setFormError('El oro recuperado no puede ser negativo.'); return; }
+    if (!Number.isNaN(sacosN) && sacosN < 0) { setFormError('Los sacos procesados no pueden ser negativos.'); return; }
     
     setFormError(null);
     startTransition(async () => {
@@ -984,7 +984,7 @@ export default function ProduccionGerencialClient({
 
             <PageFormModalFooter className="produccion-page__modal-footer flex-col-reverse sm:flex-row">
               <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">Cancelar</button>
-              <button type="button" onClick={handleSave} disabled={isPending || !form.molino || !form.material || !form.oro_recuperado_g} className="btn-primary min-h-[48px] sm:min-h-[40px]">
+              <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary min-h-[48px] sm:min-h-[40px]">
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 {editItem ? 'Actualizar' : 'Registrar Producción'}
               </button>

@@ -1,5 +1,12 @@
-// Migration runner - ejecuta SQL contra Supabase PostgreSQL
-// Uso: node scripts/run-migration.mjs <file1.sql> <file2.sql> ...
+// Migration runner - ejecuta SQL contra Supabase PostgreSQL (pooler directo)
+//
+// PREFERIDO: Supabase CLI desde terminal (proyecto en Oregon / West US):
+//   supabase login
+//   npm run supabase:link
+//   npm run supabase:migrate:acarreo
+//   npm run supabase:migrate -- migration_acarreo.sql
+//
+// Uso legacy: SUPABASE_DB_PASSWORD=xxx node scripts/run-migration.mjs <file1.sql> ...
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
 
