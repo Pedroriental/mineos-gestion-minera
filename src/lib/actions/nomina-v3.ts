@@ -11,7 +11,7 @@ import {
   type DistribucionParte,
 } from '@/lib/nomina-distribucion';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
-import type { NominaVale, PreNominaRow, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
+import type { NominaVale, Personal, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
 import { z } from 'zod';
 import {
   PersonalV3Schema,
@@ -19,6 +19,12 @@ import {
   AssignToNominaAreaSchema,
   CrearValeSchema,
 } from '@/lib/validations/nomina-v3';
+import {
+  CierreNominaV3Schema,
+  verificarTotalesCierre,
+  type CierreNominaV3Input,
+  type PersonalCierre,
+} from '@/lib/validations/nomina-cierre';
 import {
   vincularSemanaACicloAction,
   cerrarCicloAutomaticoAction,
@@ -328,77 +334,39 @@ export async function eliminarValeAction(valeId: string): Promise<ActionResult> 
   }
 }
 
-/** Semana operativa (cierre_v3, sin periodo archivado): busca y actualiza o inserta sin ON CONFLICT. */
-async function resolveSemanaOperativaId(
-  supabase: Awaited<ReturnType<typeof createServerClient>>,
-  input: {
-    inicio: string;
-    fin: string;
-    area: string;
-    totalTrabajadores: number;
-    totalPagado: number;
-    userId: string;
-  },
-): Promise<{ ok: true; semanaId: string } | { ok: false; message: string }> {
-  const payload = {
-    semana_inicio: input.inicio,
-    semana_fin: input.fin,
-    area: input.area,
-    total_trabajadores: input.totalTrabajadores,
-    total_pagado: input.totalPagado,
-    registrado_por: input.userId || null,
-    origen: 'cierre_v3' as const,
-    periodo_id: null,
-  };
-
-  const { data: existing, error: findError } = await supabase
-    .from('nomina_semanas')
-    .select('id')
-    .eq('semana_inicio', input.inicio)
-    .eq('area', input.area)
-    .is('periodo_id', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (findError) {
-    return { ok: false, message: `Error semana: ${findError.message}` };
+/** Mapea errores de negocio de la RPC `cerrar_nomina_semana` a mensajes UX. */
+function mapCierreRpcError(message: string): string {
+  if (message.includes('CIERRE_NOMINA:NO_AUTENTICADO')) {
+    return 'Sesión no válida. Inicia sesión de nuevo para cerrar la nómina.';
   }
-
-  if (existing?.id) {
-    const { data: updated, error: updateError } = await supabase
-      .from('nomina_semanas')
-      .update(payload)
-      .eq('id', existing.id)
-      .select('id')
-      .maybeSingle();
-
-    if (updateError) return { ok: false, message: `Error semana: ${updateError.message}` };
-    if (!updated?.id) return { ok: false, message: 'No se pudo actualizar la semana.' };
-    return { ok: true, semanaId: updated.id };
+  if (message.includes('CIERRE_NOMINA:SEMANA_EN_CICLO_CERRADO')) {
+    return 'Esta semana pertenece a un ciclo ya CERRADO y consolidado. Revierte el ciclo antes de re-cerrarla.';
   }
-
-  const { data: inserted, error: insertError } = await supabase
-    .from('nomina_semanas')
-    .insert(payload)
-    .select('id')
-    .maybeSingle();
-
-  if (insertError) return { ok: false, message: `Error semana: ${insertError.message}` };
-  if (!inserted?.id) return { ok: false, message: 'No se pudo crear la semana.' };
-  return { ok: true, semanaId: inserted.id };
+  if (message.includes('CIERRE_NOMINA:VALES_DESINCRONIZADOS')) {
+    return 'Los vales deducidos no coinciden con los vales pendientes en la base. Recarga la pre-nómina e intenta de nuevo.';
+  }
+  if (message.includes('CIERRE_NOMINA:TOTAL_INCONSISTENTE')) {
+    return 'El total de la semana no coincide con la suma de los registros. Recarga la pre-nómina e intenta de nuevo.';
+  }
+  if (message.includes('CIERRE_NOMINA:PAYLOAD_INVALIDO')) {
+    return 'Datos de cierre incompletos. Recarga la pre-nómina e intenta de nuevo.';
+  }
+  return `Error cierre: ${message}`;
 }
 
 // ── CIERRE DE NÓMINA V3 (con vales y ajustes de socios) ──────
-export async function procesarCierreNominaV3Action(payload: {
-  userId: string;
-  area: string;
-  inicio: string;
-  fin: string;
-  rows: PreNominaRow[];
-  distribucion: DistribucionParte[];
-}): Promise<ActionResult> {
-  const { userId, area, inicio, fin, rows, distribucion } = payload;
+// Blindado (Fase 1): Zod estricto + identidad real (auth.getUser) +
+// recálculo server-side de montos + transacción atómica vía RPC.
+export async function procesarCierreNominaV3Action(
+  payload: CierreNominaV3Input,
+): Promise<ActionResult> {
+  // 1. Validación estricta de forma e invariantes (sin userId del cliente)
+  const parsed = CierreNominaV3Schema.safeParse(payload);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { ok: false, message: issue?.message ?? 'Datos de cierre inválidos.' };
+  }
+  const { area, inicio, fin, rows, distribucion } = parsed.data;
 
   const distCheck = validateDistribucion(distribucion);
   if (!distCheck.ok) {
@@ -407,58 +375,64 @@ export async function procesarCierreNominaV3Action(payload: {
 
   try {
     const supabase = await createServerClient();
-    const fechaHoy = new Date().toISOString().split('T')[0];
-    const totalNomina = rows.reduce((s, r) => s + r.total, 0);
 
-    // 1. Resolver semana operativa (sin depender de UNIQUE constraint en BD)
-    const semanaResult = await resolveSemanaOperativaId(supabase, {
+    // 2. Identidad real: el UUID sale del JWT verificado, nunca del payload
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { ok: false, message: 'Sesión no válida. Inicia sesión de nuevo para cerrar la nómina.' };
+    }
+    const userId = user.id;
+
+    // 3. Datos maestros desde BD (no se confía en el `personal` del cliente)
+    const personalIds = rows.map((r) => r.personalId);
+    const { data: personalRows, error: personalError } = await supabase
+      .from('personal')
+      .select(
+        'id, cedula, nombre_completo, cargo, area, area_detalle, salario_base, salario_libre, bono_transporte, esquema_rotacion, rotacion_inicio_fecha',
+      )
+      .in('id', personalIds);
+
+    if (personalError) {
+      return { ok: false, message: `Error al cargar trabajadores: ${personalError.message}` };
+    }
+
+    // 4. Checksum financiero: recálculo con reglas de ciclo (perfil-ciclo-reglas)
+    const checksum = verificarTotalesCierre(
+      rows,
+      (personalRows ?? []) as PersonalCierre[],
       inicio,
-      fin,
-      area,
-      totalTrabajadores: rows.length,
-      totalPagado: totalNomina,
-      userId,
-    });
-    if (!semanaResult.ok) return { ok: false, message: semanaResult.message };
-    const semanaId = semanaResult.semanaId;
+    );
+    if (!checksum.ok) {
+      return { ok: false, message: checksum.message };
+    }
 
-    // 2. Eliminar registros anteriores
-    await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);
-
-    // 3. Insertar registros individuales
-    const registros = rows.map((r) => {
-      const estado =
-        r.estadoAsistencia ?? (r.esSemanaLibre ? 'libre' : 'trabajada');
-      const dias =
-        r.diasTrabajados ?? (estado === 'no_laborado' ? 0 : 7);
-      return {
-        semana_id: semanaId,
-        personal_id: r.personal.id,
-        monto_pagado: r.total,
-        es_semana_libre: r.esSemanaLibre,
-        bono_transporte_pagado: r.bonoTransporte,
-        estado_asistencia: estado,
-        dias_trabajados: dias,
-        salario_base_calculado: r.salarioBaseCalculado ?? null,
-        novedad_turno: r.novedadTurno ?? 'ACTIVO',
-        novedad_turno_obs: (r.novedadTurnoObs ?? '').trim(),
-        bonificaciones: Number(r.bonificaciones) || 0,
-        total_vales: Number(r.totalVales) || 0,
-        personal_snapshot: buildPersonalSnapshot(r.personal),
-        origen: 'cierre_v3',
-      };
-    });
-    const { error: regError } = await supabase.from('nomina_registros').insert(registros);
-    if (regError) return { ok: false, message: `Error registros: ${regError.message}` };
-
+    const totalNomina = checksum.totalNomina;
     const cierrePayload = distribucionToCierrePayload(totalNomina, distribucion);
 
-    // 4. Upsert cierre (columnas legacy + JSON flexible)
-    const { error: cierreError } = await supabase
-      .from('nomina_cierres')
-      .upsert({
-        semana_id: semanaId,
-        total_nomina_usd: totalNomina,
+    // 5. Cierre atómico delegado a Postgres (advisory lock + transacción)
+    const rpcPayload = {
+      area,
+      inicio,
+      fin,
+      total_pagado: totalNomina,
+      registros: checksum.registros.map((r) => ({
+        personal_id: r.personal.id,
+        monto_pagado: r.montoPagado,
+        es_semana_libre: r.esSemanaLibre,
+        bono_transporte_pagado: r.input.bonoTransporte,
+        estado_asistencia: r.input.estadoAsistencia,
+        dias_trabajados: r.input.diasTrabajados,
+        salario_base_calculado: r.salarioBaseCalculado,
+        novedad_turno: r.input.novedadTurno ?? 'ACTIVO',
+        novedad_turno_obs: (r.input.novedadTurnoObs ?? '').trim(),
+        bonificaciones: r.input.bonificaciones,
+        total_vales: r.input.totalVales,
+        personal_snapshot: buildPersonalSnapshot(r.personal as Personal),
+      })),
+      cierre: {
         pct_pedro: cierrePayload.pct_pedro,
         pct_darinel: cierrePayload.pct_darinel,
         pct_la_fe: cierrePayload.pct_la_fe,
@@ -466,50 +440,36 @@ export async function procesarCierreNominaV3Action(payload: {
         monto_darinel: cierrePayload.monto_darinel,
         monto_la_fe: cierrePayload.monto_la_fe,
         distribucion: cierrePayload.distribucion,
-      }, { onConflict: 'semana_id' });
-
-    if (cierreError) return { ok: false, message: `Error cierre: ${cierreError.message}` };
-
-    // 6. Marcar todos los vales pendientes como COBRADOS
-    const personalIds = rows.map(r => r.personal.id);
-    await supabase
-      .from('nomina_vales')
-      .update({ estado: 'COBRADO', semana_id: semanaId })
-      .in('personal_id', personalIds)
-      .eq('estado', 'PENDIENTE');
-
-    // 7. Registrar en gastos y vincular semana
-    const { data: catRow } = await supabase
-      .from('categorias_gasto')
-      .select('id')
-      .ilike('nombre', '%nomina%')
-      .limit(1)
-      .maybeSingle();
-
-    if (catRow) {
-      const { data: gastoRow } = await supabase.from('gastos').insert({
-        fecha: fechaHoy,
-        categoria_id: catRow.id,
+      },
+      gasto: {
         descripcion: `Nómina ${area.toUpperCase()} ${inicio} al ${fin} — ${rows.length} trabajadores`,
-        monto: totalNomina,
-        proveedor: 'Nómina interna',
         notas: `Cierre V3: ${cierrePayload.lineas.map((l) => `${l.nombre} ${l.porcentaje}% ($${l.neto})`).join(' · ')}`,
-        registrado_por: userId || null,
-      }).select('id').maybeSingle();
+      },
+    };
 
-      if (gastoRow?.id) {
-        await supabase.from('nomina_semanas').update({ gasto_id: gastoRow.id }).eq('id', semanaId);
-      }
+    const { data: rpcData, error: rpcError } = await supabase.rpc('cerrar_nomina_semana', {
+      p_payload: rpcPayload,
+    });
+
+    if (rpcError) {
+      return { ok: false, message: mapCierreRpcError(rpcError.message) };
     }
 
-    // Registrar auditoría de cierre
-    await registrarAuditAction(
-      'CIERRE_NOMINA_V3',
-      'nomina_semanas',
-      semanaId,
-      `Cierre Nómina V3 de ${area.toUpperCase()} del ${inicio} al ${fin}. Total: $${totalNomina.toFixed(2)} for ${rows.length} trabajadores.`,
-      userId
-    );
+    const semanaId = String((rpcData as { semana_id?: string } | null)?.semana_id ?? '');
+    if (!semanaId) {
+      return { ok: false, message: 'El cierre no devolvió la semana procesada.' };
+    }
+
+    // 6. Auditar ajustes manuales aceptados por el checksum (si los hubo)
+    for (const ajuste of checksum.ajustes) {
+      await registrarAuditAction(
+        'AJUSTE_MANUAL_CIERRE',
+        'nomina_registros',
+        ajuste.personalId,
+        `Ajuste manual en cierre ${area.toUpperCase()} ${inicio}: ${ajuste.nombre} — calculado $${ajuste.totalRecalculado.toFixed(2)}, pagado $${ajuste.totalCliente.toFixed(2)}. Motivo: ${ajuste.motivo}`,
+        userId,
+      );
+    }
 
     // ── FASE 4: Automatización de Ciclos ─────────────────────────────────
     // Vincular semana a ciclos automáticamente (crea o vincula a ciclo existente)
