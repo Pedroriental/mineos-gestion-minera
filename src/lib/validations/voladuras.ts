@@ -9,9 +9,9 @@ import { z } from 'zod';
 
 // ── Pausa de barrenado (JSON embebido) ────────────────────────
 const PausaBarrenadoSchema = z.object({
-  hora_inicio: z.string().min(1, 'Hora de parada requerida'),
-  hora_fin:    z.string().min(1, 'Hora de reinicio requerida'),
-  motivo:      z.string().max(200, 'Motivo muy largo').default(''),
+  hora_inicio: z.string().optional().nullable(),
+  hora_fin: z.string().optional().nullable(),
+  motivo: z.string().max(200, 'Motivo muy largo').default(''),
 });
 
 // ── Schema base — crear ───────────────────────────────────────

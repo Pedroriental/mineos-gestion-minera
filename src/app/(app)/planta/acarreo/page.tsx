@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase-server';
 import AcarreoClient from './AcarreoClient';
 import type { ReporteAcarreo } from '@/lib/types';
 import { hasGlobalDateRange, type GlobalDateSearchParams } from '@/lib/global-date-range';
+import { normalizeReportPhotoUrls } from '@/lib/report-photo-url';
 
 export default async function AcarreoPage(props: {
   searchParams: Promise<GlobalDateSearchParams>;
@@ -27,7 +28,10 @@ export default async function AcarreoPage(props: {
 
   const { data } = await query;
 
-  const reportes: ReporteAcarreo[] = (data as ReporteAcarreo[]) ?? [];
+  const reportes: ReporteAcarreo[] = ((data as ReporteAcarreo[]) ?? []).map((row) => ({
+    ...row,
+    fotos: normalizeReportPhotoUrls(row.fotos),
+  }));
 
   return <AcarreoClient data={reportes} />;
 }

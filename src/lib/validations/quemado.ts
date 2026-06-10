@@ -3,9 +3,6 @@ import { z } from 'zod';
 const PlanchaItemSchema = z.object({
   amalgama_g: z.coerce.number().min(0).default(0),
   oro_recuperado_g: z.coerce.number().min(0).default(0),
-}).refine(data => data.oro_recuperado_g <= data.amalgama_g, {
-  message: 'Oro recuperado no puede ser mayor que amalgama',
-  path: ['oro_recuperado_g'],
 });
 
 export const QuemadoSchema = z.object({
@@ -22,14 +19,14 @@ export const QuemadoSchema = z.object({
     .optional()
     .nullable(),
 
-  planchas: z.array(PlanchaItemSchema).min(1, 'Agrega al menos una plancha'),
+  planchas: z.array(PlanchaItemSchema).default([]),
 
   manto_amalgama_g: z.coerce.number().min(0).optional().nullable(),
   manto_oro_g: z.coerce.number().min(0).optional().nullable(),
   retorta_oro_g: z.coerce.number().min(0).optional().nullable(),
 
-  total_amalgama_g: z.coerce.number().min(0),
-  total_oro_g: z.coerce.number().positive('El oro recuperado total debe ser mayor a 0'),
+  total_amalgama_g: z.coerce.number().min(0).default(0),
+  total_oro_g: z.coerce.number().min(0).default(0),
 
   responsable: z
     .string()
@@ -44,9 +41,6 @@ export const QuemadoSchema = z.object({
     .nullable(),
 
   registrado_por: z.string().uuid().optional().nullable(),
-}).refine(data => data.total_oro_g <= data.total_amalgama_g, {
-  message: 'El oro total no puede superar la amalgama total',
-  path: ['total_oro_g'],
 });
 
 export const QuemadoUpdateSchema = QuemadoSchema.extend({

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
+export const INFORME_PENDIENTE_LABEL = 'Pendiente';
+
 export const LineaAcarreoSchema = z.object({
-  sacos: z.coerce.number().int('Los sacos deben ser enteros').positive('Cada línea debe tener al menos 1 saco'),
+  sacos: z.coerce.number().int('Los sacos deben ser enteros').min(0, 'Los sacos no pueden ser negativos'),
   vertical: z
     .string()
     .max(80)
@@ -24,28 +26,29 @@ export const AcarreoSchema = z.object({
 
   turno: z.enum(['dia', 'noche', 'completo'], { message: 'Turno requerido' }),
 
-  mina: z.string().trim().min(1, 'Mina requerida').max(150),
+  mina: z
+    .string()
+    .max(150)
+    .optional()
+    .nullable()
+    .transform((v) => v?.trim() || INFORME_PENDIENTE_LABEL),
 
-  molino: z.string().trim().min(1, 'Molino destino requerido').max(150),
+  molino: z
+    .string()
+    .max(150)
+    .optional()
+    .nullable()
+    .transform((v) => v?.trim() || INFORME_PENDIENTE_LABEL),
 
-  lineas: z.array(LineaAcarreoSchema).min(1, 'Agrega al menos una línea de acarreo'),
+  lineas: z.array(LineaAcarreoSchema).default([]),
 
-  carga_total: z.coerce.number().int().positive('La carga total debe ser mayor a 0'),
+  carga_total: z.coerce.number().int().min(0, 'La carga total no puede ser negativa').default(0),
 
-  sacos_libres: z.coerce.number().int().min(0, 'Los sacos libres no pueden ser negativos'),
+  sacos_libres: z.coerce.number().int().min(0, 'Los sacos libres no pueden ser negativos').default(0),
 
   observaciones: z.string().max(2000).optional().nullable(),
 
   registrado_por: z.string().uuid().optional().nullable(),
-}).superRefine((data, ctx) => {
-  const sumLineas = data.lineas.reduce((s, l) => s + l.sacos, 0);
-  if (sumLineas !== data.carga_total) {
-    ctx.addIssue({
-      code: 'custom',
-      message: `La carga total (${data.carga_total}) debe coincidir con la suma de líneas (${sumLineas})`,
-      path: ['carga_total'],
-    });
-  }
 });
 
 export const AcarreoUpdateSchema = AcarreoSchema.extend({

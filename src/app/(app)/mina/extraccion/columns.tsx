@@ -1,6 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import type { ReporteExtraccion } from '@/lib/types';
 import { Edit2, Trash2 } from 'lucide-react';
+import { formatTime12h } from '@/lib/format-time';
 
 export type BitacoraEntry = {
   id: string;
@@ -40,7 +41,9 @@ export const bitacoraColumns: ColumnDef<BitacoraEntry>[] = [
     accessorKey: 'hora',
     header: 'Hora',
     cell: ({ getValue }) => (
-      <span className="mineos-cell-general whitespace-nowrap font-medium">{getValue() as string}</span>
+      <span className="mineos-cell-general whitespace-nowrap font-medium">
+        {formatTime12h(getValue() as string)}
+      </span>
     ),
   },
   {
@@ -52,8 +55,6 @@ export const bitacoraColumns: ColumnDef<BitacoraEntry>[] = [
 
 const turnoLabel = (t: string) =>
   t === 'dia' ? '☀ Día' : t === 'noche' ? '🌙 Noche' : '🔄 Completo';
-
-const fmtTime = (t?: string | null) => (t ? t.slice(0, 5) : '—');
 
 const fmtDate = (fecha?: string | null) => {
   if (!fecha) return '—';
@@ -104,7 +105,7 @@ export const columns = (
     header: 'Horario',
     cell: ({ row }) => (
       <span className="text-white/40 whitespace-nowrap text-xs">
-        {fmtTime(row.original.hora_inicio)} → {fmtTime(row.original.hora_fin)}
+        {formatTime12h(row.original.hora_inicio)} → {formatTime12h(row.original.hora_fin)}
       </span>
     ),
   },
@@ -127,7 +128,7 @@ export const columns = (
         <div className="space-y-0.5 max-w-[260px]">
           {evs.map((ev, i) => (
             <p key={i} className="text-xs text-white/50 truncate">
-              <span className="text-blue-400/60 font-semibold">{ev.hora}</span> {ev.descripcion}
+              <span className="text-blue-400/60 font-semibold">{formatTime12h(ev.hora)}</span> {ev.descripcion}
             </p>
           ))}
         </div>

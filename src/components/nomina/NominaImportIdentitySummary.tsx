@@ -32,7 +32,7 @@ export function NominaImportIdentitySummary({
 }) {
   const summary = computeIdentitySummary(rawPeriod, cases, aliasResolved);
 
-  const chips: Chip[] = [
+  const chips = ([
     {
       id: 'matched',
       label: 'Identificados',
@@ -75,7 +75,7 @@ export function NominaImportIdentitySummary({
       count: summary.pending,
       tone: 'border-zinc-500/30 bg-zinc-500/10 text-zinc-200',
     },
-  ].filter((chip) => chip.count > 0 || chip.id === 'pending');
+  ] as Chip[]).filter((chip) => chip.count > 0 || chip.id === 'pending');
 
   if (summary.totalWorkers === 0) return null;
 

@@ -41,9 +41,11 @@ function nearestCluster(amount: number, clusters: number[]): number | null {
   return bestDiff <= AMOUNT_TOLERANCE ? best : null;
 }
 
+type WeekColumnKind = 'libre' | 'trabajada' | 'bono' | 'unknown';
+
 function inferEstadoFromCell(
   cell: ParsedWorkerCell,
-  columnKind: 'libre' | 'trabajada' | 'unknown',
+  columnKind: WeekColumnKind,
   clusters: number[],
   salarioLibre: number,
   salarioBase: number,
@@ -115,7 +117,7 @@ function findBestRotation(
 export function inferWorkerProfile(
   row: ParsedWorkerRow,
   weekStarts: string[],
-  columnKinds: Record<string, 'libre' | 'trabajada' | 'unknown'>,
+  columnKinds: Record<string, WeekColumnKind>,
 ): InferredWorkerProfile {
   const amounts = weekStarts.map((w) => row.weeks[w]?.amount ?? 0);
   const clusters = clusterAmounts(amounts);
@@ -156,8 +158,8 @@ export function inferWorkerProfile(
 
 export function buildColumnKinds(
   weekColumns: Array<{ weekStart: string; rawHeader: string; header: string }>,
-): Record<string, 'libre' | 'trabajada' | 'unknown'> {
-  const out: Record<string, 'libre' | 'trabajada' | 'unknown'> = {};
+): Record<string, WeekColumnKind> {
+  const out: Record<string, WeekColumnKind> = {};
   for (const col of weekColumns) {
     out[col.weekStart] = inferColumnKind(col.rawHeader || col.header);
   }

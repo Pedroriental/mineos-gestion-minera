@@ -289,28 +289,17 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
 
   const handleSave = () => {
     setFormError(null);
-    const parsedLineas = lineas
-      .map((linea) => ({
-        sacos: parseInt(linea.sacos, 10) || 0,
-        vertical: linea.vertical.trim() || undefined,
-        disparo: linea.disparo.trim() || undefined,
-      }))
-      .filter((linea) => linea.sacos > 0);
-
-    if (!form.mina.trim() || !form.molino.trim()) {
-      setFormError('Mina y molino destino son obligatorios.');
-      return;
-    }
-    if (parsedLineas.length === 0) {
-      setFormError('Agrega al menos una línea de acarreo con sacos.');
-      return;
-    }
+    const parsedLineas = lineas.map((linea) => ({
+      sacos: Math.max(0, parseInt(linea.sacos, 10) || 0),
+      vertical: linea.vertical.trim() || undefined,
+      disparo: linea.disparo.trim() || undefined,
+    }));
 
     const payload = {
       fecha: form.fecha,
       turno: form.turno,
-      mina: resolveBibliotecaLabel(biblioteca, 'minas', form.mina.trim()),
-      molino: resolveBibliotecaLabel(biblioteca, 'molinos', form.molino.trim()),
+      mina: resolveBibliotecaLabel(biblioteca, 'minas', form.mina.trim()) || form.mina.trim() || undefined,
+      molino: resolveBibliotecaLabel(biblioteca, 'molinos', form.molino.trim()) || form.molino.trim() || undefined,
       lineas: parsedLineas,
       carga_total: sumLineasAcarreo(parsedLineas),
       sacos_libres: parseInt(form.sacos_libres, 10) || 0,
@@ -678,7 +667,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
           <button
             type="button"
             onClick={handleSave}
-            disabled={isPending || !form.mina || !form.molino || cargaTotal <= 0}
+            disabled={isPending}
             className="btn-primary min-h-[48px] sm:min-h-[40px]"
           >
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

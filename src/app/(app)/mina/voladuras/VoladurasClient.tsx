@@ -949,7 +949,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
           <button
             type="button"
             onClick={handleSave}
-            disabled={isPending || !form.huecos_cantidad}
+            disabled={isPending}
             className="btn-primary"
           >
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

@@ -21,8 +21,16 @@ import {
   formatServicioTurno,
 } from '@/lib/acarreo-format';
 import { GerencialDetailField, GerencialDetailSection } from '@/components/gerencial/GerencialDetailField';
+import { formatTime12h } from '@/lib/format-time';
+import { resolveReportPhotoUrl } from '@/lib/report-photo-url';
+import { ReportPhotoImage } from '@/components/reportes/ReportPhotoImage';
 
 const PESO_SACO_KG = 50;
+
+function fmtTimeField(value?: string | null) {
+  if (!value?.trim()) return '—';
+  return formatTime12h(value);
+}
 
 export function VoladurasRecordDetail({ record }: { record: ReporteVoladura }) {
   const pausas = record.pausas_barrenado ?? [];
@@ -39,9 +47,9 @@ export function VoladurasRecordDetail({ record }: { record: ReporteVoladura }) {
       </GerencialDetailSection>
 
       <GerencialDetailSection title="Barrenado">
-        <GerencialDetailField label="Hora inicio" value={formatOptionalText(record.hora_inicio_barrenado)} mono />
-        <GerencialDetailField label="Hora culmina" value={formatOptionalText(record.hora_fin_barrenado)} mono />
-        <GerencialDetailField label="Hora disparo" value={formatOptionalText(record.hora_disparo)} mono />
+        <GerencialDetailField label="Hora inicio" value={fmtTimeField(record.hora_inicio_barrenado)} mono />
+        <GerencialDetailField label="Hora culmina" value={fmtTimeField(record.hora_fin_barrenado)} mono />
+        <GerencialDetailField label="Hora disparo" value={fmtTimeField(record.hora_disparo)} mono />
         <GerencialDetailField
           label="Estado"
           value={record.sin_novedad ? '✓ Sin novedad' : '⚠ Con novedad'}
@@ -54,8 +62,8 @@ export function VoladurasRecordDetail({ record }: { record: ReporteVoladura }) {
           <div className="space-y-2">
             {pausas.map((pausa, index) => (
               <div key={index} className="app-detail-panel grid grid-cols-3 gap-3 rounded-xl p-3">
-                <GerencialDetailField label="Inicio" value={formatOptionalText(pausa.hora_inicio)} mono />
-                <GerencialDetailField label="Fin" value={formatOptionalText(pausa.hora_fin)} mono />
+                <GerencialDetailField label="Inicio" value={fmtTimeField(pausa.hora_inicio)} mono />
+                <GerencialDetailField label="Fin" value={fmtTimeField(pausa.hora_fin)} mono />
                 <GerencialDetailField label="Motivo" value={formatOptionalText(pausa.motivo)} className="col-span-3 sm:col-span-1" />
               </div>
             ))}
@@ -108,8 +116,8 @@ export function ExtraccionRecordDetail({ record }: { record: ReporteExtraccion }
         <GerencialDetailField label="Vertical" value={formatOptionalText(record.vertical)} />
         <GerencialDetailField label="Mina" value={formatOptionalText(record.mina)} />
         <GerencialDetailField label="Responsable" value={formatOptionalText(record.responsable)} />
-        <GerencialDetailField label="Hora inicio" value={formatOptionalText(record.hora_inicio)} mono />
-        <GerencialDetailField label="Hora culmina" value={formatOptionalText(record.hora_fin)} mono />
+        <GerencialDetailField label="Hora inicio" value={fmtTimeField(record.hora_inicio)} mono />
+        <GerencialDetailField label="Hora culmina" value={fmtTimeField(record.hora_fin)} mono />
       </GerencialDetailSection>
 
       {eventos.length > 0 && (
@@ -118,7 +126,7 @@ export function ExtraccionRecordDetail({ record }: { record: ReporteExtraccion }
           <div className="space-y-2">
             {eventos.map((evento, index) => (
               <div key={index} className="app-detail-panel grid grid-cols-[5.5rem_1fr] gap-3 rounded-xl p-3">
-                <GerencialDetailField label="Hora" value={formatOptionalText(evento.hora)} mono />
+                <GerencialDetailField label="Hora" value={fmtTimeField(evento.hora)} mono />
                 <GerencialDetailField label="Descripción" value={formatOptionalText(evento.descripcion)} />
               </div>
             ))}
@@ -295,13 +303,12 @@ export function AcarreoRecordDetail({ record }: { record: ReporteAcarreo }) {
             {record.fotos.map((url) => (
               <a
                 key={url}
-                href={url}
+                href={resolveReportPhotoUrl(url)}
                 target="_blank"
                 rel="noreferrer"
                 className="block overflow-hidden rounded-xl border border-white/10 bg-black/30"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="aspect-square w-full object-cover" />
+                <ReportPhotoImage url={url} />
               </a>
             ))}
           </div>

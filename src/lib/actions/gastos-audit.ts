@@ -9,7 +9,45 @@ import {
   type GastoDuplicateMatch,
 } from '@/lib/gastos-audit';
 import { GastoSchema } from '@/lib/validations/gastos';
+import type { Gasto } from '@/lib/types';
 import { z } from 'zod';
+
+type GastoAuditRow = Pick<
+  Gasto,
+  'id' | 'fecha' | 'categoria_id' | 'descripcion' | 'monto' | 'proveedor' | 'factura_referencia'
+> & {
+  created_at?: string;
+  categorias_gasto?: { nombre?: string | null } | null;
+};
+
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (value == null) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function normalizeGastoAuditRow(row: {
+  id: string;
+  fecha: string;
+  categoria_id: string;
+  descripcion: string;
+  monto: number;
+  proveedor?: string | null;
+  factura_referencia?: string | null;
+  created_at?: string;
+  categorias_gasto?: { nombre?: string | null } | { nombre?: string | null }[] | null;
+}): GastoAuditRow {
+  return {
+    id: row.id,
+    fecha: row.fecha,
+    categoria_id: row.categoria_id,
+    descripcion: row.descripcion,
+    monto: row.monto,
+    proveedor: row.proveedor ?? undefined,
+    factura_referencia: row.factura_referencia ?? undefined,
+    created_at: row.created_at,
+    categorias_gasto: firstRelation(row.categorias_gasto),
+  };
+}
 
 const VerifyInputSchema = z.object({
   gastos: z.array(GastoSchema),
@@ -50,7 +88,9 @@ async function loadExistingForVerification(
     console.error('[gastos-audit] loadExistingForVerification:', error.message);
     return [];
   }
-  return (data ?? []).filter((row) => !excludeIds.has(row.id));
+  return (data ?? [])
+    .filter((row) => !excludeIds.has(row.id))
+    .map((row) => normalizeGastoAuditRow(row));
 }
 
 export async function verifyGastosBeforeSave(raw: unknown): Promise<VerifyGastosResult> {
@@ -119,8 +159,9 @@ export async function auditGastosRegistros(): Promise<AuditGastosResult> {
       nominaError || !nominaRows
         ? []
         : nominaRows
-            .map((row: { id: string; semana_inicio: string; total_pagado: number; gasto_id: string; gastos: { monto: number } | null }) => {
-              const monto = Number(row.gastos?.monto ?? NaN);
+            .map((row) => {
+              const gasto = firstRelation(row.gastos);
+              const monto = Number(gasto?.monto ?? NaN);
               const totalPagado = Number(row.total_pagado ?? NaN);
               if (!row.gasto_id || Number.isNaN(monto) || Number.isNaN(totalPagado)) return null;
               if (Math.abs(monto - totalPagado) <= 0.01) return null;
@@ -140,7 +181,10 @@ export async function auditGastosRegistros(): Promise<AuditGastosResult> {
             semanaInicio: string;
           }>;
 
-    const findings = auditGastosDataset(gastos ?? [], nominaMismatches);
+    const findings = auditGastosDataset(
+      (gastos ?? []).map((row) => normalizeGastoAuditRow(row)),
+      nominaMismatches,
+    );
     const summary = {
       errors: findings.filter((f) => f.severity === 'error').length,
       warnings: findings.filter((f) => f.severity === 'warning').length,

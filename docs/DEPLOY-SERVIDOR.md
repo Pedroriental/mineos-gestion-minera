@@ -125,6 +125,50 @@ En el navegador: recarga forzada (Ctrl+Shift+R) o borra caché del sitio (el ser
 
 `pm2 describe mineos` debe mostrar `next start`, **no** `run dev`.
 
+## 4. Migraciones de base de datos (Supabase CLI)
+
+Las migraciones SQL van con **Supabase CLI** desde tu PC (no `node scripts/run-migration.mjs` salvo emergencia).
+
+### Una sola vez
+
+```powershell
+supabase login
+npm run supabase:link
+```
+
+### Acarreo (`reportes_acarreo`)
+
+```powershell
+npm run supabase:migrate:acarreo
+```
+
+Importar datos históricos de **Recepción** (solo una vez, idempotente):
+
+```powershell
+npm run supabase:migrate:acarreo-import
+```
+
+Equivalente directo:
+
+```powershell
+supabase db query --linked --yes -f supabase/migration_acarreo.sql
+```
+
+### Cualquier archivo en `supabase/`
+
+```powershell
+npm run supabase:migrate -- migration_acarreo.sql
+```
+
+Verificar que la tabla existe:
+
+```powershell
+npm run supabase:check
+supabase db query --linked --yes "SELECT to_regclass('public.reportes_acarreo');"
+```
+
+Orden recomendado al desplegar cambios con migración: **CLI migrate → git push → deploy servidor**.
+
 ## Seguridad
 
 - No compartas la contraseña de `root` por chat; cámbiala si ya se expuso.

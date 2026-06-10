@@ -5,24 +5,19 @@ import { createPortal } from 'react-dom';
 import { Clock, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { computeFixedMenuPosition } from '@/lib/popover-position';
+import {
+  formatTime12h,
+  from24h,
+  HOURS_12,
+  MERIDIEMS,
+  normalizeTime,
+  pad2,
+  to24h,
+  type Meridiem,
+} from '@/lib/format-time';
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
-const MENU_MAX_H = 280;
-
-function pad2(n: number) {
-  return String(n).padStart(2, '0');
-}
-
-function normalizeTime(value?: string | null) {
-  if (!value?.trim()) return '';
-  const match = /^(\d{1,2}):(\d{2})/.exec(value.trim());
-  if (!match) return '';
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return '';
-  return `${pad2(hour)}:${pad2(minute)}`;
-}
+const MENU_MAX_H = 300;
 
 function parseTime(value: string) {
   const normalized = normalizeTime(value);
@@ -57,8 +52,9 @@ export function AppTimePicker({
   const minuteListRef = useRef<HTMLDivElement>(null);
   const parsed = parseTime(value);
   const [open, setOpen] = useState(false);
-  const [draftHour, setDraftHour] = useState(parsed?.hour ?? 0);
-  const [draftMinute, setDraftMinute] = useState(parsed?.minute ?? 0);
+  const [draftHour12, setDraftHour12] = useState(12);
+  const [draftMinute, setDraftMinute] = useState(0);
+  const [draftPeriod, setDraftPeriod] = useState<Meridiem>('AM');
   const [menuPos, setMenuPos] = useState<{
     top?: number;
     bottom?: number;
@@ -82,8 +78,8 @@ export function AppTimePicker({
     const rect = el.getBoundingClientRect();
     const pos = computeFixedMenuPosition({
       anchorRect: rect,
-      menuWidth: 260,
-      estimatedHeight: 260,
+      menuWidth: 300,
+      estimatedHeight: 300,
       maxHeightCap: MENU_MAX_H,
       centerHorizontally: true,
     });
@@ -125,8 +121,16 @@ export function AppTimePicker({
   useEffect(() => {
     if (!open) return;
     const next = parseTime(value);
-    setDraftHour(next?.hour ?? 0);
-    setDraftMinute(next?.minute ?? 0);
+    if (next) {
+      const { hour12, period } = from24h(next.hour);
+      setDraftHour12(hour12);
+      setDraftPeriod(period);
+      setDraftMinute(next.minute);
+    } else {
+      setDraftHour12(12);
+      setDraftPeriod('AM');
+      setDraftMinute(0);
+    }
     requestAnimationFrame(() => {
       hourListRef.current
         ?.querySelector('[data-selected="true"]')
@@ -138,11 +142,23 @@ export function AppTimePicker({
   }, [open, value]);
 
   const applyDraft = () => {
-    onChange(`${pad2(draftHour)}:${pad2(draftMinute)}`);
+    const hour24 = to24h(draftHour12, draftPeriod);
+    onChange(`${pad2(hour24)}:${pad2(draftMinute)}`);
     close();
   };
 
-  const displayValue = parsed ? `${pad2(parsed.hour)}:${pad2(parsed.minute)}` : placeholder;
+  const draftPreview = `${draftHour12}:${pad2(draftMinute)} ${draftPeriod}`;
+  const displayValue = parsed ? formatTime12h(value) : placeholder;
+
+  const optionClass = (selected: boolean) =>
+    cn(
+      'app-time-picker__option flex w-full items-center justify-center rounded-md px-2 py-1.5 text-sm tabular-nums transition-colors',
+      selected
+        ? 'bg-amber-500 font-semibold text-black'
+        : theme === 'light'
+          ? 'text-slate-600 hover:bg-slate-100'
+          : 'text-zinc-300 hover:bg-white/10',
+    );
 
   const menu =
     open && menuPos && mounted
@@ -172,7 +188,7 @@ export function AppTimePicker({
                   theme === 'light' ? 'text-slate-800' : 'text-zinc-200',
                 )}
               >
-                {pad2(draftHour)}:{pad2(draftMinute)}
+                {draftPreview}
               </span>
               <button
                 type="button"
@@ -188,7 +204,7 @@ export function AppTimePicker({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <div>
                 <p
                   className={cn(
@@ -205,24 +221,17 @@ export function AppTimePicker({
                     theme === 'light' ? 'border-slate-200' : 'border-white/10',
                   )}
                 >
-                  {HOURS.map((hour) => {
-                    const selected = hour === draftHour;
+                  {HOURS_12.map((hour) => {
+                    const selected = hour === draftHour12;
                     return (
                       <button
                         key={hour}
                         type="button"
                         data-selected={selected ? 'true' : 'false'}
-                        onClick={() => setDraftHour(hour)}
-                        className={cn(
-                          'app-time-picker__option flex w-full items-center justify-center rounded-md px-2 py-1.5 text-sm tabular-nums transition-colors',
-                          selected
-                            ? 'bg-amber-500 font-semibold text-black'
-                            : theme === 'light'
-                              ? 'text-slate-600 hover:bg-slate-100'
-                              : 'text-zinc-300 hover:bg-white/10',
-                        )}
+                        onClick={() => setDraftHour12(hour)}
+                        className={optionClass(selected)}
                       >
-                        {pad2(hour)}
+                        {hour}
                       </button>
                     );
                   })}
@@ -253,16 +262,40 @@ export function AppTimePicker({
                         type="button"
                         data-selected={selected ? 'true' : 'false'}
                         onClick={() => setDraftMinute(minute)}
-                        className={cn(
-                          'app-time-picker__option flex w-full items-center justify-center rounded-md px-2 py-1.5 text-sm tabular-nums transition-colors',
-                          selected
-                            ? 'bg-amber-500 font-semibold text-black'
-                            : theme === 'light'
-                              ? 'text-slate-600 hover:bg-slate-100'
-                              : 'text-zinc-300 hover:bg-white/10',
-                        )}
+                        className={optionClass(selected)}
                       >
                         {pad2(minute)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p
+                  className={cn(
+                    'mb-1 px-1 text-[10px] font-bold uppercase tracking-wider',
+                    theme === 'light' ? 'text-slate-400' : 'text-zinc-500',
+                  )}
+                >
+                  Periodo
+                </p>
+                <div
+                  className={cn(
+                    'flex flex-col gap-1 rounded-lg border p-1',
+                    theme === 'light' ? 'border-slate-200' : 'border-white/10',
+                  )}
+                >
+                  {MERIDIEMS.map((period) => {
+                    const selected = period === draftPeriod;
+                    return (
+                      <button
+                        key={period}
+                        type="button"
+                        onClick={() => setDraftPeriod(period)}
+                        className={optionClass(selected)}
+                      >
+                        {period}
                       </button>
                     );
                   })}
@@ -293,7 +326,9 @@ export function AppTimePicker({
                 type="button"
                 onClick={() => {
                   const now = new Date();
-                  setDraftHour(now.getHours());
+                  const { hour12, period } = from24h(now.getHours());
+                  setDraftHour12(hour12);
+                  setDraftPeriod(period);
                   setDraftMinute(now.getMinutes());
                 }}
                 className={cn(
@@ -354,4 +389,4 @@ export function AppTimePicker({
   );
 }
 
-export { normalizeTime as normalizeAppTimeValue };
+export { normalizeTime as normalizeAppTimeValue, formatTime12h };
