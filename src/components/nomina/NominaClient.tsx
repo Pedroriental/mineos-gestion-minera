@@ -697,6 +697,10 @@ export default function NominaClient({
       message: '¿Desactivar este trabajador del sistema?',
       variant: 'danger'
     }))) return;
+    
+    // Optimistic update: remover fila inmediatamente del estado local
+    setPreNominaRows(prev => prev.filter(row => row.personal.id !== id));
+    
     startTransition(async () => {
       await updatePersonalEstatusAction(id, 'INACTIVO');
       await registrarAuditAction('DESACTIVAR_PERSONAL', 'personal', id, `Desactivado por ${user?.email}`, user?.id, user?.email);
@@ -1290,24 +1294,35 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                   </div>
                                 </td>
                                 <td className={`px-3 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/5' : ''}`}>
-                                  <div className="inline-flex flex-col items-center gap-1">
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={NOMINA_DIAS_POR_SEMANA}
-                                      step={1}
-                                      value={row.diasTrabajados}
-                                      disabled={semanaActualProcesada}
-                                      onChange={(e) =>
-                                        handleUpdateRow(p.id, {
-                                          diasTrabajados: Number(e.target.value),
-                                        })
-                                      }
-                                      title={`Días trabajados (0–${NOMINA_DIAS_POR_SEMANA}). El sueldo base se prorratea: (salario semanal ÷ 7) × días.`}
-                                      className="w-12 rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 py-1 text-center text-xs font-bold tabular-nums text-white outline-none focus:border-amber-500/50 disabled:opacity-40"
-                                    />
-                                    <span className="text-[8px] font-medium text-white/35">de {NOMINA_DIAS_POR_SEMANA}</span>
-                                  </div>
+                                  {row.estadoAsistencia === 'trabajada' ? (
+                                    <div className="inline-flex flex-col items-center gap-1">
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={NOMINA_DIAS_POR_SEMANA}
+                                        step={1}
+                                        value={row.diasTrabajados}
+                                        disabled={semanaActualProcesada}
+                                        onChange={(e) =>
+                                          handleUpdateRow(p.id, {
+                                            diasTrabajados: Number(e.target.value),
+                                          })
+                                        }
+                                        title={`Días trabajados (0–${NOMINA_DIAS_POR_SEMANA}). El sueldo base se prorratea: (salario semanal ÷ 7) × días.`}
+                                        className="w-12 rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 py-1 text-center text-xs font-bold tabular-nums text-white outline-none focus:border-amber-500/50 disabled:opacity-40"
+                                      />
+                                      <span className="text-[8px] font-medium text-white/35">de {NOMINA_DIAS_POR_SEMANA}</span>
+                                    </div>
+                                  ) : (
+                                    <div className="inline-flex flex-col items-center gap-1 opacity-40">
+                                      <span className="text-xs font-bold tabular-nums text-white/60">
+                                        {row.estadoAsistencia === 'libre' ? '—' : '0'}
+                                      </span>
+                                      <span className="text-[8px] font-medium text-white/35">
+                                        {row.estadoAsistencia === 'libre' ? 'libre' : 'falta'}
+                                      </span>
+                                    </div>
+                                  )}
                                 </td>
                                 {/* Sueldo */}
                                 <td className="px-5 py-3 text-right font-sans tabular-nums text-xs text-white/80">

@@ -363,30 +363,42 @@ export function PersonalQuickAssignModal({
               />
             </div>
             <div>
-              <label className="input-label">Salario labor ($)</label>
+              <label className="input-label flex items-center gap-1.5">
+                Salario labor ($)
+                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500/70">Perfil</span>
+              </label>
               <input
                 type="number"
-                className="input-field"
+                className="input-field bg-zinc-900/50 cursor-not-allowed"
                 value={form.salario_base}
-                onChange={(e) => setForm((p) => ({ ...p, salario_base: e.target.value }))}
+                readOnly
+                title="Heredado del perfil de compensación asignado al trabajador"
               />
             </div>
             <div>
-              <label className="input-label">Sueldo libre ($)</label>
+              <label className="input-label flex items-center gap-1.5">
+                Sueldo libre ($)
+                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500/70">Perfil</span>
+              </label>
               <input
                 type="number"
-                className="input-field"
+                className="input-field bg-zinc-900/50 cursor-not-allowed"
                 value={form.salario_libre}
-                onChange={(e) => setForm((p) => ({ ...p, salario_libre: e.target.value }))}
+                readOnly
+                title="Heredado del perfil de compensación asignado al trabajador"
               />
             </div>
             <div>
-              <label className="input-label">Bono transporte ($)</label>
+              <label className="input-label flex items-center gap-1.5">
+                Bono transporte ($)
+                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500/70">Perfil</span>
+              </label>
               <input
                 type="number"
-                className="input-field"
+                className="input-field bg-zinc-900/50 cursor-not-allowed"
                 value={form.bono_transporte}
-                onChange={(e) => setForm((p) => ({ ...p, bono_transporte: e.target.value }))}
+                readOnly
+                title="Heredado del perfil de compensación asignado al trabajador"
               />
             </div>
             <div>
