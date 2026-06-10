@@ -328,6 +328,67 @@ export async function eliminarValeAction(valeId: string): Promise<ActionResult> 
   }
 }
 
+/** Semana operativa (cierre_v3, sin periodo archivado): busca y actualiza o inserta sin ON CONFLICT. */
+async function resolveSemanaOperativaId(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  input: {
+    inicio: string;
+    fin: string;
+    area: string;
+    totalTrabajadores: number;
+    totalPagado: number;
+    userId: string;
+  },
+): Promise<{ ok: true; semanaId: string } | { ok: false; message: string }> {
+  const payload = {
+    semana_inicio: input.inicio,
+    semana_fin: input.fin,
+    area: input.area,
+    total_trabajadores: input.totalTrabajadores,
+    total_pagado: input.totalPagado,
+    registrado_por: input.userId || null,
+    origen: 'cierre_v3' as const,
+    periodo_id: null,
+  };
+
+  const { data: existing, error: findError } = await supabase
+    .from('nomina_semanas')
+    .select('id')
+    .eq('semana_inicio', input.inicio)
+    .eq('area', input.area)
+    .is('periodo_id', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (findError) {
+    return { ok: false, message: `Error semana: ${findError.message}` };
+  }
+
+  if (existing?.id) {
+    const { data: updated, error: updateError } = await supabase
+      .from('nomina_semanas')
+      .update(payload)
+      .eq('id', existing.id)
+      .select('id')
+      .maybeSingle();
+
+    if (updateError) return { ok: false, message: `Error semana: ${updateError.message}` };
+    if (!updated?.id) return { ok: false, message: 'No se pudo actualizar la semana.' };
+    return { ok: true, semanaId: updated.id };
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('nomina_semanas')
+    .insert(payload)
+    .select('id')
+    .maybeSingle();
+
+  if (insertError) return { ok: false, message: `Error semana: ${insertError.message}` };
+  if (!inserted?.id) return { ok: false, message: 'No se pudo crear la semana.' };
+  return { ok: true, semanaId: inserted.id };
+}
+
 // ── CIERRE DE NÓMINA V3 (con vales y ajustes de socios) ──────
 export async function procesarCierreNominaV3Action(payload: {
   userId: string;
@@ -349,24 +410,17 @@ export async function procesarCierreNominaV3Action(payload: {
     const fechaHoy = new Date().toISOString().split('T')[0];
     const totalNomina = rows.reduce((s, r) => s + r.total, 0);
 
-    // 1. Upsert nomina_semanas
-    const { data: semanaRow, error: semanaError } = await supabase
-      .from('nomina_semanas')
-      .upsert({
-        semana_inicio: inicio,
-        semana_fin: fin,
-        area,
-        total_trabajadores: rows.length,
-        total_pagado: totalNomina,
-        registrado_por: userId || null,
-        origen: 'cierre_v3',
-      }, { onConflict: 'semana_inicio,area' })
-      .select('id')
-      .maybeSingle();
-
-    if (semanaError) return { ok: false, message: `Error semana: ${semanaError.message}` };
-    const semanaId = semanaRow?.id;
-    if (!semanaId) return { ok: false, message: 'No se pudo obtener el ID de la semana.' };
+    // 1. Resolver semana operativa (sin depender de UNIQUE constraint en BD)
+    const semanaResult = await resolveSemanaOperativaId(supabase, {
+      inicio,
+      fin,
+      area,
+      totalTrabajadores: rows.length,
+      totalPagado: totalNomina,
+      userId,
+    });
+    if (!semanaResult.ok) return { ok: false, message: semanaResult.message };
+    const semanaId = semanaResult.semanaId;
 
     // 2. Eliminar registros anteriores
     await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);
