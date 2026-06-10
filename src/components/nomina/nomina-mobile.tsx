@@ -52,6 +52,8 @@ export interface PreNominaRowState {
   totalVales: number;
   novedadTurno: NominaNovedadTurno;
   novedadTurnoObs: string;
+  cicloPosicion?: number | null;
+  diasInputBloqueado?: boolean;
 }
 
 type CargoTheme = { bg: string; text: string; border: string };
@@ -443,16 +445,22 @@ export function NominaMobileWorkerCard({
           </div>
           <div className="flex items-center justify-between gap-2 px-0.5">
             <span className="text-[8px] font-bold uppercase text-white/35">Días trabajados</span>
-            <input
-              type="number"
-              min={0}
-              max={NOMINA_DIAS_POR_SEMANA}
-              step={1}
-              disabled={locked}
-              value={row.diasTrabajados}
-              onChange={(e) => onUpdateRow({ diasTrabajados: Number(e.target.value) })}
-              className="w-12 rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-center text-xs font-bold tabular-nums text-amber-400 outline-none focus:border-amber-500/50 disabled:opacity-45"
-            />
+            {row.diasInputBloqueado || row.estadoAsistencia !== 'trabajada' ? (
+              <span className="text-xs font-bold tabular-nums text-white/50">
+                {row.estadoAsistencia === 'libre' || row.diasInputBloqueado ? '—' : '0'}
+              </span>
+            ) : (
+              <input
+                type="number"
+                min={0}
+                max={NOMINA_DIAS_POR_SEMANA}
+                step={1}
+                disabled={locked}
+                value={row.diasTrabajados}
+                onChange={(e) => onUpdateRow({ diasTrabajados: Number(e.target.value) })}
+                className="w-12 rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-center text-xs font-bold tabular-nums text-amber-400 outline-none focus:border-amber-500/50 disabled:opacity-45"
+              />
+            )}
           </div>
         </div>
       )}
@@ -468,25 +476,37 @@ export function NominaMobileWorkerCard({
             </div>
             <label className="rounded-md border border-zinc-800/70 bg-zinc-950/35 px-2 py-1.5">
               <span className="text-[8px] font-bold uppercase text-white/35">Bono T.</span>
-              <input
-                type="number"
-                value={row.bonoTransporte || ''}
-                disabled={locked}
-                onChange={(e) => onUpdateRow({ bonoTransporte: Number(e.target.value) || 0 })}
-                className="mt-0.5 w-full border-0 bg-transparent p-0 text-right text-[11px] font-semibold tabular-nums text-white/90 outline-none"
-                placeholder="0"
-              />
+              {row.diasInputBloqueado ? (
+                <p className="mt-0.5 text-right text-[11px] font-semibold tabular-nums text-white/50">
+                  {fmtMoney(row.bonoTransporte)}
+                </p>
+              ) : (
+                <input
+                  type="number"
+                  value={row.bonoTransporte || ''}
+                  disabled={locked}
+                  onChange={(e) => onUpdateRow({ bonoTransporte: Number(e.target.value) || 0 })}
+                  className="mt-0.5 w-full border-0 bg-transparent p-0 text-right text-[11px] font-semibold tabular-nums text-white/90 outline-none"
+                  placeholder="0"
+                />
+              )}
             </label>
             <label className="rounded-md border border-zinc-800/70 bg-zinc-950/35 px-2 py-1.5">
               <span className="text-[8px] font-bold uppercase text-white/35">Bonos</span>
-              <input
-                type="number"
-                value={row.bonificaciones || ''}
-                disabled={locked}
-                onChange={(e) => onUpdateRow({ bonificaciones: Number(e.target.value) || 0 })}
-                className="mt-0.5 w-full border-0 bg-transparent p-0 text-right text-[11px] font-semibold tabular-nums text-white/90 outline-none"
-                placeholder="0"
-              />
+              {row.diasInputBloqueado ? (
+                <p className="mt-0.5 text-right text-[11px] font-semibold tabular-nums text-white/50">
+                  {fmtMoney(row.bonificaciones)}
+                </p>
+              ) : (
+                <input
+                  type="number"
+                  value={row.bonificaciones || ''}
+                  disabled={locked}
+                  onChange={(e) => onUpdateRow({ bonificaciones: Number(e.target.value) || 0 })}
+                  className="mt-0.5 w-full border-0 bg-transparent p-0 text-right text-[11px] font-semibold tabular-nums text-white/90 outline-none"
+                  placeholder="0"
+                />
+              )}
             </label>
           </div>
           <button

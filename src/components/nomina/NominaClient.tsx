@@ -56,6 +56,12 @@ import {
   resolveEstadoYDias,
   type EstadoAsistenciaNomina,
 } from '@/lib/nomina-calculo';
+import {
+  diasTrabajadosPorDefectoCiclo,
+  etiquetaEstadoRotacion,
+  inputsDiasBloqueados,
+  posicionEsquemaPersonal,
+} from '@/lib/nomina/perfil-ciclo-reglas';
 import { useBiblioteca } from '@/contexts/biblioteca-context';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
 import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
@@ -175,24 +181,37 @@ function recomputePreNominaRow(
   overrides?: Partial<PreNominaRowState>,
 ): PreNominaRowState {
   const merged = { ...row, ...overrides };
+  const p = merged.personal;
+  const cicloPosicion = posicionEsquemaPersonal(p, weekStart);
+  const diasBloqueados = inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
+
   let estadoAsistencia = merged.estadoAsistencia;
   let diasTrabajados = merged.diasTrabajados;
 
   if (overrides?.estadoAsistencia !== undefined) {
-    diasTrabajados = defaultDiasTrabajados(overrides.estadoAsistencia);
+    diasTrabajados = diasTrabajadosPorDefectoCiclo(
+      p.esquema_rotacion,
+      cicloPosicion,
+      overrides.estadoAsistencia,
+    );
   }
-  if (overrides?.diasTrabajados !== undefined) {
+  if (overrides?.diasTrabajados !== undefined && !diasBloqueados) {
     diasTrabajados = overrides.diasTrabajados;
+  }
+  if (diasBloqueados) {
+    diasTrabajados = 0;
   }
 
   const resolved = resolveEstadoYDias(estadoAsistencia, diasTrabajados);
+  const bonoManual = diasBloqueados ? 0 : merged.bonoTransporte;
+  const bonificaciones = diasBloqueados ? 0 : merged.bonificaciones;
   const pay = calculateNominaRowPay({
-    personal: merged.personal,
+    personal: p,
     estadoAsistencia: resolved.estadoAsistencia,
     diasTrabajados: resolved.diasTrabajados,
     weekStart,
-    bonoTransporte: merged.bonoTransporte,
-    bonificaciones: merged.bonificaciones,
+    bonoTransporte: bonoManual,
+    bonificaciones,
     totalVales: merged.totalVales,
   });
 
@@ -202,9 +221,12 @@ function recomputePreNominaRow(
     diasTrabajados: resolved.diasTrabajados,
     salarioBaseCalculado: pay.salarioBaseCalculado,
     bonoTransporte: pay.bonoTransporte,
+    bonificaciones,
     esSemanaLibre: pay.esSemanaLibre,
     total: pay.total,
     deducciones: merged.totalVales,
+    cicloPosicion,
+    diasInputBloqueado: diasBloqueados,
   };
 }
 
@@ -431,7 +453,13 @@ export default function NominaClient({
         const workerVales = valesMap[p.id] || [];
         const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
         
-        const diasTrabajados = defaultDiasTrabajados(predicted);
+        const cicloPosicion = posicionEsquemaPersonal(p, currentWeekStart);
+        const diasBloqueados = inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
+        const diasTrabajados = diasTrabajadosPorDefectoCiclo(
+          p.esquema_rotacion,
+          cicloPosicion,
+          predicted,
+        );
         const pay = calculateNominaRowPay({
           personal: p,
           estadoAsistencia: predicted,
@@ -439,6 +467,7 @@ export default function NominaClient({
           weekStart: currentWeekStart,
           bonificaciones: 0,
           totalVales,
+          bonoTransporte: diasBloqueados ? 0 : undefined,
         });
 
         const draft = novedadDraft[p.id];
@@ -456,6 +485,8 @@ export default function NominaClient({
           totalVales,
           novedadTurno: parseNovedadTurno(draft?.novedadTurno),
           novedadTurnoObs: draft?.novedadTurnoObs ?? '',
+          cicloPosicion,
+          diasInputBloqueado: diasBloqueados,
         };
       });
       setPreNominaRows(rows);
@@ -1249,6 +1280,12 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                               if (state === 'Día') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Día (pred.)</span>;
                                               return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre (pred.)</span>;
                                             }
+                                            if (p.esquema_rotacion === 'MOLINO_14X14' && row.cicloPosicion !== null && row.cicloPosicion !== undefined) {
+                                              const state = etiquetaEstadoRotacion(p.esquema_rotacion, row.cicloPosicion);
+                                              if (state === 'Libre Pagada') return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre Pagada</span>;
+                                              if (state === 'Libre No Pagada') return <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[8px] font-bold uppercase">🔄 Libre $0</span>;
+                                              return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 {state}</span>;
+                                            }
                                             if (p.esquema_rotacion === 'MOLINO_15X15') {
                                               const state = getMolino15x15State(p.rotacion_inicio_fecha, weekRange.inicio);
                                               if (state === 'Labor (Vuelta - Paga Doble)') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Vuelta (Paga Doble)</span>;
@@ -1301,7 +1338,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                   </div>
                                 </td>
                                 <td className={`px-3 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/5' : ''}`}>
-                                  {row.estadoAsistencia === 'trabajada' ? (
+                                  {!row.diasInputBloqueado && row.estadoAsistencia === 'trabajada' ? (
                                     <div className="inline-flex flex-col items-center gap-1">
                                       <input
                                         type="number"
@@ -1323,10 +1360,14 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                   ) : (
                                     <div className="inline-flex flex-col items-center gap-1 opacity-40">
                                       <span className="text-xs font-bold tabular-nums text-white/60">
-                                        {row.estadoAsistencia === 'libre' ? '—' : '0'}
+                                        {row.estadoAsistencia === 'libre' || row.diasInputBloqueado ? '—' : '0'}
                                       </span>
                                       <span className="text-[8px] font-medium text-white/35">
-                                        {row.estadoAsistencia === 'libre' ? 'libre' : 'falta'}
+                                        {row.diasInputBloqueado
+                                          ? 'ciclo'
+                                          : row.estadoAsistencia === 'libre'
+                                            ? 'libre'
+                                            : 'falta'}
                                       </span>
                                     </div>
                                   )}
@@ -1348,11 +1389,11 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                 </td>
                                 {/* Bono */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5 border-l border-amber-500/10' : ''}`}>
-                                  <input type="number" value={row.bonoTransporte || ''} onChange={e => handleUpdateRow(p.id, { bonoTransporte: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
+                                  <input type="number" value={row.bonoTransporte || ''} onChange={e => handleUpdateRow(p.id, { bonoTransporte: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada || row.diasInputBloqueado} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
                                 </td>
                                 {/* Bonificaciones */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5' : ''}`}>
-                                  <input type="number" value={row.bonificaciones || ''} onChange={e => handleUpdateRow(p.id, { bonificaciones: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
+                                  <input type="number" value={row.bonificaciones || ''} onChange={e => handleUpdateRow(p.id, { bonificaciones: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada || row.diasInputBloqueado} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
                                 </td>
                                 {/* Vales Badge */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5 border-r border-amber-500/10' : ''}`}>

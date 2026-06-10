@@ -1,3 +1,9 @@
+import {
+  calcularBonoTransportePorPosicion,
+  calcularSalarioPorPosicionCiclo,
+  posicionEsquemaPersonal,
+  totalSemanasEsquema,
+} from '@/lib/nomina/perfil-ciclo-reglas';
 import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
 import type { Personal } from '@/lib/types';
 
@@ -44,35 +50,27 @@ export function formatProportionalSalarioHint(
   return `(${diario.toFixed(2)} × ${dias} días)`;
 }
 
-function molino15Position(
-  rotacionInicio: string,
-  weekStartStr: string,
-): number {
-  const startDate = new Date(rotacionInicio);
-  const weekStart = new Date(weekStartStr);
-  const diffMs = weekStart.getTime() - startDate.getTime();
-  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
-  return ((diffWeeks % 4) + 4) % 4;
-}
-
-/** Sueldo semanal completo (sin prorratear por días) según estado y esquema */
+/** Sueldo semanal (antes de prorrateo por días) según estado, esquema y posición en ciclo. */
 export function calculateWeeklyBaseRate(
   p: Pick<Personal, 'esquema_rotacion' | 'rotacion_inicio_fecha' | 'salario_base' | 'salario_libre'>,
   estadoAsistencia: EstadoAsistenciaNomina,
   weekStartStr: string,
+  diasTrabajados?: number,
 ): number {
-  if (p.esquema_rotacion === 'MOLINO_15X15') {
-    if (!p.rotacion_inicio_fecha) {
-      return estadoAsistencia === 'no_laborado' ? 0 : Number(p.salario_base);
-    }
-    const position = molino15Position(p.rotacion_inicio_fecha, weekStartStr);
+  const posicion = posicionEsquemaPersonal(p, weekStartStr);
+  const total = totalSemanasEsquema(p.esquema_rotacion);
 
-    if (estadoAsistencia === 'trabajada') return Number(p.salario_base);
-    if (estadoAsistencia === 'libre') {
-      const libreSal = Number(p.salario_libre) || Number(p.salario_base);
-      return position === 2 ? libreSal : 0;
-    }
-    return 0;
+  if (posicion !== null && total > 1) {
+    const dias = clampDiasTrabajados(
+      diasTrabajados ?? defaultDiasTrabajados(estadoAsistencia),
+    );
+    return calcularSalarioPorPosicionCiclo(
+      p.esquema_rotacion,
+      p,
+      posicion,
+      estadoAsistencia,
+      dias,
+    );
   }
 
   if (estadoAsistencia === 'no_laborado') return 0;
@@ -91,7 +89,13 @@ export function calculateDefaultBaseSal(
   const dias = clampDiasTrabajados(
     diasTrabajados ?? defaultDiasTrabajados(estadoAsistencia),
   );
-  const tarifaSemanal = calculateWeeklyBaseRate(p, estadoAsistencia, weekStartStr);
+  const posicion = posicionEsquemaPersonal(p, weekStartStr);
+  const total = totalSemanasEsquema(p.esquema_rotacion);
+  if (posicion !== null && total > 1) {
+    return calculateWeeklyBaseRate(p, estadoAsistencia, weekStartStr, dias);
+  }
+
+  const tarifaSemanal = calculateWeeklyBaseRate(p, estadoAsistencia, weekStartStr, dias);
   return applyProportionalWeeklyPay(tarifaSemanal, dias);
 }
 
@@ -101,12 +105,16 @@ export function calculateBonoTransporteMolino15(
   weekStartStr: string,
   diasTrabajados?: number,
 ): number {
-  if (p.esquema_rotacion !== 'MOLINO_15X15' || !p.rotacion_inicio_fecha) return 0;
-  const position = molino15Position(p.rotacion_inicio_fecha, weekStartStr);
-  if (position !== 1 || estadoAsistencia !== 'trabajada') return 0;
-  const bono = Number(p.bono_transporte) || 0;
+  const posicion = posicionEsquemaPersonal(p, weekStartStr);
+  if (posicion === null) return 0;
   const dias = clampDiasTrabajados(diasTrabajados ?? defaultDiasTrabajados(estadoAsistencia));
-  return applyProportionalWeeklyPay(bono, dias);
+  return calcularBonoTransportePorPosicion(
+    p.esquema_rotacion,
+    p,
+    posicion,
+    estadoAsistencia,
+    dias,
+  );
 }
 
 export function resolveEstadoYDias(

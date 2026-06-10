@@ -13,6 +13,13 @@ import {
   NOMINA_DIAS_POR_SEMANA,
   type EstadoAsistenciaNomina,
 } from '@/lib/nomina-calculo';
+import {
+  calcularBonoTransportePorPosicion,
+  calcularSalarioPorPosicionCiclo,
+  inputsDiasBloqueados,
+  rolSemanaPorPosicion,
+  totalSemanasPerfil,
+} from '@/lib/nomina/perfil-ciclo-reglas';
 
 export interface CalculoPagoCicloInput {
   personal: Personal;
@@ -180,13 +187,16 @@ export function calcularPagoCicloTrabajador(
       cs.registro?.estado_asistencia,
     );
 
-    const diasTrabajados =
+    let diasTrabajados =
       cs.registro?.dias_trabajados ??
       (estadoAsistencia === 'no_laborado' ? 0 : NOMINA_DIAS_POR_SEMANA);
 
     let salarioBaseCalculado = 0;
     let esSemanaLibre = false;
     let notas: string | undefined;
+
+    const totalSemanasCiclo = totalSemanasPerfil(perfil);
+    const usaReglasPosicion = totalSemanasCiclo > 1;
 
     if (cs.rol_semana === 'reposo') {
       salarioBaseCalculado = aplicarPoliticaReposo(
@@ -195,6 +205,29 @@ export function calcularPagoCicloTrabajador(
         diasTrabajados,
       );
       notas = `Reposo - Política: ${perfil.politica_reposo}`;
+    } else if (usaReglasPosicion) {
+      if (inputsDiasBloqueados(perfil.esquema_rotacion_default, cs.posicion_en_ciclo)) {
+        diasTrabajados = 0;
+      }
+      salarioBaseCalculado = calcularSalarioPorPosicionCiclo(
+        perfil.esquema_rotacion_default,
+        personal,
+        cs.posicion_en_ciclo,
+        estadoAsistencia,
+        diasTrabajados,
+      );
+      if (
+        cs.rol_semana === 'libre' ||
+        estadoAsistencia === 'libre' ||
+        cs.rol_semana === 'no_laborada'
+      ) {
+        esSemanaLibre = cs.rol_semana === 'libre' || estadoAsistencia === 'libre';
+        semanasLibres++;
+        notas = `Posición ${cs.posicion_en_ciclo} — ${cs.rol_semana}`;
+      } else {
+        semanasTrabajadas++;
+        notas = `Posición ${cs.posicion_en_ciclo} — trabajada`;
+      }
     } else if (estadoAsistencia === 'libre' || cs.rol_semana === 'libre') {
       salarioBaseCalculado = aplicarPoliticaDiaLibre(
         perfil.politica_dia_libre,
@@ -226,7 +259,17 @@ export function calcularPagoCicloTrabajador(
     );
 
     const montoBonosAuto = bonosAutomaticos.reduce((sum, b) => sum + b.monto, 0);
-    const bonoTransporte = cs.registro?.bono_transporte_pagado ?? 0;
+    const bonoTransporte =
+      cs.registro?.bono_transporte_pagado ??
+      (usaReglasPosicion
+        ? calcularBonoTransportePorPosicion(
+            perfil.esquema_rotacion_default,
+            personal,
+            cs.posicion_en_ciclo,
+            estadoAsistencia,
+            diasTrabajados,
+          )
+        : 0);
     const bonificaciones = (cs.registro?.bonificaciones ?? 0) + montoBonosAuto;
     const valesDeducidos = cs.registro?.total_vales ?? 0;
 
@@ -315,8 +358,7 @@ export function proyectarPagoCiclo(
     weekDate.setDate(weekDate.getDate() + i * 7);
     const weekStart = weekDate.toISOString().split('T')[0];
 
-    const esLibre = i < perfil.semanas_libres_por_ciclo;
-    const rolSemana = esLibre ? 'libre' : 'trabajada';
+    const rolSemana = rolSemanaPorPosicion(perfil.esquema_rotacion_default, i, perfil);
 
     semanasProyectadas.push({
       ciclo_id: '',

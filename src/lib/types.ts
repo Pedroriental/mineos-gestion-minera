@@ -34,7 +34,7 @@ export interface Personal {
   ajuste_antiguedad_dias?: number | null;
   doc_cedula_url?: string | null;
   foto_carnet_url?: string | null;
-  esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15';
+  esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15' | 'MOLINO_14X14';
   rotacion_inicio_fecha?: string;
   // --- Campos V7: Perfiles de Compensación ---
   perfil_compensacion_id?: string | null;
@@ -103,7 +103,7 @@ export interface NominaRegistro {
 
 export type PoliticaDiaLibre = 'SALARIO_LIBRE' | 'TARIFA_PLANA' | 'SIN_PAGO' | 'GARANTIZADO';
 export type PoliticaReposo = 'PAGO_COMPLETO' | 'PARCIAL' | 'SIN_PAGO';
-export type EsquemaRotacion = 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15';
+export type EsquemaRotacion = 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15' | 'MOLINO_14X14';
 
 export interface BonoAutomatico {
   tipo: string;

@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerClient } from '@/lib/supabase-server';
+import { rolSemanaPorPosicion, totalSemanasPerfil } from '@/lib/nomina/perfil-ciclo-reglas';
 import type { PerfilCompensacion, Personal, NominaCiclo } from '@/lib/types';
 
 export type ActionResult<T = void> =
@@ -36,6 +37,7 @@ export async function vincularSemanaACicloAction(input: {
         perfiles_compensacion!inner (
           id,
           nombre,
+          esquema_rotacion_default,
           semanas_trabajadas_por_ciclo,
           semanas_libres_por_ciclo,
           duracion_ciclo_dias
@@ -66,10 +68,13 @@ export async function vincularSemanaACicloAction(input: {
 
     for (const trab of trabajadores) {
       const vertical = trab.vertical_asignada || trab.grupo_turno || 'General';
-      const perfil = trab.perfiles_compensacion as PerfilCompensacion;
+      const rawPerfil = (trab as unknown as { perfiles_compensacion?: PerfilCompensacion | PerfilCompensacion[] })
+        .perfiles_compensacion;
+      const perfil = (Array.isArray(rawPerfil) ? rawPerfil[0] : rawPerfil) as PerfilCompensacion | undefined;
+      if (!perfil) continue;
 
       // Solo procesar si tiene rotación (más de 1 semana por ciclo)
-      const totalSemanas = perfil.semanas_trabajadas_por_ciclo + perfil.semanas_libres_por_ciclo;
+      const totalSemanas = totalSemanasPerfil(perfil);
       if (totalSemanas <= 1) continue;
 
       if (!gruposMap.has(vertical)) {
@@ -88,7 +93,7 @@ export async function vincularSemanaACicloAction(input: {
     // 3. Para cada grupo, buscar o crear ciclo
     for (const [vertical, grupo] of gruposMap.entries()) {
       const { perfil, trabajadores: grupoTrabajadores } = grupo;
-      const totalSemanas = perfil.semanas_trabajadas_por_ciclo + perfil.semanas_libres_por_ciclo;
+      const totalSemanas = totalSemanasPerfil(perfil);
 
       // Buscar ciclo ABIERTO para esta área/vertical
       const { data: cicloExistente, error: cicloError } = await supabase
@@ -179,9 +184,7 @@ export async function vincularSemanaACicloAction(input: {
         ciclosCreados++;
       }
 
-      // Determinar rol de la semana
-      const esLibre = posicionEnCiclo < perfil.semanas_libres_por_ciclo;
-      const rolSemana = esLibre ? 'libre' : 'trabajada';
+      const rolSemana = rolSemanaPorPosicion(perfil.esquema_rotacion_default, posicionEnCiclo, perfil);
 
       // Vincular semana al ciclo
       const { error: vinculoError } = await supabase
@@ -236,7 +239,7 @@ async function crearNuevoCiclo(
   totalTrabajadores: number,
   userId?: string
 ): Promise<ActionResult<{ cicloId: string }>> {
-  const totalSemanas = perfil.semanas_trabajadas_por_ciclo + perfil.semanas_libres_por_ciclo;
+  const totalSemanas = totalSemanasPerfil(perfil);
   const duracionDias = perfil.duracion_ciclo_dias;
 
   // Calcular fecha_fin del ciclo

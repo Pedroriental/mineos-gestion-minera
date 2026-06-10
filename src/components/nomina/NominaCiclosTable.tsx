@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, Users, Lock, ChevronRight, Calendar, AlertCircle } from 'lucide-react';
 import { getCiclosActivos, getDetalleCiclo } from '@/lib/actions/nomina-ciclos';
 import { calcularPagoCicloTrabajador } from '@/lib/nomina-ciclo-calculo';
+import { etiquetaColumnaCiclo, totalSemanasPerfil } from '@/lib/nomina/perfil-ciclo-reglas';
 import type {
   NominaCiclo,
   DetalleCicloCompleto,
@@ -154,6 +155,14 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
     );
   }
 
+  const perfilCiclo = detalle?.perfil_compensacion ?? selectedCiclo?.perfil_compensacion ?? null;
+  const esquemaCiclo = perfilCiclo?.esquema_rotacion_default ?? 'MINA_2X1';
+  const totalSemanasCiclo = perfilCiclo ? totalSemanasPerfil(perfilCiclo) : 3;
+  const columnasCiclo = Array.from({ length: totalSemanasCiclo }, (_, posicion) => ({
+    posicion,
+    label: etiquetaColumnaCiclo(esquemaCiclo, posicion),
+  }));
+
   // Agrupar trabajadores por grupo_turno o vertical_asignada
   type TrabajadorCiclo = NonNullable<DetalleCicloCompleto['trabajadores']>[number];
   const groupedTrabajadores: Record<string, TrabajadorCiclo[]> = {};
@@ -243,9 +252,11 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
                   <thead>
                     <tr className="bg-zinc-950/40 border-b border-zinc-800 text-[10px] font-bold text-white/50 uppercase tracking-wider">
                       <th className="px-5 py-3">Trabajador</th>
-                      <th className="px-5 py-3 text-right">Sem Libre</th>
-                      <th className="px-5 py-3 text-right">Trab 1</th>
-                      <th className="px-5 py-3 text-right">Trab 2</th>
+                      {columnasCiclo.map((col) => (
+                        <th key={col.posicion} className="px-5 py-3 text-right">
+                          {col.label}
+                        </th>
+                      ))}
                       <th className="px-5 py-3 text-center">Bonos/Status</th>
                       <th className="px-5 py-3 text-right text-amber-500">Total Ciclo</th>
                     </tr>
@@ -256,12 +267,10 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
                       const avatarColor = getAvatarColor(p.cargo);
                       const initials = getInitials(p.nombre_completo);
 
-                      // Obtener montos por posición en ciclo
-                      const semLibre = trab.registros.find(r => r.ciclo_semana?.posicion_en_ciclo === 0);
-                      const trab1 = trab.registros.find(r => r.ciclo_semana?.posicion_en_ciclo === 1);
-                      const trab2 = trab.registros.find(r => r.ciclo_semana?.posicion_en_ciclo === 2);
+                      const montosPorPosicion = columnasCiclo.map((col) =>
+                        trab.registros.find((r) => r.ciclo_semana?.posicion_en_ciclo === col.posicion),
+                      );
 
-                      // Detectar status especial
                       const statusBadges: string[] = [];
                       if (trab.registros.some(r => r.es_finiquito)) {
                         statusBadges.push('Retirado');
@@ -269,7 +278,8 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
                       if (trab.registros.some(r => r.novedad_turno === 'REPOSO')) {
                         statusBadges.push('Reposo');
                       }
-                      if (semLibre && semLibre.monto_pagado > 0) {
+                      const semLibrePagada = montosPorPosicion[0];
+                      if (semLibrePagada && semLibrePagada.monto_pagado > 0) {
                         statusBadges.push('Libre Pagado');
                       }
 
@@ -293,20 +303,22 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
                             </div>
                           </td>
 
-                          {/* Sem Libre */}
-                          <td className="px-5 py-3 text-right font-mono tabular-nums text-xs text-cyan-400">
-                            {semLibre ? fmtMoney(semLibre.monto_pagado) : '—'}
-                          </td>
-
-                          {/* Trab 1 */}
-                          <td className="px-5 py-3 text-right font-mono tabular-nums text-xs text-white/80">
-                            {trab1 ? fmtMoney(trab1.monto_pagado) : '—'}
-                          </td>
-
-                          {/* Trab 2 */}
-                          <td className="px-5 py-3 text-right font-mono tabular-nums text-xs text-white/80">
-                            {trab2 ? fmtMoney(trab2.monto_pagado) : '—'}
-                          </td>
+                          {montosPorPosicion.map((reg, idx) => (
+                            <td
+                              key={columnasCiclo[idx].posicion}
+                              className={`px-5 py-3 text-right font-mono tabular-nums text-xs ${
+                                idx === 0 && esquemaCiclo === 'MOLINO_14X14'
+                                  ? 'text-cyan-400'
+                                  : idx === 1 && esquemaCiclo === 'MOLINO_14X14'
+                                    ? 'text-red-400/80'
+                                    : idx === 0 && (esquemaCiclo === 'MINA_2X1' || esquemaCiclo === 'MINA_ROTATIVA_3G')
+                                      ? 'text-cyan-400'
+                                      : 'text-white/80'
+                              }`}
+                            >
+                              {reg ? fmtMoney(reg.monto_pagado) : '—'}
+                            </td>
+                          ))}
 
                           {/* Bonos/Status */}
                           <td className="px-5 py-3 text-center">
@@ -337,7 +349,7 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
 
                     {/* Subtotal Footer */}
                     <tr className="bg-zinc-950/60 border-t border-zinc-700/50">
-                      <td className="px-5 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider" colSpan={5}>
+                      <td className="px-5 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider" colSpan={columnasCiclo.length + 2}>
                         Subtotal {grupo}
                       </td>
                       <td className="px-5 py-2.5 text-right text-sm font-black tabular-nums text-amber-500">
@@ -355,9 +367,9 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
                   const avatarColor = getAvatarColor(p.cargo);
                   const initials = getInitials(p.nombre_completo);
 
-                  const semLibre = trab.registros.find(r => r.ciclo_semana?.posicion_en_ciclo === 0);
-                  const trab1 = trab.registros.find(r => r.ciclo_semana?.posicion_en_ciclo === 1);
-                  const trab2 = trab.registros.find(r => r.ciclo_semana?.posicion_en_ciclo === 2);
+                  const montosMobile = columnasCiclo.map((col) =>
+                    trab.registros.find((r) => r.ciclo_semana?.posicion_en_ciclo === col.posicion),
+                  );
 
                   return (
                     <div key={p.id} className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
@@ -373,19 +385,15 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
                         </div>
                         <p className="text-sm font-black tabular-nums text-amber-500">{fmtMoney(trab.total_ciclo)}</p>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <div>
-                          <p className="text-[9px] text-white/40 uppercase">Libre</p>
-                          <p className="text-xs font-mono text-cyan-400">{semLibre ? fmtMoney(semLibre.monto_pagado) : '—'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] text-white/40 uppercase">Trab 1</p>
-                          <p className="text-xs font-mono text-white/80">{trab1 ? fmtMoney(trab1.monto_pagado) : '—'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] text-white/40 uppercase">Trab 2</p>
-                          <p className="text-xs font-mono text-white/80">{trab2 ? fmtMoney(trab2.monto_pagado) : '—'}</p>
-                        </div>
+                      <div className="grid gap-2 text-center" style={{ gridTemplateColumns: `repeat(${columnasCiclo.length}, minmax(0, 1fr))` }}>
+                        {columnasCiclo.map((col, idx) => (
+                          <div key={col.posicion}>
+                            <p className="text-[9px] text-white/40 uppercase">{col.label}</p>
+                            <p className="text-xs font-mono text-white/80">
+                              {montosMobile[idx] ? fmtMoney(montosMobile[idx]!.monto_pagado) : '—'}
+                            </p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );

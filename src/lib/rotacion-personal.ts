@@ -1,5 +1,6 @@
 import { FALLBACK_SNAPSHOT, type BibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { isPersonalVisibleInNomina } from '@/lib/personal-master';
+import { asistenciaPredichaPorEsquema } from '@/lib/nomina/perfil-ciclo-reglas';
 import type { Personal } from '@/lib/types';
 
 export const AUTO_ROTACION_OBS = '[auto-rotación]';
@@ -38,33 +39,7 @@ export function calculateExpectedAttendance(
   rotacionInicio: string | undefined | null,
   weekStartStr: string,
 ): 'trabajada' | 'libre' | 'no_laborado' {
-  if (!rotacionInicio || esquema === 'FIJO_SEMANAL' || esquema === 'MOLINO_FIJO') {
-    return 'trabajada';
-  }
-  const startDate = new Date(rotacionInicio);
-  const weekStart = new Date(weekStartStr);
-  const diffMs = weekStart.getTime() - startDate.getTime();
-  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
-
-  if (esquema === 'MINA_2X1') {
-    const position = ((diffWeeks % 3) + 3) % 3;
-    return position === 2 ? 'libre' : 'trabajada';
-  }
-  if (esquema === 'MOLINO_ROTATIVO') {
-    const position = ((diffWeeks % 2) + 2) % 2;
-    return position === 1 ? 'libre' : 'trabajada';
-  }
-  if (esquema === 'MINA_ROTATIVA_3G') {
-    const position = ((diffWeeks % 3) + 3) % 3;
-    return position === 2 ? 'libre' : 'trabajada';
-  }
-  if (esquema === 'MOLINO_15X15') {
-    const position = ((diffWeeks % 4) + 4) % 4;
-    if (position === 2) return 'libre';
-    if (position === 3) return 'no_laborado';
-    return 'trabajada';
-  }
-  return 'trabajada';
+  return asistenciaPredichaPorEsquema(esquema, rotacionInicio, weekStartStr);
 }
 
 export function tieneEsquemaConRotacion(esquema: string): boolean {
