@@ -769,21 +769,21 @@ export default function NominaClient({
     }))) return;
     setProcesadoOk(null);
     startTransition(async () => {
+      // El servidor recalcula salario y total desde la BD (checksum);
+      // la identidad sale de la sesión server-side, no se envía userId.
       const formattedRows = preNominaRows.map((r) => ({
-        personal: r.personal,
-        esSemanaLibre: r.esSemanaLibre,
-        bonoTransporte: r.bonoTransporte,
+        personalId: r.personal.id,
+        estadoAsistencia: r.estadoAsistencia ?? (r.esSemanaLibre ? ('libre' as const) : ('trabajada' as const)),
+        diasTrabajados: r.diasTrabajados ?? (r.estadoAsistencia === 'no_laborado' ? 0 : 7),
         total: r.total,
-        bonificaciones: r.bonificaciones,
-        totalVales: r.totalVales,
-        estadoAsistencia: r.estadoAsistencia,
-        diasTrabajados: r.diasTrabajados,
-        salarioBaseCalculado: r.salarioBaseCalculado,
+        bonoTransporte: Number(r.bonoTransporte) || 0,
+        bonificaciones: Number(r.bonificaciones) || 0,
+        totalVales: Number(r.totalVales) || 0,
         novedadTurno: r.novedadTurno,
         novedadTurnoObs: r.novedadTurnoObs,
       }));
       const res = await procesarCierreNominaV3Action({
-        userId: user?.id || '', area, inicio: weekRange.inicio, fin: weekRange.fin, rows: formattedRows,
+        area, inicio: weekRange.inicio, fin: weekRange.fin, rows: formattedRows,
         distribucion: distribucion.partes,
       });
       if (res.ok) {
