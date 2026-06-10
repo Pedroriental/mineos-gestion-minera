@@ -25,6 +25,7 @@ import {
   UserCircle,
   Users,
   X,
+  Trash2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -37,7 +38,9 @@ import type { Personal } from '@/lib/types';
 import {
   upsertTrabajadorRegistroAction,
   updateTrabajadorEstadoAction,
+  bulkDeleteTrabajadoresAction,
 } from '@/lib/actions/trabajadores-registry';
+import type { PerfilCompensacion } from '@/lib/types';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import {
@@ -66,6 +69,9 @@ type FormState = {
   notas: string;
   estado_laboral: EstadoLaboral;
   observacion_estado: string;
+  perfil_compensacion_id: string;
+  salario_base: string;
+  bono_transporte: string;
 };
 
 type EstadoModal = {
@@ -96,6 +102,9 @@ const EMPTY_FORM: FormState = {
   notas: '',
   estado_laboral: 'ACTIVO',
   observacion_estado: '',
+  perfil_compensacion_id: '',
+  salario_base: '',
+  bono_transporte: '',
 };
 
 function statusTone(estado: EstadoLaboral) {
@@ -161,7 +170,7 @@ const TRABAJADORES_DEFAULT_PAGE_ROWS = 10;
 const TRABAJADORES_ROW_PX = 56;
 const TRABAJADORES_HEAD_FALLBACK_PX = 56;
 const TRABAJADORES_LAYOUT_SAFETY_PX = 4;
-const TRABAJADORES_TABLE_COLS = 9;
+const TRABAJADORES_TABLE_COLS = 10;
 
 const ESTADOS_FILTRO: { value: EstadoLaboral; label: string }[] = [
   { value: 'ACTIVO', label: 'Activo' },
@@ -223,6 +232,29 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   const [estadoModal, setEstadoModal] = useState<EstadoModal>(emptyEstadoModal());
   const [estadoMenu, setEstadoMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [perfilesCompensacion, setPerfilesCompensacion] = useState<PerfilCompensacion[]>([]);
+
+  // Cargar perfiles de compensación
+  useEffect(() => {
+    async function loadPerfiles() {
+      try {
+        const { createClient } = await import('@/lib/supabase-client');
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('perfiles_compensacion')
+          .select('*')
+          .eq('activo', true)
+          .order('nombre');
+        if (!error && data) {
+          setPerfilesCompensacion(data);
+        }
+      } catch (err) {
+        console.error('[TrabajadoresRegistry] Error loading perfiles:', err);
+      }
+    }
+    loadPerfiles();
+  }, []);
 
   const cargoOptions = useMemo(
     () =>
@@ -426,6 +458,9 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
       notas: t.notas || '',
       estado_laboral: (t.estado_laboral || 'ACTIVO') as EstadoLaboral,
       observacion_estado: t.observacion_estado || '',
+      perfil_compensacion_id: t.perfil_compensacion_id || '',
+      salario_base: String(t.salario_base ?? ''),
+      bono_transporte: String(t.bono_transporte ?? ''),
     });
     setDocCedula(null);
     setFotoCarnet(null);
@@ -442,6 +477,11 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
   function submitForm() {
     if (!form.nombre_completo.trim() || !form.cedula.trim() || !form.cargo.trim()) {
       toastError('Nombre, cédula y cargo son obligatorios.');
+      return;
+    }
+
+    if (!form.salario_base || Number(form.salario_base) <= 0) {
+      toastError('El sueldo base semanal es obligatorio y debe ser mayor a 0.');
       return;
     }
 
@@ -473,6 +513,9 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
     fd.set('notas', form.notas);
     fd.set('estado_laboral', form.estado_laboral);
     fd.set('observacion_estado', form.observacion_estado);
+    fd.set('perfil_compensacion_id', form.perfil_compensacion_id);
+    fd.set('salario_base', form.salario_base);
+    fd.set('bono_transporte', form.bono_transporte);
     if (docCedula) fd.set('doc_cedula', docCedula);
     if (fotoCarnet) fd.set('foto_carnet', fotoCarnet);
 
@@ -483,6 +526,43 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
         return;
       }
       closeModal();
+      toast.success(res.message);
+      router.refresh();
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((t) => t.id)));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`¿Eliminar ${selectedIds.size} trabajador(es)? Esta acción los marcará como DESPEDIDO/INACTIVO.`)) {
+      return;
+    }
+    startTransition(async () => {
+      const res = await bulkDeleteTrabajadoresAction(Array.from(selectedIds));
+      if (!res.ok) {
+        toastError(res.message);
+        return;
+      }
+      setSelectedIds(new Set());
       toast.success(res.message);
       router.refresh();
     });
@@ -614,6 +694,7 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
     const isFired = estado === 'DESPEDIDO';
     const isReengaged = estado === 'REENGANCHADO';
     const fechaIngresoFmt = formatFechaIngreso(t.fecha_ingreso);
+    const isSelected = selectedIds.has(t.id);
     return (
       <tr
         key={t.id}
@@ -623,8 +704,16 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
             : isReengaged
               ? 'trabajadores-table__row--reengaged'
               : ''
-        }`}
+        } ${isSelected ? 'bg-amber-500/5' : ''}`}
       >
+        <td className="gastos-table__cell gastos-td px-3">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => toggleSelect(t.id)}
+            className="h-4 w-4 rounded border-white/20 bg-transparent text-amber-500 focus:ring-amber-500/50"
+          />
+        </td>
         <td className="gastos-table__cell gastos-td px-3">
           <div className="trabajadores-row-worker">
             <p className="truncate font-semibold text-white">{t.nombre_completo}</p>
@@ -854,6 +943,17 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
                   </button>
                 ) : null}
               </div>
+              {selectedIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBulkDelete}
+                  disabled={isPending}
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar {selectedIds.size} seleccionado{selectedIds.size > 1 ? 's' : ''}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={openCreate}
@@ -877,6 +977,14 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
               <table className="gastos-table trabajadores-table--uniform min-w-full border-collapse text-left text-sm">
                 <thead className="gastos-thead sticky top-0 z-[1] bg-white/[0.03] text-[11px] uppercase tracking-wider text-white/45">
                   <tr className="gastos-table__row">
+                    <th className="gastos-th gastos-table__cell w-10 px-3">
+                      <input
+                        type="checkbox"
+                        checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 rounded border-white/20 bg-transparent text-amber-500 focus:ring-amber-500/50"
+                      />
+                    </th>
                     <th className="gastos-th gastos-table__cell px-3">Trabajador</th>
                     <th className="gastos-th gastos-table__cell px-3">Cédula</th>
                     <th className="gastos-th gastos-table__cell px-3">Edad</th>
@@ -1035,13 +1143,48 @@ export default function TrabajadoresRegistryClient({ trabajadores }: Props) {
             </datalist>
           </div>
           <div>
-            <label className="input-label">Asignación Nómina (Vertical/Sector)</label>
-            <input list="asignacion-options" className="input-field" value={form.area_detalle} onChange={(e) => setForm((p) => ({ ...p, area_detalle: e.target.value }))} placeholder="Ej: Vertical 2" />
-            <datalist id="asignacion-options">
-              {asignacionOptions.map((a) => (
-                <option key={a} value={a} />
-              ))}
-            </datalist>
+            <label className="input-label">Asignación Nómina (Vertical/Sector) *</label>
+            <AppSelect
+              value={form.area_detalle}
+              onChange={(val) => setForm((p) => ({ ...p, area_detalle: val }))}
+              options={asignacionOptions.map((a) => ({ value: a, label: a }))}
+              placeholder="Seleccionar vertical/sector"
+            />
+          </div>
+          <div>
+            <label className="input-label">Perfil de Compensación *</label>
+            <AppSelect
+              value={form.perfil_compensacion_id}
+              onChange={(val) => setForm((p) => ({ ...p, perfil_compensacion_id: val }))}
+              options={perfilesCompensacion.map((p) => ({ value: p.id, label: p.nombre }))}
+              placeholder="Seleccionar perfil"
+            />
+            <p className="mt-1 text-[10px] text-white/35">Define esquema de rotación y reglas de pago.</p>
+          </div>
+          <div>
+            <label className="input-label">Sueldo Base Semanal (USD) *</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input-field"
+              value={form.salario_base}
+              onChange={(e) => setForm((p) => ({ ...p, salario_base: e.target.value }))}
+              placeholder="Ej: 100.00"
+            />
+          </div>
+          <div>
+            <label className="input-label">Bono Transporte (USD)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input-field"
+              value={form.bono_transporte}
+              onChange={(e) => setForm((p) => ({ ...p, bono_transporte: e.target.value }))}
+              placeholder="Ej: 20.00"
+            />
+            <p className="mt-1 text-[10px] text-white/35">Opcional. Para grupos con bono fijo (ej: Molinos).</p>
           </div>
           <div>
             <label className="input-label">Área / Sitio laboral</label>

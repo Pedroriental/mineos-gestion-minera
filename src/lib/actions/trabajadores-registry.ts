@@ -76,6 +76,11 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     const reengancheFecha = String(formData.get('reenganche_fecha') ?? '').trim();
     const reengancheCargo = String(formData.get('reenganche_cargo') ?? '').trim();
     const reengancheObservacion = String(formData.get('reenganche_observacion') ?? '').trim();
+    
+    // Nuevos campos financieros
+    const perfilCompensacionId = String(formData.get('perfil_compensacion_id') ?? '').trim();
+    const salarioBaseRaw = String(formData.get('salario_base') ?? '').trim();
+    const bonoTransporteRaw = String(formData.get('bono_transporte') ?? '').trim();
 
     if (!nombre || !cedula || !cargo) {
       return { ok: false, message: 'Nombre, cédula y cargo son obligatorios.' };
@@ -94,6 +99,18 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     }
     if (estadoLaboral === 'REENGANCHADO' && (!reengancheFecha || !reengancheCargo)) {
       return { ok: false, message: 'Para reenganchado debes indicar fecha de reintegro y cargo.' };
+    }
+    
+    // Validar salario_base (obligatorio)
+    const salarioBase = salarioBaseRaw ? Number(salarioBaseRaw) : null;
+    if (salarioBase === null || !Number.isFinite(salarioBase) || salarioBase < 0) {
+      return { ok: false, message: 'El sueldo base semanal es obligatorio y debe ser un número válido.' };
+    }
+    
+    // Validar bono_transporte (opcional)
+    const bonoTransporte = bonoTransporteRaw ? Number(bonoTransporteRaw) : 0;
+    if (!Number.isFinite(bonoTransporte) || bonoTransporte < 0) {
+      return { ok: false, message: 'El bono de transporte debe ser un número válido.' };
     }
 
     const biblioteca = await loadBibliotecaAppSnapshot();
@@ -175,6 +192,10 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       activo: estadoLaboral === 'ACTIVO' || estadoLaboral === 'REENGANCHADO',
       estatus: estadoLaboral === 'DESPEDIDO' ? 'LIQUIDADO' : estadoLaboral === 'ACTIVO' || estadoLaboral === 'REENGANCHADO' ? 'ACTIVO' : 'INACTIVO',
       fecha_ingreso: fechaIngresoRaw || existingIngreso || new Date().toISOString().split('T')[0],
+      // Nuevos campos financieros
+      perfil_compensacion_id: perfilCompensacionId || null,
+      salario_base: salarioBase,
+      bono_transporte: bonoTransporte,
     };
 
     let error;
@@ -183,9 +204,7 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     } else {
       ({ error } = await supabase.from('personal').insert({
         ...payloadBase,
-        salario_base: 0,
         salario_libre: 0,
-        bono_transporte: 0,
         esquema_rotacion: 'FIJO_SEMANAL',
       }));
     }
@@ -238,5 +257,34 @@ export async function updateTrabajadorEstadoAction(raw: {
   } catch (e) {
     console.error('[trabajadores-registry] update state error:', e);
     return { ok: false, message: 'No se pudo actualizar el estado.' };
+  }
+}
+
+export async function bulkDeleteTrabajadoresAction(ids: string[]): Promise<RegistryActionResult> {
+  try {
+    if (!ids || ids.length === 0) {
+      return { ok: false, message: 'No se seleccionaron trabajadores.' };
+    }
+
+    const supabase = await createServerClient();
+    
+    // Soft delete: marcar como INACTIVO y DESPEDIDO
+    const { error } = await supabase
+      .from('personal')
+      .update({
+        activo: false,
+        estatus: 'INACTIVO',
+        estado_laboral: 'DESPEDIDO',
+        despido_fecha: new Date().toISOString().split('T')[0],
+        despido_causa: 'Eliminación masiva desde Base de Trabajadores',
+      })
+      .in('id', ids);
+
+    if (error) return { ok: false, message: toUserFriendlyError(error.message) };
+    revalidateAll();
+    return { ok: true, message: `${ids.length} trabajador(es) eliminado(s).` };
+  } catch (e) {
+    console.error('[trabajadores-registry] bulk delete error:', e);
+    return { ok: false, message: 'No se pudieron eliminar los trabajadores.' };
   }
 }
