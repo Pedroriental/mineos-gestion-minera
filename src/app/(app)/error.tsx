@@ -57,13 +57,13 @@ export default function AppError({
           <button
             type="button"
             onClick={() => (chunkError ? void clearAppCachesAndReload() : reset())}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            className="btn-primary text-sm"
           >
             {chunkError ? 'Actualizar ahora' : 'Reintentar'}
           </button>
           <a
             href="/dashboard"
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="btn-secondary text-sm"
           >
             Ir al inicio
           </a>

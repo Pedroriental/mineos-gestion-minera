@@ -245,7 +245,7 @@ export default function NominaTrabajadorModal({
                   type="button"
                   onClick={onAddVale}
                   disabled={isPending || !newValeMonto}
-                  className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-amber-600 text-xs font-bold text-black transition-colors hover:bg-amber-500 disabled:opacity-40"
+                  className="btn-primary h-9 w-full text-xs disabled:opacity-40"
                 >
                   {isPending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

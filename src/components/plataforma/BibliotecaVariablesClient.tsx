@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { AppSelect } from '@/components/ui/AppSelect';
 import {
   deleteBibliotecaCategoriaAction,
   deleteBibliotecaVariableAction,
@@ -389,19 +390,11 @@ export default function BibliotecaVariablesClient({ catalogo }: Props) {
               />
             </Field>
             <Field label="Módulo vinculado">
-              <select
-                className="input-field w-full"
+              <AppSelect
                 value={catForm.modulo}
-                onChange={(e) =>
-                  setCatForm({ ...catForm, modulo: e.target.value as BibliotecaModulo })
-                }
-              >
-                {Object.entries(MODULO_LABEL).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setCatForm({ ...catForm, modulo: v as BibliotecaModulo })}
+                options={Object.entries(MODULO_LABEL).map(([k, v]) => ({ value: k, label: v }))}
+              />
             </Field>
             <Field label="Descripción">
               <textarea

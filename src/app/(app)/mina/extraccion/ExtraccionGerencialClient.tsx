@@ -43,6 +43,7 @@ import {
   mineosBtnSubtleClass,
   mineosPanel,
   mineosLabelAccent,
+  MINEOS_BTN_GERENCIAL_NEW,
 } from '@/lib/mineos-visual';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
@@ -588,7 +589,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
               <button
                 type="button"
                 onClick={openNew}
-                className="gerencial-page__new-btn produccion-page__toolbar-btn flex h-8 min-w-0 flex-[1.2] items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 text-xs font-bold text-black shadow-lg shadow-amber-900/20 transition-colors hover:bg-amber-500 lg:h-9 lg:w-auto lg:flex-initial"
+                className={`${MINEOS_BTN_GERENCIAL_NEW} flex h-8 min-w-0 flex-[1.2] lg:h-9 lg:w-auto lg:flex-initial`}
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span className="truncate">Nuevo Registro</span>
@@ -672,7 +673,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                    type="button"
                    onClick={() => setSelectedDate('todos')}
                    className={`produccion-day-pill snap-center flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-xs transition-all ${
-                     selectedDate === 'todos' ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''
+                     selectedDate === 'todos' ? 'produccion-day-pill--active' : ''
                    }`}
                  >
                    <span>Todos los días</span>
@@ -689,7 +690,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                      key={dia.fecha}
                      type="button"
                      onClick={() => setSelectedDate(dia.fecha)}
-                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active bg-amber-500 border-amber-500 text-black font-bold' : ''}`}
+                     className={`produccion-day-pill snap-center flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all lg:gap-2 lg:px-3.5 lg:py-2 lg:text-xs ${isSelected ? 'produccion-day-pill--active' : ''}`}
                    >
                      <span>{d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
                      <span className={`produccion-day-pill__badge rounded-full px-1.5 py-0.5 text-[9px] font-black ${isSelected ? 'bg-black/20 text-black' : ''}`}>{dia.count}</span>

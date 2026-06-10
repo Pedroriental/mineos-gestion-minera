@@ -2,6 +2,9 @@
 
 import { memo, useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
 import { getTableConfig } from '@/lib/reports/filtrable-columns';
 import type { ReportModule, ModuleFilters } from '@/lib/reports/report-types';
 
@@ -21,9 +24,6 @@ const MODULE_NAMES: Record<string, string> = {
   produccion: 'Producción', extraccion: 'Extracción', quemado: 'Quemado',
   voladuras: 'Voladuras', gastos: 'Gastos', nomina: 'Nómina', balance: 'Balance',
 };
-
-const FIELD_CLASSES =
-  'w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-[12px] text-white outline-none focus:border-zinc-500/40 focus:ring-1 focus:ring-zinc-500/15';
 
 export const DynamicFilterPanel = memo(function DynamicFilterPanel({
   modules,
@@ -128,31 +128,32 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
     }
   }, [modules, combinedGroupByOptions, groupBy, onChangeGroupBy]);
 
+  const groupByOptions = useMemo(
+    () => combinedGroupByOptions.map((g) => ({ value: g.key, label: g.label })),
+    [combinedGroupByOptions],
+  );
+
   return (
     <div className="space-y-4">
       {/* Dates */}
       <div className="space-y-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Fechas</p>
+        <p className={ui.sectionTitle}>Fechas</p>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[10px] text-zinc-500 block mb-0.5">Desde</label>
-            <input type="date" value={dateFrom} onChange={(e) => onChangeDateFrom(e.target.value)} className={FIELD_CLASSES} />
+            <label className={cn(ui.fieldLabel, 'mb-0.5 block')}>Desde</label>
+            <AppDatePicker value={dateFrom} onChange={onChangeDateFrom} />
           </div>
           <div>
-            <label className="text-[10px] text-zinc-500 block mb-0.5">Hasta</label>
-            <input type="date" value={dateTo} onChange={(e) => onChangeDateTo(e.target.value)} className={FIELD_CLASSES} />
+            <label className={cn(ui.fieldLabel, 'mb-0.5 block')}>Hasta</label>
+            <AppDatePicker value={dateTo} onChange={onChangeDateTo} />
           </div>
         </div>
       </div>
 
       {/* Group by */}
       <div className="space-y-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Agrupar por</p>
-        <select value={groupBy} onChange={(e) => onChangeGroupBy(e.target.value)} className={FIELD_CLASSES}>
-          {combinedGroupByOptions.map((g) => (
-            <option key={g.key} value={g.key}>{g.label}</option>
-          ))}
-        </select>
+        <p className={ui.sectionTitle}>Agrupar por</p>
+        <AppSelect value={groupBy} onChange={onChangeGroupBy} options={groupByOptions} />
       </div>
 
       {/* Per-module filters */}
@@ -211,13 +212,13 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
                           type="number" step="any" placeholder="Min"
                           value={current.gte ?? ''}
                           onChange={(e) => setRange(mod, col.key, 'gte', e.target.value)}
-                          className={cn(FIELD_CLASSES, 'text-[11px]')}
+                          className={cn(ui.input, 'text-[11px]')}
                         />
                         <input
                           type="number" step="any" placeholder="Max"
                           value={current.lte ?? ''}
                           onChange={(e) => setRange(mod, col.key, 'lte', e.target.value)}
-                          className={cn(FIELD_CLASSES, 'text-[11px]')}
+                          className={cn(ui.input, 'text-[11px]')}
                         />
                       </div>
                     </div>
@@ -232,7 +233,7 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
                         type="text" placeholder="Ej: ^V[1-3]"
                         value={getFilterValue(mod, col.key) as string}
                         onChange={(e) => setRegex(mod, col.key, e.target.value)}
-                        className={cn(FIELD_CLASSES, 'text-[11px]')}
+                        className={cn(ui.input, 'text-[11px]')}
                       />
                     </div>
                   );
@@ -246,7 +247,7 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
                         type="text"
                         value={getFilterValue(mod, col.key) as string}
                         onChange={(e) => setText(mod, col.key, e.target.value)}
-                        className={cn(FIELD_CLASSES, 'text-[11px]')}
+                        className={cn(ui.input, 'text-[11px]')}
                       />
                     </div>
                   );

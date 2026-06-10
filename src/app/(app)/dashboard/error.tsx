@@ -26,13 +26,13 @@ export default function DashboardError({
         <div className="flex justify-center gap-3">
           <button
             onClick={reset}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            className="btn-primary text-sm"
           >
             Reintentar
           </button>
           <a
             href="/dashboard"
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="btn-secondary text-sm"
           >
             Recargar página
           </a>

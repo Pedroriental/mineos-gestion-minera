@@ -12,6 +12,7 @@ import type { ReconciliationRawInputs } from '@/lib/reconciliation/types';
 import type { NominaDivisionParam } from '@/lib/reconciliation/nomina-divisiones';
 import { ReconciliacionNominaDivisiones } from '@/components/reportes/ReconciliacionNominaDivisiones';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
 import { cn } from '@/lib/utils';
 
 type FieldDef = {
@@ -61,9 +62,6 @@ const SECTIONS: Array<{ title: string; fields: FieldDef[] }> = [
     ],
   },
 ];
-
-const inputClass =
-  'w-full rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-white tabular-nums outline-none transition-colors focus:border-amber-500/30 focus:ring-1 focus:ring-amber-500/20';
 
 export function ReconciliacionParametros({
   params,
@@ -193,7 +191,7 @@ export function ReconciliacionParametros({
                     step={f.step}
                     value={form[f.key] as number}
                     onChange={(e) => update(f.key, e.target.value)}
-                    className={inputClass}
+                    className={cn(ui.input, 'tabular-nums')}
                   />
                 )}
               </label>
@@ -207,7 +205,7 @@ export function ReconciliacionParametros({
           type="button"
           disabled={isPending}
           onClick={handleSave}
-          className="rounded-lg bg-amber-500/15 border border-amber-500/30 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
+          className="btn-primary text-xs disabled:opacity-50"
         >
           {isPending ? 'Guardando…' : 'Guardar y recalcular'}
         </button>

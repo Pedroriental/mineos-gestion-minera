@@ -1,6 +1,7 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
+import { MINEOS_TABLE_ACTION_DELETE, MINEOS_TABLE_ACTION_EDIT } from '@/lib/mineos-visual';
 import type { ReporteQuemado } from '@/lib/types';
 import { Edit2, Trash2 } from 'lucide-react';
 
@@ -112,7 +113,7 @@ export const columns = (
           <button
             type="button"
             onClick={() => openEdit(row.original)}
-            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-[var(--mineos-general-bright)]"
+            className={MINEOS_TABLE_ACTION_EDIT}
             title="Editar"
           >
             <Edit2 className="h-4 w-4" />
@@ -120,7 +121,7 @@ export const columns = (
           <button
             type="button"
             onClick={() => handleDelete(row.original.id)}
-            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            className={MINEOS_TABLE_ACTION_DELETE}
             title="Eliminar"
           >
             <Trash2 className="h-4 w-4" />

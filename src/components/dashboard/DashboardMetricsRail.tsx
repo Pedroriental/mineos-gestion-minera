@@ -20,6 +20,8 @@ import { createProduccion } from '@/lib/actions/produccion';
 import { createExtraccion } from '@/lib/actions/extraccion';
 import { getOrCreateCategoria, createGasto } from '@/lib/actions/gastos';
 import type { GlobalData } from './types';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 type TabType = 'produccion' | 'extraccion' | 'gastos' | 'asistencia' | 'equipos';
 
@@ -62,6 +64,19 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
   const molinoDatalist = useMemo(
     () => molinoOpts.length > 0 ? molinoOpts : [{ value: 'Molino La Fe', label: 'Molino La Fe' }],
     [molinoOpts],
+  );
+
+  const gastosCategoriaOptions = useMemo(
+    () => GASTOS_CATEGORIAS.map((c) => ({ value: c, label: c })),
+    [],
+  );
+  const equipoEventoOptions = useMemo(
+    () => EQUIPO_EVENTOS.map((o) => ({ value: o.value, label: o.label })),
+    [],
+  );
+  const guardiaTurnoOptions = useMemo(
+    () => GUARDIA_TURNOS.map((o) => ({ value: o.value, label: o.label })),
+    [],
   );
 
   const materialDatalist = useMemo(() => {
@@ -299,13 +314,11 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
               <>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Fecha</label>
-                  <input type="date" value={pFecha} onChange={e => setPFecha(e.target.value)} className="input-field" />
+                  <AppDatePicker value={pFecha} onChange={setPFecha} />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Turno</label>
-                  <select value={pTurno} onChange={e => setPTurno(e.target.value)} className="input-field">
-                    {turnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <AppSelect value={pTurno} onChange={setPTurno} options={turnoOpts} />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Molino</label>
@@ -355,27 +368,28 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
               <>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Fecha</label>
-                  <input type="date" value={eFecha} onChange={e => setEFecha(e.target.value)} className="input-field" />
+                  <AppDatePicker value={eFecha} onChange={setEFecha} />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Turno</label>
-                  <select value={eTurno} onChange={e => setETurno(e.target.value as 'dia' | 'noche' | 'completo')} className="input-field">
-                    {turnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <AppSelect
+                    value={eTurno}
+                    onChange={(v) => setETurno(v as 'dia' | 'noche' | 'completo')}
+                    options={turnoOpts}
+                  />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Vertical</label>
-                  <select value={eVertical} onChange={e => setEVertical(e.target.value)} className="input-field">
-                    <option value="">— Sin especificar —</option>
-                    {verticalOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <AppSelect
+                    value={eVertical}
+                    onChange={setEVertical}
+                    options={verticalOpts}
+                    placeholder="— Sin especificar —"
+                  />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Mina</label>
-                  <select value={eMina} onChange={e => setEMina(e.target.value)} className="input-field">
-                    <option value="">Seleccionar…</option>
-                    {minaOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <AppSelect value={eMina} onChange={setEMina} options={minaOpts} placeholder="Seleccionar…" />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Sacos extraídos</label>
@@ -397,7 +411,7 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
               <>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Fecha</label>
-                  <input type="date" value={gFecha} onChange={e => setGFecha(e.target.value)} className="input-field" />
+                  <AppDatePicker value={gFecha} onChange={setGFecha} />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Monto ($)</label>
@@ -405,10 +419,12 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Categoría</label>
-                  <select value={gCategoria} onChange={e => setGCategoria(e.target.value)} className="input-field">
-                    <option value="">Seleccionar…</option>
-                    {GASTOS_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <AppSelect
+                    value={gCategoria}
+                    onChange={setGCategoria}
+                    options={gastosCategoriaOptions}
+                    placeholder="Seleccionar…"
+                  />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Descripción</label>
@@ -422,13 +438,11 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
               <>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Fecha</label>
-                  <input type="date" value={aFecha} onChange={e => setAFecha(e.target.value)} className="input-field" />
+                  <AppDatePicker value={aFecha} onChange={setAFecha} />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Turno</label>
-                  <select value={aTurno} onChange={e => setATurno(e.target.value)} className="input-field">
-                    {GUARDIA_TURNOS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <AppSelect value={aTurno} onChange={setATurno} options={guardiaTurnoOptions} />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Jefe saliente</label>
@@ -460,14 +474,16 @@ export const DashboardMetricsRail = memo(function DashboardMetricsRail({ globalD
               <>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Fecha</label>
-                  <input type="date" value={qFecha} onChange={e => setQFecha(e.target.value)} className="input-field" />
+                  <AppDatePicker value={qFecha} onChange={setQFecha} />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Tipo de evento</label>
-                  <select value={qTipoEvento} onChange={e => setQTipoEvento(e.target.value)} className="input-field">
-                    <option value="">Seleccionar…</option>
-                    {EQUIPO_EVENTOS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <AppSelect
+                    value={qTipoEvento}
+                    onChange={setQTipoEvento}
+                    options={equipoEventoOptions}
+                    placeholder="Seleccionar…"
+                  />
                 </div>
                 <div className="quick-entry-panel__row">
                   <label className="input-label">Descripción</label>

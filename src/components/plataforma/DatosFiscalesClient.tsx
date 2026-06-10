@@ -12,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
+import { AppSelect } from '@/components/ui/AppSelect';
 import {
   deleteFiscalEntidadAction,
   deleteFiscalTextoAction,
@@ -789,19 +790,13 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
               />
             </Field>
             <Field label="Categoría">
-              <select
-                className="input-field w-full"
+              <AppSelect
                 value={textoForm.categoria}
-                onChange={(ev) =>
-                  setTextoForm({ ...textoForm, categoria: ev.target.value as FiscalTextoCategoria })
+                onChange={(v) =>
+                  setTextoForm({ ...textoForm, categoria: v as FiscalTextoCategoria })
                 }
-              >
-                {Object.entries(CATEGORIA_LABEL).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
+                options={Object.entries(CATEGORIA_LABEL).map(([k, v]) => ({ value: k, label: v }))}
+              />
             </Field>
             <Field label="Contenido">
               <textarea
@@ -861,19 +856,13 @@ export default function DatosFiscalesClient({ entidades, textos, parametros }: P
               />
             </Field>
             <Field label="Grupo">
-              <select
-                className="input-field w-full"
+              <AppSelect
                 value={paramForm.grupo}
-                onChange={(ev) =>
-                  setParamForm({ ...paramForm, grupo: ev.target.value as FiscalParametroGrupo })
+                onChange={(v) =>
+                  setParamForm({ ...paramForm, grupo: v as FiscalParametroGrupo })
                 }
-              >
-                {Object.entries(GRUPO_LABEL).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
+                options={Object.entries(GRUPO_LABEL).map(([k, v]) => ({ value: k, label: v }))}
+              />
             </Field>
           </div>
           <PageFormModalFooter>

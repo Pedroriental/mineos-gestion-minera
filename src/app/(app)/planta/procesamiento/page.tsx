@@ -14,6 +14,7 @@ import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { CrudPageSkeleton } from '@/components/app/CrudPageSkeleton';
 import { useAsyncGuard } from '@/hooks/useAsyncGuard';
 import { useGlobalDateRange } from '@/hooks/useGlobalDateRange';
+import { MINEOS_BTN_GERENCIAL_NEW, MINEOS_TABLE_ACTION_EDIT } from '@/lib/mineos-visual';
 
 const PESO_SACO_KG = 50;
 
@@ -75,8 +76,8 @@ export default function ProcesamientoPage() {
 
   return (
     <div className="space-y-6">
-      <AppPageToolbar lead={<p className="text-slate-500 text-sm font-light">{data.length} procesos registrados</p>}>
-        <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} className="btn-primary">
+      <AppPageToolbar lead={<p className="text-sm font-light text-white/50">{data.length} procesos registrados</p>}>
+        <button onClick={() => { setEditItem(null); setForm(emptyForm); setShowModal(true); }} className={MINEOS_BTN_GERENCIAL_NEW}>
           <Plus className="w-4 h-4" /> Nuevo Proceso
         </button>
       </AppPageToolbar>
@@ -91,37 +92,37 @@ export default function ProcesamientoPage() {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <span className="badge badge-info mb-2 inline-block">{procesoLabels[p.proceso]}</span>
-                    <p className="text-slate-400 text-xs mt-0.5">{p.fecha}</p>
+                    <p className="text-xs text-white/40 mt-0.5">{p.fecha}</p>
                   </div>
                   <div className="text-right">
                     <span className={`badge ${estadoBadge[p.estado]}`}>{p.estado.replace('_', ' ')}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/10 rounded-lg">
+                <div className="grid grid-cols-2 gap-3 rounded-lg bg-white/[0.03] p-3">
                   <div>
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">Sacos (×50 kg)</span>
-                    <span className="font-semibold text-slate-700">{p.sacos_vaciados}</span>
-                    <span className="text-slate-400 text-xs"> (= {p.sacos_vaciados * PESO_SACO_KG} kg)</span>
+                    <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/40">Sacos (×50 kg)</span>
+                    <span className="font-semibold text-white/85">{p.sacos_vaciados}</span>
+                    <span className="text-xs text-white/40"> (= {p.sacos_vaciados * PESO_SACO_KG} kg)</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">Peso Proc.</span>
-                    <span className="font-semibold text-slate-700">{p.peso_procesado_kg} kg</span>
+                    <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/40">Peso Proc.</span>
+                    <span className="font-semibold text-white/85">{p.peso_procesado_kg} kg</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">Tenor Est.</span>
-                    <span className="font-bold text-amber-700">{p.tenor_real_gpt ? `${p.tenor_real_gpt} g/t` : '—'}</span>
+                    <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/40">Tenor Est.</span>
+                    <span className="font-bold text-[var(--mineos-general-bright)]">{p.tenor_real_gpt ? `${p.tenor_real_gpt} g/t` : '—'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">Tiempo</span>
-                    <span className="font-semibold text-slate-700">{p.horas_proceso ? `${p.horas_proceso} hrs` : '—'}</span>
+                    <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/40">Tiempo</span>
+                    <span className="font-semibold text-white/85">{p.horas_proceso ? `${p.horas_proceso} hrs` : '—'}</span>
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-[#E8E5DE] dark:border-slate-800/50">
-                  <button onClick={() => { setEditItem(p); setForm({ fecha: p.fecha, sacos_vaciados: String(p.sacos_vaciados), peso_procesado_kg: String(p.peso_procesado_kg), tenor_real_gpt: p.tenor_real_gpt ? String(p.tenor_real_gpt) : '', proceso: p.proceso, horas_proceso: p.horas_proceso ? String(p.horas_proceso) : '', quimicos_utilizados: p.quimicos_utilizados || '', estado: p.estado, observaciones: p.observaciones || '' }); setShowModal(true); }} className="p-2 rounded-lg bg-gray-50 text-slate-600 hover:bg-gray-100 font-medium text-xs flex items-center gap-1 transition-colors"><Edit2 className="w-4 h-4" /> Editar</button>
+                <div className="mt-4 flex justify-end gap-2 border-t border-white/10 pt-4">
+                  <button onClick={() => { setEditItem(p); setForm({ fecha: p.fecha, sacos_vaciados: String(p.sacos_vaciados), peso_procesado_kg: String(p.peso_procesado_kg), tenor_real_gpt: p.tenor_real_gpt ? String(p.tenor_real_gpt) : '', proceso: p.proceso, horas_proceso: p.horas_proceso ? String(p.horas_proceso) : '', quimicos_utilizados: p.quimicos_utilizados || '', estado: p.estado, observaciones: p.observaciones || '' }); setShowModal(true); }} className={MINEOS_TABLE_ACTION_EDIT} title="Editar"><Edit2 className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}
-            {data.length === 0 && <div className="text-center py-12 text-slate-400 card-glass">Sin procesos registrados</div>}
+            {data.length === 0 && <div className="card-glass py-12 text-center text-white/40">Sin procesos registrados</div>}
           </div>
 
           {/* Desktop Table */}
@@ -146,18 +147,18 @@ export default function ProcesamientoPage() {
                     <td><span className="badge badge-info">{procesoLabels[p.proceso]}</span></td>
                     <td className="font-semibold">
                       {p.sacos_vaciados}
-                      <span className="text-slate-400 text-xs ml-1">(= {p.sacos_vaciados * PESO_SACO_KG} kg)</span>
+                      <span className="ml-1 text-xs text-white/40">(= {p.sacos_vaciados * PESO_SACO_KG} kg)</span>
                     </td>
                     <td>{p.peso_procesado_kg}</td>
-                    <td className="text-amber-700 font-medium">{p.tenor_real_gpt || '—'}</td>
+                    <td className="font-medium text-[var(--mineos-general-bright)]">{p.tenor_real_gpt || '—'}</td>
                     <td>{p.horas_proceso || '—'}</td>
                     <td><span className={`badge ${estadoBadge[p.estado]}`}>{p.estado.replace('_', ' ')}</span></td>
                     <td>
-                      <button onClick={() => { setEditItem(p); setForm({ fecha: p.fecha, sacos_vaciados: String(p.sacos_vaciados), peso_procesado_kg: String(p.peso_procesado_kg), tenor_real_gpt: p.tenor_real_gpt ? String(p.tenor_real_gpt) : '', proceso: p.proceso, horas_proceso: p.horas_proceso ? String(p.horas_proceso) : '', quimicos_utilizados: p.quimicos_utilizados || '', estado: p.estado, observaciones: p.observaciones || '' }); setShowModal(true); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-slate-500 hover:text-amber-700 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => { setEditItem(p); setForm({ fecha: p.fecha, sacos_vaciados: String(p.sacos_vaciados), peso_procesado_kg: String(p.peso_procesado_kg), tenor_real_gpt: p.tenor_real_gpt ? String(p.tenor_real_gpt) : '', proceso: p.proceso, horas_proceso: p.horas_proceso ? String(p.horas_proceso) : '', quimicos_utilizados: p.quimicos_utilizados || '', estado: p.estado, observaciones: p.observaciones || '' }); setShowModal(true); }} className={MINEOS_TABLE_ACTION_EDIT} title="Editar"><Edit2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 ))}
-                {data.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-slate-400">Sin procesos</td></tr>}
+                {data.length === 0 && <tr><td colSpan={8} className="py-12 text-center text-white/40">Sin procesos</td></tr>}
               </tbody>
             </table>
           </div>
@@ -189,11 +190,11 @@ export default function ProcesamientoPage() {
                 <label className="input-label">Sacos Vaciados * <span className="text-amber-400/70 font-normal">(unidad = 50 kg)</span></label>
                 <input type="text" inputMode="decimal" value={form.sacos_vaciados} onChange={e => setForm(handleSacosChange(e.target.value, form))} className="input-field" />
                 {parseFloat(form.sacos_vaciados) > 0 && (
-                  <p className="text-xs text-slate-400 mt-1">{parseFloat(form.sacos_vaciados)} sacos × 50 kg = <span className="text-amber-600 font-semibold">{(parseFloat(form.sacos_vaciados) * PESO_SACO_KG).toFixed(1)} kg</span></p>
+                  <p className="mt-1 text-xs text-white/40">{parseFloat(form.sacos_vaciados)} sacos × 50 kg = <span className="font-semibold text-[var(--mineos-general-bright)]">{(parseFloat(form.sacos_vaciados) * PESO_SACO_KG).toFixed(1)} kg</span></p>
                 )}
               </div>
               <div>
-                <label className="input-label">Peso Procesado (kg) * <span className="text-slate-400 font-normal">(auto desde sacos)</span></label>
+                <label className="input-label">Peso Procesado (kg) * <span className="font-normal text-white/40">(auto desde sacos)</span></label>
                 <input type="number" step="0.01" value={form.peso_procesado_kg} onChange={e => setForm({ ...form, peso_procesado_kg: e.target.value })} className="input-field" />
               </div>
               <div><label className="input-label">Tenor Real (g/t)</label><input type="number" step="0.0001" value={form.tenor_real_gpt} onChange={e => setForm({ ...form, tenor_real_gpt: e.target.value })} className="input-field" /></div>

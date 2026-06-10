@@ -2,6 +2,7 @@
 
 import { memo, useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
 import { Save, Trash2, Check, Loader2 } from 'lucide-react';
 import {
   loadReportPresets,
@@ -77,7 +78,7 @@ export const PresetManager = memo(function PresetManager({ currentPayload, onLoa
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+        <p className={ui.sectionTitle}>
           Presets
         </p>
         <button
@@ -90,20 +91,20 @@ export const PresetManager = memo(function PresetManager({ currentPayload, onLoa
       </div>
 
       {showSave && (
-        <div className="space-y-1.5 rounded-lg border border-white/5 bg-zinc-900/30 p-2.5">
+        <div className={cn(ui.kpiCard, 'space-y-1.5 p-2.5')}>
           <input
             type="text"
             placeholder="Nombre del preset"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-md border border-white/5 bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none focus:border-zinc-500/40"
+            className={cn(ui.input, 'text-[11px]')}
           />
           <input
             type="text"
             placeholder="Descripción (opcional)"
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-            className="w-full rounded-md border border-white/5 bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none focus:border-zinc-500/40"
+            className={cn(ui.input, 'text-[11px]')}
           />
           <button
             type="button"

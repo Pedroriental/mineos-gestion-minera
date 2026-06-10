@@ -7,6 +7,7 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { Plus, X, Loader2, Sun, Moon, AlertTriangle, Users, Wrench, Clock, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
 import { AppPageToolbar } from '@/components/app/AppPageToolbar';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { AppTimePicker } from '@/components/ui/AppTimePicker';
 import { useBibliotecaOptions, useTurnoOptions } from '@/contexts/biblioteca-context';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
@@ -334,7 +335,7 @@ export default function LibroGuardiaPage() {
                   options={turnoOptions}
                 />
               </div>
-              <div><label className="input-label">Hora de Entrega</label><input type="time" value={form.hora_entrega} onChange={e => setForm({ ...form, hora_entrega: e.target.value })} className="input-field" /></div>
+              <div><label className="input-label">Hora de Entrega</label><AppTimePicker value={form.hora_entrega} onChange={(val) => setForm({ ...form, hora_entrega: val })} /></div>
 
               {/* Divider: Personal */}
               <div className="col-span-1 md:col-span-3 mt-2">
