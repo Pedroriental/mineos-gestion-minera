@@ -157,7 +157,8 @@ export default function NominaTrabajadorModal({
             <div>
               <span className="text-white/40">Salario libre</span>
               <p className="font-semibold tabular-nums text-white/90">
-                {fmtMoney(Number(p.salario_libre) || 100)}
+                {/* Regla central: sin tarifa libre propia aplica el salario base */}
+                {fmtMoney(Number(p.salario_libre) || Number(p.salario_base))}
               </p>
             </div>
             <div>

@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Users, Lock, ChevronRight, Calendar, AlertCircle } from 'lucide-react';
 import { getCiclosActivos, getDetalleCiclo } from '@/lib/actions/nomina-ciclos';
-import { calcularPagoCicloTrabajador } from '@/lib/nomina-ciclo-calculo';
-import { etiquetaColumnaCiclo, totalSemanasPerfil } from '@/lib/nomina/perfil-ciclo-reglas';
+import { etiquetaColumnaCiclo, rolSemanaPorPosicion, totalSemanasPerfil } from '@/lib/nomina/perfil-ciclo-reglas';
 import type {
   NominaCiclo,
   DetalleCicloCompleto,
@@ -158,9 +157,11 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
   const perfilCiclo = detalle?.perfil_compensacion ?? selectedCiclo?.perfil_compensacion ?? null;
   const esquemaCiclo = perfilCiclo?.esquema_rotacion_default ?? 'MINA_2X1';
   const totalSemanasCiclo = perfilCiclo ? totalSemanasPerfil(perfilCiclo) : 3;
+  // Rol de cada posición desde las reglas centrales (misma fuente que el pago)
   const columnasCiclo = Array.from({ length: totalSemanasCiclo }, (_, posicion) => ({
     posicion,
     label: etiquetaColumnaCiclo(esquemaCiclo, posicion),
+    rol: rolSemanaPorPosicion(esquemaCiclo, posicion, perfilCiclo ?? undefined),
   }));
 
   // Agrupar trabajadores por grupo_turno o vertical_asignada
@@ -278,8 +279,12 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
                       if (trab.registros.some(r => r.novedad_turno === 'REPOSO')) {
                         statusBadges.push('Reposo');
                       }
-                      const semLibrePagada = montosPorPosicion[0];
-                      if (semLibrePagada && semLibrePagada.monto_pagado > 0) {
+                      // "Libre Pagado" si alguna posición con rol libre tiene monto > 0
+                      // (regla central, no asumir que la posición 0 es la libre)
+                      const tieneLibrePagada = montosPorPosicion.some(
+                        (reg, idx) => reg && columnasCiclo[idx].rol === 'libre' && reg.monto_pagado > 0,
+                      );
+                      if (tieneLibrePagada) {
                         statusBadges.push('Libre Pagado');
                       }
 
@@ -307,13 +312,11 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
                             <td
                               key={columnasCiclo[idx].posicion}
                               className={`px-5 py-3 text-right font-mono tabular-nums text-xs ${
-                                idx === 0 && esquemaCiclo === 'MOLINO_14X14'
+                                columnasCiclo[idx].rol === 'libre'
                                   ? 'text-cyan-400'
-                                  : idx === 1 && esquemaCiclo === 'MOLINO_14X14'
+                                  : columnasCiclo[idx].rol === 'no_laborada'
                                     ? 'text-red-400/80'
-                                    : idx === 0 && (esquemaCiclo === 'MINA_2X1' || esquemaCiclo === 'MINA_ROTATIVA_3G')
-                                      ? 'text-cyan-400'
-                                      : 'text-white/80'
+                                    : 'text-white/80'
                               }`}
                             >
                               {reg ? fmtMoney(reg.monto_pagado) : '—'}

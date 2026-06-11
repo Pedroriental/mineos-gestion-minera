@@ -575,7 +575,7 @@ export function NominaMobileActionBar({
           <button
             type="button"
             onClick={onCerrar}
-            disabled={!canEdit || !hasRows}
+            disabled={!canEdit || !hasRows || isPending}
             className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl bg-amber-500 py-2.5 text-black disabled:opacity-40"
           >
             <Wallet className="h-5 w-5" />
@@ -942,7 +942,7 @@ export function NominaMobileDock({
           <button
             type="button"
             onClick={onCerrar}
-            disabled={!canEdit || !hasRows}
+            disabled={!canEdit || !hasRows || isPending}
             className="nomina-mobile-dock__btn nomina-mobile-dock__btn--primary flex flex-[1.25] flex-col items-center justify-center gap-px rounded-lg bg-amber-500 py-1.5 text-black disabled:opacity-40"
           >
             <Wallet className="h-4 w-4" />
