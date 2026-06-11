@@ -26,6 +26,8 @@ import {
   PersonalV3Schema,
   PersonalV3UpdateSchema,
   AssignToNominaAreaSchema,
+  CreateAndAssignPersonalNominaSchema,
+  type CreateAndAssignPersonalNominaInput,
   CrearValeSchema,
 } from '@/lib/validations/nomina-v3';
 import {
@@ -253,6 +255,74 @@ export async function assignPersonalToNominaAreaAction(input: {
 
     revalidateAll();
     return { ok: true, message: `${row.nombre_completo} asignado a esta nómina.` };
+  } catch {
+    return { ok: false, message: 'Error interno del servidor.' };
+  }
+}
+
+/** Crea un trabajador nuevo y lo asigna directamente a la nómina del área. */
+export async function createAndAssignPersonalNominaAction(
+  input: CreateAndAssignPersonalNominaInput,
+): Promise<ActionResult & { personalId?: string }> {
+  const parsed = CreateAndAssignPersonalNominaSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message:
+        Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos',
+    };
+  }
+  const data = parsed.data;
+  const areaDetalle = data.areaDetalle.trim();
+  if (!isAsignacionNominaValid(areaDetalle)) {
+    return {
+      ok: false,
+      message: 'Selecciona una asignación nómina válida (vertical/sector).',
+    };
+  }
+
+  try {
+    const supabase = await createServerClient();
+    const hoy = new Date().toISOString().split('T')[0];
+    const biblioteca = await loadBibliotecaAppSnapshot();
+    const esquemaDefault =
+      biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);
+
+    const payload: Record<string, unknown> = {
+      cedula: data.cedula.trim(),
+      nombre_completo: data.nombre_completo.trim(),
+      cargo: data.cargo.trim() || 'General',
+      area: data.targetArea,
+      area_detalle: areaDetalle,
+      perfil_compensacion_id: data.perfil_compensacion_id,
+      salario_base: data.salario_base,
+      salario_libre: 0,
+      bono_transporte: data.bono_transporte ?? 0,
+      esquema_rotacion: esquemaDefault,
+      estado_laboral: 'ACTIVO',
+      activo: true,
+      estatus: 'ACTIVO',
+      fecha_ingreso: hoy,
+    };
+    if (tieneEsquemaConRotacion(esquemaDefault)) {
+      payload.rotacion_inicio_fecha = hoy;
+    }
+
+    const { data: inserted, error } = await supabase
+      .from('personal')
+      .insert(payload)
+      .select('id')
+      .single();
+
+    if (error) return { ok: false, message: error.message };
+
+    revalidateAll();
+    return {
+      ok: true,
+      message: `${data.nombre_completo.trim()} registrado y asignado a esta nómina.`,
+      personalId: inserted.id,
+      data: { personalId: inserted.id },
+    };
   } catch {
     return { ok: false, message: 'Error interno del servidor.' };
   }
