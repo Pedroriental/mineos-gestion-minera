@@ -103,6 +103,12 @@ export function etiquetaEstadoRotacion(
     if (posicion === 2) return 'Labor (1)';
     return 'Labor (2)';
   }
+  if (esquema === 'MOLINO_15X15') {
+    if (posicion === 0) return 'Labor (1)';
+    if (posicion === 1) return 'Labor (2)';
+    if (posicion === 2) return 'Libre Pagada';
+    return 'Libre No Pagada';
+  }
   if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
     if (posicion === 0) return 'Libre (pred.)';
     return 'Labor (pred.)';
