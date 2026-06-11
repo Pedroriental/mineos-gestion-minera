@@ -63,10 +63,11 @@ import {
   etiquetaEstadoRotacion,
   inputsDiasBloqueados,
   posicionEsquemaPersonal,
+  rolSemanaPorPosicion,
 } from '@/lib/nomina/perfil-ciclo-reglas';
 import { useBiblioteca } from '@/contexts/biblioteca-context';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
-import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
+import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, RolSemana, TendenciaSemanalRow } from '@/lib/types';
 
 import { 
   revertirSemanaAction,
@@ -144,29 +145,38 @@ function getInitials(name: string): string {
   return (parts[0]?.[0] || '?').toUpperCase();
 }
 
-function getMina3GState(rotacionInicio: string | undefined | null, weekStartStr: string): string | null {
-  if (!rotacionInicio) return null;
-  const startDate = new Date(rotacionInicio);
-  const weekStart = new Date(weekStartStr);
-  const diffMs = weekStart.getTime() - startDate.getTime();
-  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
-  const position = ((diffWeeks % 3) + 3) % 3;
-  if (position === 0) return 'Noche';
-  if (position === 1) return 'Día';
-  return 'Libre';
-}
-
-function getMolino15x15State(rotacionInicio: string | undefined | null, weekStartStr: string): string | null {
-  if (!rotacionInicio) return null;
-  const startDate = new Date(rotacionInicio);
-  const weekStart = new Date(weekStartStr);
-  const diffMs = weekStart.getTime() - startDate.getTime();
-  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
-  const position = ((diffWeeks % 4) + 4) % 4;
-  if (position === 0) return 'Labor (Vuelta)';
-  if (position === 1) return 'Labor (Salida)';
-  if (position === 2) return 'Libre Pagada';
-  return 'Libre No Pagada';
+/**
+ * Chip de predicción de rotación. Single source of truth: la posición viene
+ * de `posicionEsquemaPersonal` y la etiqueta/rol de `perfil-ciclo-reglas.ts`
+ * (las mismas reglas con las que el servidor calcula el pago).
+ */
+function RotacionPredBadge({
+  esquema,
+  posicion,
+  estadoAsistencia,
+}: {
+  esquema: string;
+  posicion: number | null | undefined;
+  estadoAsistencia?: EstadoAsistenciaNomina;
+}) {
+  let label = posicion != null ? etiquetaEstadoRotacion(esquema, posicion) : null;
+  let rol: RolSemana | null = posicion != null ? rolSemanaPorPosicion(esquema, posicion) : null;
+  if (!label) {
+    rol = estadoAsistencia === 'libre' ? 'libre' : 'trabajada';
+    label = estadoAsistencia === 'libre' ? 'Libre (pred.)' : 'Labor (pred.)';
+  }
+  if (label === 'Libre No Pagada') label = 'Libre $0';
+  const tone =
+    rol === 'libre'
+      ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+      : rol === 'no_laborada'
+        ? 'bg-red-500/10 text-red-400 border-red-500/20'
+        : 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+  return (
+    <span className={`px-1.5 py-0.5 rounded border text-[8px] font-bold uppercase ${tone}`}>
+      🔄 {label}
+    </span>
+  );
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -385,14 +395,21 @@ export default function NominaClient({
           const res = await getSemanaRegistrosAction(closedWeek.id);
           if (res.ok && res.data) {
             const rows = res.data.map((reg: any) => {
+              // Fallback desde el snapshot inmutable del cierre (datos reales),
+              // nunca inferir el salario restando montos pagados.
+              const snap = reg.personal_snapshot || null;
               const p = reg.personal || {
                 id: reg.personal_id,
-                nombre_completo: 'Trabajador no encontrado',
-                cedula: 'SC-N/A',
-                cargo: 'General',
-                area,
-                salario_base: reg.monto_pagado - (reg.bono_transporte_pagado || 0),
-                esquema_rotacion: 'FIJO_SEMANAL',
+                nombre_completo: snap?.nombre_completo || 'Trabajador no encontrado',
+                cedula: snap?.cedula || 'SC-N/A',
+                cargo: snap?.cargo || 'General',
+                area: snap?.area || area,
+                area_detalle: snap?.area_detalle || 'General',
+                salario_base: Number(snap?.salario_base) || 0,
+                salario_libre: Number(snap?.salario_libre) || 0,
+                bono_transporte: Number(snap?.bono_transporte) || 0,
+                esquema_rotacion: snap?.esquema_rotacion || 'FIJO_SEMANAL',
+                rotacion_inicio_fecha: snap?.rotacion_inicio_fecha || undefined,
                 activo: false,
               };
               const estadoAsistencia = (reg.estado_asistencia ||
@@ -769,33 +786,47 @@ export default function NominaClient({
     }))) return;
     setProcesadoOk(null);
     startTransition(async () => {
-      // El servidor recalcula salario y total desde la BD (checksum);
-      // la identidad sale de la sesión server-side, no se envía userId.
-      const formattedRows = preNominaRows.map((r) => ({
-        personalId: r.personal.id,
-        estadoAsistencia: r.estadoAsistencia ?? (r.esSemanaLibre ? ('libre' as const) : ('trabajada' as const)),
-        diasTrabajados: r.diasTrabajados ?? (r.estadoAsistencia === 'no_laborado' ? 0 : 7),
-        total: r.total,
-        bonoTransporte: Number(r.bonoTransporte) || 0,
-        bonificaciones: Number(r.bonificaciones) || 0,
-        totalVales: Number(r.totalVales) || 0,
-        novedadTurno: r.novedadTurno,
-        novedadTurnoObs: r.novedadTurnoObs,
-      }));
-      const res = await procesarCierreNominaV3Action({
-        area, inicio: weekRange.inicio, fin: weekRange.fin, rows: formattedRows,
-        distribucion: distribucion.partes,
-      });
-      if (res.ok) {
-        try {
-          localStorage.removeItem(nominaNovedadDraftKey(area, weekRange.inicio));
-        } catch {
-          /* ignore */
+      try {
+        // El servidor recalcula salario y total desde la BD (checksum);
+        // la identidad sale de la sesión server-side, no se envía userId.
+        const formattedRows = preNominaRows.map((r) => {
+          const estadoAsistencia =
+            r.estadoAsistencia ?? (r.esSemanaLibre ? ('libre' as const) : ('trabajada' as const));
+          return {
+            personalId: r.personal.id,
+            estadoAsistencia,
+            diasTrabajados: r.diasTrabajados ?? defaultDiasTrabajados(estadoAsistencia),
+            total: r.total,
+            bonoTransporte: Number(r.bonoTransporte) || 0,
+            bonificaciones: Number(r.bonificaciones) || 0,
+            totalVales: Number(r.totalVales) || 0,
+            novedadTurno: r.novedadTurno,
+            novedadTurnoObs: r.novedadTurnoObs,
+          };
+        });
+        const res = await procesarCierreNominaV3Action({
+          area, inicio: weekRange.inicio, fin: weekRange.fin, rows: formattedRows,
+          distribucion: distribucion.partes,
+        });
+        if (res.ok) {
+          try {
+            localStorage.removeItem(nominaNovedadDraftKey(area, weekRange.inicio));
+          } catch {
+            /* ignore */
+          }
+          distribucion.saveAsDefault();
+          await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
+          setProcesadoOk(`✓ ${res.message}`); setShowProcesarModal(false);
+        } else {
+          // Errores controlados del servidor: Zod, checksum, lock/RPC, sesión.
+          toastError(res.message);
         }
-        distribucion.saveAsDefault();
-        await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
-        setProcesadoOk(`✓ ${res.message}`); setShowProcesarModal(false);
-      } else toastError(res.message);
+      } catch (err) {
+        // Errores no controlados (red caída, action lanzando): nunca crashear
+        // la consola de cierre; isPending se restablece al salir de aquí.
+        console.error('[NominaClient] Error inesperado al cerrar nómina:', err);
+        toastError('No se pudo procesar el cierre. Verifica tu conexión e intenta de nuevo.');
+      }
     });
   }
 
@@ -806,10 +837,17 @@ export default function NominaClient({
       variant: 'danger'
     }))) return;
     startTransition(async () => {
-      const res = await revertirSemanaAction(sem);
-      if (res.ok) {
-        await registrarAuditAction('REVERTIR_NOMINA', 'nomina_semanas', sem.id, `Revertida: ${fmtDate(sem.semana_inicio)} a ${fmtDate(sem.semana_fin)}`, user?.id, user?.email);
-      } else toastError(sem.notas || 'Error al revertir');
+      try {
+        const res = await revertirSemanaAction(sem);
+        if (res.ok) {
+          await registrarAuditAction('REVERTIR_NOMINA', 'nomina_semanas', sem.id, `Revertida: ${fmtDate(sem.semana_inicio)} a ${fmtDate(sem.semana_fin)}`, user?.id, user?.email);
+        } else {
+          toastError(res.message || 'Error al revertir');
+        }
+      } catch (err) {
+        console.error('[NominaClient] Error inesperado al revertir semana:', err);
+        toastError('No se pudo revertir la semana. Verifica tu conexión e intenta de nuevo.');
+      }
     });
   }
 
@@ -1281,30 +1319,11 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                       <div className="text-[10px] text-white/40 mt-0.5 flex items-center gap-1.5 flex-wrap">
                                         <span>{p.cedula}</span>
                                         {isPredicted && (
-                                          (() => {
-                                            if (p.esquema_rotacion === 'MINA_ROTATIVA_3G') {
-                                              const state = getMina3GState(p.rotacion_inicio_fecha, weekRange.inicio);
-                                              if (state === 'Noche') return <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[8px] font-bold uppercase">🔄 Noche (pred.)</span>;
-                                              if (state === 'Día') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Día (pred.)</span>;
-                                              return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre (pred.)</span>;
-                                            }
-                                            if (p.esquema_rotacion === 'MOLINO_14X14' && row.cicloPosicion !== null && row.cicloPosicion !== undefined) {
-                                              const state = etiquetaEstadoRotacion(p.esquema_rotacion, row.cicloPosicion);
-                                              if (state === 'Libre Pagada') return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre Pagada</span>;
-                                              if (state === 'Libre No Pagada') return <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[8px] font-bold uppercase">🔄 Libre $0</span>;
-                                              return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 {state}</span>;
-                                            }
-                                            if (p.esquema_rotacion === 'MOLINO_15X15') {
-                                              const state = getMolino15x15State(p.rotacion_inicio_fecha, weekRange.inicio);
-                                              if (state === 'Labor (Vuelta - Paga Doble)') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Vuelta (Paga Doble)</span>;
-                                              if (state === 'Labor (Salida + Bono)') return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Salida + Bono</span>;
-                                              if (state === 'Libre Pagada (Diferida)') return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre Pág. (Diferida)</span>;
-                                              return <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[8px] font-bold uppercase">🔄 Libre No-Pág.</span>;
-                                            }
-                                            // Fallback for MINA_2X1 or MOLINO_ROTATIVO
-                                            if (row.estadoAsistencia === 'libre') return <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[8px] font-bold uppercase">🔄 Libre (pred.)</span>;
-                                            return <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-bold uppercase">🔄 Labor (pred.)</span>;
-                                          })()
+                                          <RotacionPredBadge
+                                            esquema={p.esquema_rotacion}
+                                            posicion={row.cicloPosicion}
+                                            estadoAsistencia={row.estadoAsistencia}
+                                          />
                                         )}
                                       </div>
                                     </div>
