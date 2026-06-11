@@ -1,8 +1,13 @@
 'use server';
 
 import { createServerClient } from '@/lib/supabase-server';
-import { rolSemanaPorPosicion, totalSemanasPerfil } from '@/lib/nomina/perfil-ciclo-reglas';
-import type { PerfilCompensacion, Personal, NominaCiclo } from '@/lib/types';
+import {
+  planificarVinculoCiclo,
+  posicionGrupoDesdeTrabajadores,
+  rolSemanaPorPosicion,
+  totalSemanasPerfil,
+} from '@/lib/nomina/perfil-ciclo-reglas';
+import type { PerfilCompensacion } from '@/lib/types';
 
 export type ActionResult<T = void> =
   | { ok: true; message: string; data?: T }
@@ -33,6 +38,7 @@ export async function vincularSemanaACicloAction(input: {
         nombre_completo,
         vertical_asignada,
         grupo_turno,
+        rotacion_inicio_fecha,
         perfil_compensacion_id,
         perfiles_compensacion!inner (
           id,
@@ -64,6 +70,7 @@ export async function vincularSemanaACicloAction(input: {
       vertical: string;
       perfil: PerfilCompensacion;
       trabajadores: string[];
+      rotaciones: Array<string | null>;
     }>();
 
     for (const trab of trabajadores) {
@@ -82,9 +89,11 @@ export async function vincularSemanaACicloAction(input: {
           vertical,
           perfil,
           trabajadores: [],
+          rotaciones: [],
         });
       }
       gruposMap.get(vertical)!.trabajadores.push(trab.id);
+      gruposMap.get(vertical)!.rotaciones.push((trab as { rotacion_inicio_fecha?: string | null }).rotacion_inicio_fecha ?? null);
     }
 
     let ciclosCreados = 0;
@@ -92,13 +101,13 @@ export async function vincularSemanaACicloAction(input: {
 
     // 3. Para cada grupo, buscar o crear ciclo
     for (const [vertical, grupo] of gruposMap.entries()) {
-      const { perfil, trabajadores: grupoTrabajadores } = grupo;
+      const { perfil, trabajadores: grupoTrabajadores, rotaciones } = grupo;
       const totalSemanas = totalSemanasPerfil(perfil);
 
       // Buscar ciclo ABIERTO para esta área/vertical
       const { data: cicloExistente, error: cicloError } = await supabase
         .from('nomina_ciclos')
-        .select('id, fecha_inicio, fecha_fin, semanas:nomina_ciclo_semanas(posicion_en_ciclo)')
+        .select('id, fecha_inicio, fecha_fin, semanas:nomina_ciclo_semanas(semana_id, posicion_en_ciclo)')
         .eq('area', area)
         .eq('vertical', vertical)
         .eq('estado', 'ABIERTO')
@@ -111,65 +120,61 @@ export async function vincularSemanaACicloAction(input: {
         continue;
       }
 
+      const semanasExistentes = ((cicloExistente as any)?.semanas ?? []) as Array<{
+        semana_id: string;
+        posicion_en_ciclo: number;
+      }>;
+
+      // Si esta semana ya está vinculada al ciclo abierto, saltar
+      if (cicloExistente && semanasExistentes.some((s) => s.semana_id === semanaId)) {
+        continue;
+      }
+
+      // D1 — Fuente única de posición: CALENDARIO de rotación de los
+      // trabajadores (la misma con la que se calculó el pago), nunca el
+      // orden en que se cerraron las semanas.
+      const posicionCalendario = posicionGrupoDesdeTrabajadores(
+        rotaciones,
+        semanaInicio,
+        totalSemanas,
+      );
+
+      const plan = planificarVinculoCiclo({
+        semanaInicio,
+        totalSemanas,
+        posicionCalendario,
+        cicloAbierto: cicloExistente
+          ? {
+              fechaInicio: cicloExistente.fecha_inicio,
+              posicionesOcupadas: semanasExistentes.map((s) => s.posicion_en_ciclo),
+            }
+          : null,
+      });
+
       let cicloId: string;
-      let posicionEnCiclo: number;
+      const posicionEnCiclo = plan.posicion;
 
-      if (cicloExistente) {
-        // Verificar si esta semana ya está vinculada
-        const { data: semanaVinculada } = await supabase
-          .from('nomina_ciclo_semanas')
-          .select('posicion_en_ciclo')
-          .eq('ciclo_id', cicloExistente.id)
-          .eq('semana_id', semanaId)
-          .maybeSingle();
-
-        if (semanaVinculada) {
-          // Ya está vinculada, saltar
-          continue;
-        }
-
-        // Calcular siguiente posición
-        const semanasExistentes = (cicloExistente as any).semanas || [];
-        posicionEnCiclo = semanasExistentes.length;
-
-        // Si el ciclo ya está completo, cerrarlo y crear uno nuevo
-        if (posicionEnCiclo >= totalSemanas) {
+      if (plan.accion === 'usar_ciclo' && cicloExistente) {
+        cicloId = cicloExistente.id;
+        ciclosVinculados++;
+      } else {
+        // Ciclo completo, desalineado o inexistente → cerrar el abierto (si
+        // hay) y crear uno nuevo cuya ventana deja la semana en su posición
+        // de calendario.
+        if (plan.accion === 'cerrar_y_crear' && cicloExistente) {
           await supabase
             .from('nomina_ciclos')
             .update({ estado: 'CERRADO', cerrado_at: new Date().toISOString() })
             .eq('id', cicloExistente.id);
-
-          // Crear nuevo ciclo
-          const nuevoCiclo = await crearNuevoCiclo(
-            supabase,
-            area,
-            vertical,
-            perfil,
-            semanaInicio,
-            grupoTrabajadores.length,
-            userId
-          );
-
-          if (!nuevoCiclo.ok) {
-            console.error('[vincularSemanaACiclo] Error creando nuevo ciclo:', nuevoCiclo.message);
-            continue;
-          }
-
-          cicloId = nuevoCiclo.data!.cicloId;
-          posicionEnCiclo = 0;
-          ciclosCreados++;
-        } else {
-          cicloId = cicloExistente.id;
-          ciclosVinculados++;
         }
-      } else {
-        // No hay ciclo abierto, crear uno nuevo
+
+        const fechaInicioCiclo = plan.accion === 'usar_ciclo' ? semanaInicio : plan.fechaInicio;
         const nuevoCiclo = await crearNuevoCiclo(
           supabase,
           area,
           vertical,
           perfil,
-          semanaInicio,
+          fechaInicioCiclo,
           grupoTrabajadores.length,
           userId
         );
@@ -180,7 +185,6 @@ export async function vincularSemanaACicloAction(input: {
         }
 
         cicloId = nuevoCiclo.data!.cicloId;
-        posicionEnCiclo = 0;
         ciclosCreados++;
       }
 
@@ -228,33 +232,35 @@ export async function vincularSemanaACicloAction(input: {
 }
 
 /**
- * Crea un nuevo ciclo de nómina
+ * Crea un nuevo ciclo de nómina.
+ * `fechaInicioCiclo` es el inicio de la VENTANA del ciclo (alineada al
+ * calendario de rotación), que puede ser anterior a la semana que se cierra.
  */
 async function crearNuevoCiclo(
   supabase: any,
   area: string,
   vertical: string,
   perfil: PerfilCompensacion,
-  semanaInicio: string,
+  fechaInicioCiclo: string,
   totalTrabajadores: number,
   userId?: string
 ): Promise<ActionResult<{ cicloId: string }>> {
   const totalSemanas = totalSemanasPerfil(perfil);
   const duracionDias = perfil.duracion_ciclo_dias;
 
-  // Calcular fecha_fin del ciclo
-  const fechaInicio = new Date(semanaInicio);
-  const fechaFin = new Date(fechaInicio);
+  // Calcular fecha_fin del ciclo (formateo local, sin saltos de timezone)
+  const fechaFin = new Date(`${fechaInicioCiclo}T00:00:00`);
   fechaFin.setDate(fechaFin.getDate() + duracionDias - 1);
+  const fechaFinIso = `${fechaFin.getFullYear()}-${String(fechaFin.getMonth() + 1).padStart(2, '0')}-${String(fechaFin.getDate()).padStart(2, '0')}`;
 
-  const label = `Ciclo ${vertical} - ${semanaInicio} (${totalSemanas} semanas)`;
+  const label = `Ciclo ${vertical} - ${fechaInicioCiclo} (${totalSemanas} semanas)`;
 
   const { data: nuevoCiclo, error: cicloError } = await supabase
     .from('nomina_ciclos')
     .insert({
       label,
-      fecha_inicio: semanaInicio,
-      fecha_fin: fechaFin.toISOString().split('T')[0],
+      fecha_inicio: fechaInicioCiclo,
+      fecha_fin: fechaFinIso,
       perfil_compensacion_id: perfil.id,
       area,
       vertical,
