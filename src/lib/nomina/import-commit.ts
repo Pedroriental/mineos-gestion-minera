@@ -67,6 +67,8 @@ export function buildImportCommitPayload(
     userId?: string;
     existingPersonal?: Map<string, Personal>;
     applyInference?: boolean;
+    origen?: string;
+    modoCarga?: 'historico' | 'operativo';
   },
 ): ImportCommitPayload {
   const profileByCedula = new Map(profiles.map((p) => [p.cedula, p]));
@@ -239,13 +241,14 @@ export function buildImportCommitPayload(
     range_start: period.rangeStart,
     range_end: period.rangeEnd,
     total_usd: period.grandTotal,
-    origen: 'import_historico',
+    origen: options?.origen ?? 'import_historico',
     user_id: options?.userId,
     metadata: {
       source: period.source,
       sourceFileName: period.sourceFileName,
       sectionTotals,
       stats: period.stats,
+      modoCarga: options?.modoCarga ?? 'historico',
     },
     semanas,
     personal: [...personalMap.values()],

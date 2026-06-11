@@ -24,6 +24,8 @@
     "supabase:migrate:nomina": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-nomina.ps1",
     "supabase:migrate:nomina-archive": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-nomina-archive.ps1",
     "test:nomina": "npx tsx --test src/lib/nomina/nomina-engine.test.ts src/lib/nomina/nomina-preview.test.ts src/lib/nomina/perfil-ciclo-reglas.test.ts src/lib/validations/nomina-cierre.test.ts",
+    "test:rotacion-plantillas": "npx tsx --test src/lib/rotacion-plantillas/semana-cierre.test.ts src/lib/rotacion-plantillas/projection.test.ts src/lib/rotacion-plantillas/cierre-integracion.test.ts",
+    "supabase:migrate:rotacion": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-rotacion.ps1",
     "supabase:migrate:reconciliation": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-reconciliation.ps1",
     "test:reconciliation": "npx tsx --test src/lib/reconciliation/reconciliation-engine.test.ts"
   },

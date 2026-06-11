@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { mapPeriodoRow, validateImportTotals } from '@/lib/nomina/archive';
+import { stripPeriodoLabelPrefix, manualPeriodoDedupKey } from '@/lib/nomina/manual-period';
 import { buildImportCommitPayload, type ImportCommitPayload } from '@/lib/nomina/import-commit';
 import { buildImportFidelityReport } from '@/lib/nomina/import-fidelity';
 import { inferAllProfiles } from '@/lib/nomina/inference';
@@ -163,6 +164,7 @@ export async function importarNominaHistoricaAction(input: {
   userId?: string;
   label?: string;
   toleranceUsd?: number;
+  modoCarga?: 'historico' | 'operativo';
 }): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
@@ -173,6 +175,7 @@ export async function importarNominaHistoricaAction(input: {
       userId,
       label,
       toleranceUsd = 0.05,
+      modoCarga = 'historico',
     } = input;
     const rawPeriod = rawPeriodInput ?? clientPeriod;
 
@@ -234,6 +237,8 @@ export async function importarNominaHistoricaAction(input: {
       label,
       userId,
       existingPersonal: existingByCedula as Map<string, import('@/lib/types').Personal>,
+      origen: modoCarga === 'operativo' ? 'import_operativo' : 'import_historico',
+      modoCarga,
     });
     commitPlan.metadata = {
       ...commitPlan.metadata,
@@ -436,6 +441,58 @@ function buildRpcPayload(
   };
 }
 
+async function dedupeConsolidacionManualPeriodosInDb(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+): Promise<void> {
+  const { data } = await supabase
+    .from('nomina_periodos')
+    .select('id, label, range_start, range_end, metadata, created_at')
+    .eq('origen', 'consolidacion_manual');
+
+  const groups = new Map<string, NonNullable<typeof data>>();
+  for (const row of data ?? []) {
+    const area =
+      row.metadata && typeof row.metadata === 'object'
+        ? String((row.metadata as Record<string, unknown>).area ?? '')
+        : '';
+    const key = manualPeriodoDedupKey({
+      rangeStart: row.range_start,
+      rangeEnd: row.range_end,
+      area,
+      origen: 'consolidacion_manual',
+    });
+    const list = groups.get(key) ?? [];
+    list.push(row);
+    groups.set(key, list);
+  }
+
+  for (const rows of groups.values()) {
+    if (rows.length <= 1) {
+      const only = rows[0];
+      if (!only) continue;
+      const cleanLabel = stripPeriodoLabelPrefix(only.label);
+      if (cleanLabel && cleanLabel !== only.label) {
+        await supabase.from('nomina_periodos').update({ label: cleanLabel }).eq('id', only.id);
+      }
+      continue;
+    }
+
+    const canonical = rows.reduce((best, row) =>
+      row.created_at > best.created_at ? row : best,
+    );
+    const cleanLabel = stripPeriodoLabelPrefix(canonical.label);
+    if (cleanLabel && cleanLabel !== canonical.label) {
+      await supabase.from('nomina_periodos').update({ label: cleanLabel }).eq('id', canonical.id);
+    }
+
+    const duplicateIds = rows.map((r) => r.id).filter((id) => id !== canonical.id);
+    if (!duplicateIds.length) continue;
+
+    await supabase.from('nomina_periodo_semanas').delete().in('periodo_id', duplicateIds);
+    await supabase.from('nomina_periodos').delete().in('id', duplicateIds);
+  }
+}
+
 export async function listNominaPeriodosAction(): Promise<{
   ok: boolean;
   periodos: NominaPeriodoSummary[];
@@ -443,6 +500,8 @@ export async function listNominaPeriodosAction(): Promise<{
 }> {
   try {
     const supabase = await createServerClient();
+    await dedupeConsolidacionManualPeriodosInDb(supabase);
+
     const { data, error } = await supabase
       .from('nomina_periodos')
       .select(
@@ -574,50 +633,114 @@ export async function consolidarNominaPeriodoAction(input: {
   rangeStart: string;
   rangeEnd: string;
   userId?: string;
+  area?: string;
+  metadata?: Record<string, unknown>;
 }): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
-    const { label, rangeStart, rangeEnd, userId } = input;
+    const { rangeStart, rangeEnd, userId, area, metadata } = input;
+    const label = stripPeriodoLabelPrefix(input.label.trim()) || `Periodo ${rangeStart}`;
 
-    const { data: semanas } = await supabase
+    let query = supabase
       .from('nomina_semanas')
       .select('id, total_pagado, semana_inicio, area')
       .gte('semana_inicio', rangeStart)
       .lte('semana_inicio', rangeEnd);
+    if (area) query = query.eq('area', area);
+
+    const { data: semanas } = await query;
 
     if (!semanas?.length) {
       return { ok: false, message: 'No hay semanas cerradas en ese rango.' };
     }
 
+    const resolvedArea = area ?? semanas[0]?.area ?? null;
     const totalUsd = parseFloat(
       semanas.reduce((s, row) => s + Number(row.total_pagado), 0).toFixed(2),
     );
 
-    const { data: periodo, error: pErr } = await supabase
-      .from('nomina_periodos')
-      .insert({
-        label,
-        range_start: rangeStart,
-        range_end: rangeEnd,
-        total_usd: totalUsd,
-        origen: 'consolidacion_manual',
-        metadata: { semana_ids: semanas.map((s) => s.id) },
-        created_by: userId ?? null,
-      })
-      .select('id')
-      .maybeSingle();
+    const periodoMetadata = {
+      semana_ids: semanas.map((s) => s.id),
+      area: resolvedArea,
+      ...(metadata ?? {}),
+    };
 
-    if (pErr || !periodo?.id) {
-      return { ok: false, message: pErr?.message ?? 'No se pudo crear el periodo' };
+    const { data: existingRows } = await supabase
+      .from('nomina_periodos')
+      .select('id, created_at, metadata')
+      .eq('range_start', rangeStart)
+      .eq('range_end', rangeEnd)
+      .eq('origen', 'consolidacion_manual');
+
+    const sameAreaRows = (existingRows ?? []).filter(
+      (row) =>
+        row.metadata &&
+        typeof row.metadata === 'object' &&
+        (row.metadata as Record<string, unknown>).area === resolvedArea,
+    );
+
+    const canonical =
+      sameAreaRows.length > 0
+        ? sameAreaRows.reduce((best, row) =>
+            row.created_at > best.created_at ? row : best,
+          )
+        : null;
+
+    let periodoId: string;
+
+    if (canonical?.id) {
+      const { error: updErr } = await supabase
+        .from('nomina_periodos')
+        .update({
+          label,
+          total_usd: totalUsd,
+          metadata: periodoMetadata,
+        })
+        .eq('id', canonical.id);
+
+      if (updErr) {
+        return { ok: false, message: updErr.message };
+      }
+
+      periodoId = canonical.id;
+
+      const duplicateIds = sameAreaRows
+        .map((r) => r.id)
+        .filter((id) => id !== periodoId);
+      if (duplicateIds.length) {
+        await supabase.from('nomina_periodo_semanas').delete().in('periodo_id', duplicateIds);
+        await supabase.from('nomina_periodos').delete().in('id', duplicateIds);
+      }
+
+      await supabase.from('nomina_periodo_semanas').delete().eq('periodo_id', periodoId);
+    } else {
+      const { data: periodo, error: pErr } = await supabase
+        .from('nomina_periodos')
+        .insert({
+          label,
+          range_start: rangeStart,
+          range_end: rangeEnd,
+          total_usd: totalUsd,
+          origen: 'consolidacion_manual',
+          metadata: periodoMetadata,
+          created_by: userId ?? null,
+        })
+        .select('id')
+        .maybeSingle();
+
+      if (pErr || !periodo?.id) {
+        return { ok: false, message: pErr?.message ?? 'No se pudo crear el periodo' };
+      }
+      periodoId = periodo.id;
     }
 
     await supabase.from('nomina_periodo_semanas').insert(
-      semanas.map((s) => ({ periodo_id: periodo.id, semana_id: s.id })),
+      semanas.map((s) => ({ periodo_id: periodoId, semana_id: s.id })),
     );
 
     await supabase
       .from('nomina_semanas')
-      .update({ periodo_id: periodo.id })
+      .update({ periodo_id: periodoId })
       .in(
         'id',
         semanas.map((s) => s.id),
@@ -626,17 +749,96 @@ export async function consolidarNominaPeriodoAction(input: {
     await registrarAuditAction(
       'CONSOLIDAR_PERIODO',
       'nomina_periodos',
-      periodo.id,
+      periodoId,
       `Periodo ${label}: $${totalUsd.toFixed(2)}`,
       userId,
     );
 
     revalidateNominaPaths();
-    return { ok: true, message: 'Periodo consolidado', data: { periodoId: periodo.id, totalUsd } };
+    return {
+      ok: true,
+      message: canonical?.id ? 'Periodo actualizado' : 'Periodo consolidado',
+      data: { periodoId, totalUsd },
+    };
   } catch (e) {
     return {
       ok: false,
       message: e instanceof Error ? e.message : 'Error al consolidar periodo',
+    };
+  }
+}
+
+export async function eliminarPeriodoConsolidadoAction(input: {
+  periodoId: string;
+  userId?: string;
+}): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    const { periodoId, userId } = input;
+
+    const { data: periodo, error: pErr } = await supabase
+      .from('nomina_periodos')
+      .select('id, label, range_start, range_end, total_usd, origen')
+      .eq('id', periodoId)
+      .maybeSingle();
+
+    if (pErr || !periodo) {
+      return { ok: false, message: pErr?.message ?? 'Periodo no encontrado' };
+    }
+
+    if (periodo.origen !== 'consolidacion_manual') {
+      return {
+        ok: false,
+        message: 'Solo se pueden eliminar periodos consolidados manualmente desde aquí.',
+      };
+    }
+
+    const { data: links, error: linkErr } = await supabase
+      .from('nomina_periodo_semanas')
+      .select('semana_id')
+      .eq('periodo_id', periodoId);
+
+    if (linkErr) {
+      return { ok: false, message: linkErr.message };
+    }
+
+    const semanaIds = (links ?? []).map((l: { semana_id: string }) => l.semana_id);
+
+    if (semanaIds.length) {
+      await supabase
+        .from('nomina_semanas')
+        .update({ periodo_id: null })
+        .in('id', semanaIds);
+    }
+
+    await supabase.from('nomina_periodo_semanas').delete().eq('periodo_id', periodoId);
+
+    const { error: delErr } = await supabase.from('nomina_periodos').delete().eq('id', periodoId);
+
+    if (delErr) {
+      return { ok: false, message: delErr.message };
+    }
+
+    await registrarAuditAction(
+      'DELETE_PERIODO_CONSOLIDADO',
+      'nomina_periodos',
+      periodoId,
+      `Eliminado periodo ${periodo.label} (${periodo.range_start} — ${periodo.range_end}). Total: $${Number(periodo.total_usd).toFixed(2)}`,
+      userId,
+    );
+
+    revalidateNominaPaths();
+    revalidatePath('/operaciones/nomina-archivo');
+    revalidatePath('/operaciones/nomina-vista-previa');
+
+    return {
+      ok: true,
+      message: `Periodo eliminado: ${stripPeriodoLabelPrefix(periodo.label)}`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Error al eliminar periodo',
     };
   }
 }

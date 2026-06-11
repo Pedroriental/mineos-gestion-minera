@@ -9,6 +9,7 @@ import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { toUserFriendlyError } from '@/lib/app-toast';
 import {
   ASIGNACION_NOMINA_OPCIONES,
+  formatNombrePropio,
   isAsignacionNominaValid,
   PERSONAL_SYNC_PATHS,
 } from '@/lib/personal-master';
@@ -50,7 +51,7 @@ async function saveOptionalFile(
 export async function upsertTrabajadorRegistroAction(formData: FormData): Promise<RegistryActionResult> {
   try {
     const id = String(formData.get('id') ?? '').trim();
-    const nombre = String(formData.get('nombre_completo') ?? '').trim();
+    const nombre = formatNombrePropio(String(formData.get('nombre_completo') ?? ''));
     const cedula = String(formData.get('cedula') ?? '').trim();
     const cargo = String(formData.get('cargo') ?? '').trim();
     const areaDetalle = String(formData.get('area_detalle') ?? '').trim();
@@ -90,10 +91,10 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       return { ok: false, message: 'Nombre y cédula son obligatorios.' };
     }
 
-    if (!areaDetalle || !isAsignacionNominaValid(areaDetalle)) {
+    if (areaDetalle && !isAsignacionNominaValid(areaDetalle)) {
       return {
         ok: false,
-        message: `La asignación nómina es obligatoria. Opciones: ${ASIGNACION_NOMINA_OPCIONES.join(', ')}.`,
+        message: `Asignación nómina inválida. Opciones: ${ASIGNACION_NOMINA_OPCIONES.join(', ')}.`,
       };
     }
 
@@ -191,8 +192,18 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       return { ok: false, message: err instanceof Error ? err.message : 'Error al subir archivo.' };
     }
 
-    const verticalAsignada = areaDetalle.startsWith('Vertical') ? areaDetalle : null;
-    const grupoTurno = areaDetalle === 'Molinos- Grupo (mixto)' ? areaDetalle : null;
+    let resolvedAreaDetalle = areaDetalle;
+    if (targetId && !resolvedAreaDetalle) {
+      const { data: currentArea } = await supabase
+        .from('personal')
+        .select('area_detalle')
+        .eq('id', targetId)
+        .maybeSingle();
+      resolvedAreaDetalle = String(currentArea?.area_detalle || '').trim();
+    }
+
+    const verticalAsignada = resolvedAreaDetalle.startsWith('Vertical') ? resolvedAreaDetalle : null;
+    const grupoTurno = resolvedAreaDetalle === 'Molinos- Grupo (mixto)' ? resolvedAreaDetalle : null;
 
     const payloadBase = {
       cedula,
@@ -200,7 +211,7 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       cargo: cargo || '',
       fecha_nacimiento: fechaNacimiento || null,
       area,
-      area_detalle: areaDetalle,
+      area_detalle: resolvedAreaDetalle || null,
       vertical_asignada: verticalAsignada,
       grupo_turno: grupoTurno,
       ubicacion_laboral: ubicacionRaw || biblioteca.ubicacionDefaultPorArea[area] || null,

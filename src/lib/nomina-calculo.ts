@@ -7,6 +7,7 @@ import {
 } from '@/lib/nomina/perfil-ciclo-reglas';
 import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
 import type { Personal } from '@/lib/types';
+import type { PoliticaReposo } from '@/lib/types';
 
 export type EstadoAsistenciaNomina = 'trabajada' | 'libre' | 'no_laborado';
 
@@ -21,7 +22,7 @@ export function clampDiasTrabajados(
 }
 
 export function defaultDiasTrabajados(estado: EstadoAsistenciaNomina): number {
-  if (estado === 'no_laborado') return 0;
+  if (estado === 'no_laborado' || estado === 'libre') return 0;
   return NOMINA_DIAS_POR_SEMANA;
 }
 
@@ -97,6 +98,12 @@ export function calculateDefaultBaseSal(
   }
 
   const tarifaSemanal = calculateWeeklyBaseRate(p, estadoAsistencia, weekStartStr, dias);
+  if (estadoAsistencia === 'libre') {
+    return tarifaSemanal;
+  }
+  if (estadoAsistencia === 'no_laborado') {
+    return 0;
+  }
   return applyProportionalWeeklyPay(tarifaSemanal, dias);
 }
 
@@ -118,18 +125,39 @@ export function calculateBonoTransporteMolino15(
   );
 }
 
+/** Normaliza estado + días: libre y falta siempre 0 días; turno laboral 1–7 días. */
 export function resolveEstadoYDias(
   estado: EstadoAsistenciaNomina,
   dias: number,
 ): { estadoAsistencia: EstadoAsistenciaNomina; diasTrabajados: number } {
+  if (estado === 'libre') {
+    return { estadoAsistencia: 'libre', diasTrabajados: 0 };
+  }
+  if (estado === 'no_laborado') {
+    return { estadoAsistencia: 'no_laborado', diasTrabajados: 0 };
+  }
   const diasTrabajados = clampDiasTrabajados(dias);
   if (diasTrabajados === 0) {
     return { estadoAsistencia: 'no_laborado', diasTrabajados: 0 };
   }
-  if (estado === 'no_laborado') {
-    return { estadoAsistencia: 'trabajada', diasTrabajados };
+  return { estadoAsistencia: 'trabajada', diasTrabajados };
+}
+
+/** Sueldo semanal por reposo según política del perfil (distinto al camino de falta/no laborado). */
+export function aplicarPoliticaReposoSemanal(
+  politica: PoliticaReposo | undefined,
+  personal: Pick<Personal, 'salario_base'>,
+  diasTrabajados: number,
+): number {
+  switch (politica ?? 'SIN_PAGO') {
+    case 'PAGO_COMPLETO':
+      return Number(personal.salario_base) || 0;
+    case 'PARCIAL':
+      return applyProportionalWeeklyPay(Number(personal.salario_base) || 0, diasTrabajados);
+    case 'SIN_PAGO':
+    default:
+      return 0;
   }
-  return { estadoAsistencia: estado, diasTrabajados };
 }
 
 export function calculateNominaRowPay(input: {
@@ -183,6 +211,65 @@ export function calculateNominaRowPay(input: {
     esSemanaLibre: estadoAsistencia === 'libre',
     total: Math.max(0, total),
   };
+}
+
+/** Pago según Turno/Libre/Falta explícito (periodo manual con plantilla; ignora ciclo personal). */
+export function calculateExplicitAsistenciaPay(input: {
+  personal: Pick<Personal, 'salario_base' | 'salario_libre' | 'bono_transporte'>;
+  estadoAsistencia: EstadoAsistenciaNomina;
+  diasTrabajados: number;
+  bonoTransporte?: number;
+  bonificaciones?: number;
+  totalVales?: number;
+}): {
+  salarioBaseCalculado: number;
+  bonoTransporte: number;
+  esSemanaLibre: boolean;
+  total: number;
+} {
+  const { estadoAsistencia, diasTrabajados } = resolveEstadoYDias(
+    input.estadoAsistencia,
+    input.diasTrabajados,
+  );
+  const base = Number(input.personal.salario_base) || 0;
+  const libre = Number(input.personal.salario_libre) || base;
+
+  let salarioBaseCalculado = 0;
+  let bonoTransporte = 0;
+
+  if (estadoAsistencia === 'trabajada') {
+    salarioBaseCalculado = applyProportionalWeeklyPay(base, diasTrabajados);
+    bonoTransporte =
+      input.bonoTransporte !== undefined
+        ? input.bonoTransporte
+        : Number(input.personal.bono_transporte) || 0;
+  } else if (estadoAsistencia === 'libre') {
+    salarioBaseCalculado = libre;
+  }
+
+  const bonificaciones = Number(input.bonificaciones) || 0;
+  const totalVales = Number(input.totalVales) || 0;
+  const total = parseFloat(
+    (salarioBaseCalculado + bonoTransporte + bonificaciones - totalVales).toFixed(2),
+  );
+
+  return {
+    salarioBaseCalculado,
+    bonoTransporte,
+    esSemanaLibre: estadoAsistencia === 'libre',
+    total: Math.max(0, total),
+  };
+}
+
+export function explicitWeeklyBaseRate(
+  p: Pick<Personal, 'salario_base' | 'salario_libre'>,
+  estadoAsistencia: EstadoAsistenciaNomina,
+): number {
+  if (estadoAsistencia === 'no_laborado') return 0;
+  if (estadoAsistencia === 'libre') {
+    return Number(p.salario_libre) || Number(p.salario_base) || 0;
+  }
+  return Number(p.salario_base) || 0;
 }
 
 export function predictWeekPay(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo, useEffect, useCallback } from 'react';
+import { useState, useTransition, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
@@ -10,7 +10,7 @@ import {
   Search, Factory, Shield, Truck, Briefcase, Edit2, Receipt, 
   Printer, X, Users, Wallet, ChevronRight, FileText, Download,
   TrendingUp, TrendingDown, RotateCcw, Clipboard,
-  Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet, Archive
+  Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet, Archive, LayoutGrid
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/app-toast';
@@ -18,13 +18,14 @@ import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 import {
   ASIGNACION_NOMINA_OPCIONES,
+  formatNombrePropio,
   getGrupoNominaKey,
   isAsignacionNominaValid,
 } from '@/lib/personal-master';
 import { PersonalQuickAssignModal } from '@/components/nomina/PersonalQuickAssignModal';
 import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
 import NominaTrabajadorModal from '@/components/nomina/NominaTrabajadorModal';
-import NominaCiclosTable from '@/components/nomina/NominaCiclosTable';
+import { NominaCiclosView } from '@/components/nomina/NominaCiclosView';
 import { NominaVistaPreviaModal } from '@/components/nomina/NominaVistaPreviaModal';
 import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
 import type { NominaImportResult } from '@/components/nomina/NominaImportWizard';
@@ -35,9 +36,16 @@ import { MINEOS_BTN_NOMINA_PRIMARY } from '@/lib/mineos-visual';
 import {
   hasNovedadTurno,
   nominaNovedadDraftKey,
-  NOVEDAD_TURNO_PREVIEW_LABEL,
+  describeNovedadTurnoSemana,
   parseNovedadTurno,
+  patchAlMarcarNovedadTurno,
+  patchAlCambiarAsistencia,
+  preNominaRowToWeekDraft,
+  parseReposoCondicionFromObs,
+  formatNovedadTurnoObsForSave,
   readNominaNovedadDraft,
+  reposoPagoUnicoMontoFromRow,
+  weekDraftToRowOverrides,
   writeNominaNovedadDraft,
 } from '@/lib/nomina-novedad-turno';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
@@ -45,17 +53,72 @@ import { SheetIconBadge } from '@/components/mobile';
 import NominaDistribucionPanel from '@/components/nomina/NominaDistribucionPanel';
 import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config';
 import { NominaImportModal } from '@/components/nomina/NominaImportModal';
+import { RotacionPlantillaSandboxModal } from '@/components/nomina/RotacionPlantillaSandboxModal';
+import {
+  RotacionInstanciaPanel,
+  RotacionInstanciaBanner,
+} from '@/components/nomina/RotacionInstanciaPanel';
+import { resolveWorkerRotacionContext } from '@/lib/rotacion-plantillas/projection';
+import { deserializeInstanciaSnapshot } from '@/lib/rotacion-plantillas/instancia-serialize';
+import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
+import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
+import type { PerfilCompensacion, PoliticaReposo } from '@/lib/types';
+import { validarCierreRotacionSemanalAction } from '@/lib/actions/rotacion-instancias';
 import { resolveNominaTemporalContext, resolveWorkingWeek, formatTemporalContextHint } from '@/lib/nomina/temporal-context';
+import {
+  normalizeManualPeriod,
+  weekInManualPeriod,
+  clearLocalDraftsForPeriod,
+  computeManualPeriodProgress,
+  type ManualNominaPeriod,
+} from '@/lib/nomina/manual-period';
+import {
+  emptyManualPeriodsSession,
+  ensureWorkingWeekInPeriodAssignment,
+  getPeriodById,
+  loadManualPeriodsSession,
+  removePeriodFromSession,
+  resolveManualPeriodForWeek,
+  saveManualPeriodsSession,
+  upsertPeriodInSession,
+  type ManualPeriodsSession,
+} from '@/lib/nomina/manual-period-session';
+import {
+  addToManualWeekRoster,
+  clearManualWeekRoster,
+  mergeManualWeekRosterIds,
+  readManualWeekRosterEntries,
+  removeFromManualWeekRoster,
+} from '@/lib/nomina/manual-period-roster';
+import {
+  carryManualWeekToNext,
+  carryoverRowsFromSemanaRegistros,
+  mergePersonalCatalogWithRosterEntries,
+  seedManualWeekIfEmpty,
+  type ManualWeekCarryoverRow,
+} from '@/lib/nomina/manual-period-carryover';
+import { previousWeekInManualPeriod } from '@/lib/nomina/manual-period';
+import {
+  buildManualPlantillaNominaRows,
+  manualPlantillaCuadrillaOrder,
+  manualPlantillaCuadrillaOrderForWeek,
+  nominaRowBelongsToCuadrilla,
+  resolveActiveCuadrillaIdsForWeek,
+} from '@/lib/rotacion-plantillas/manual-plantilla-projection';
+import { mineosPanel } from '@/lib/mineos-visual';
 import { getWeekEnd, getWeekStart } from '@/lib/nomina/week-utils';
 import { distribucionFromCierreLegacy } from '@/lib/nomina-distribucion';
 import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
 import {
   calculateNominaRowPay,
+  calculateExplicitAsistenciaPay,
   calculateWeeklyBaseRate,
+  explicitWeeklyBaseRate,
   defaultDiasTrabajados,
   formatProportionalSalarioHint,
   NOMINA_DIAS_POR_SEMANA,
   resolveEstadoYDias,
+  aplicarPoliticaReposoSemanal,
   type EstadoAsistenciaNomina,
 } from '@/lib/nomina-calculo';
 import {
@@ -183,63 +246,124 @@ function RotacionPredBadge({
 interface NominaClientProps {
   data: Personal[];
   masterCatalog: Personal[];
+  perfilesCompensacion?: PerfilCompensacion[];
   semanas: NominaSemana[];
   area: 'administracion' | 'mina' | 'planta' | 'seguridad' | 'transporte';
+  instanciaActiva?: InstanciaActivaSerialized | null;
+  rotacionPlantillas?: RotacionPlantillaRecord[];
+  rotacionMigrationRequired?: boolean;
 }
 
 function recomputePreNominaRow(
   row: PreNominaRowState,
   weekStart: string,
   overrides?: Partial<PreNominaRowState>,
+  politicaReposo?: PoliticaReposo | null,
 ): PreNominaRowState {
   const merged = { ...row, ...overrides };
   const p = merged.personal;
   const cicloPosicion = posicionEsquemaPersonal(p, weekStart);
-  const diasBloqueados = inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
+  const esquemaDiasBloqueados = inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
+  const fromPlantilla = merged.rotacionFuente === 'plantilla';
+  const diasBloqueados = fromPlantilla
+    ? Boolean(merged.diasInputBloqueado)
+    : esquemaDiasBloqueados;
 
   let estadoAsistencia = merged.estadoAsistencia;
   let diasTrabajados = merged.diasTrabajados;
 
   if (overrides?.estadoAsistencia !== undefined) {
-    diasTrabajados = diasTrabajadosPorDefectoCiclo(
-      p.esquema_rotacion,
-      cicloPosicion,
-      overrides.estadoAsistencia,
-    );
-  }
-  if (overrides?.diasTrabajados !== undefined && !diasBloqueados) {
+    if (overrides.diasTrabajados !== undefined && !diasBloqueados) {
+      diasTrabajados = overrides.diasTrabajados;
+    } else if (!diasBloqueados) {
+      diasTrabajados = defaultDiasTrabajados(overrides.estadoAsistencia);
+    } else {
+      diasTrabajados = diasTrabajadosPorDefectoCiclo(
+        p.esquema_rotacion,
+        cicloPosicion,
+        overrides.estadoAsistencia,
+      );
+    }
+  } else if (overrides?.diasTrabajados !== undefined && !diasBloqueados) {
     diasTrabajados = overrides.diasTrabajados;
   }
-  if (diasBloqueados) {
+  if (diasBloqueados && !fromPlantilla) {
     diasTrabajados = 0;
   }
 
   const resolved = resolveEstadoYDias(estadoAsistencia, diasTrabajados);
   const bonoManual = diasBloqueados ? 0 : merged.bonoTransporte;
   const bonificaciones = diasBloqueados ? 0 : merged.bonificaciones;
-  const pay = calculateNominaRowPay({
-    personal: p,
-    estadoAsistencia: resolved.estadoAsistencia,
-    diasTrabajados: resolved.diasTrabajados,
-    weekStart,
-    bonoTransporte: bonoManual,
-    bonificaciones,
-    totalVales: merged.totalVales,
-  });
+  const pay = fromPlantilla
+    ? calculateExplicitAsistenciaPay({
+        personal: p,
+        estadoAsistencia: resolved.estadoAsistencia,
+        diasTrabajados: resolved.diasTrabajados,
+        bonoTransporte: bonoManual,
+        bonificaciones,
+        totalVales: merged.totalVales,
+      })
+    : calculateNominaRowPay({
+        personal: p,
+        estadoAsistencia: resolved.estadoAsistencia,
+        diasTrabajados: resolved.diasTrabajados,
+        weekStart,
+        bonoTransporte: bonoManual,
+        bonificaciones,
+        totalVales: merged.totalVales,
+      });
+
+  let salarioBaseCalculado = pay.salarioBaseCalculado;
+  let total = pay.total;
+  let esSemanaLibre = pay.esSemanaLibre;
+
+  // Reposo (novedad turno): sueldo según condición elegida en la semana.
+  if (merged.novedadTurno === 'REPOSO') {
+    const cond = merged.reposoCondicion ?? politicaReposo ?? 'SIN_PAGO';
+    const diasReposo =
+      cond === 'PARCIAL'
+        ? Math.max(0, Math.min(NOMINA_DIAS_POR_SEMANA, Math.round(merged.reposoDiasPagados ?? 0)))
+        : resolved.diasTrabajados;
+    let compensacionReposo = 0;
+    if (cond === 'PAGO_UNICO') {
+      salarioBaseCalculado = 0;
+      compensacionReposo = Number(merged.reposoCompensacionMonto) || 0;
+    } else {
+      salarioBaseCalculado = aplicarPoliticaReposoSemanal(cond, p, diasReposo);
+    }
+    esSemanaLibre = false;
+    total = Math.max(
+      0,
+      parseFloat(
+        (
+          salarioBaseCalculado +
+          pay.bonoTransporte +
+          bonificaciones +
+          compensacionReposo -
+          merged.totalVales
+        ).toFixed(2),
+      ),
+    );
+  }
 
   return {
     ...merged,
     estadoAsistencia: resolved.estadoAsistencia,
     diasTrabajados: resolved.diasTrabajados,
-    salarioBaseCalculado: pay.salarioBaseCalculado,
+    salarioBaseCalculado,
     bonoTransporte: pay.bonoTransporte,
     bonificaciones,
-    esSemanaLibre: pay.esSemanaLibre,
-    total: pay.total,
+    esSemanaLibre,
+    total,
     deducciones: merged.totalVales,
     cicloPosicion,
     diasInputBloqueado: diasBloqueados,
   };
+}
+
+/** Semana fijada por plantilla (p. ej. Lib.Pag): asistencia no editable; pago según estatus. */
+function asistenciaBloqueadaPorPlantilla(row: PreNominaRowState): boolean {
+  return row.rotacionFuente === 'plantilla' && Boolean(row.diasInputBloqueado);
 }
 
 const ICONS = {
@@ -280,8 +404,12 @@ function getCargoTheme(cargo: string): { bg: string; text: string; border: strin
 export default function NominaClient({
   data,
   masterCatalog,
+  perfilesCompensacion = [],
   semanas,
   area,
+  instanciaActiva: instanciaActivaProp = null,
+  rotacionPlantillas = [],
+  rotacionMigrationRequired = false,
 }: NominaClientProps) {
   const router = useRouter();
   const confirmDialog = useConfirm();
@@ -291,7 +419,42 @@ export default function NominaClient({
   const canEdit = useCanEdit();
   const biblioteca = useBiblioteca();
   const esquemaOpciones = biblioteca.esquemasPorArea[area] || ['FIJO_SEMANAL'];
+
+  const personalCatalog = useMemo(
+    () =>
+      (data || []).map((p) => ({
+        ...p,
+        nombre_completo: formatNombrePropio(p.nombre_completo || ''),
+      })),
+    [data],
+  );
+
+  /** Catálogo maestro (`personal`) — misma fuente que Base de Trabajadores */
+  const baseTrabajadores = useMemo(
+    () =>
+      (masterCatalog || []).map((p) => ({
+        ...p,
+        nombre_completo: formatNombrePropio(p.nombre_completo || ''),
+      })),
+    [masterCatalog],
+  );
+
+  /** Área + maestro: permite proyectar filas manuales antes de que `data` se actualice tras refresh. */
+  const personalCatalogMerged = useMemo(() => {
+    const byId = new Map<string, Personal>();
+    for (const p of personalCatalog) byId.set(p.id, p);
+    for (const p of baseTrabajadores) {
+      if (!byId.has(p.id)) byId.set(p.id, p);
+    }
+    return [...byId.values()];
+  }, [personalCatalog, baseTrabajadores]);
+  const [rotacionCierreError, setRotacionCierreError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const instanciaSnapshot = useMemo(
+    () => deserializeInstanciaSnapshot(instanciaActivaProp),
+    [instanciaActivaProp],
+  );
 
   // State
   const [search, setSearch] = useState('');
@@ -301,6 +464,14 @@ export default function NominaClient({
   const [showExcelPreview, setShowExcelPreview] = useState(false);
   // Import modal (roster / planilla semana)
   const [showImport, setShowImport] = useState(false);
+  const [showRotacionSandbox, setShowRotacionSandbox] = useState(false);
+  const [sandboxPlantillaId, setSandboxPlantillaId] = useState<string | undefined>();
+  const [manualPeriodSession, setManualPeriodSession] = useState<ManualPeriodsSession>(
+    emptyManualPeriodsSession,
+  );
+  const [consolidatedLockedIds, setConsolidatedLockedIds] = useState<Set<string>>(new Set());
+  /** Fuerza relectura del roster manual en localStorage tras asignar trabajador. */
+  const [manualRosterTick, setManualRosterTick] = useState(0);
   const [showArchivo, setShowArchivo] = useState(false);
   const [previewInitialRange, setPreviewInitialRange] = useState<NominaPreviewRange | null>(null);
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
@@ -322,8 +493,8 @@ export default function NominaClient({
   // Paso activo del flujo guiado (Nómina 2.0)
   const [activeStep, setActiveStep] = useState<1 | 2>(1);
 
-  // Vista activa: Semanal (tradicional) o Ciclos (21 días)
-  const [viewMode, setViewMode] = useState<'semanal' | 'ciclos'>('semanal');
+  // Vista activa: Semanal (tradicional), Ciclos (21 días) o Plantillas rotación
+  const [viewMode, setViewMode] = useState<'semanal' | 'ciclos' | 'plantillas'>('semanal');
 
   // Pre-Nómina
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
@@ -347,6 +518,133 @@ export default function NominaClient({
     const w = resolveWorkingWeek(semanas);
     return { inicio: w.inicio, fin: w.fin };
   });
+
+  useEffect(() => {
+    setManualPeriodSession(loadManualPeriodsSession(area));
+  }, [area]);
+
+  useEffect(() => {
+    saveManualPeriodsSession(area, manualPeriodSession);
+  }, [manualPeriodSession, area]);
+
+  const handleEditorPeriodChange = useCallback(
+    (
+      period: ManualNominaPeriod | null,
+      meta?: { fromConsolidated?: boolean; resetReconsolidation?: boolean },
+    ) => {
+      if (!period) {
+        setManualPeriodSession((prev) => ({ ...prev, editorPeriodId: null }));
+        return;
+      }
+      setManualPeriodSession((prev) => {
+        let next = upsertPeriodInSession(prev, period);
+        next = {
+          ...next,
+          editorPeriodId: period.id,
+          historicalPeriodId:
+            meta?.fromConsolidated && meta.resetReconsolidation === false
+              ? next.historicalPeriodId
+              : period.id,
+        };
+        return next;
+      });
+      setConsolidatedLockedIds((prev) => {
+        const next = new Set(prev);
+        if (meta?.fromConsolidated === true) {
+          if (meta.resetReconsolidation === false) next.delete(period.id);
+          else next.add(period.id);
+        } else if (meta?.fromConsolidated === false) {
+          next.delete(period.id);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleWorkingWeekPeriodChange = useCallback(
+    (periodId: string | null) => {
+      setManualPeriodSession((prev) => {
+        let session: ManualPeriodsSession = { ...prev, workingWeekPeriodId: periodId };
+        if (periodId) {
+          const p = getPeriodById(session, periodId);
+          if (p) {
+            const pl = rotacionPlantillas.find((x) => x.id === p.plantillaId);
+            session = upsertPeriodInSession(
+              session,
+              ensureWorkingWeekInPeriodAssignment(p, temporalCtx.workingWeekStart, pl),
+            );
+          }
+        }
+        return session;
+      });
+    },
+    [rotacionPlantillas, temporalCtx.workingWeekStart],
+  );
+
+  const handleStartNewPeriod = useCallback(() => {
+    setManualPeriodSession((prev) => ({ ...prev, editorPeriodId: null }));
+  }, []);
+
+  const handleDeleteDraftPeriod = useCallback(async () => {
+    const periodId = manualPeriodSession.editorPeriodId;
+    if (!periodId) return;
+    const period = getPeriodById(manualPeriodSession, periodId);
+    if (!period) return;
+
+    const progress = computeManualPeriodProgress(period, semanas, area);
+    const closedNote =
+      progress.closedCount > 0
+        ? `\n\nTiene ${progress.closedCount} semana(s) ya cerrada(s) en nómina; esas no se borran.`
+        : '';
+    const label = period.label.trim() || `${period.rangeStart} — ${period.rangeEnd}`;
+
+    if (
+      !(await confirmDialog({
+        title: 'Descartar ciclo',
+        message: `¿Descartar «${label}»?${closedNote}\n\nSe quitará de los ciclos armados y se limpiarán borradores locales.`,
+        variant: 'danger',
+      }))
+    ) {
+      return;
+    }
+
+    clearLocalDraftsForPeriod(area, period);
+    setManualPeriodSession((prev) => removePeriodFromSession(prev, periodId));
+    setConsolidatedLockedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(periodId);
+      return next;
+    });
+    setManualRosterTick((t) => t + 1);
+    toast.success('Ciclo descartado');
+  }, [manualPeriodSession, semanas, area, confirmDialog]);
+
+  const manualPeriodForView = useMemo(
+    () =>
+      resolveManualPeriodForWeek(
+        manualPeriodSession,
+        weekRange.inicio,
+        temporalCtx.workingWeekStart,
+      ),
+    [manualPeriodSession, weekRange.inicio, temporalCtx.workingWeekStart],
+  );
+
+  const isManualPeriodWeek = Boolean(manualPeriodForView);
+
+  const manualPlantillaActiva = useMemo(() => {
+    if (!isManualPeriodWeek || !manualPeriodForView?.plantillaId) return null;
+    return rotacionPlantillas.find((p) => p.id === manualPeriodForView.plantillaId) ?? null;
+  }, [isManualPeriodWeek, manualPeriodForView, rotacionPlantillas]);
+
+  const operativaPlantilla = useMemo(() => {
+    if (isManualPeriodWeek || !instanciaSnapshot || instanciaSnapshot.estado !== 'ACTIVA') {
+      return null;
+    }
+    return rotacionPlantillas.find((p) => p.id === instanciaSnapshot.plantillaId) ?? null;
+  }, [isManualPeriodWeek, instanciaSnapshot, rotacionPlantillas]);
+
+  const initRowsGenRef = useRef(0);
   const [procesadoOk, setProcesadoOk] = useState<string | null>(null);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [semanaSheetOpen, setSemanaSheetOpen] = useState(false);
@@ -380,12 +678,196 @@ export default function NominaClient({
     });
   }, [area]);
 
+  const politicaReposoFor = useCallback(
+    (personal: Personal): PoliticaReposo =>
+      perfilesCompensacion.find((pf) => pf.id === personal.perfil_compensacion_id)?.politica_reposo ??
+      'SIN_PAGO',
+    [perfilesCompensacion],
+  );
+
+  const applyWeekDraft = useCallback(
+    (
+      row: PreNominaRowState,
+      weekStart: string,
+      draft: ReturnType<typeof readNominaNovedadDraft>[string] | undefined,
+    ) =>
+      recomputePreNominaRow(
+        {
+          ...row,
+          novedadTurno: parseNovedadTurno(draft?.novedadTurno ?? row.novedadTurno),
+          novedadTurnoObs: draft?.novedadTurnoObs ?? row.novedadTurnoObs ?? '',
+          reposoCondicion: draft?.reposoCondicion ?? row.reposoCondicion ?? null,
+        },
+        weekStart,
+        weekDraftToRowOverrides(draft),
+        politicaReposoFor(row.personal),
+      ),
+    [politicaReposoFor],
+  );
+
+  const buildOperationalNominaRow = useCallback(
+    (
+      p: Personal,
+      weekStart: string,
+      valesMap: Record<string, NominaVale[]>,
+    ): PreNominaRowState => {
+      const rotacion = resolveWorkerRotacionContext(p, instanciaSnapshot, weekStart);
+      const predicted = rotacion
+        ? rotacion.estadoAsistencia
+        : calculateExpectedAttendance(p.esquema_rotacion, p.rotacion_inicio_fecha, weekStart);
+      const workerVales = valesMap[p.id] || [];
+      const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
+      const cicloPosicion = rotacion ? rotacion.posicionCiclo : posicionEsquemaPersonal(p, weekStart);
+      const diasBloqueados = rotacion
+        ? rotacion.diasInputBloqueado
+        : inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
+      const diasTrabajados = rotacion
+        ? rotacion.estadoAsistencia === 'trabajada'
+          ? NOMINA_DIAS_POR_SEMANA
+          : rotacion.estadoAsistencia === 'no_laborado'
+            ? 0
+            : defaultDiasTrabajados(predicted)
+        : diasTrabajadosPorDefectoCiclo(p.esquema_rotacion, cicloPosicion, predicted);
+      const pay = calculateNominaRowPay({
+        personal: p,
+        estadoAsistencia: predicted,
+        diasTrabajados,
+        weekStart,
+        bonificaciones: 0,
+        totalVales,
+        bonoTransporte: diasBloqueados ? 0 : undefined,
+      });
+      return {
+        personal: p,
+        esSemanaLibre: pay.esSemanaLibre,
+        bonoTransporte: pay.bonoTransporte,
+        bonificaciones: 0,
+        deducciones: totalVales,
+        total: pay.total,
+        estadoAsistencia: predicted,
+        diasTrabajados,
+        salarioBaseCalculado: pay.salarioBaseCalculado,
+        valesPendientes: workerVales,
+        totalVales,
+        novedadTurno: 'ACTIVO',
+        novedadTurnoObs: '',
+        reposoCondicion: null,
+        reposoDiasPagados: 0,
+        reposoCompensacionMonto: 0,
+        cicloPosicion,
+        diasInputBloqueado: diasBloqueados,
+        rotacionFuente: (rotacion ? 'plantilla' : 'legacy') as 'plantilla' | 'legacy',
+        cuadrillaNombre: rotacion?.cuadrillaNombre,
+        posicionCiclo: rotacion?.posicionCiclo,
+        estatusPlantillaLabel: rotacion?.estatusLabel,
+      };
+    },
+    [instanciaSnapshot],
+  );
+
+  const appendAssignedWorker = useCallback(
+    (personalId: string, areaDetalle: string) => {
+      const source =
+        baseTrabajadores.find((p) => p.id === personalId) ??
+        personalCatalog.find((p) => p.id === personalId);
+      if (!source) return;
+
+      const personal: Personal = {
+        ...source,
+        area,
+        area_detalle: areaDetalle,
+        activo: true,
+        estatus: 'ACTIVO',
+        nombre_completo: formatNombrePropio(source.nombre_completo || ''),
+      };
+
+      setPreNominaRows((prev) => {
+        const existingIdx = prev.findIndex((r) => r.personal.id === personalId);
+        if (existingIdx >= 0) {
+          const updated = prev.map((r) =>
+            r.personal.id === personalId
+              ? { ...r, personal: { ...r.personal, area_detalle: areaDetalle } }
+              : r,
+          );
+          if (isManualPeriodWeek && manualPlantillaActiva && manualPeriodForView) {
+            const rebuilt = buildManualPlantillaNominaRows({
+              plantilla: manualPlantillaActiva,
+              personalCatalog: updated.map((r) => r.personal),
+              personalIds: [personalId],
+              weekStart: weekRange.inicio,
+              periodStart: manualPeriodForView.rangeStart,
+              periodEnd: manualPeriodForView.rangeEnd,
+              weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
+              weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
+              valesMap: {},
+              weekEnd: weekRange.fin,
+              forceIncludeIds: [personalId],
+            });
+            if (rebuilt.length) {
+              const weekDraft = readNominaNovedadDraft(
+                nominaNovedadDraftKey(area, weekRange.inicio),
+              );
+              const nextRow = applyWeekDraft(rebuilt[0], weekRange.inicio, weekDraft[personalId]);
+              return prev.map((r) => (r.personal.id === personalId ? nextRow : r));
+            }
+          }
+          return updated;
+        }
+
+        if (isManualPeriodWeek && manualPlantillaActiva && manualPeriodForView) {
+          const built = buildManualPlantillaNominaRows({
+            plantilla: manualPlantillaActiva,
+            personalCatalog: [personal],
+            personalIds: [personalId],
+            weekStart: weekRange.inicio,
+            periodStart: manualPeriodForView.rangeStart,
+            periodEnd: manualPeriodForView.rangeEnd,
+            weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
+            weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
+            valesMap: {},
+            weekEnd: weekRange.fin,
+            forceIncludeIds: [personalId],
+          });
+          if (!built.length) return prev;
+          const weekDraft = readNominaNovedadDraft(nominaNovedadDraftKey(area, weekRange.inicio));
+          return [...prev, applyWeekDraft(built[0], weekRange.inicio, weekDraft[personalId])];
+        }
+
+        const weekDraft = readNominaNovedadDraft(nominaNovedadDraftKey(area, weekRange.inicio));
+        return [
+          ...prev,
+          applyWeekDraft(
+            buildOperationalNominaRow(personal, weekRange.inicio, {}),
+            weekRange.inicio,
+            weekDraft[personalId],
+          ),
+        ];
+      });
+    },
+    [
+      area,
+      baseTrabajadores,
+      personalCatalog,
+      isManualPeriodWeek,
+      manualPlantillaActiva,
+      manualPeriodForView,
+      weekRange.inicio,
+      weekRange.fin,
+      buildOperationalNominaRow,
+      applyWeekDraft,
+    ],
+  );
+
   // ── Initialize rows with rotation predictions and vales ─────────────────
   useEffect(() => {
     if (!data) return;
+    const runGen = ++initRowsGenRef.current;
     const initRows = async () => {
       const currentWeekStart = weekRange.inicio;
       const currentWeekEnd = weekRange.fin;
+      let rosterEntries = readManualWeekRosterEntries(area, currentWeekStart);
+      let weekRoster = rosterEntries.map((e) => e.id);
+      const weekRosterSet = new Set(weekRoster);
 
       // 1. Check if this is a closed week
       const closedWeek = semanas.find(s => s.semana_inicio === currentWeekStart);
@@ -395,10 +877,8 @@ export default function NominaClient({
           const res = await getSemanaRegistrosAction(closedWeek.id);
           if (res.ok && res.data) {
             const rows = res.data.map((reg: any) => {
-              // Fallback desde el snapshot inmutable del cierre (datos reales),
-              // nunca inferir el salario restando montos pagados.
               const snap = reg.personal_snapshot || null;
-              const p = reg.personal || {
+              const pRaw = reg.personal || {
                 id: reg.personal_id,
                 nombre_completo: snap?.nombre_completo || 'Trabajador no encontrado',
                 cedula: snap?.cedula || 'SC-N/A',
@@ -412,11 +892,20 @@ export default function NominaClient({
                 rotacion_inicio_fecha: snap?.rotacion_inicio_fecha || undefined,
                 activo: false,
               };
+              const p = {
+                ...pRaw,
+                nombre_completo: formatNombrePropio(pRaw.nombre_completo || ''),
+              };
               const estadoAsistencia = (reg.estado_asistencia ||
                 (reg.es_semana_libre ? 'libre' : 'trabajada')) as EstadoAsistenciaNomina;
               const diasTrabajados =
                 reg.dias_trabajados ??
                 (estadoAsistencia === 'no_laborado' ? 0 : NOMINA_DIAS_POR_SEMANA);
+              const novedadTurno = parseNovedadTurno(reg.novedad_turno);
+              const reposoParsed =
+                novedadTurno === 'REPOSO'
+                  ? parseReposoCondicionFromObs(String(reg.novedad_turno_obs || ''))
+                  : { novedadTurnoObs: String(reg.novedad_turno_obs || '') };
               return {
                 personal: p,
                 esSemanaLibre: reg.es_semana_libre,
@@ -429,10 +918,14 @@ export default function NominaClient({
                 salarioBaseCalculado: Number(reg.salario_base_calculado || 0),
                 valesPendientes: [],
                 totalVales: 0,
-                novedadTurno: parseNovedadTurno(reg.novedad_turno),
-                novedadTurnoObs: String(reg.novedad_turno_obs || ''),
+                novedadTurno,
+                novedadTurnoObs: reposoParsed.novedadTurnoObs,
+                reposoCondicion: reposoParsed.reposoCondicion ?? null,
+                reposoDiasPagados: reposoParsed.reposoDiasPagados ?? 0,
+                reposoCompensacionMonto: reposoParsed.reposoCompensacionMonto ?? 0,
               };
             });
+            if (runGen !== initRowsGenRef.current) return;
             setPreNominaRows(rows);
             setIsHistoricalLoading(false);
             return;
@@ -443,16 +936,122 @@ export default function NominaClient({
         setIsHistoricalLoading(false);
       }
 
-      // 2. Active week (not closed) -> load roster and filter
-      const activeWorkers = data.filter(p => {
-        // Filter out future hires
-        if (p.fecha_ingreso && currentWeekEnd && p.fecha_ingreso > currentWeekEnd) return false;
-        // Filter out inactive/liquidated
-        if (p.estatus && p.estatus !== 'ACTIVO') return false;
-        return true;
-      });
+      // 2. Periodo manual activo: solo en semanas históricas del periodo (no la semana de curso)
+      if (manualPeriodForView) {
+        if (!weekInManualPeriod(currentWeekStart, manualPeriodForView)) {
+          if (runGen !== initRowsGenRef.current) return;
+          setPreNominaRows([]);
+          return;
+        }
+
+        if (manualPeriodForView.plantillaId) {
+          const plantilla = rotacionPlantillas.find((p) => p.id === manualPeriodForView.plantillaId);
+          if (plantilla) {
+            if (!rosterEntries.length) {
+              const prevWeek = previousWeekInManualPeriod(manualPeriodForView, currentWeekStart);
+              const prevClosed = prevWeek
+                ? semanas.find((s) => s.semana_inicio === prevWeek && s.area === area)
+                : null;
+              if (prevClosed) {
+                try {
+                  const prevRes = await getSemanaRegistrosAction(prevClosed.id);
+                  if (prevRes.ok && prevRes.data?.length) {
+                    const carryRows = carryoverRowsFromSemanaRegistros(prevRes.data, area);
+                    if (seedManualWeekIfEmpty(area, currentWeekStart, carryRows)) {
+                      rosterEntries = readManualWeekRosterEntries(area, currentWeekStart);
+                      weekRoster = rosterEntries.map((e) => e.id);
+                    }
+                  }
+                } catch {
+                  /* silent */
+                }
+              }
+            }
+
+            const plantillaIds = plantilla.cuadrillas.flatMap((c) =>
+              c.filas.map((f) => f.personalId),
+            );
+            const personalIds = [
+              ...new Set(weekRoster.length > 0 ? weekRoster : [...plantillaIds, ...weekRoster]),
+            ];
+            const catalogForWeek =
+              rosterEntries.length > 0
+                ? mergePersonalCatalogWithRosterEntries(
+                    personalCatalogMerged,
+                    rosterEntries,
+                    area,
+                  )
+                : personalCatalogMerged;
+            let valesMap: Record<string, NominaVale[]> = {};
+            if (personalIds.length) {
+              try {
+                const res = await getValesPendientesBulkAction(personalIds);
+                if (res.ok && res.data) {
+                  res.data.forEach((v) => {
+                    if (!valesMap[v.personal_id]) valesMap[v.personal_id] = [];
+                    valesMap[v.personal_id].push(v);
+                  });
+                }
+              } catch {
+                /* silent */
+              }
+            }
+
+            const novedadDraft = readNominaNovedadDraft(
+              nominaNovedadDraftKey(area, currentWeekStart),
+            );
+            const baseRows = buildManualPlantillaNominaRows({
+              plantilla,
+              personalCatalog: catalogForWeek.length ? catalogForWeek : personalCatalogMerged,
+              personalIds,
+              weekStart: currentWeekStart,
+              periodStart: manualPeriodForView.rangeStart,
+              periodEnd: manualPeriodForView.rangeEnd,
+              weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
+              weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
+              valesMap,
+              weekEnd: currentWeekEnd,
+              forceIncludeIds: weekRoster,
+            });
+            const rows = baseRows.map((row) =>
+              applyWeekDraft(row, currentWeekStart, novedadDraft[row.personal.id]),
+            );
+            if (runGen !== initRowsGenRef.current) return;
+            setPreNominaRows(rows);
+            return;
+          }
+        }
+
+        if (runGen !== initRowsGenRef.current) return;
+        setPreNominaRows([]);
+        return;
+      }
+
+      // 3. Semana operativa (no cerrada) → roster vigente
+      const activeWorkersMap = new Map<string, Personal>();
+      for (const p of personalCatalog) {
+        if (p.estatus && p.estatus !== 'ACTIVO') continue;
+        if (
+          p.fecha_ingreso &&
+          currentWeekEnd &&
+          p.fecha_ingreso > currentWeekEnd &&
+          !weekRosterSet.has(p.id)
+        ) {
+          continue;
+        }
+        activeWorkersMap.set(p.id, p);
+      }
+      for (const personalId of weekRoster) {
+        if (activeWorkersMap.has(personalId)) continue;
+        const p = personalCatalogMerged.find((row) => row.id === personalId);
+        if (!p) continue;
+        if (p.estatus && p.estatus !== 'ACTIVO') continue;
+        activeWorkersMap.set(p.id, p);
+      }
+      const activeWorkers = [...activeWorkersMap.values()];
 
       if (activeWorkers.length === 0) {
+        if (runGen !== initRowsGenRef.current) return;
         setPreNominaRows([]);
         return;
       }
@@ -473,70 +1072,105 @@ export default function NominaClient({
         nominaNovedadDraftKey(area, currentWeekStart),
       );
 
-      const rows = activeWorkers.map((p) => {
-        const predicted = calculateExpectedAttendance(p.esquema_rotacion, p.rotacion_inicio_fecha, currentWeekStart);
-        const workerVales = valesMap[p.id] || [];
-        const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
-        
-        const cicloPosicion = posicionEsquemaPersonal(p, currentWeekStart);
-        const diasBloqueados = inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
-        const diasTrabajados = diasTrabajadosPorDefectoCiclo(
-          p.esquema_rotacion,
-          cicloPosicion,
-          predicted,
-        );
-        const pay = calculateNominaRowPay({
-          personal: p,
-          estadoAsistencia: predicted,
-          diasTrabajados,
-          weekStart: currentWeekStart,
-          bonificaciones: 0,
-          totalVales,
-          bonoTransporte: diasBloqueados ? 0 : undefined,
-        });
-
-        const draft = novedadDraft[p.id];
-        return {
-          personal: p,
-          esSemanaLibre: pay.esSemanaLibre,
-          bonoTransporte: pay.bonoTransporte,
-          bonificaciones: 0,
-          deducciones: totalVales,
-          total: pay.total,
-          estadoAsistencia: predicted,
-          diasTrabajados,
-          salarioBaseCalculado: pay.salarioBaseCalculado,
-          valesPendientes: workerVales,
-          totalVales,
-          novedadTurno: parseNovedadTurno(draft?.novedadTurno),
-          novedadTurnoObs: draft?.novedadTurnoObs ?? '',
-          cicloPosicion,
-          diasInputBloqueado: diasBloqueados,
-        };
-      });
+      const rows = activeWorkers.map((p) =>
+        applyWeekDraft(
+          buildOperationalNominaRow(p, currentWeekStart, valesMap),
+          currentWeekStart,
+          novedadDraft[p.id],
+        ),
+      );
+      if (runGen !== initRowsGenRef.current) return;
       setPreNominaRows(rows);
     };
     initRows();
-  }, [data, weekRange.inicio, weekRange.fin, semanas, area]);
+  }, [
+    personalCatalogMerged,
+    data,
+    weekRange.inicio,
+    weekRange.fin,
+    semanas,
+    area,
+    instanciaSnapshot,
+    manualPeriodForView,
+    rotacionPlantillas,
+    temporalCtx.workingWeekStart,
+    manualRosterTick,
+    buildOperationalNominaRow,
+    applyWeekDraft,
+  ]);
+
+  useEffect(() => {
+    const linked = manualPeriodSession.workingWeekPeriodId;
+    if (!linked || weekRange.inicio !== temporalCtx.workingWeekStart) return;
+    const ids = preNominaRows.map((r) => r.personal.id).filter(Boolean);
+    if (ids.length) mergeManualWeekRosterIds(area, weekRange.inicio, ids);
+  }, [
+    manualPeriodSession.workingWeekPeriodId,
+    weekRange.inicio,
+    temporalCtx.workingWeekStart,
+    area,
+    preNominaRows,
+  ]);
 
   const semanaActual = semanas.find((r) => r.semana_inicio === weekRange.inicio);
   const semanaActualProcesada = !!semanaActual;
 
+  useEffect(() => {
+    if (!instanciaSnapshot || semanaActualProcesada || preNominaRows.length === 0 || isManualPeriodWeek) {
+      setRotacionCierreError(null);
+      return;
+    }
+    let cancelled = false;
+    const rows = preNominaRows.map((r) => ({
+      personalId: r.personal.id,
+      total: r.total,
+      bonoTransporte: r.bonoTransporte,
+      diasTrabajados: r.diasTrabajados,
+    }));
+    validarCierreRotacionSemanalAction({
+      area,
+      semanaInicio: weekRange.inicio,
+      semanaFin: weekRange.fin,
+      rows,
+    }).then((res) => {
+      if (cancelled) return;
+      setRotacionCierreError(res.ok ? null : res.message);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [instanciaSnapshot, semanaActualProcesada, preNominaRows, area, weekRange.inicio, weekRange.fin, isManualPeriodWeek]);
+
   // ── Live Calculation Engine ──────────────────────────────────────────────
+  const applyRowPatch = useCallback(
+    (row: PreNominaRowState, fields: Partial<PreNominaRowState>): Partial<PreNominaRowState> => {
+      if (fields.estadoAsistencia !== undefined && fields.novedadTurno === undefined) {
+        return { ...patchAlCambiarAsistencia(fields.estadoAsistencia), ...fields };
+      }
+      if (fields.novedadTurno !== undefined) {
+        return { ...patchAlMarcarNovedadTurno(row, fields.novedadTurno), ...fields };
+      }
+      return fields;
+    },
+    [],
+  );
+
   const handleUpdateRow = (personalId: string, fields: Partial<PreNominaRowState>) => {
     setPreNominaRows((prev) => {
-      const next = prev.map((row) =>
-        row.personal.id !== personalId ? row : recomputePreNominaRow(row, weekRange.inicio, fields),
-      );
+      const next = prev.map((row) => {
+        if (row.personal.id !== personalId) return row;
+        const patch = applyRowPatch(row, fields);
+        return recomputePreNominaRow(
+          row,
+          weekRange.inicio,
+          patch,
+          politicaReposoFor(row.personal),
+        );
+      });
       if (!semanaActualProcesada) {
         writeNominaNovedadDraft(
           nominaNovedadDraftKey(area, weekRange.inicio),
-          Object.fromEntries(
-            next.map((r) => [
-              r.personal.id,
-              { novedadTurno: r.novedadTurno, novedadTurnoObs: r.novedadTurnoObs },
-            ]),
-          ),
+          Object.fromEntries(next.map((r) => [r.personal.id, preNominaRowToWeekDraft(r)])),
         );
       }
       return next;
@@ -549,6 +1183,11 @@ export default function NominaClient({
   const novedadesTurnoSemana = useMemo(
     () =>
       preNominaRows.filter((r) => hasNovedadTurno(r.novedadTurno, r.novedadTurnoObs)),
+    [preNominaRows],
+  );
+
+  const novedadPagoUnicoTotal = useMemo(
+    () => preNominaRows.reduce((s, r) => s + reposoPagoUnicoMontoFromRow(r), 0),
     [preNominaRows],
   );
 
@@ -570,7 +1209,10 @@ export default function NominaClient({
 
   const IconComponent = ICONS[area];
   const pageTitle = TITLES[area];
-  const assignedIds = useMemo(() => new Set(data.map((p) => p.id)), [data]);
+  const assignedIds = useMemo(
+    () => new Set(preNominaRows.map((r) => r.personal.id)),
+    [preNominaRows],
+  );
 
   // Filter & Group
   const filteredRows = useMemo(() => {
@@ -579,15 +1221,76 @@ export default function NominaClient({
     return preNominaRows.filter(r => r.personal.nombre_completo.toLowerCase().includes(q) || (r.personal.cedula && r.personal.cedula.includes(q)));
   }, [preNominaRows, search]);
 
+  const groupRowsByPlantillaCuadrillas = useCallback(
+    (
+      plantilla: RotacionPlantillaRecord,
+      cuadrillaOrder: string[],
+    ): Record<string, PreNominaRowState[]> => {
+      const groups: Record<string, PreNominaRowState[]> = {};
+      const assigned = new Set<string>();
+      for (const nombre of cuadrillaOrder) {
+        groups[nombre] = [];
+        for (const row of filteredRows) {
+          if (assigned.has(row.personal.id)) continue;
+          if (nominaRowBelongsToCuadrilla(row, nombre, plantilla)) {
+            groups[nombre].push(row);
+            assigned.add(row.personal.id);
+          }
+        }
+      }
+      const orphans = filteredRows.filter((r) => !assigned.has(r.personal.id));
+      for (const row of orphans) {
+        const grupo = row.cuadrillaNombre?.trim() || getGrupoNominaKey(row.personal);
+        if (!groups[grupo]) groups[grupo] = [];
+        groups[grupo].push(row);
+      }
+      return groups;
+    },
+    [filteredRows],
+  );
+
   const groupedRows = useMemo(() => {
+    if (manualPlantillaActiva && isManualPeriodWeek && !semanaActualProcesada && manualPeriodForView) {
+      const activeIds = resolveActiveCuadrillaIdsForWeek(
+        manualPeriodForView,
+        weekRange.inicio,
+        manualPlantillaActiva,
+      );
+      return groupRowsByPlantillaCuadrillas(
+        manualPlantillaActiva,
+        manualPlantillaCuadrillaOrderForWeek(manualPlantillaActiva, activeIds),
+      );
+    }
+    if (operativaPlantilla && instanciaSnapshot && !semanaActualProcesada && !isManualPeriodWeek) {
+      const activeIds = instanciaSnapshot.cuadrillas
+        .filter((c) => c.estado === 'ACTIVA')
+        .map((c) => c.cuadrillaId);
+      const order = manualPlantillaCuadrillaOrder(operativaPlantilla).filter((nombre) => {
+        const c = operativaPlantilla.cuadrillas.find((x) => x.nombre === nombre);
+        return c && activeIds.includes(c.id);
+      });
+      if (order.length) {
+        return groupRowsByPlantillaCuadrillas(operativaPlantilla, order);
+      }
+    }
     const groups: Record<string, PreNominaRowState[]> = {};
-    filteredRows.forEach(row => {
+    filteredRows.forEach((row) => {
       const grupo = getGrupoNominaKey(row.personal);
       if (!groups[grupo]) groups[grupo] = [];
       groups[grupo].push(row);
     });
     return groups;
-  }, [filteredRows]);
+  }, [
+    filteredRows,
+    manualPlantillaActiva,
+    isManualPeriodWeek,
+    semanaActualProcesada,
+    manualPeriodForView,
+    weekRange.inicio,
+    operativaPlantilla,
+    instanciaSnapshot,
+    groupRowsByPlantillaCuadrillas,
+  ]);
 
   // ── CSV Export ──────────────────────────────────────────────────────────
   const handleExportCSV = useCallback(() => {
@@ -763,6 +1466,9 @@ export default function NominaClient({
     
     // Optimistic update: remover fila inmediatamente del estado local
     setPreNominaRows(prev => prev.filter(row => row.personal.id !== id));
+    if (isManualPeriodWeek) {
+      removeFromManualWeekRoster(area, weekRange.inicio, id);
+    }
     
     startTransition(async () => {
       await updatePersonalEstatusAction(id, 'INACTIVO');
@@ -779,6 +1485,28 @@ export default function NominaClient({
       toastError(distribucion.validation.message ?? 'Revisa la distribución de pagos.');
       return;
     }
+    if (rotacionCierreError && !isManualPeriodWeek) {
+      toastError(rotacionCierreError);
+      return;
+    }
+    if (!isManualPeriodWeek) {
+    const rotacionRows = preNominaRows.map((r) => ({
+      personalId: r.personal.id,
+      total: r.total,
+      bonoTransporte: r.bonoTransporte,
+      diasTrabajados: r.diasTrabajados,
+    }));
+    const valRot = await validarCierreRotacionSemanalAction({
+      area,
+      semanaInicio: weekRange.inicio,
+      semanaFin: weekRange.fin,
+      rows: rotacionRows,
+    });
+    if (!valRot.ok) {
+      toastError(valRot.message);
+      return;
+    }
+    }
     if (semanaActual && !(await confirmDialog({
       title: 'Sobreescribir nómina',
       message: 'La semana ya fue procesada. ¿Deseas sobreescribirla?',
@@ -787,8 +1515,6 @@ export default function NominaClient({
     setProcesadoOk(null);
     startTransition(async () => {
       try {
-        // El servidor recalcula salario y total desde la BD (checksum);
-        // la identidad sale de la sesión server-side, no se envía userId.
         const formattedRows = preNominaRows.map((r) => {
           const estadoAsistencia =
             r.estadoAsistencia ?? (r.esSemanaLibre ? ('libre' as const) : ('trabajada' as const));
@@ -802,28 +1528,64 @@ export default function NominaClient({
             totalVales: Number(r.totalVales) || 0,
             novedadTurno: r.novedadTurno,
             novedadTurnoObs: r.novedadTurnoObs,
+            esSemanaLibre: r.esSemanaLibre,
+            salarioBaseCalculado: r.salarioBaseCalculado,
+            reposoCondicion: r.reposoCondicion ?? null,
+            reposoDiasPagados: r.reposoDiasPagados ?? 0,
+            reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
           };
         });
         const res = await procesarCierreNominaV3Action({
-          area, inicio: weekRange.inicio, fin: weekRange.fin, rows: formattedRows,
+          area,
+          inicio: weekRange.inicio,
+          fin: weekRange.fin,
+          rows: formattedRows,
           distribucion: distribucion.partes,
+          modoCierre: isManualPeriodWeek ? 'historico_manual' : 'operativo',
+          periodoManual:
+            isManualPeriodWeek && manualPeriodForView
+              ? {
+                  label: manualPeriodForView.label,
+                  rangeStart: manualPeriodForView.rangeStart,
+                  rangeEnd: manualPeriodForView.rangeEnd,
+                  plantillaId: manualPeriodForView.plantillaId,
+                }
+              : undefined,
         });
         if (res.ok) {
           try {
             localStorage.removeItem(nominaNovedadDraftKey(area, weekRange.inicio));
+            if (isManualPeriodWeek && manualPeriodForView) {
+              const carryRows: ManualWeekCarryoverRow[] = preNominaRows.map((r) => ({
+                personal: {
+                  id: r.personal.id,
+                  area_detalle: r.personal.area_detalle,
+                },
+                novedadTurno: r.novedadTurno,
+                novedadTurnoObs: r.novedadTurnoObs,
+                reposoCondicion: r.reposoCondicion ?? null,
+                reposoDiasPagados: r.reposoDiasPagados ?? 0,
+                reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
+                estadoAsistencia: r.estadoAsistencia,
+                diasTrabajados: r.diasTrabajados,
+                bonoTransporte: r.bonoTransporte,
+                bonificaciones: r.bonificaciones,
+              }));
+              carryManualWeekToNext(area, manualPeriodForView, weekRange.inicio, carryRows);
+              clearManualWeekRoster(area, weekRange.inicio);
+            }
           } catch {
             /* ignore */
           }
           distribucion.saveAsDefault();
           await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
-          setProcesadoOk(`✓ ${res.message}`); setShowProcesarModal(false);
+          setProcesadoOk(`✓ ${res.message}`);
+          setShowProcesarModal(false);
+          router.refresh();
         } else {
-          // Errores controlados del servidor: Zod, checksum, lock/RPC, sesión.
           toastError(res.message);
         }
       } catch (err) {
-        // Errores no controlados (red caída, action lanzando): nunca crashear
-        // la consola de cierre; isPending se restablece al salir de aquí.
         console.error('[NominaClient] Error inesperado al cerrar nómina:', err);
         toastError('No se pudo procesar el cierre. Verifica tu conexión e intenta de nuevo.');
       }
@@ -840,7 +1602,15 @@ export default function NominaClient({
       try {
         const res = await revertirSemanaAction(sem);
         if (res.ok) {
+          if (manualPeriodForView && weekInManualPeriod(sem.semana_inicio, manualPeriodForView)) {
+            setConsolidatedLockedIds((prev) => {
+              const next = new Set(prev);
+              next.delete(manualPeriodForView.id);
+              return next;
+            });
+          }
           await registrarAuditAction('REVERTIR_NOMINA', 'nomina_semanas', sem.id, `Revertida: ${fmtDate(sem.semana_inicio)} a ${fmtDate(sem.semana_fin)}`, user?.id, user?.email);
+          router.refresh();
         } else {
           toastError(res.message || 'Error al revertir');
         }
@@ -904,48 +1674,56 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
     if (win) { win.document.write(html); win.document.close(); win.print(); }
   }, [preNominaRows, totalSemana, area, weekRange, distribucion.lineas]);
 
-  const toolbarActions = (
+  const toolbarPrimaryActions = (
     <>
       {!semanaActualProcesada ? (
-        <button onClick={() => setShowProcesarModal(true)} disabled={!canEdit || preNominaRows.length === 0} title="Cerrar y Distribuir" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 text-xs`}>
+        <button onClick={() => setShowProcesarModal(true)} disabled={!canEdit || preNominaRows.length === 0 || !!rotacionCierreError} title={rotacionCierreError ?? 'Cerrar y Distribuir'} className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
           <Wallet className="w-3.5 h-3.5 shrink-0" /> Cerrar
         </button>
       ) : (
-        <button onClick={() => semanaActual && handleRevertirSemana(semanaActual)} disabled={!canEdit || isPending} title="Revertir cierre" className="nomina-page__toolbar-btn btn-danger h-9 text-xs disabled:opacity-40">
+        <button onClick={() => semanaActual && handleRevertirSemana(semanaActual)} disabled={!canEdit || isPending} title="Revertir cierre" className="nomina-page__toolbar-btn btn-danger h-9 shrink-0 text-xs disabled:opacity-40">
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
         </button>
       )}
-      <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 text-xs`}>
+      <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
         <Plus className="w-3.5 h-3.5 shrink-0" /> Trabajador
       </button>
-      <button onClick={() => setShowImport(true)} disabled={!canEdit} title="Importar planilla o roster (detecta histórico / semana actual)" className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5 border border-emerald-500/25 text-emerald-200/90 hover:bg-emerald-500/10">
-        <Upload className="w-3.5 h-3.5 shrink-0" /> Importar
+    </>
+  );
+
+  const toolbarSecondaryActions = (
+    <>
+      <button onClick={() => setShowImport(true)} disabled={!canEdit} title="Importar planilla o roster" className="nomina-page__toolbar-btn btn-secondary border border-emerald-500/25 text-emerald-200/90 hover:bg-emerald-500/10">
+        <Upload className="shrink-0" /> Importar
       </button>
       <button
         type="button"
-        onClick={() => setShowArchivo(true)}
-        title="Periodos archivados y consolidación"
-        className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5"
+        onClick={() => setShowRotacionSandbox(true)}
+        title="Plantillas de rotación"
+        className="nomina-page__toolbar-btn btn-secondary border border-violet-500/30 text-violet-200/90 hover:bg-violet-500/10"
       >
-        <Archive className="w-3.5 h-3.5 shrink-0 text-zinc-400" /> Archivo
+        <LayoutGrid className="shrink-0" /> Rotación
+      </button>
+      <button type="button" onClick={() => setShowArchivo(true)} title="Periodos archivados" className="nomina-page__toolbar-btn btn-secondary">
+        <Archive className="shrink-0 text-zinc-400" /> Archivo
       </button>
       <button
         type="button"
         onClick={() => setShowExcelPreview(true)}
-        title="Vista previa consolidada estilo Excel"
-        className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5 border border-amber-500/40 text-amber-200/95 hover:bg-amber-500/10"
+        title="Vista previa Excel"
+        className="nomina-page__toolbar-btn btn-secondary border border-amber-500/40 text-amber-200/95 hover:bg-amber-500/10"
       >
-        <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" /> Vista Excel
+        <FileSpreadsheet className="shrink-0" /> Excel
       </button>
-      <button onClick={handlePrintReport} title="PDF" className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5">
-        <Printer className="w-3.5 h-3.5 shrink-0 text-zinc-400" /> PDF
+      <button onClick={handlePrintReport} title="PDF" className="nomina-page__toolbar-btn btn-secondary">
+        <Printer className="shrink-0 text-zinc-400" /> PDF
       </button>
-      <button onClick={handleExportCSV} title="CSV" className="nomina-page__toolbar-btn btn-secondary h-9 px-3 text-xs flex items-center justify-center gap-1.5">
-        <Download className="w-3.5 h-3.5 shrink-0 text-zinc-400" /> CSV
+      <button onClick={handleExportCSV} title="CSV" className="nomina-page__toolbar-btn btn-secondary">
+        <Download className="shrink-0 text-zinc-400" /> CSV
       </button>
       {canEdit && data.length > 0 && (
-        <button onClick={() => setShowBorrarModal(true)} title="Baja todo" className="nomina-page__toolbar-btn bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-red-400/90 font-bold h-9 px-3 rounded-lg flex items-center justify-center gap-1.5 text-xs">
-          <Trash2 className="w-3.5 h-3.5 shrink-0" />
+        <button onClick={() => setShowBorrarModal(true)} title="Baja todo" className="nomina-page__toolbar-btn nomina-page__toolbar-btn--danger">
+          <Trash2 className="shrink-0" /> Baja
         </button>
       )}
     </>
@@ -1003,6 +1781,12 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
               />
             </div>
           )}
+
+          <div className="nomina-page__aside-tools shrink-0 flex flex-col gap-1.5">
+            <div className="nomina-page__toolbar-actions nomina-page__toolbar-actions--grid">
+              {toolbarSecondaryActions}
+            </div>
+          </div>
 
           <div className="nomina-page__console shrink-0 flex flex-col gap-3">
             <div className="flex flex-col text-left">
@@ -1161,15 +1945,15 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
 
           <div className="nomina-page__main nomina-page__table-stack flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/30 lg:border lg:bg-zinc-900/30">
             {/* Tabs de Vista */}
-            <div className="shrink-0 border-b border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
-              <div className="flex items-center gap-1">
+            <div className="shrink-0 border-b border-zinc-800/80 bg-zinc-950/40 px-2 py-1">
+              <div className="grid w-full grid-cols-3 gap-1">
                 <button
                   type="button"
                   onClick={() => setViewMode('semanal')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wide transition-all ${
                     viewMode === 'semanal'
-                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                      : 'text-white/50 hover:text-white/70 border border-transparent'
+                      ? 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
+                      : 'border border-transparent text-white/50 hover:text-white/70'
                   }`}
                 >
                   Vista Semanal
@@ -1177,35 +1961,123 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                 <button
                   type="button"
                   onClick={() => setViewMode('ciclos')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wide transition-all ${
                     viewMode === 'ciclos'
-                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                      : 'text-white/50 hover:text-white/70 border border-transparent'
+                      ? 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
+                      : 'border border-transparent text-white/50 hover:text-white/70'
                   }`}
                 >
-                  Vista por Ciclo 21 Días
+                  Vista por Ciclo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('plantillas')}
+                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wide transition-all ${
+                    viewMode === 'plantillas'
+                      ? 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
+                      : 'border border-transparent text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  Plantillas Rotación
                 </button>
               </div>
             </div>
 
             {viewMode === 'ciclos' ? (
-              <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:p-3 lg:pb-3">
-                <NominaCiclosTable area={area} canEdit={canEdit} />
-              </div>
-            ) : (
-            <>
-            <div className="nomina-page__toolbar hidden shrink-0 flex-col gap-2 border-b border-zinc-800/80 px-3 py-2.5 lg:flex">
-              <div className="nomina-page__toolbar-search flex w-full min-w-0 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2">
-                <Search className="h-4 w-4 shrink-0 text-white/40" aria-hidden />
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre o cédula..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full min-w-0 border-0 bg-transparent text-sm text-white/90 outline-none placeholder:text-white/30"
+              <NominaCiclosView
+                area={area}
+                canEdit={canEdit}
+                semanas={semanas}
+                weekStart={weekRange.inicio}
+                workingWeekStart={temporalCtx.workingWeekStart}
+                periodsSession={manualPeriodSession}
+                onSessionChange={setManualPeriodSession}
+                onEditorPeriodChange={handleEditorPeriodChange}
+                onWorkingWeekPeriodChange={handleWorkingWeekPeriodChange}
+                onStartNewPeriod={handleStartNewPeriod}
+                onDeleteDraftPeriod={handleDeleteDraftPeriod}
+                plantillas={rotacionPlantillas}
+                onGoToWeek={(inicio, fin) => setWeekRange({ inicio, fin })}
+                onOpenSemanal={() => setViewMode('semanal')}
+                onGoPlantillas={() => setViewMode('plantillas')}
+                instanciaActiva={instanciaActivaProp}
+                userId={user?.id}
+                consolidatedLockedPeriodIds={consolidatedLockedIds}
+                onConsolidated={() => {
+                  setManualPeriodSession((prev) => {
+                    const editorId = prev.editorPeriodId;
+                    return editorId ? removePeriodFromSession(prev, editorId) : prev;
+                  });
+                  setConsolidatedLockedIds(new Set());
+                  router.refresh();
+                  setArchivoRefreshKey((k) => k + 1);
+                }}
+                periodosRefreshKey={archivoRefreshKey}
+              />
+            ) : viewMode === 'plantillas' ? (
+              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:p-3 lg:pb-3">
+                <RotacionInstanciaPanel
+                  area={area}
+                  plantillas={rotacionPlantillas}
+                  instanciaActiva={instanciaActivaProp}
+                  canEdit={canEdit}
+                  migrationRequired={rotacionMigrationRequired}
+                  onOpenSandbox={() => {
+                    setSandboxPlantillaId(undefined);
+                    setShowRotacionSandbox(true);
+                  }}
+                  onEditPlantilla={(id) => {
+                    setSandboxPlantillaId(id);
+                    setShowRotacionSandbox(true);
+                  }}
+                  onInstanciaChange={() => router.refresh()}
                 />
               </div>
-              <div className="nomina-page__toolbar-actions w-full min-w-0">{toolbarActions}</div>
+            ) : (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {instanciaActivaProp && !isManualPeriodWeek && (
+              <div className="w-full min-w-0 shrink-0 px-3 pt-2">
+                <RotacionInstanciaBanner
+                  instanciaActiva={instanciaActivaProp}
+                  weekStart={weekRange.inicio}
+                />
+              </div>
+            )}
+            <div className="w-full min-w-0 shrink-0 px-3 pt-2">
+              {isManualPeriodWeek && !semanaActualProcesada && (
+                <div className={cn(mineosPanel('general'), 'text-[11px] text-[var(--text-secondary)]')}>
+                  Periodo manual «{manualPeriodForView?.label}»: edite y cierre esta semana.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('ciclos')}
+                    className="font-semibold text-[var(--mineos-general-bright)] hover:underline"
+                  >
+                    Ver progreso del periodo
+                  </button>
+                </div>
+              )}
+            </div>
+            {rotacionCierreError && !semanaActualProcesada && !isManualPeriodWeek && (
+              <div className="mx-3 mt-2 w-full min-w-0 shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+                Rotación: {rotacionCierreError}
+              </div>
+            )}
+            <div className="nomina-page__toolbar hidden shrink-0 border-b border-zinc-800/80 px-3 py-2.5 lg:block">
+              <div className="nomina-page__toolbar-row flex w-full min-w-0 items-center gap-2">
+                <div className="nomina-page__toolbar-search flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2">
+                  <Search className="h-4 w-4 shrink-0 text-white/40" aria-hidden />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre o cédula..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full min-w-0 border-0 bg-transparent text-sm text-white/90 outline-none placeholder:text-white/30"
+                  />
+                </div>
+                <div className="nomina-page__toolbar-actions nomina-page__toolbar-actions--inline shrink-0">
+                  {toolbarPrimaryActions}
+                </div>
+              </div>
             </div>
 
             <div className="nomina-page__table-scroll scroll-y-fade flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto p-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:gap-6 lg:p-3 lg:pb-3">
@@ -1217,15 +2089,38 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
             ) : Object.keys(groupedRows).length === 0 ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
                 <Users className="w-12 h-12 text-white/20 mx-auto mb-3" />
-                <p className="text-sm text-white/40">No hay trabajadores en esta nómina.</p>
-                {canEdit && !search.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAssignModal(true)}
-                    className={`${MINEOS_BTN_NOMINA_PRIMARY} mt-4 px-4 py-2 text-xs`}
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Asignar desde la base
-                  </button>
+                {manualPeriodSession.periods.length > 0 &&
+                !isManualPeriodWeek &&
+                weekRange.inicio === temporalCtx.workingWeekStart ? (
+                  <>
+                    <p className="text-sm text-white/50">
+                      Semana de curso sin ciclo vinculado.
+                    </p>
+                    <p className="mt-2 text-xs text-white/35">
+                      En Vista por Ciclo use el desplegable «Semana de curso» para aplicar la
+                      plantilla sin vaciar trabajadores.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('ciclos')}
+                      className="mt-4 text-xs font-semibold text-[var(--mineos-general-bright)] hover:underline"
+                    >
+                      Ir a Vista por Ciclo
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-white/40">No hay trabajadores en esta nómina.</p>
+                    {canEdit && !search.trim() && (!manualPeriodForView || isManualPeriodWeek) && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAssignModal(true)}
+                        className={`${MINEOS_BTN_NOMINA_PRIMARY} mt-4 px-4 py-2 text-xs`}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Asignar desde la base
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             ) : (
@@ -1253,6 +2148,12 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                       </div>
                       <span className="shrink-0 text-xs font-semibold tabular-nums text-amber-500 lg:text-sm">Subtotal {fmtMoney(groupTotal)}</span>
                     </div>
+
+                    {rows.length === 0 && manualPlantillaActiva && isManualPeriodWeek && (
+                      <div className="border-b border-zinc-800/60 px-4 py-6 text-center text-xs text-white/40">
+                        Cuadrilla activa en este intervalo. Cargue trabajadores en Vista Semanal.
+                      </div>
+                    )}
 
                     <div className="space-y-1.5 p-2 lg:hidden">
                       {rows.map((row) => {
@@ -1284,6 +2185,11 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                     </div>
 
                     <div className="hidden overflow-x-auto lg:block">
+                      {rows.length === 0 && manualPlantillaActiva && isManualPeriodWeek ? (
+                        <div className="px-5 py-8 text-center text-xs text-white/40">
+                          Cuadrilla activa en este intervalo. Cargue trabajadores en Vista Semanal.
+                        </div>
+                      ) : (
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-zinc-950/40 border-b border-zinc-800 text-[10px] font-bold text-white/50 uppercase tracking-wider">
@@ -1318,7 +2224,12 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                       </div>
                                       <div className="text-[10px] text-white/40 mt-0.5 flex items-center gap-1.5 flex-wrap">
                                         <span>{p.cedula}</span>
-                                        {isPredicted && (
+                                        {row.rotacionFuente === 'plantilla' && row.estatusPlantillaLabel && (
+                                          <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-300">
+                                            Plantilla · {row.cuadrillaNombre} · {row.estatusPlantillaLabel}
+                                          </span>
+                                        )}
+                                        {row.rotacionFuente !== 'plantilla' && isPredicted && (
                                           <RotacionPredBadge
                                             esquema={p.esquema_rotacion}
                                             posicion={row.cicloPosicion}
@@ -1333,32 +2244,49 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                   <NominaNovedadTurnoCell
                                     value={row.novedadTurno}
                                     observacion={row.novedadTurnoObs}
+                                    reposoCondicion={row.reposoCondicion}
+                                    reposoDiasPagados={row.reposoDiasPagados ?? 0}
+                                    reposoCompensacionMonto={row.reposoCompensacionMonto ?? 0}
                                     disabled={!canEdit || semanaActualProcesada}
                                     workerName={p.nombre_completo}
                                     onChange={(novedadTurno) =>
-                                      handleUpdateRow(p.id, {
-                                        novedadTurno,
-                                        novedadTurnoObs:
-                                          novedadTurno === 'ACTIVO' ? '' : row.novedadTurnoObs,
-                                      })
+                                      handleUpdateRow(p.id, { novedadTurno })
                                     }
                                     onObservacionChange={(novedadTurnoObs) =>
                                       handleUpdateRow(p.id, { novedadTurnoObs })
+                                    }
+                                    onReposoCondicionChange={(reposoCondicion) =>
+                                      handleUpdateRow(p.id, {
+                                        reposoCondicion,
+                                        ...(reposoCondicion === 'PARCIAL' &&
+                                        !(row.reposoDiasPagados && row.reposoDiasPagados > 0)
+                                          ? { reposoDiasPagados: NOMINA_DIAS_POR_SEMANA }
+                                          : {}),
+                                        ...(reposoCondicion !== 'PAGO_UNICO'
+                                          ? { reposoCompensacionMonto: 0 }
+                                          : {}),
+                                      })
+                                    }
+                                    onReposoDiasPagadosChange={(reposoDiasPagados) =>
+                                      handleUpdateRow(p.id, { reposoDiasPagados })
+                                    }
+                                    onReposoCompensacionMontoChange={(reposoCompensacionMonto) =>
+                                      handleUpdateRow(p.id, { reposoCompensacionMonto })
                                     }
                                   />
                                 </td>
                                 {/* Attendance Toggles - Turno/Libre/Falta */}
                                 <td className={`px-3 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/5 border-x border-amber-500/10' : ''}`}>
                                   <div className="inline-flex p-1 rounded-xl bg-zinc-950/60 border border-zinc-800/50">
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'trabajada' })} title="Semana Turno Laboral" disabled={semanaActualProcesada}
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'trabajada' })} title="Semana Turno Laboral" disabled={semanaActualProcesada || asistenciaBloqueadaPorPlantilla(row)}
                                       className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'trabajada' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 shadow-md shadow-amber-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <Hammer className="w-3.5 h-3.5" /> Turno
                                     </button>
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'libre' })} title="Semana Libre" disabled={semanaActualProcesada}
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'libre' })} title="Semana Libre" disabled={semanaActualProcesada || asistenciaBloqueadaPorPlantilla(row)}
                                       className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'libre' ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30 shadow-md shadow-cyan-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <Umbrella className="w-3.5 h-3.5" /> Libre
                                     </button>
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'no_laborado' })} title="No laboró" disabled={semanaActualProcesada}
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'no_laborado' })} title="No laboró" disabled={semanaActualProcesada || asistenciaBloqueadaPorPlantilla(row)}
                                       className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'no_laborado' ? 'bg-red-500/15 text-red-400 border-red-500/30 shadow-md shadow-red-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <XCircle className="w-3.5 h-3.5" /> Falta
                                     </button>
@@ -1404,8 +2332,16 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                   <div className="flex flex-col items-end gap-0.5">
                                     <span>{fmtMoney(row.salarioBaseCalculado)}</span>
                                     {(() => {
+                                      const tarifa =
+                                        row.rotacionFuente === 'plantilla'
+                                          ? explicitWeeklyBaseRate(p, row.estadoAsistencia)
+                                          : calculateWeeklyBaseRate(
+                                              p,
+                                              row.estadoAsistencia,
+                                              weekRange.inicio,
+                                            );
                                       const hint = formatProportionalSalarioHint(
-                                        calculateWeeklyBaseRate(p, row.estadoAsistencia, weekRange.inicio),
+                                        tarifa,
                                         row.diasTrabajados,
                                       );
                                       return hint ? (
@@ -1448,18 +2384,36 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                               </tr>
                             );
                           })}
-                          {/* SUBTOTAL FOOTER ROW */}
-                          <tr className="bg-zinc-950/60 border-t border-zinc-700/50">
-                            <td className="px-5 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider" colSpan={3}>Subtotal {cargoName}</td>
-                            <td className="px-5 py-2.5 text-right text-xs font-bold text-white/60 tabular-nums">{fmtMoney(groupSueldo)}</td>
-                            <td className="px-5 py-2.5 text-right text-xs font-bold text-white/60 tabular-nums transition-all duration-300 border-l border-amber-500/10">{fmtMoney(groupBono)}</td>
-                            <td className="px-5 py-2.5 text-right text-xs font-bold text-white/60 tabular-nums transition-all duration-300">{fmtMoney(groupBonif)}</td>
-                            <td className="px-5 py-2.5 text-right text-xs font-bold text-red-400/70 tabular-nums transition-all duration-300 border-r border-amber-500/10">{groupVales > 0 ? `-${fmtMoney(groupVales)}` : '$0.00'}</td>
-                            <td className="px-5 py-2.5 text-right text-sm font-black tabular-nums text-amber-500">{fmtMoney(groupTotal)}</td>
-                            <td></td>
+                          {/* SUBTOTAL FOOTER ROW — celda única para fondo oscuro a todo el ancho */}
+                          <tr className="nomina-cargo-group__subtotal-row border-t border-zinc-700/50">
+                            <td colSpan={10} className="nomina-cargo-group__subtotal-cell bg-zinc-950/60 p-0">
+                              <div className="flex min-w-full items-center gap-4 px-5 py-2.5">
+                                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-white/50">
+                                  Subtotal {cargoName}
+                                </span>
+                                <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-0">
+                                  <span className="w-20 shrink-0 text-right text-xs font-bold tabular-nums text-white/60 sm:w-24">
+                                    {fmtMoney(groupSueldo)}
+                                  </span>
+                                  <span className="w-20 shrink-0 border-l border-amber-500/10 px-3 text-right text-xs font-bold tabular-nums text-white/60 sm:w-24">
+                                    {fmtMoney(groupBono)}
+                                  </span>
+                                  <span className="w-20 shrink-0 px-3 text-right text-xs font-bold tabular-nums text-white/60 sm:w-24">
+                                    {fmtMoney(groupBonif)}
+                                  </span>
+                                  <span className="w-20 shrink-0 border-r border-amber-500/10 px-3 text-right text-xs font-bold tabular-nums text-red-400/70 sm:w-24">
+                                    {groupVales > 0 ? `-${fmtMoney(groupVales)}` : '$0.00'}
+                                  </span>
+                                  <span className="w-24 shrink-0 pl-3 text-right text-sm font-black tabular-nums text-amber-500 sm:w-28">
+                                    {fmtMoney(groupTotal)}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
                           </tr>
                         </tbody>
                       </table>
+                      )}
                     </div>
                   </div>
                 );
@@ -1467,28 +2421,46 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
             )}
 
             {novedadesTurnoSemana.length > 0 ? (
-              <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90">
+              <div className="rounded-xl border border-[var(--mineos-general-border,rgba(212,175,55,0.15))] bg-[var(--mineos-general-soft,rgba(212,175,55,0.04))] px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
                   Novedades del turno · semana actual
                 </p>
                 <ul className="mt-2 space-y-1.5">
-                  {novedadesTurnoSemana.map((r) => (
-                    <li
-                      key={r.personal.id}
-                      className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs text-white/75"
-                    >
-                      <span className="font-semibold text-white/90">{r.personal.nombre_completo}</span>
-                      <span className="text-white/55">
-                        {NOVEDAD_TURNO_PREVIEW_LABEL[r.novedadTurno]}
-                        {r.novedadTurnoObs.trim() ? ` · ${r.novedadTurnoObs.trim()}` : ''}
-                      </span>
-                    </li>
-                  ))}
+                  {novedadesTurnoSemana.map((r) => {
+                    const pagoUnico = reposoPagoUnicoMontoFromRow(r);
+                    return (
+                      <li
+                        key={r.personal.id}
+                        className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs text-[var(--text-secondary)]"
+                      >
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {r.personal.nombre_completo}
+                        </span>
+                        <span className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-right">
+                          <span>{describeNovedadTurnoSemana(r)}</span>
+                          {pagoUnico > 0 ? (
+                            <span className="font-semibold tabular-nums text-[var(--accent)]">
+                              +{fmtMoney(pagoUnico)}
+                            </span>
+                          ) : null}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
+                {novedadPagoUnicoTotal > 0 ? (
+                  <p className="mt-2 border-t border-[var(--card-border)] pt-2 text-right text-[10px] font-semibold tabular-nums text-[var(--text-secondary)]">
+                    Pagos únicos (novedad):{' '}
+                    <span className="text-[var(--accent)]">{fmtMoney(novedadPagoUnicoTotal)}</span>
+                    <span className="ml-1 font-normal text-[var(--text-muted)]">
+                      · incluidos en total semana, no en sueldo cuadrilla
+                    </span>
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </div>
-          </>
+          </div>
             )}
         </div>
         </div>
@@ -1611,9 +2583,15 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         open={showAssignModal}
         onClose={() => setShowAssignModal(false)}
         area={area}
-        masterCatalog={masterCatalog}
+        masterCatalog={baseTrabajadores}
+        perfilesCompensacion={perfilesCompensacion}
         assignedIds={assignedIds}
-        onAssigned={() => router.refresh()}
+        onAssigned={(personalId, areaDetalle) => {
+          addToManualWeekRoster(area, weekRange.inicio, personalId, areaDetalle);
+          setManualRosterTick((t) => t + 1);
+          appendAssignedWorker(personalId, areaDetalle);
+          router.refresh();
+        }}
       />
 
       <NominaVistaPreviaModal
@@ -1774,6 +2752,18 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         canEdit={canEdit}
         onWeekDetected={(inicio, fin) => setWeekRange({ inicio, fin })}
         onImported={handleNominaImported}
+      />
+
+      <RotacionPlantillaSandboxModal
+        open={showRotacionSandbox}
+        onClose={() => {
+          setShowRotacionSandbox(false);
+          setSandboxPlantillaId(undefined);
+        }}
+        area={area}
+        canEdit={canEdit}
+        initialPlantillaId={sandboxPlantillaId}
+        onSaved={() => router.refresh()}
       />
 
       <PageFormModal

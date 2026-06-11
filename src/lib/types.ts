@@ -257,6 +257,9 @@ export interface PreNominaRow {
   salarioBaseCalculado?: number;
   novedadTurno?: string;
   novedadTurnoObs?: string;
+  reposoCondicion?: PoliticaReposo | 'PAGO_UNICO' | null;
+  reposoDiasPagados?: number;
+  reposoCompensacionMonto?: number;
 }
 
 export interface CategoriaGasto {

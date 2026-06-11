@@ -39,6 +39,7 @@ export async function vincularSemanaACicloAction(input: {
         vertical_asignada,
         grupo_turno,
         rotacion_inicio_fecha,
+        rotacion_plantilla_id,
         perfil_compensacion_id,
         perfiles_compensacion!inner (
           id,
@@ -65,6 +66,18 @@ export async function vincularSemanaACicloAction(input: {
       };
     }
 
+    const trabajadoresSinPlantilla = trabajadores.filter(
+      (t) => !(t as { rotacion_plantilla_id?: string | null }).rotacion_plantilla_id,
+    );
+
+    if (!trabajadoresSinPlantilla.length) {
+      return {
+        ok: true,
+        message: 'Trabajadores gestionados por plantilla de rotación',
+        data: { ciclosCreados: 0, ciclosVinculados: 0 },
+      };
+    }
+
     // 2. Agrupar trabajadores por vertical/grupo
     const gruposMap = new Map<string, {
       vertical: string;
@@ -73,7 +86,7 @@ export async function vincularSemanaACicloAction(input: {
       rotaciones: Array<string | null>;
     }>();
 
-    for (const trab of trabajadores) {
+    for (const trab of trabajadoresSinPlantilla) {
       const vertical = trab.vertical_asignada || trab.grupo_turno || 'General';
       const rawPerfil = (trab as unknown as { perfiles_compensacion?: PerfilCompensacion | PerfilCompensacion[] })
         .perfiles_compensacion;

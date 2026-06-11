@@ -38,7 +38,18 @@ export const PersonalV3UpdateSchema = PersonalV3Schema.extend({
 export const AssignToNominaAreaSchema = z.object({
   personalId: z.string().uuid('ID de personal inválido'),
   targetArea: z.string().min(1, 'Área destino requerida'),
-  areaDetalle: z.string().max(200).optional().nullable(),
+  areaDetalle: z.string().min(1, 'Selecciona una asignación nómina').max(200),
+});
+
+export const CreateAndAssignPersonalNominaSchema = z.object({
+  cedula: z.string().min(6, 'Cédula inválida').max(20),
+  nombre_completo: z.string().min(2, 'Nombre requerido').max(150),
+  cargo: z.string().max(100).optional().default(''),
+  targetArea: z.string().min(1, 'Área requerida'),
+  areaDetalle: z.string().min(1, 'Selecciona una asignación nómina').max(200),
+  perfil_compensacion_id: z.string().uuid('Perfil de compensación obligatorio'),
+  salario_base: z.coerce.number().positive('El sueldo base debe ser mayor a 0'),
+  bono_transporte: z.coerce.number().min(0).optional().default(0),
 });
 
 export const CrearValeSchema = z.object({
@@ -56,4 +67,5 @@ export const CrearValeSchema = z.object({
 export type PersonalV3Input = z.infer<typeof PersonalV3Schema>;
 export type PersonalV3Update = z.infer<typeof PersonalV3UpdateSchema>;
 export type AssignToNominaAreaInput = z.infer<typeof AssignToNominaAreaSchema>;
+export type CreateAndAssignPersonalNominaInput = z.infer<typeof CreateAndAssignPersonalNominaSchema>;
 export type CrearValeInput = z.infer<typeof CrearValeSchema>;

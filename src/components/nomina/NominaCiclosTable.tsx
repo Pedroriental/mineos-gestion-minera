@@ -10,10 +10,15 @@ import type {
   Personal,
   PerfilCompensacion,
 } from '@/lib/types';
+import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
 
 interface NominaCiclosTableProps {
   area: string;
   canEdit: boolean;
+  instanciaActiva?: InstanciaActivaSerialized | null;
+  onGoPlantillas?: () => void;
+  /** Dentro de NominaCiclosView — sin banners duplicados */
+  embedded?: boolean;
 }
 
 function fmtMoney(n: number): string {
@@ -82,7 +87,13 @@ function getCargoTheme(cargo: string): { bg: string; text: string; border: strin
   return { bg: 'bg-zinc-500/10', text: 'text-zinc-400', border: 'border-zinc-500/25' };
 }
 
-export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTableProps) {
+export default function NominaCiclosTable({
+  area,
+  canEdit,
+  instanciaActiva = null,
+  onGoPlantillas,
+  embedded = false,
+}: NominaCiclosTableProps) {
   const [ciclos, setCiclos] = useState<NominaCiclo[]>([]);
   const [selectedCiclo, setSelectedCiclo] = useState<NominaCiclo | null>(null);
   const [detalle, setDetalle] = useState<DetalleCicloCompleto | null>(null);
@@ -146,10 +157,37 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
 
   if (ciclos.length === 0) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
-        <Calendar className="w-12 h-12 text-white/20 mx-auto mb-3" />
-        <p className="text-sm text-white/40">No hay ciclos activos en esta área.</p>
-        <p className="text-xs text-white/30 mt-2">Los ciclos se crean automáticamente al cerrar nóminas de operarios con rotación 14x7.</p>
+      <div className="flex flex-col gap-3">
+        {!embedded && instanciaActiva && (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs text-amber-100/85">
+            <p className="font-bold text-amber-200">
+              Rotación por plantilla activa: {instanciaActiva.plantillaNombre}
+            </p>
+            <p className="mt-1 text-[11px] text-white/45">
+              Los trabajadores asignados a la plantilla operativa ya no usan el ciclo legacy de 21 días.
+              Consulte la pestaña Plantillas Rotación para cuadrillas y posiciones actuales.
+              {onGoPlantillas && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={onGoPlantillas}
+                    className="font-semibold text-amber-300 underline underline-offset-2 hover:text-amber-200"
+                  >
+                    Ir a plantillas
+                  </button>
+                </>
+              )}
+            </p>
+          </div>
+        )}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-12 text-center">
+          <Calendar className="mx-auto mb-3 h-12 w-12 text-white/20" />
+          <p className="text-sm text-white/40">No hay ciclos legacy activos en esta área.</p>
+          <p className="mt-2 text-xs text-white/30">
+            Los ciclos 21 días aplican a operarios con perfil de compensación sin plantilla operativa.
+          </p>
+        </div>
       </div>
     );
   }
@@ -179,6 +217,33 @@ export default function NominaCiclosTable({ area, canEdit }: NominaCiclosTablePr
 
   return (
     <div className="flex flex-col gap-4">
+      {!embedded && instanciaActiva && (
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-xs">
+          <p className="font-bold text-cyan-200">
+            Sistema unificado: plantilla &quot;{instanciaActiva.plantillaNombre}&quot; en operación
+          </p>
+          <p className="mt-1 text-[11px] text-white/45">
+            Trabajadores con <code className="text-white/55">rotacion_plantilla_id</code> siguen la
+            plantilla (pestaña Nómina semanal / Plantillas). Esta vista de ciclo 21 días muestra solo
+            quienes aún dependen de perfiles legacy.
+            {instanciaActiva.periodoOperativo
+              ? ` Periodo operativo: ${instanciaActiva.periodoOperativo.label}.`
+              : ''}
+            {onGoPlantillas && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  onClick={onGoPlantillas}
+                  className="font-semibold text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
+                >
+                  Ver plantillas
+                </button>
+              </>
+            )}
+          </p>
+        </div>
+      )}
       {/* Selector de Ciclo */}
       {ciclos.length > 1 && (
         <div className="flex flex-wrap gap-2">

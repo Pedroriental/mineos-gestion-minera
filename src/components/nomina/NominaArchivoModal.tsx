@@ -119,7 +119,7 @@ export function NominaArchivoModal({ open, onClose, userId, onImport, onPeriodDe
             Archivo de nóminas
           </h2>
           <p className="mt-0.5 text-[11px] text-zinc-500">
-            Periodos importados o cerrados · seleccione uno para ver la planilla generada
+            Periodos importados, consolidados manualmente o cerrados semana a semana
           </p>
         </div>
         <div className="flex items-center gap-2">

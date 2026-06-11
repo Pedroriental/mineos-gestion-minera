@@ -35,7 +35,8 @@ import { useBiblioteca, useBibliotecaOptions } from '@/contexts/biblioteca-conte
 import { mergeSuggestions } from '@/lib/biblioteca-catalog';
 import {
   areaNominaLabel,
-  ASIGNACION_NOMINA_OPCIONES,
+  displayNombrePersonal,
+  formatNombrePropio,
   getAsignacionNomina,
   getUbicacionLaboralLabel,
 } from '@/lib/personal-master';
@@ -259,9 +260,9 @@ export default function TrabajadoresRegistryClient({
     [biblioteca.cargoSuggestions, localTrabajadores],
   );
 
-  const asignacionOptions = useMemo(
-    () => ASIGNACION_NOMINA_OPCIONES.map((value) => ({ value, label: value })),
-    [],
+  const selectedPerfil = useMemo(
+    () => perfilesCompensacion.find((p) => p.id === form.perfil_compensacion_id) ?? null,
+    [perfilesCompensacion, form.perfil_compensacion_id],
   );
 
   const ubicacionSugerencias = useMemo(
@@ -443,7 +444,7 @@ export default function TrabajadoresRegistryClient({
   function openEdit(t: Personal) {
     setForm({
       id: t.id,
-      nombre_completo: t.nombre_completo || '',
+      nombre_completo: formatNombrePropio(t.nombre_completo || ''),
       cedula: t.cedula || '',
       fecha_nacimiento: t.fecha_nacimiento || '',
       fecha_ingreso: t.fecha_ingreso || new Date().toISOString().slice(0, 10),
@@ -487,11 +488,6 @@ export default function TrabajadoresRegistryClient({
       return;
     }
 
-    if (!form.area_detalle) {
-      toastError('Selecciona la asignación nómina (vertical/sector).');
-      return;
-    }
-
     const originalEstado = form.id
       ? ((localTrabajadores.find((t) => t.id === form.id)?.estado_laboral || 'ACTIVO') as EstadoLaboral)
       : null;
@@ -508,13 +504,15 @@ export default function TrabajadoresRegistryClient({
 
     const fd = new FormData();
     if (form.id) fd.set('id', form.id);
-    fd.set('nombre_completo', form.nombre_completo);
+    fd.set('nombre_completo', formatNombrePropio(form.nombre_completo));
     fd.set('cedula', form.cedula);
     fd.set('fecha_nacimiento', form.fecha_nacimiento);
     fd.set('fecha_ingreso', form.fecha_ingreso);
     fd.set('ajuste_antiguedad_dias', form.ajuste_antiguedad_dias);
     fd.set('cargo', form.cargo);
-    fd.set('area_detalle', form.area_detalle);
+    if (form.id && form.area_detalle) {
+      fd.set('area_detalle', form.area_detalle);
+    }
     fd.set('ubicacion_laboral', form.ubicacion_laboral);
     fd.set('area', form.area);
     fd.set('notas', form.notas);
@@ -734,7 +732,7 @@ export default function TrabajadoresRegistryClient({
         </td>
         <td className="gastos-table__cell gastos-td px-3">
           <div className="trabajadores-row-worker">
-            <p className="truncate font-semibold text-white">{t.nombre_completo}</p>
+            <p className="truncate font-semibold text-white">{displayNombrePersonal(t)}</p>
             <p className="truncate text-[10px] text-white/45">{getUbicacionLaboralLabel(t)}</p>
           </div>
         </td>
@@ -1160,27 +1158,54 @@ export default function TrabajadoresRegistryClient({
               ))}
             </datalist>
           </div>
-          <div>
-            <label className="input-label">Asignación Nómina (Vertical/Sector) *</label>
-            <AppSelect
-              value={form.area_detalle}
-              onChange={(val) => setForm((p) => ({ ...p, area_detalle: val }))}
-              options={asignacionOptions}
-              placeholder="Seleccionar vertical/sector"
-            />
-          </div>
-          <div>
+          <div className="sm:col-span-2">
             <label className="input-label">Perfil de Compensación *</label>
             <AppSelect
               value={form.perfil_compensacion_id}
               onChange={(val) => setForm((p) => ({ ...p, perfil_compensacion_id: val }))}
               options={perfilesCompensacion.map((p) => ({ value: p.id, label: p.nombre }))}
-              placeholder="Seleccionar perfil"
+              placeholder="Seleccionar perfil de compensación"
             />
-            <p className="mt-1 text-[10px] text-white/35">Define esquema de rotación y reglas de pago.</p>
-            {perfilesCompensacion.length === 0 && (
+            {perfilesCompensacion.length === 0 ? (
               <p className="mt-1 text-[10px] text-amber-300/80">
                 No hay perfiles activos en la base. Ejecuta el script de seed en Supabase.
+              </p>
+            ) : selectedPerfil ? (
+              <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-xs font-semibold text-white/90">{selectedPerfil.nombre}</p>
+                {selectedPerfil.descripcion && (
+                  <p className="mt-1 text-[11px] leading-relaxed text-white/45">{selectedPerfil.descripcion}</p>
+                )}
+                <dl className="mt-2 grid gap-2 text-[11px] sm:grid-cols-2">
+                  <div>
+                    <dt className="text-white/35">Esquema de rotación</dt>
+                    <dd className="font-medium text-white/75">{selectedPerfil.esquema_rotacion_default}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/35">Ciclo</dt>
+                    <dd className="font-medium text-white/75">
+                      {selectedPerfil.semanas_trabajadas_por_ciclo} trab. / {selectedPerfil.semanas_libres_por_ciclo} libre
+                      {' · '}
+                      {selectedPerfil.duracion_ciclo_dias} días
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/35">Día libre</dt>
+                    <dd className="font-medium text-white/75">{selectedPerfil.politica_dia_libre}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/35">Reposo</dt>
+                    <dd className="font-medium text-white/75">{selectedPerfil.politica_reposo}</dd>
+                  </div>
+                </dl>
+                <p className="mt-2 text-[10px] text-white/35">
+                  La asignación a vertical o sector se define al cargar el trabajador en Nómina.
+                </p>
+              </div>
+            ) : (
+              <p className="mt-1 text-[10px] text-white/35">
+                Define esquema de rotación, políticas de pago y reglas del ciclo. La asignación nómina se elige al
+                agregar el trabajador en Vista Semanal.
               </p>
             )}
           </div>

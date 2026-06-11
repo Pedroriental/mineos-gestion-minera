@@ -1,0 +1,73 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  puedeAvanzarASiguienteSemana,
+  validarCierreSemanal,
+  buildBalanceExport,
+} from '@/lib/rotacion-plantillas/semana-cierre';
+
+describe('rotacion plantillas — cierre semanal', () => {
+  it('bloquea semana 2 si semana 1 no está auditada', () => {
+    const semanas = [
+      { orden: 0, estado: 'ABIERTA' as const },
+      { orden: 1, estado: 'ABIERTA' as const },
+    ];
+    const r = puedeAvanzarASiguienteSemana(semanas, 1);
+    assert.equal(r.ok, false);
+  });
+
+  it('permite semana 2 tras cierre auditado de semana 1', () => {
+    const semanas = [
+      { orden: 0, estado: 'CERRADA_AUDITADA' as const },
+      { orden: 1, estado: 'ABIERTA' as const },
+    ];
+    const r = puedeAvanzarASiguienteSemana(semanas, 1);
+    assert.equal(r.ok, true);
+  });
+
+  it('validarCierreSemanal exige fin de rango', () => {
+    const r = validarCierreSemanal(
+      {
+        orden: 0,
+        estado: 'ABIERTA',
+        semanaInicio: '2026-06-01',
+        semanaFin: '2026-06-07',
+      },
+      [],
+      '2026-06-05',
+    );
+    assert.equal(r.ok, false);
+  });
+
+  it('buildBalanceExport suma subtotales cerrados', () => {
+    const exp = buildBalanceExport({
+      plantillaId: 'p1',
+      plantillaNombre: 'Test',
+      area: 'mina',
+      semanasCerradas: [
+        {
+          orden: 0,
+          semanaInicio: '2026-06-01',
+          semanaFin: '2026-06-07',
+          estado: 'CERRADA_AUDITADA',
+          subtotalUsd: 1000,
+          subtotalDias: 35,
+          subtotalBonos: 200,
+          trabajadoresCount: 5,
+        },
+        {
+          orden: 1,
+          semanaInicio: '2026-06-08',
+          semanaFin: '2026-06-14',
+          estado: 'ABIERTA',
+          subtotalUsd: 500,
+          subtotalDias: 0,
+          subtotalBonos: 0,
+          trabajadoresCount: 5,
+        },
+      ],
+    });
+    assert.equal(exp.totalUsd, 1000);
+    assert.equal(exp.semanasCerradas.length, 1);
+  });
+});

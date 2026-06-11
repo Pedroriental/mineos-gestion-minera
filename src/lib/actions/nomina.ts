@@ -6,6 +6,7 @@ import { normalizeAreaDetalle, PERSONAL_SYNC_PATHS } from '@/lib/personal-master
 import { PersonalSchema, PersonalUpdateSchema, ImportarPersonalSchema, EmpleadoParseadoType } from '@/lib/validations/nomina';
 import { z } from 'zod';
 import { registrarAuditAction } from './nomina-v3';
+import { revertirCierreRotacionNominaAction } from './rotacion-instancias';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
@@ -218,6 +219,8 @@ export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
     }
 
     await supabase.from('nomina_pagos').delete().eq('periodo_inicio', semana.semana_inicio);
+
+    await revertirCierreRotacionNominaAction(semanaId);
 
     const { error } = await supabase.from('nomina_semanas').delete().eq('id', semanaId);
 

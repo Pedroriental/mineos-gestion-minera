@@ -7,7 +7,8 @@ import { PageFormModal } from '@/components/ui/PageFormModal';
 import { cn } from '@/lib/utils';
 import { NOMINA_DIAS_POR_SEMANA } from '@/lib/nomina-calculo';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
-import type { NominaNovedadTurno } from '@/lib/nomina-novedad-turno';
+import type { NominaNovedadTurno, ReposoModoSueldoSemana } from '@/lib/nomina-novedad-turno';
+import { displayNombrePersonal } from '@/lib/personal-master';
 import type { NominaSemana, NominaVale, Personal } from '@/lib/types';
 import {
   AlertTriangle,
@@ -52,8 +53,15 @@ export interface PreNominaRowState {
   totalVales: number;
   novedadTurno: NominaNovedadTurno;
   novedadTurnoObs: string;
+  reposoCondicion?: ReposoModoSueldoSemana | null;
+  reposoDiasPagados?: number;
+  reposoCompensacionMonto?: number;
   cicloPosicion?: number | null;
   diasInputBloqueado?: boolean;
+  rotacionFuente?: 'plantilla' | 'legacy';
+  cuadrillaNombre?: string;
+  posicionCiclo?: number;
+  estatusPlantillaLabel?: string;
 }
 
 type CargoTheme = { bg: string; text: string; border: string };
@@ -325,7 +333,20 @@ export function NominaMobileWorkerCard({
   activeStep: NominaMobileStep;
   locked: boolean;
   canEdit: boolean;
-  onNovedadTurnoChange: (fields: Partial<Pick<PreNominaRowState, 'novedadTurno' | 'novedadTurnoObs'>>) => void;
+  onNovedadTurnoChange: (
+    fields: Partial<
+      Pick<
+        PreNominaRowState,
+        | 'novedadTurno'
+        | 'novedadTurnoObs'
+        | 'reposoCondicion'
+        | 'reposoDiasPagados'
+        | 'reposoCompensacionMonto'
+        | 'estadoAsistencia'
+        | 'diasTrabajados'
+      >
+    >,
+  ) => void;
   theme?: CargoTheme;
   initials: string;
   avatarColor: string;
@@ -337,6 +358,7 @@ export function NominaMobileWorkerCard({
   fmtMoney: (n: number) => string;
 }) {
   const p = row.personal;
+  const asistenciaLocked = row.rotacionFuente === 'plantilla' && Boolean(row.diasInputBloqueado);
 
   return (
     <article className="nomina-mobile-worker rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-2.5 backdrop-blur-sm">
@@ -351,7 +373,7 @@ export function NominaMobileWorkerCard({
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-bold leading-tight text-white/95">{p.nombre_completo}</p>
+            <p className="truncate text-[13px] font-bold leading-tight text-white/95">{displayNombrePersonal(p)}</p>
             <p className="truncate text-[9px] text-white/40">
               {p.cedula}
               {theme ? (
@@ -408,10 +430,29 @@ export function NominaMobileWorkerCard({
             <NominaNovedadTurnoCell
               value={row.novedadTurno}
               observacion={row.novedadTurnoObs}
+              reposoCondicion={row.reposoCondicion}
+              reposoDiasPagados={row.reposoDiasPagados ?? 0}
+              reposoCompensacionMonto={row.reposoCompensacionMonto ?? 0}
               disabled={locked || !canEdit}
-              workerName={p.nombre_completo}
+              workerName={displayNombrePersonal(p)}
               onChange={(novedadTurno) => onNovedadTurnoChange({ novedadTurno })}
               onObservacionChange={(novedadTurnoObs) => onNovedadTurnoChange({ novedadTurnoObs })}
+              onReposoCondicionChange={(reposoCondicion) =>
+                onNovedadTurnoChange({
+                  reposoCondicion,
+                  ...(reposoCondicion === 'PARCIAL' &&
+                  !(row.reposoDiasPagados && row.reposoDiasPagados > 0)
+                    ? { reposoDiasPagados: NOMINA_DIAS_POR_SEMANA }
+                    : {}),
+                  ...(reposoCondicion !== 'PAGO_UNICO' ? { reposoCompensacionMonto: 0 } : {}),
+                })
+              }
+              onReposoDiasPagadosChange={(reposoDiasPagados) =>
+                onNovedadTurnoChange({ reposoDiasPagados })
+              }
+              onReposoCompensacionMontoChange={(reposoCompensacionMonto) =>
+                onNovedadTurnoChange({ reposoCompensacionMonto })
+              }
             />
           </div>
           <div className="flex gap-1 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-0.5">
@@ -427,7 +468,7 @@ export function NominaMobileWorkerCard({
                 <button
                   key={estado}
                   type="button"
-                  disabled={locked}
+                  disabled={locked || asistenciaLocked}
                   onClick={() => onUpdateRow({ estadoAsistencia: estado })}
                   className={cn(
                     'flex flex-1 items-center justify-center gap-1 rounded-md py-1.5 text-[8px] font-bold uppercase transition-all disabled:opacity-45',

@@ -3,7 +3,8 @@ import NominaWorkspace from '@/components/nomina/NominaWorkspace';
 import { syncRotacionEstadosLaboralesAction } from '@/lib/actions/rotacion-sync';
 import { isPersonalVisibleInNomina } from '@/lib/personal-master';
 import { getWeekStart } from '@/lib/rotacion-personal';
-import type { Personal, NominaSemana } from '@/lib/types';
+import { loadNominaRotacionContext } from '@/lib/nomina/load-rotacion-context';
+import type { PerfilCompensacion, Personal, NominaSemana } from '@/lib/types';
 
 export const metadata = {
   title: 'Nómina Mina - MineOS',
@@ -27,11 +28,10 @@ export default async function MinaNominaPage() {
     isPersonalVisibleInNomina(p, area),
   );
 
-  const { data: masterRows } = await supabase
-    .from('personal')
-    .select('*')
-    .order('nombre_completo')
-    .limit(700);
+  const [{ data: masterRows }, { data: perfiles }] = await Promise.all([
+    supabase.from('personal').select('*').order('nombre_completo').limit(700),
+    supabase.from('perfiles_compensacion').select('*').eq('activo', true).order('nombre'),
+  ]);
 
   // Obtener historial de semanas procesadas
   const { data: semanas } = await supabase
@@ -41,12 +41,19 @@ export default async function MinaNominaPage() {
     .order('semana_inicio', { ascending: false })
     .limit(200);
 
+  const { instanciaActiva, rotacionPlantillas, rotacionMigrationRequired } =
+    await loadNominaRotacionContext(area);
+
   return (
     <NominaWorkspace
       area={area}
       data={personal}
       masterCatalog={(masterRows as Personal[]) || []}
+      perfilesCompensacion={(perfiles as PerfilCompensacion[]) || []}
       semanas={(semanas as NominaSemana[]) || []}
+      instanciaActiva={instanciaActiva}
+      rotacionPlantillas={rotacionPlantillas}
+      rotacionMigrationRequired={rotacionMigrationRequired}
     />
   );
 }

@@ -48,6 +48,11 @@ export const RegistroCierreSchema = z
     totalVales: montoUsd,
     novedadTurno: z.string().max(50).optional().default('ACTIVO'),
     novedadTurnoObs: z.string().max(500).optional().default(''),
+    esSemanaLibre: z.boolean().optional(),
+    salarioBaseCalculado: montoUsd.optional(),
+    reposoCondicion: z.string().nullable().optional(),
+    reposoDiasPagados: z.number().int().min(0).max(7).optional(),
+    reposoCompensacionMonto: montoUsd.optional(),
     /**
      * Ajuste explícito: permite que `total` difiera del recalculado por el
      * servidor. Obliga a dejar un motivo auditable (mín. 5 caracteres).
@@ -109,6 +114,15 @@ export const CierreNominaV3Schema = z
       .array(DistribucionParteSchema)
       .min(1, 'Agrega al menos un beneficiario')
       .max(20, 'Demasiados beneficiarios en la distribución'),
+    modoCierre: z.enum(['operativo', 'historico_manual']).optional(),
+    periodoManual: z
+      .object({
+        label: z.string(),
+        rangeStart: fechaIso,
+        rangeEnd: fechaIso,
+        plantillaId: z.string().uuid().optional(),
+      })
+      .optional(),
   })
   .superRefine((p, ctx) => {
     if (diffDias(p.inicio, p.fin) !== 6) {

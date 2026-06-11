@@ -3,6 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
+import {
+  findOrCreateNominaSemanaForCierre,
+} from '@/lib/nomina/cierre-semana-db';
 import type { PreNominaRow } from '@/lib/types';
 import { registrarAuditAction } from './nomina-v3';
 import { z } from 'zod';
@@ -135,23 +138,18 @@ export async function procesarCierreNominaV2Action(payload: {
 
     const totalNomina = rows.reduce((s, r) => s + r.total, 0);
 
-    const { data: semanaRow, error: semanaError } = await supabase
-      .from('nomina_semanas')
-      .upsert({
-        semana_inicio: inicio,
-        semana_fin: fin,
-        area,
-        total_trabajadores: rows.length,
-        total_pagado: totalNomina,
-        registrado_por: userId || null,
-      }, { onConflict: 'semana_inicio,area' })
-      .select('id')
-      .maybeSingle();
-
-    if (semanaError) return { ok: false, message: `Error semana: ${semanaError.message}` };
-
-    const semanaId = semanaRow?.id;
-    if (!semanaId) return { ok: false, message: 'No se pudo obtener el ID de la semana.' };
+    const semanaRes = await findOrCreateNominaSemanaForCierre(supabase, {
+      semanaInicio: inicio,
+      semanaFin: fin,
+      area,
+      totalTrabajadores: rows.length,
+      totalPagado: totalNomina,
+      registradoPor: userId || null,
+      origen: 'cierre_v3',
+      periodoId: null,
+    });
+    if ('error' in semanaRes) return { ok: false, message: `Error semana: ${semanaRes.error}` };
+    const semanaId = semanaRes.semanaId;
 
     await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);
 

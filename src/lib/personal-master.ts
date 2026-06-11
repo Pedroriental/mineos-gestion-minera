@@ -1,4 +1,5 @@
 import { FALLBACK_SNAPSHOT, type BibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
+import { isAsignacionNominaValueValid } from '@/lib/nomina/asignacion-nomina';
 import type { Personal } from '@/lib/types';
 
 /** Opciones cerradas para asignación nómina (vertical/sector). Evita duplicar ciclos por typos. */
@@ -13,8 +14,8 @@ export const ASIGNACION_NOMINA_OPCIONES = [
 
 export type AsignacionNominaOpcion = (typeof ASIGNACION_NOMINA_OPCIONES)[number];
 
-export function isAsignacionNominaValid(value: string): value is AsignacionNominaOpcion {
-  return (ASIGNACION_NOMINA_OPCIONES as readonly string[]).includes(value);
+export function isAsignacionNominaValid(value: string, snapshot?: BibliotecaAppSnapshot): boolean {
+  return isAsignacionNominaValueValid(value, snapshot);
 }
 
 /** Rutas que deben refrescarse cuando cambia el maestro de personal. */
@@ -121,6 +122,27 @@ export function normalizeAreaDetalle(value: string, area: string): string | null
 
 export function normalizeCedula(value: string): string {
   return value.replace(/\D/g, '');
+}
+
+/** «Cedeño Alexander» desde CEDENO ALEXANDER, cedeño alexander, etc. */
+export function formatNombrePropio(value: string): string {
+  if (!value) return '';
+  return value
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) =>
+      word
+        .split('-')
+        .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : ''))
+        .join('-'),
+    )
+    .join(' ');
+}
+
+export function displayNombrePersonal(p: Pick<Personal, 'nombre_completo'>): string {
+  return formatNombrePropio(p.nombre_completo || '');
 }
 
 function normalizeNombreText(value: string): string {

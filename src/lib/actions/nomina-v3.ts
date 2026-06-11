@@ -11,6 +11,15 @@ import {
   type DistribucionParte,
 } from '@/lib/nomina-distribucion';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
+import { formatNovedadTurnoObsForSave, reposoPagoUnicoMontoFromRow } from '@/lib/nomina-novedad-turno';
+import {
+  ensureManualVistaPeriodoId,
+  findOrCreateNominaSemanaForCierre,
+  linkSemanaToPeriodo,
+  refreshPeriodoTotalUsd,
+  upsertNominaCierreForSemana,
+  type ManualPeriodoCierreRef,
+} from '@/lib/nomina/cierre-semana-db';
 import type { NominaVale, Personal, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
 import { z } from 'zod';
 import {
@@ -23,12 +32,17 @@ import {
   CierreNominaV3Schema,
   verificarTotalesCierre,
   type CierreNominaV3Input,
+  type CierreNominaV3Parsed,
   type PersonalCierre,
 } from '@/lib/validations/nomina-cierre';
 import {
   vincularSemanaACicloAction,
   cerrarCicloAutomaticoAction,
 } from './nomina-ciclos-automatizacion';
+import {
+  validarCierreRotacionSemanalAction,
+  procesarCierreRotacionNominaAction,
+} from './rotacion-instancias';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
@@ -354,6 +368,126 @@ function mapCierreRpcError(message: string): string {
   return `Error cierre: ${message}`;
 }
 
+async function procesarCierreHistoricoManualV3(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  userId: string,
+  data: CierreNominaV3Parsed,
+  periodoManual: ManualPeriodoCierreRef,
+): Promise<ActionResult> {
+  const { area, inicio, fin, rows, distribucion } = data;
+  const origenRegistro = 'ajuste_manual';
+  const totalNomina = rows.reduce((s, r) => s + r.total, 0);
+
+  const periodoRes = await ensureManualVistaPeriodoId(supabase, {
+    periodo: periodoManual,
+    area,
+    userId,
+  });
+  if ('error' in periodoRes) {
+    return { ok: false, message: `Error periodo: ${periodoRes.error}` };
+  }
+  const periodoId = periodoRes.periodoId;
+
+  const semanaRes = await findOrCreateNominaSemanaForCierre(supabase, {
+    semanaInicio: inicio,
+    semanaFin: fin,
+    area,
+    totalTrabajadores: rows.length,
+    totalPagado: totalNomina,
+    registradoPor: userId,
+    origen: origenRegistro,
+    periodoId,
+  });
+  if ('error' in semanaRes) {
+    return { ok: false, message: `Error semana: ${semanaRes.error}` };
+  }
+  const semanaId = semanaRes.semanaId;
+  await linkSemanaToPeriodo(supabase, periodoId, semanaId);
+  await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);
+
+  const personalIds = rows.map((r) => r.personalId);
+  const { data: personalRows, error: personalError } = await supabase
+    .from('personal')
+    .select(
+      'id, cedula, nombre_completo, cargo, area, area_detalle, salario_base, salario_libre, bono_transporte, esquema_rotacion, rotacion_inicio_fecha',
+    )
+    .in('id', personalIds);
+  if (personalError) {
+    return { ok: false, message: `Error al cargar trabajadores: ${personalError.message}` };
+  }
+  const personalById = new Map((personalRows ?? []).map((p) => [p.id, p as Personal]));
+
+  const registros = rows.map((r) => {
+    const personal = personalById.get(r.personalId);
+    if (!personal) {
+      throw new Error(`Trabajador ${r.personalId} no encontrado`);
+    }
+    const esSemanaLibre = r.esSemanaLibre ?? r.estadoAsistencia === 'libre';
+    const pagoUnicoNovedad = reposoPagoUnicoMontoFromRow({
+      novedadTurno: r.novedadTurno,
+      reposoCondicion: r.reposoCondicion,
+      reposoCompensacionMonto: r.reposoCompensacionMonto,
+    });
+    const bonificacionesRegistro = (Number(r.bonificaciones) || 0) + pagoUnicoNovedad;
+    return {
+      semana_id: semanaId,
+      personal_id: r.personalId,
+      monto_pagado: r.total,
+      es_semana_libre: esSemanaLibre,
+      bono_transporte_pagado: r.bonoTransporte,
+      estado_asistencia: r.estadoAsistencia,
+      dias_trabajados: r.diasTrabajados,
+      salario_base_calculado: r.salarioBaseCalculado ?? null,
+      novedad_turno: r.novedadTurno ?? 'ACTIVO',
+      novedad_turno_obs: formatNovedadTurnoObsForSave(
+        r.novedadTurno ?? 'ACTIVO',
+        r.novedadTurnoObs ?? '',
+        r.reposoCondicion,
+        {
+          reposoDiasPagados: r.reposoDiasPagados,
+          reposoCompensacionMonto: r.reposoCompensacionMonto,
+        },
+      ).trim(),
+      bonificaciones: bonificacionesRegistro,
+      total_vales: Number(r.totalVales) || 0,
+      personal_snapshot: buildPersonalSnapshot(personal),
+      origen: origenRegistro,
+      periodo_id: periodoId,
+    };
+  });
+  const { error: regError } = await supabase.from('nomina_registros').insert(registros);
+  if (regError) return { ok: false, message: `Error registros: ${regError.message}` };
+
+  const cierrePayload = distribucionToCierrePayload(totalNomina, distribucion);
+  const cierreRes = await upsertNominaCierreForSemana(supabase, semanaId, {
+    total_nomina_usd: totalNomina,
+    pct_pedro: cierrePayload.pct_pedro,
+    pct_darinel: cierrePayload.pct_darinel,
+    pct_la_fe: cierrePayload.pct_la_fe,
+    monto_pedro: cierrePayload.monto_pedro,
+    monto_darinel: cierrePayload.monto_darinel,
+    monto_la_fe: cierrePayload.monto_la_fe,
+    distribucion: cierrePayload.distribucion,
+  });
+  if (cierreRes.error) return { ok: false, message: `Error cierre: ${cierreRes.error}` };
+
+  await refreshPeriodoTotalUsd(supabase, periodoId);
+  await registrarAuditAction(
+    'CIERRE_NOMINA_MANUAL_HISTORICO',
+    'nomina_semanas',
+    semanaId,
+    `Cierre manual histórico ${area.toUpperCase()} ${inicio}–${fin}. Total: $${totalNomina.toFixed(2)}`,
+    userId,
+  );
+
+  revalidateAll();
+  return {
+    ok: true,
+    message: `Semana histórica cerrada manualmente — $${totalNomina.toFixed(2)} (${rows.length} trabajadores).`,
+    data: { semanaId, totalNomina, distribucion: cierrePayload.lineas },
+  };
+}
+
 // ── CIERRE DE NÓMINA V3 (con vales y ajustes de socios) ──────
 // Blindado (Fase 1): Zod estricto + identidad real (auth.getUser) +
 // recálculo server-side de montos + transacción atómica vía RPC.
@@ -366,7 +500,8 @@ export async function procesarCierreNominaV3Action(
     const issue = parsed.error.issues[0];
     return { ok: false, message: issue?.message ?? 'Datos de cierre inválidos.' };
   }
-  const { area, inicio, fin, rows, distribucion } = parsed.data;
+  const { area, inicio, fin, rows, distribucion, modoCierre, periodoManual } = parsed.data;
+  const esHistoricoManual = modoCierre === 'historico_manual';
 
   const distCheck = validateDistribucion(distribucion);
   if (!distCheck.ok) {
@@ -376,7 +511,6 @@ export async function procesarCierreNominaV3Action(
   try {
     const supabase = await createServerClient();
 
-    // 2. Identidad real: el UUID sale del JWT verificado, nunca del payload
     const {
       data: { user },
       error: authError,
@@ -385,6 +519,30 @@ export async function procesarCierreNominaV3Action(
       return { ok: false, message: 'Sesión no válida. Inicia sesión de nuevo para cerrar la nómina.' };
     }
     const userId = user.id;
+
+    if (esHistoricoManual) {
+      if (!periodoManual) {
+        return {
+          ok: false,
+          message: 'Falta el periodo manual para cerrar esta semana histórica.',
+        };
+      }
+      return procesarCierreHistoricoManualV3(supabase, userId, parsed.data, periodoManual);
+    }
+
+    const rotacionRows = rows.map((r) => ({
+      personalId: r.personalId,
+      total: r.total,
+      bonoTransporte: r.bonoTransporte,
+      diasTrabajados: r.diasTrabajados,
+    }));
+    const valRot = await validarCierreRotacionSemanalAction({
+      area,
+      semanaInicio: inicio,
+      semanaFin: fin,
+      rows: rotacionRows,
+    });
+    if (!valRot.ok) return { ok: false, message: valRot.message };
 
     // 3. Datos maestros desde BD (no se confía en el `personal` del cliente)
     const personalIds = rows.map((r) => r.personalId);
@@ -470,6 +628,16 @@ export async function procesarCierreNominaV3Action(
         userId,
       );
     }
+
+    const rotacionRes = await procesarCierreRotacionNominaAction({
+      area,
+      semanaId,
+      semanaInicio: inicio,
+      semanaFin: fin,
+      rows: rotacionRows,
+      userId,
+    });
+    if (!rotacionRes.ok) return { ok: false, message: rotacionRes.message };
 
     // ── FASE 4: Automatización de Ciclos ─────────────────────────────────
     // Vincular semana a ciclos automáticamente (crea o vincula a ciclo existente)

@@ -1,0 +1,101 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  buildManualPlantillaNominaRows,
+  nominaRowBelongsToCuadrilla,
+} from '@/lib/rotacion-plantillas/manual-plantilla-projection';
+import type { Personal } from '@/lib/types';
+import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
+
+const plantilla: RotacionPlantillaRecord = {
+  id: 'pl-1',
+  nombre: 'Vertical',
+  descripcion: '',
+  area: 'mina',
+  columnasVista: [],
+  cuadrillas: [
+    {
+      id: 'cq-1',
+      nombre: 'MINA BELÉN - ADMINISTRACIÓN MINA - TRAB.',
+      asignacionKey: 'MINA BELÉN - ADMINISTRACIÓN MINA - TRAB.',
+      orden: 0,
+      semanas: [
+        {
+          id: 's1',
+          nombre: 'Semana 1',
+          orden: 0,
+          estatusDefault: 'trabajada_paga',
+        },
+      ],
+      filas: [],
+    },
+  ],
+};
+
+const worker: Personal = {
+  id: 'p-1',
+  nombre_completo: 'Cedeño Alexander',
+  cedula: '21.669.002',
+  cargo: 'Operador',
+  area: 'mina',
+  area_detalle: 'MINA BELÉN - ADMINISTRACIÓN MINA - TRAB.',
+  salario_base: 125,
+  esquema_rotacion: 'FIJO_SEMANAL',
+  activo: true,
+  estatus: 'ACTIVO',
+};
+
+describe('buildManualPlantillaNominaRows', () => {
+  it('no incluye trabajadores por coincidencia de cuadrilla sin personalIds explícitos', () => {
+    const rows = buildManualPlantillaNominaRows({
+      plantilla,
+      personalCatalog: [worker],
+      personalIds: [],
+      weekStart: '2026-05-11',
+      periodStart: '2026-05-11',
+      periodEnd: '2026-05-17',
+      valesMap: {},
+      weekEnd: '2026-05-17',
+    });
+    assert.equal(rows.length, 0);
+  });
+
+  it('proyecta fila solo para personalIds indicados', () => {
+    const rows = buildManualPlantillaNominaRows({
+      plantilla,
+      personalCatalog: [worker],
+      personalIds: [worker.id],
+      weekStart: '2026-05-11',
+      periodStart: '2026-05-11',
+      periodEnd: '2026-05-17',
+      valesMap: {},
+      weekEnd: '2026-05-17',
+    });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].personal.id, worker.id);
+    assert.equal(rows[0].rotacionFuente, 'plantilla');
+  });
+
+  it('alinea cuadrillaNombre de carga manual con la plantilla aunque area_detalle difiera', () => {
+    const workerBiblioteca: Personal = {
+      ...worker,
+      id: 'p-2',
+      area_detalle: 'Mina Belén - Administración',
+    };
+    const rows = buildManualPlantillaNominaRows({
+      plantilla,
+      personalCatalog: [workerBiblioteca],
+      personalIds: [workerBiblioteca.id],
+      weekStart: '2026-05-11',
+      periodStart: '2026-05-11',
+      periodEnd: '2026-05-17',
+      valesMap: {},
+      weekEnd: '2026-05-17',
+    });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].cuadrillaNombre, plantilla.cuadrillas[0].nombre);
+    assert.ok(
+      nominaRowBelongsToCuadrilla(rows[0], plantilla.cuadrillas[0].nombre, plantilla),
+    );
+  });
+});

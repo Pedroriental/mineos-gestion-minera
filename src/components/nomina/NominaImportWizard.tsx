@@ -28,6 +28,10 @@ import type { InferredWorkerProfile, ParsedNominaPeriod, ParsedNominaSection } f
 import { NominaImportFidelityPanel, type ImportFidelityReport } from '@/components/nomina/NominaImportFidelityPanel';
 import { NominaImportIdentityPanel } from '@/components/nomina/NominaImportIdentityPanel';
 import { describePayrollWeekCount } from '@/lib/nomina/week-utils';
+import {
+  labelImportPeriodo,
+  type ModoCargaNomina,
+} from '@/lib/rotacion-plantillas/period-scope';
 import { cn } from '@/lib/utils';
 
 function workerCargoLabel(cargo: string, sectionTitle: string): string | null {
@@ -281,6 +285,8 @@ export function NominaImportWizard({
   const [error, setError] = useState<string | null>(null);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const [savedFidelity, setSavedFidelity] = useState<ImportFidelityReport | null>(null);
+  const [modoCarga, setModoCarga] = useState<ModoCargaNomina>('historico');
+  const [periodoLabelCustom, setPeriodoLabelCustom] = useState('');
   const [isPending, startTransition] = useTransition();
 
   const {
@@ -309,6 +315,9 @@ export function NominaImportWizard({
     const weekStarts = period.weekColumns.map((c) => c.weekStart);
     const allRows = period.sections.flatMap((s) => s.rows);
     setProfiles(inferAllProfiles(allRows, weekStarts, period.weekColumns));
+    if (!periodoLabelCustom) {
+      setPeriodoLabelCustom(period.rangeStart.slice(0, 7));
+    }
   }, [period]);
 
   useEffect(() => {
@@ -352,6 +361,12 @@ export function NominaImportWizard({
 
   function confirmImport() {
     if (!period || !rawPeriod || pendingIdentityCount > 0) return;
+    const importLabel = labelImportPeriodo({
+      modo: modoCarga,
+      rangeStart: period.rangeStart,
+      rangeEnd: period.rangeEnd,
+      customLabel: periodoLabelCustom,
+    });
     startTransition(async () => {
       const res = await importarNominaHistoricaAction({
         rawPeriod,
@@ -359,7 +374,8 @@ export function NominaImportWizard({
         period,
         profiles,
         userId,
-        label: `Import ${period.rangeStart} — ${period.rangeEnd}`,
+        label: importLabel,
+        modoCarga,
       });
       if (res.ok) {
         setResultMsg(res.message);
@@ -662,6 +678,58 @@ export function NominaImportWizard({
 
           {step === 'inference' && (
             <div className="flex flex-col gap-3 border-t border-white/5 pt-4">
+              <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/50 p-4">
+                <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                  Contexto de carga (periodo)
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <label className="flex flex-1 cursor-pointer items-start gap-2 rounded-lg border border-zinc-700/80 p-3 has-[:checked]:border-amber-500/40 has-[:checked]:bg-amber-500/5">
+                    <input
+                      type="radio"
+                      name="modoCarga"
+                      checked={modoCarga === 'historico'}
+                      onChange={() => setModoCarga('historico')}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="block text-xs font-semibold text-white/90">Archivo histórico</span>
+                      <span className="mt-0.5 block text-[10px] leading-relaxed text-white/45">
+                        Mayo u otro mes cerrado. No altera la rotación operativa actual (Junio).
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex flex-1 cursor-pointer items-start gap-2 rounded-lg border border-zinc-700/80 p-3 has-[:checked]:border-emerald-500/40 has-[:checked]:bg-emerald-500/5">
+                    <input
+                      type="radio"
+                      name="modoCarga"
+                      checked={modoCarga === 'operativo'}
+                      onChange={() => setModoCarga('operativo')}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="block text-xs font-semibold text-white/90">Periodo operativo</span>
+                      <span className="mt-0.5 block text-[10px] leading-relaxed text-white/45">
+                        Carga dentro del ciclo activo por plantilla (mismo rango que la instancia).
+                      </span>
+                    </span>
+                  </label>
+                </div>
+                <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                  Etiqueta del periodo
+                </label>
+                <input
+                  value={periodoLabelCustom}
+                  onChange={(e) => setPeriodoLabelCustom(e.target.value)}
+                  placeholder="Ej: Mayo 2026"
+                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"
+                />
+                {period && (
+                  <p className="mt-2 text-[10px] text-zinc-500">
+                    Semanas en archivo: {period.rangeStart} — {period.rangeEnd} (
+                    {period.weekColumns.length} sem.)
+                  </p>
+                )}
+              </div>
               {lowConfidence.length > 0 && (
                 <div className="flex gap-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-xs leading-relaxed text-amber-200">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
