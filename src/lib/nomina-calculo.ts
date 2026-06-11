@@ -2,6 +2,7 @@ import {
   calcularBonoTransportePorPosicion,
   calcularSalarioPorPosicionCiclo,
   posicionEsquemaPersonal,
+  tarifaPlanaSemanaLibre,
   totalSemanasEsquema,
 } from '@/lib/nomina/perfil-ciclo-reglas';
 import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
@@ -75,7 +76,7 @@ export function calculateWeeklyBaseRate(
 
   if (estadoAsistencia === 'no_laborado') return 0;
   if (estadoAsistencia === 'libre') {
-    return Number(p.salario_libre) || Number(p.salario_base);
+    return tarifaPlanaSemanaLibre(p);
   }
   return Number(p.salario_base);
 }

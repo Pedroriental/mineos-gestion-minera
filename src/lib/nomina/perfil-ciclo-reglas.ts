@@ -28,17 +28,114 @@ export function totalSemanasEsquema(esquema: EsquemaRotacion | string): number {
   }
 }
 
+/** Semanas calendario transcurridas entre dos fechas (puede ser negativo). */
+export function semanasTranscurridas(desde: string, hasta: string): number {
+  const a = new Date(`${desde}T00:00:00`);
+  const b = new Date(`${hasta}T00:00:00`);
+  return Math.round((b.getTime() - a.getTime()) / (7 * 24 * 60 * 60 * 1000));
+}
+
 export function posicionEnCicloDesdeSemana(
   rotacionInicio: string,
   weekStart: string,
   totalSemanas: number,
 ): number {
   if (totalSemanas <= 1) return 0;
-  const startDate = new Date(`${rotacionInicio}T00:00:00`);
-  const weekDate = new Date(`${weekStart}T00:00:00`);
-  const diffMs = weekDate.getTime() - startDate.getTime();
-  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+  const diffWeeks = semanasTranscurridas(rotacionInicio, weekStart);
   return ((diffWeeks % totalSemanas) + totalSemanas) % totalSemanas;
+}
+
+/** Fecha de inicio del ciclo que deja a `weekStart` en la posición indicada. */
+export function fechaInicioCicloParaPosicion(weekStart: string, posicion: number): string {
+  const d = new Date(`${weekStart}T00:00:00`);
+  d.setDate(d.getDate() - posicion * 7);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Posición de ciclo de un grupo/vertical para una semana, derivada del
+ * CALENDARIO de rotación de sus trabajadores (moda de las posiciones
+ * individuales). Devuelve null si ningún trabajador tiene fecha de rotación.
+ */
+export function posicionGrupoDesdeTrabajadores(
+  rotaciones: Array<string | null | undefined>,
+  weekStart: string,
+  totalSemanas: number,
+): number | null {
+  const conteo = new Map<number, number>();
+  for (const rotacion of rotaciones) {
+    if (!rotacion) continue;
+    const pos = posicionEnCicloDesdeSemana(rotacion, weekStart, totalSemanas);
+    conteo.set(pos, (conteo.get(pos) ?? 0) + 1);
+  }
+  let mejor: number | null = null;
+  let mejorConteo = 0;
+  for (const [pos, c] of conteo) {
+    if (c > mejorConteo) {
+      mejor = pos;
+      mejorConteo = c;
+    }
+  }
+  return mejor;
+}
+
+export type PlanVinculoCiclo =
+  | { accion: 'usar_ciclo'; posicion: number }
+  | { accion: 'cerrar_y_crear'; posicion: number; fechaInicio: string }
+  | { accion: 'crear'; posicion: number; fechaInicio: string };
+
+/**
+ * Decide cómo vincular una semana cerrada a un ciclo (D1 — fuente única:
+ * CALENDARIO, nunca el orden de cierres). Invariante que garantiza:
+ * dentro de un ciclo, `posicion_en_ciclo === semanasTranscurridas(ciclo.fecha_inicio, semana)`,
+ * que es la misma posición con la que el motor calcula el pago.
+ */
+export function planificarVinculoCiclo(input: {
+  semanaInicio: string;
+  totalSemanas: number;
+  /** Posición según la rotación de los trabajadores (null si no hay datos). */
+  posicionCalendario: number | null;
+  cicloAbierto: { fechaInicio: string; posicionesOcupadas: number[] } | null;
+}): PlanVinculoCiclo {
+  const { semanaInicio, totalSemanas, posicionCalendario, cicloAbierto } = input;
+
+  // Sin datos de rotación: usar la ventana del ciclo abierto como fallback.
+  if (posicionCalendario === null) {
+    if (cicloAbierto) {
+      const offset = semanasTranscurridas(cicloAbierto.fechaInicio, semanaInicio);
+      if (offset >= 0 && offset < totalSemanas && !cicloAbierto.posicionesOcupadas.includes(offset)) {
+        return { accion: 'usar_ciclo', posicion: offset };
+      }
+      const pos = ((offset % totalSemanas) + totalSemanas) % totalSemanas;
+      return {
+        accion: 'cerrar_y_crear',
+        posicion: pos,
+        fechaInicio: fechaInicioCicloParaPosicion(semanaInicio, pos),
+      };
+    }
+    return { accion: 'crear', posicion: 0, fechaInicio: semanaInicio };
+  }
+
+  const posicion = posicionCalendario;
+  const fechaInicio = fechaInicioCicloParaPosicion(semanaInicio, posicion);
+
+  if (!cicloAbierto) {
+    return { accion: 'crear', posicion, fechaInicio };
+  }
+
+  const offset = semanasTranscurridas(cicloAbierto.fechaInicio, semanaInicio);
+  const dentroDeVentana = offset >= 0 && offset < totalSemanas;
+  const alineada = dentroDeVentana && offset === posicion;
+  const ocupada = cicloAbierto.posicionesOcupadas.includes(posicion);
+
+  if (alineada && !ocupada) {
+    return { accion: 'usar_ciclo', posicion };
+  }
+  // Ciclo completo, desalineado o posición duplicada → abrir ciclo alineado.
+  return { accion: 'cerrar_y_crear', posicion, fechaInicio };
 }
 
 export function posicionEsquemaPersonal(
@@ -138,6 +235,18 @@ export function asistenciaEsperadaPorPosicion(
   return 'trabajada';
 }
 
+/**
+ * Tarifa Plana de semana libre — ÚNICA fuente de verdad (D2):
+ * si el trabajador tiene tarifa libre propia (`salario_libre`) se usa esa;
+ * si no, aplica el salario base completo. Misma regla que la política
+ * TARIFA_PLANA de los perfiles de compensación.
+ */
+export function tarifaPlanaSemanaLibre(
+  personal: Pick<Personal, 'salario_base' | 'salario_libre'>,
+): number {
+  return Number(personal.salario_libre) || Number(personal.salario_base) || 0;
+}
+
 export function calcularSalarioPorPosicionCiclo(
   esquema: EsquemaRotacion | string,
   personal: Pick<Personal, 'salario_base' | 'salario_libre'>,
@@ -148,14 +257,14 @@ export function calcularSalarioPorPosicionCiclo(
   const base = Number(personal.salario_base) || 0;
 
   if (esquema === 'MOLINO_14X14') {
-    if (posicion === 0) return base;
+    if (posicion === 0) return tarifaPlanaSemanaLibre(personal);
     if (posicion === 1) return 0;
     if (estadoAsistencia === 'no_laborado') return 0;
     return applyProportionalWeeklyPay(base, diasTrabajados);
   }
 
   if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
-    if (posicion === 0) return base;
+    if (posicion === 0) return tarifaPlanaSemanaLibre(personal);
     if (estadoAsistencia === 'no_laborado') return 0;
     return applyProportionalWeeklyPay(base, diasTrabajados);
   }
@@ -166,14 +275,14 @@ export function calcularSalarioPorPosicionCiclo(
       return applyProportionalWeeklyPay(base, diasTrabajados);
     }
     if (posicion === 2) {
-      return Number(personal.salario_libre) || base;
+      return tarifaPlanaSemanaLibre(personal);
     }
     return 0;
   }
 
   if (estadoAsistencia === 'no_laborado') return 0;
   if (estadoAsistencia === 'libre') {
-    return Number(personal.salario_libre) || base;
+    return tarifaPlanaSemanaLibre(personal);
   }
   return applyProportionalWeeklyPay(base, diasTrabajados);
 }
