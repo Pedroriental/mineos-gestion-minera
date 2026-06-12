@@ -1,4 +1,8 @@
-import { DEFAULT_COLUMNAS_VISTA, type PlantillaColumnaKey } from '@/lib/rotacion-plantillas/columnas-vista';
+import {
+  DEFAULT_COLUMNAS_VISTA,
+  mergeSandboxColumnasVista,
+  type PlantillaColumnaKey,
+} from '@/lib/rotacion-plantillas/columnas-vista';
 import { getGrupoNominaKey } from '@/lib/personal-master';
 import type { Personal } from '@/lib/types';
 import type {
@@ -216,14 +220,17 @@ export function sandboxReducer(
         })),
       };
 
-    case 'SET_CUADRILLA_COLUMNAS':
+    case 'SET_CUADRILLA_COLUMNAS': {
+      const cuadrillas = mapCuadrilla(state.cuadrillas, action.payload.id, (c) => ({
+        ...c,
+        columnasVista: action.payload.columnasVista,
+      }));
       return {
         ...state,
-        cuadrillas: mapCuadrilla(state.cuadrillas, action.payload.id, (c) => ({
-          ...c,
-          columnasVista: action.payload.columnasVista,
-        })),
+        cuadrillas,
+        columnasVista: mergeSandboxColumnasVista(cuadrillas, state.columnasVista),
       };
+    }
 
     case 'REORDER_CUADRILLA': {
       const idx = state.cuadrillas.findIndex((c) => c.id === action.payload.id);

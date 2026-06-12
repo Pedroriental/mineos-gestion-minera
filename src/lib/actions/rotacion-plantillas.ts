@@ -2,7 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
-import { normalizeColumnasVista } from '@/lib/rotacion-plantillas/columnas-vista';
+import {
+  columnasVistaForCuadrilla,
+  mergeSandboxColumnasVista,
+  normalizeColumnasVista,
+  type PlantillaColumnaKey,
+} from '@/lib/rotacion-plantillas/columnas-vista';
 import { validateSandbox, resolveCeldaEstatus, normalizeSandbox } from '@/lib/rotacion-plantillas/sandbox-state';
 import type {
   RotacionCuadrilla,
@@ -53,6 +58,7 @@ type DbCuadrilla = {
   nombre: string;
   asignacion_key: string | null;
   orden: number;
+  columnas_vista?: unknown;
 };
 
 type DbSemana = {
@@ -76,6 +82,7 @@ function buildCuadrillasFromDb(
   cuadrillas: DbCuadrilla[],
   semanas: DbSemana[],
   asignaciones: DbAsignacion[],
+  plantillaColumnas: PlantillaColumnaKey[],
 ): RotacionCuadrilla[] {
   return cuadrillas
     .sort((a, b) => a.orden - b.orden)
@@ -115,8 +122,148 @@ function buildCuadrillasFromDb(
         orden: c.orden,
         semanas: pSemanas,
         filas,
+        columnasVista: columnasVistaForCuadrilla(
+          {
+            columnasVista: Array.isArray(c.columnas_vista)
+              ? normalizeColumnasVista(c.columnas_vista)
+              : undefined,
+          },
+          plantillaColumnas,
+        ),
       };
     });
+}
+
+async function updatePlantillaMeta(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  plantillaId: string,
+  sandbox: RotacionPlantillaSandbox,
+): Promise<RotacionPlantillaActionResult | null> {
+  const plantillaColumnas = mergeSandboxColumnasVista(sandbox.cuadrillas, sandbox.columnasVista);
+  const { error } = await supabase
+    .from('rotacion_plantillas')
+    .update({
+      nombre: sandbox.nombre.trim(),
+      descripcion: sandbox.descripcion.trim() || null,
+      columnas_vista: plantillaColumnas,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', plantillaId);
+
+  if (!error) return null;
+
+  if (error.message?.includes('columnas_vista')) {
+    const { error: err2 } = await supabase
+      .from('rotacion_plantillas')
+      .update({
+        nombre: sandbox.nombre.trim(),
+        descripcion: sandbox.descripcion.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', plantillaId);
+    if (err2) return { ok: false, message: err2.message };
+    return null;
+  }
+
+  return { ok: false, message: error.message };
+}
+
+async function updateCuadrillaRow(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  cuadrilla: RotacionCuadrilla,
+  plantillaColumnas: PlantillaColumnaKey[],
+): Promise<RotacionPlantillaActionResult | null> {
+  const columnas = columnasVistaForCuadrilla(cuadrilla, plantillaColumnas);
+  const base = {
+    nombre: cuadrilla.nombre.trim(),
+    asignacion_key: cuadrilla.asignacionKey.trim() || null,
+    orden: cuadrilla.orden,
+  };
+  const { error } = await supabase
+    .from('rotacion_plantilla_cuadrillas')
+    .update({ ...base, columnas_vista: columnas })
+    .eq('id', cuadrilla.id);
+
+  if (!error) return null;
+
+  if (error.message?.includes('columnas_vista')) {
+    const { error: err2 } = await supabase
+      .from('rotacion_plantilla_cuadrillas')
+      .update(base)
+      .eq('id', cuadrilla.id);
+    if (err2) return { ok: false, message: err2.message };
+    return null;
+  }
+
+  return { ok: false, message: error.message };
+}
+
+/** Actualiza meta/columnas/semanas sin borrar filas (evita 502 y FK RESTRICT). */
+async function tryPatchPlantillaInPlace(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  plantillaId: string,
+  sandbox: RotacionPlantillaSandbox,
+): Promise<RotacionPlantillaActionResult | null> {
+  const { data: existingCuadrillas, error: ecErr } = await supabase
+    .from('rotacion_plantilla_cuadrillas')
+    .select('id, orden')
+    .eq('plantilla_id', plantillaId)
+    .order('orden');
+
+  if (ecErr || !existingCuadrillas?.length) return null;
+
+  const sortedSandbox = [...sandbox.cuadrillas].sort((a, b) => a.orden - b.orden);
+  if (sortedSandbox.length !== existingCuadrillas.length) return null;
+
+  for (let i = 0; i < sortedSandbox.length; i++) {
+    const sc = sortedSandbox[i];
+    const ec = existingCuadrillas[i];
+    if (!ec || sc.id !== ec.id || sc.orden !== ec.orden) return null;
+  }
+
+  const { data: existingSemanas, error: esErr } = await supabase
+    .from('rotacion_plantilla_semanas')
+    .select('id, cuadrilla_id, orden, estatus_default')
+    .eq('plantilla_id', plantillaId)
+    .order('orden');
+
+  if (esErr) return null;
+
+  for (const sc of sortedSandbox) {
+    const sSemanas = [...sc.semanas].sort((a, b) => a.orden - b.orden);
+    const eSemanas = (existingSemanas ?? [])
+      .filter((s) => s.cuadrilla_id === sc.id)
+      .sort((a, b) => a.orden - b.orden);
+    if (sSemanas.length !== eSemanas.length) return null;
+    for (let j = 0; j < sSemanas.length; j++) {
+      if (sSemanas[j].id !== eSemanas[j].id) return null;
+    }
+  }
+
+  const metaErr = await updatePlantillaMeta(supabase, plantillaId, sandbox);
+  if (metaErr) return metaErr;
+
+  const plantillaColumnas = mergeSandboxColumnasVista(sandbox.cuadrillas, sandbox.columnasVista);
+
+  for (const sc of sortedSandbox) {
+    const cuadrillaErr = await updateCuadrillaRow(supabase, sc, plantillaColumnas);
+    if (cuadrillaErr) return cuadrillaErr;
+
+    for (const sem of sc.semanas) {
+      const { error } = await supabase
+        .from('rotacion_plantilla_semanas')
+        .update({
+          nombre: sem.nombre.trim(),
+          orden: sem.orden,
+          estatus_default: sem.estatusDefault,
+        })
+        .eq('id', sem.id);
+      if (error) return { ok: false, message: mapSemanaSaveError(error.message) };
+    }
+  }
+
+  revalidateNomina();
+  return { ok: true, message: 'Plantilla actualizada.', id: plantillaId };
 }
 
 export type RotacionPlantillaListResult = {
@@ -164,7 +311,10 @@ export async function listRotacionPlantillasWithMetaAction(
     const pSemanas = (semanas ?? []).filter((s) => s.plantilla_id === p.id) as DbSemana[];
     const pAsig = (asignaciones ?? []).filter((a) => a.plantilla_id === p.id) as DbAsignacion[];
 
-    let cuadrillasBuilt = buildCuadrillasFromDb(pCuadrillas, pSemanas, pAsig);
+    const plantillaColumnas = normalizeColumnasVista(
+      (p as { columnas_vista?: unknown }).columnas_vista,
+    );
+    let cuadrillasBuilt = buildCuadrillasFromDb(pCuadrillas, pSemanas, pAsig, plantillaColumnas);
 
     // Legacy sin tabla cuadrillas: agrupar todo en General
     if (!cuadrillasBuilt.length && pSemanas.length) {
@@ -180,6 +330,7 @@ export async function listRotacionPlantillasWithMetaAction(
         ],
         pSemanas.map((s) => ({ ...s, cuadrilla_id: `legacy-${p.id}` })),
         pAsig.map((a) => ({ ...a, cuadrilla_id: `legacy-${p.id}` })),
+        plantillaColumnas,
       );
     }
 
@@ -244,32 +395,36 @@ export async function saveRotacionPlantillaAction(
       };
     }
 
-    const { error } = await supabase
-      .from('rotacion_plantillas')
-      .update({
-        nombre: sandbox.nombre.trim(),
-        descripcion: sandbox.descripcion.trim() || null,
-        columnas_vista: normalizeColumnasVista(sandbox.columnasVista),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-    if (error) {
-      if (error.message?.includes('columnas_vista')) {
-        const { error: err2 } = await supabase
-          .from('rotacion_plantillas')
-          .update({
-            nombre: sandbox.nombre.trim(),
-            descripcion: sandbox.descripcion.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', id);
-        if (err2) return { ok: false, message: err2.message };
-      } else return { ok: false, message: error.message };
+    const patched = await tryPatchPlantillaInPlace(supabase, id, sandbox);
+    if (patched) return patched;
+
+    const metaErr = await updatePlantillaMeta(supabase, id, sandbox);
+    if (metaErr) return metaErr;
+
+    const { error: delAsig } = await supabase
+      .from('rotacion_plantilla_asignaciones')
+      .delete()
+      .eq('plantilla_id', id);
+    if (delAsig) return { ok: false, message: delAsig.message };
+
+    const { error: delSem } = await supabase
+      .from('rotacion_plantilla_semanas')
+      .delete()
+      .eq('plantilla_id', id);
+    if (delSem) {
+      return {
+        ok: false,
+        message:
+          'No se puede reestructurar la plantilla: hay ciclos históricos vinculados a sus semanas. ' +
+          'Cancele o archive instancias antes de cambiar cuadrillas o semanas.',
+      };
     }
 
-    await supabase.from('rotacion_plantilla_asignaciones').delete().eq('plantilla_id', id);
-    await supabase.from('rotacion_plantilla_semanas').delete().eq('plantilla_id', id);
-    await supabase.from('rotacion_plantilla_cuadrillas').delete().eq('plantilla_id', id);
+    const { error: delCuad } = await supabase
+      .from('rotacion_plantilla_cuadrillas')
+      .delete()
+      .eq('plantilla_id', id);
+    if (delCuad) return { ok: false, message: delCuad.message };
   } else {
     let data: { id: string } | null = null;
     let error: { message: string } | null = null;
@@ -280,9 +435,10 @@ export async function saveRotacionPlantillaAction(
       activo: true,
       creado_por: userId,
     };
+    const plantillaColumnas = mergeSandboxColumnasVista(sandbox.cuadrillas, sandbox.columnasVista);
     const withColumnas = await supabase
       .from('rotacion_plantillas')
-      .insert({ ...insertBase, columnas_vista: normalizeColumnasVista(sandbox.columnasVista) })
+      .insert({ ...insertBase, columnas_vista: plantillaColumnas })
       .select('id')
       .single();
     if (withColumnas.error?.message?.includes('columnas_vista')) {
@@ -299,17 +455,36 @@ export async function saveRotacionPlantillaAction(
     id = data.id;
   }
 
+  const plantillaColumnas = mergeSandboxColumnasVista(sandbox.cuadrillas, sandbox.columnasVista);
+
   for (const cuadrilla of sandbox.cuadrillas) {
-    const { data: cuadrillaRow, error: cuadrillaError } = await supabase
+    const columnas = columnasVistaForCuadrilla(cuadrilla, plantillaColumnas);
+    const cuadrillaBase = {
+      plantilla_id: id,
+      nombre: cuadrilla.nombre.trim(),
+      asignacion_key: cuadrilla.asignacionKey.trim() || null,
+      orden: cuadrilla.orden,
+    };
+    let cuadrillaRow: { id: string } | null = null;
+    let cuadrillaError: { message: string } | null = null;
+
+    const withColumnas = await supabase
       .from('rotacion_plantilla_cuadrillas')
-      .insert({
-        plantilla_id: id,
-        nombre: cuadrilla.nombre.trim(),
-        asignacion_key: cuadrilla.asignacionKey.trim() || null,
-        orden: cuadrilla.orden,
-      })
+      .insert({ ...cuadrillaBase, columnas_vista: columnas })
       .select('id')
       .single();
+    if (withColumnas.error?.message?.includes('columnas_vista')) {
+      const fallback = await supabase
+        .from('rotacion_plantilla_cuadrillas')
+        .insert(cuadrillaBase)
+        .select('id')
+        .single();
+      cuadrillaRow = fallback.data;
+      cuadrillaError = fallback.error;
+    } else {
+      cuadrillaRow = withColumnas.data;
+      cuadrillaError = withColumnas.error;
+    }
 
     if (cuadrillaError || !cuadrillaRow) {
       const message = mapSemanaSaveError(cuadrillaError?.message ?? 'Error guardando cuadrilla.');

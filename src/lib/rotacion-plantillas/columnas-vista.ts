@@ -25,6 +25,30 @@ export function normalizeColumnasVista(raw: unknown): PlantillaColumnaKey[] {
   return keys.length ? keys : [...DEFAULT_COLUMNAS_VISTA];
 }
 
+/** Unión de columnas de todas las cuadrillas (orden del catálogo). */
+export function mergeSandboxColumnasVista(
+  cuadrillas: { columnasVista?: PlantillaColumnaKey[] }[],
+  plantillaFallback?: PlantillaColumnaKey[],
+): PlantillaColumnaKey[] {
+  const fallback = plantillaFallback?.length ? plantillaFallback : [...DEFAULT_COLUMNAS_VISTA];
+  const keys = new Set<PlantillaColumnaKey>();
+  for (const c of cuadrillas) {
+    const cols = c.columnasVista?.length ? c.columnasVista : fallback;
+    cols.forEach((k) => keys.add(k));
+  }
+  if (!keys.size) return normalizeColumnasVista(fallback);
+  return PLANTILLA_COLUMNAS_CATALOGO.map((c) => c.key).filter((k) => keys.has(k));
+}
+
+export function columnasVistaForCuadrilla(
+  cuadrilla: { columnasVista?: PlantillaColumnaKey[] },
+  plantillaFallback: PlantillaColumnaKey[],
+): PlantillaColumnaKey[] {
+  return normalizeColumnasVista(
+    cuadrilla.columnasVista?.length ? cuadrilla.columnasVista : plantillaFallback,
+  );
+}
+
 export function labelColumnaVista(key: PlantillaColumnaKey): string {
   return PLANTILLA_COLUMNAS_CATALOGO.find((c) => c.key === key)?.label ?? key;
 }
