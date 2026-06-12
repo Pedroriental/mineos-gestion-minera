@@ -232,9 +232,9 @@ export function RotacionPlantillaSandboxModal({
             </p>
           </div>
 
-          <div className="flex-1 space-y-5 overflow-y-auto px-3.5 py-3.5">
-            <div className={cn(mineosPanel('neutral'), '!p-3')}>
-              <label className={cn('mb-2 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
+          <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-4">
+            <div className={cn(mineosPanel('neutral'), '!p-4')}>
+              <label className={cn('mb-3 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
                 Nombre plantilla
               </label>
               <input
@@ -246,8 +246,8 @@ export function RotacionPlantillaSandboxModal({
               />
             </div>
 
-            <div className={cn(mineosPanel('neutral'), '!mt-1 !p-3')}>
-              <label className={cn('mb-2 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
+            <div className={cn(mineosPanel('neutral'), '!p-4')}>
+              <label className={cn('mb-3 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
                 Descripción de plantilla
               </label>
               <textarea
@@ -260,8 +260,8 @@ export function RotacionPlantillaSandboxModal({
               />
             </div>
 
-            <div className={cn(mineosPanel('neutral'), '!p-3')}>
-              <span className={cn('mb-2 block text-[9px] font-bold uppercase', mineosLabelAccent('neutral'))}>
+            <div className={cn(mineosPanel('neutral'), '!p-4')}>
+              <span className={cn('mb-3 block text-[9px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                 {cuadrillaActiva ? `Columnas — ${cuadrillaActiva.nombre}` : 'Columnas planilla'}
               </span>
               <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
@@ -281,8 +281,8 @@ export function RotacionPlantillaSandboxModal({
             </div>
 
             {canEdit && (
-              <div className="pt-0.5">
-                <label className={cn('mb-2 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
+              <div className={cn(mineosPanel('neutral'), '!p-4')}>
+                <label className={cn('mb-3 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
                   Copiar modelo de plantilla
                 </label>
                 <AppSelect
@@ -295,7 +295,7 @@ export function RotacionPlantillaSandboxModal({
             )}
 
             {/* Cuadrillas */}
-            <div className="space-y-3">
+            <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between gap-3">
                 <span className={cn('text-[10px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                   Cuadrillas / secciones
@@ -310,7 +310,7 @@ export function RotacionPlantillaSandboxModal({
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2 pt-0.5">
+              <div className="flex flex-wrap gap-2">
                 {sandbox.cuadrillas.map((c) => (
                   <button
                     key={c.id}
@@ -331,8 +331,8 @@ export function RotacionPlantillaSandboxModal({
             </div>
 
             {cuadrillaActiva && cuadrillaId && (
-              <div className="space-y-4">
-                <div className={cn(mineosPanel('neutral'), 'space-y-3 !p-3.5')}>
+              <div className="flex flex-col gap-6">
+                <div className={cn(mineosPanel('neutral'), 'flex flex-col gap-3 !p-4')}>
                   <label className={cn('block text-[10px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                     Cuadrilla activa
                   </label>
@@ -393,7 +393,7 @@ export function RotacionPlantillaSandboxModal({
                   )}
                 </div>
 
-                <div className="space-y-3">
+                <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className={cn('text-[10px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                       Semanas — {cuadrillaActiva.nombre}
@@ -408,11 +408,11 @@ export function RotacionPlantillaSandboxModal({
                       </button>
                     )}
                   </div>
-                  <div className="space-y-2.5">
+                  <div className="flex flex-col gap-3">
                     {cuadrillaActiva.semanas.map((sem) => (
                       <div
                         key={sem.id}
-                        className={cn(mineosPanel('neutral'), 'space-y-2.5 !p-3')}
+                        className={cn(mineosPanel('neutral'), 'flex flex-col gap-3 !p-4')}
                       >
                         <div className="flex items-center gap-2">
                           <input
