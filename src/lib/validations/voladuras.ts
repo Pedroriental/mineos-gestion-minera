@@ -6,12 +6,27 @@
  * coercionan a number con z.coerce.number() antes de guardar.
  */
 import { z } from 'zod';
+import {
+  aggregateChupisLineas,
+  aggregateHuecosLineas,
+} from '@/lib/voladuras-huecos-chupis';
 
 // ── Pausa de barrenado (JSON embebido) ────────────────────────
 const PausaBarrenadoSchema = z.object({
   hora_inicio: z.string().optional().nullable(),
   hora_fin: z.string().optional().nullable(),
   motivo: z.string().max(200, 'Motivo muy largo').default(''),
+});
+
+const LineaHuecoSchema = z.object({
+  tipo: z.enum(['hueco', 'hueco_salida']),
+  cantidad: z.coerce.number({ message: 'Debe ser un número' }).int('Debe ser entero').min(0),
+  pies: z.coerce.number({ message: 'Debe ser un número' }).int('Debe ser entero').min(0),
+});
+
+const LineaChupiSchema = z.object({
+  cantidad: z.coerce.number({ message: 'Debe ser un número' }).int('Debe ser entero').min(0),
+  pies: z.coerce.number({ message: 'Debe ser un número' }).int('Debe ser entero').min(0),
 });
 
 // ── Schema base — crear ───────────────────────────────────────
@@ -75,6 +90,9 @@ export const VoladuraSchema = z.object({
     .min(0)
     .default(0),
 
+  huecos_lineas: z.array(LineaHuecoSchema).optional().default([]),
+  chupis_lineas: z.array(LineaChupiSchema).optional().default([]),
+
   fosforos_lp: z.coerce.number().int().min(0).default(0),
   espaguetis:  z.coerce.number().int().min(0).default(0),
   vitamina_e:  z.coerce.number().int().min(0).default(0),
@@ -106,6 +124,21 @@ export const VoladuraSchema = z.object({
     .nullable(),
 
   registrado_por: z.string().uuid().optional().nullable(),
+}).transform((data) => {
+  const huecosAgg = data.huecos_lineas.length > 0
+    ? aggregateHuecosLineas(data.huecos_lineas)
+    : { cantidad: data.huecos_cantidad, pies: data.huecos_pies };
+  const chupisAgg = data.chupis_lineas.length > 0
+    ? aggregateChupisLineas(data.chupis_lineas)
+    : { cantidad: data.chupis_cantidad, pies: data.chupis_pies };
+
+  return {
+    ...data,
+    huecos_cantidad: huecosAgg.cantidad,
+    huecos_pies: huecosAgg.pies,
+    chupis_cantidad: chupisAgg.cantidad,
+    chupis_pies: chupisAgg.pies,
+  };
 });
 
 // ── Schema para UPDATE — requiere id ─────────────────────────

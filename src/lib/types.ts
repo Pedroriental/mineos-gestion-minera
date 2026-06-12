@@ -360,6 +360,19 @@ export interface PausaBarrenado {
   motivo: string;
 }
 
+export type TipoHuecoVoladura = 'hueco' | 'hueco_salida';
+
+export interface LineaHuecoVoladura {
+  tipo: TipoHuecoVoladura;
+  cantidad: number;
+  pies: number;
+}
+
+export interface LineaChupiVoladura {
+  cantidad: number;
+  pies: number;
+}
+
 export interface ReporteVoladura {
   id: string;
   fecha: string;
@@ -378,6 +391,8 @@ export interface ReporteVoladura {
   huecos_pies: number;
   chupis_cantidad: number;
   chupis_pies: number;
+  huecos_lineas?: LineaHuecoVoladura[];
+  chupis_lineas?: LineaChupiVoladura[];
   fosforos_lp: number;
   espaguetis: number;
   vitamina_e: number;

@@ -23,6 +23,17 @@ import { SheetIconBadge } from '@/components/mobile';
 import { GerencialMobileKpiStrip } from '@/components/gerencial/GerencialMobileChrome';
 import { GerencialRecordDetailModal } from '@/components/gerencial/GerencialRecordDetailModal';
 import { VoladurasRecordDetail } from '@/components/gerencial/gerencial-record-details';
+import { VoladurasHuecosChupisEditor } from '@/components/voladuras/VoladurasHuecosChupisEditor';
+import {
+  chupisLineasFromRecord,
+  emptyChupiLinea,
+  emptyHuecoLinea,
+  huecosLineasFromRecord,
+  normalizeChupisLineas,
+  normalizeHuecosLineas,
+  type ChupiLineaForm,
+  type HuecoLineaForm,
+} from '@/lib/voladuras-huecos-chupis';
 import { gerencialTableRowClassName, handleRowDetailKeyDown } from '@/components/gerencial/gerencial-table-row';
 import { fmtGerencialDate } from '@/lib/gerencial-format';
 import EmptyState from '@/components/EmptyState';
@@ -114,6 +125,8 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
   const [viewItem, setViewItem] = useState<ReporteVoladura | null>(null);
   const [editItem, setEditItem] = useState<ReporteVoladura | null>(null);
   const [pausas, setPausas] = useState<PausaBarrenado[]>([]);
+  const [huecosLineas, setHuecosLineas] = useState<HuecoLineaForm[]>([emptyHuecoLinea()]);
+  const [chupisLineas, setChupisLineas] = useState<ChupiLineaForm[]>([emptyChupiLinea()]);
   const [isPending, startTransition] = useTransition();
   const confirmDialog = useConfirm();
 
@@ -123,8 +136,6 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
     mina: '', responsable: '',
     hora_inicio_barrenado: '', hora_fin_barrenado: '',
     numero_disparo: '', hora_disparo: '', vertical_disparo: '', sin_novedad: true,
-    huecos_cantidad: '', huecos_pies: '',
-    chupis_cantidad: '', chupis_pies: '',
     fosforos_lp: '', espaguetis: '', vitamina_e: '', trenza_metros: '', arroz_kg: '',
     observaciones_disparo: '', observaciones: '',
   };
@@ -296,12 +307,16 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
     setEditItem(null);
     setForm({ ...emptyForm, fecha: selectedDate === 'todos' ? new Date().toISOString().slice(0, 10) : selectedDate });
     setPausas([]);
+    setHuecosLineas([emptyHuecoLinea()]);
+    setChupisLineas([emptyChupiLinea()]);
     setShowModal(true);
   };
 
   const openEdit = (item: ReporteVoladura) => {
     setEditItem(item);
     setPausas(item.pausas_barrenado || []);
+    setHuecosLineas(huecosLineasFromRecord(item));
+    setChupisLineas(chupisLineasFromRecord(item));
     setForm({
       fecha: item.fecha, turno: item.turno,
       mina: resolveBibliotecaLabel(biblioteca, 'minas', item.mina) || '',
@@ -312,10 +327,6 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
       hora_disparo: normalizeAppTimeValue(item.hora_disparo),
       vertical_disparo: item.vertical_disparo || '',
       sin_novedad: item.sin_novedad,
-      huecos_cantidad: String(item.huecos_cantidad),
-      huecos_pies: String(item.huecos_pies),
-      chupis_cantidad: String(item.chupis_cantidad),
-      chupis_pies: String(item.chupis_pies),
       fosforos_lp: String(item.fosforos_lp),
       espaguetis: String(item.espaguetis),
       vitamina_e: String(item.vitamina_e),
@@ -337,6 +348,8 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
         mina: resolveBibliotecaLabel(biblioteca, 'minas', form.mina) || undefined,
         vertical_disparo: form.vertical_disparo || undefined,
         pausas_barrenado: pausasValidas.length > 0 ? pausasValidas : null,
+        huecos_lineas: normalizeHuecosLineas(huecosLineas),
+        chupis_lineas: normalizeChupisLineas(chupisLineas),
         registrado_por: user?.id,
       };
 
@@ -886,30 +899,12 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
               </div>
             </div>
 
-            <div className="flex flex-col gap-2.5">
-              <h3 className={mineosModalHeading('general')}>
-                <span>🕳 Huecos & Chupis</span>
-                <span className={mineosModalDivider('general')} />
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div className={mineosPanel('general')}>
-                  <label className={mineosLabelAccent('general')}>Huecos cantidad</label>
-                  <input type="number" value={form.huecos_cantidad} onChange={(e) => set('huecos_cantidad', e.target.value)} className="input-field font-bold text-lg" />
-                </div>
-                <div className={mineosPanel('general')}>
-                  <label className={mineosLabelAccent('general')}>Pies / Hueco</label>
-                  <input type="number" value={form.huecos_pies} onChange={(e) => set('huecos_pies', e.target.value)} className="input-field" />
-                </div>
-                <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
-                  <label className="input-label !text-amber-400">Chupis cantidad</label>
-                  <input type="number" value={form.chupis_cantidad} onChange={(e) => set('chupis_cantidad', e.target.value)} className="input-field font-bold text-lg" />
-                </div>
-                <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
-                  <label className="input-label !text-amber-400">Pies / Chupi</label>
-                  <input type="number" value={form.chupis_pies} onChange={(e) => set('chupis_pies', e.target.value)} className="input-field" />
-                </div>
-              </div>
-            </div>
+            <VoladurasHuecosChupisEditor
+              huecos={huecosLineas}
+              chupis={chupisLineas}
+              onHuecosChange={setHuecosLineas}
+              onChupisChange={setChupisLineas}
+            />
           </section>
 
           <section className="voladuras-page__modal-col flex flex-col gap-2.5">

@@ -8,6 +8,11 @@ import type {
   ReporteAcarreo,
 } from '@/lib/types';
 import {
+  labelTipoHueco,
+  resolveChupisLineas,
+  resolveHuecosLineas,
+} from '@/lib/voladuras-huecos-chupis';
+import {
   fmtGerencialDate,
   fmtGerencialDateTime,
   fmtGerencialNum,
@@ -34,6 +39,8 @@ function fmtTimeField(value?: string | null) {
 
 export function VoladurasRecordDetail({ record }: { record: ReporteVoladura }) {
   const pausas = record.pausas_barrenado ?? [];
+  const huecosLineas = resolveHuecosLineas(record);
+  const chupisLineas = resolveChupisLineas(record);
 
   return (
     <>
@@ -80,11 +87,38 @@ export function VoladurasRecordDetail({ record }: { record: ReporteVoladura }) {
       </GerencialDetailSection>
 
       <GerencialDetailSection title="Huecos y chupis">
-        <GerencialDetailField label="Huecos cantidad" value={formatOptionalNumber(record.huecos_cantidad, 0)} highlight />
-        <GerencialDetailField label="Pies / hueco" value={formatOptionalNumber(record.huecos_pies, 0)} />
-        <GerencialDetailField label="Chupis cantidad" value={formatOptionalNumber(record.chupis_cantidad, 0)} highlight />
-        <GerencialDetailField label="Pies / chupi" value={formatOptionalNumber(record.chupis_pies, 0)} />
+        <GerencialDetailField label="Huecos total" value={formatOptionalNumber(record.huecos_cantidad, 0)} highlight />
+        <GerencialDetailField label="Chupis total" value={formatOptionalNumber(record.chupis_cantidad, 0)} highlight />
       </GerencialDetailSection>
+
+      {huecosLineas.length > 0 && (
+        <section>
+          <h3 className="gastos-detail-label mb-2 text-[10px] font-bold uppercase tracking-wider">Detalle de huecos</h3>
+          <div className="space-y-2">
+            {huecosLineas.map((linea, index) => (
+              <div key={`hueco-detail-${index}`} className="app-detail-panel grid grid-cols-3 gap-3 rounded-xl p-3">
+                <GerencialDetailField label="Tipo" value={labelTipoHueco(linea.tipo)} />
+                <GerencialDetailField label="Cantidad" value={formatOptionalNumber(linea.cantidad, 0)} highlight />
+                <GerencialDetailField label="Pies / hueco" value={formatOptionalNumber(linea.pies, 0)} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {chupisLineas.length > 0 && (
+        <section>
+          <h3 className="gastos-detail-label mb-2 text-[10px] font-bold uppercase tracking-wider">Detalle de chupis</h3>
+          <div className="space-y-2">
+            {chupisLineas.map((linea, index) => (
+              <div key={`chupi-detail-${index}`} className="app-detail-panel grid grid-cols-2 gap-3 rounded-xl p-3">
+                <GerencialDetailField label="Pies / chupi" value={formatOptionalNumber(linea.pies, 0)} />
+                <GerencialDetailField label="Cantidad" value={formatOptionalNumber(linea.cantidad, 0)} highlight />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {(record.observaciones_disparo?.trim() || record.observaciones?.trim()) && (
         <GerencialDetailSection title="Observaciones">
