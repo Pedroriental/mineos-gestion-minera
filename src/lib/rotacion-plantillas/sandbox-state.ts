@@ -1,4 +1,4 @@
-import { DEFAULT_COLUMNAS_VISTA } from '@/lib/rotacion-plantillas/columnas-vista';
+import { DEFAULT_COLUMNAS_VISTA, type PlantillaColumnaKey } from '@/lib/rotacion-plantillas/columnas-vista';
 import { getGrupoNominaKey } from '@/lib/personal-master';
 import type { Personal } from '@/lib/types';
 import type {
@@ -22,6 +22,7 @@ export type SandboxAction =
   | { type: 'ADD_CUADRILLA'; payload?: { nombre?: string; asignacionKey?: string } }
   | { type: 'REMOVE_CUADRILLA'; payload: { id: string } }
   | { type: 'UPDATE_CUADRILLA'; payload: { id: string; nombre?: string; asignacionKey?: string } }
+  | { type: 'SET_CUADRILLA_COLUMNAS'; payload: { id: string; columnasVista: PlantillaColumnaKey[] } }
   | { type: 'REORDER_CUADRILLA'; payload: { id: string; direction: 'up' | 'down' } }
   | { type: 'ADD_SEMANA'; payload: { cuadrillaId: string; nombre?: string; estatusDefault?: EstatusRotacionPlantilla } }
   | { type: 'REMOVE_SEMANA'; payload: { cuadrillaId: string; id: string } }
@@ -78,6 +79,7 @@ export function createEmptyCuadrilla(orden = 0, nombre?: string): RotacionCuadri
     orden,
     semanas: [createDefaultSemana()],
     filas: [],
+    columnasVista: [...DEFAULT_COLUMNAS_VISTA],
   };
 }
 
@@ -100,25 +102,28 @@ export function normalizeSandbox(
   area = 'mina',
 ): RotacionPlantillaSandbox {
   if (raw.cuadrillas?.length) {
+    const fallbackColumnas = raw.columnasVista?.length ? raw.columnasVista : [...DEFAULT_COLUMNAS_VISTA];
     return {
       nombre: raw.nombre ?? '',
       descripcion: raw.descripcion ?? '',
       area: raw.area ?? area,
-      columnasVista: raw.columnasVista?.length ? raw.columnasVista : [...DEFAULT_COLUMNAS_VISTA],
+      columnasVista: fallbackColumnas,
       cuadrillas: raw.cuadrillas.map((c, i) => ({
         ...c,
         orden: c.orden ?? i,
         semanas: reindexSemanas(c.semanas ?? []),
         filas: c.filas ?? [],
+        columnasVista: c.columnasVista?.length ? c.columnasVista : fallbackColumnas,
       })),
     };
   }
 
+  const fallbackColumnas = raw.columnasVista?.length ? raw.columnasVista : [...DEFAULT_COLUMNAS_VISTA];
   return {
     nombre: raw.nombre ?? '',
     descripcion: raw.descripcion ?? '',
     area: raw.area ?? area,
-    columnasVista: raw.columnasVista?.length ? raw.columnasVista : [...DEFAULT_COLUMNAS_VISTA],
+    columnasVista: fallbackColumnas,
     cuadrillas: [
       {
         id: newId(),
@@ -127,6 +132,7 @@ export function normalizeSandbox(
         orden: 0,
         semanas: reindexSemanas(raw.semanas?.length ? raw.semanas : [createDefaultSemana()]),
         filas: raw.filas ?? [],
+        columnasVista: fallbackColumnas,
       },
     ],
   };
@@ -207,6 +213,15 @@ export function sandboxReducer(
           ...c,
           nombre: action.payload.nombre ?? c.nombre,
           asignacionKey: action.payload.asignacionKey ?? c.asignacionKey,
+        })),
+      };
+
+    case 'SET_CUADRILLA_COLUMNAS':
+      return {
+        ...state,
+        cuadrillas: mapCuadrilla(state.cuadrillas, action.payload.id, (c) => ({
+          ...c,
+          columnasVista: action.payload.columnasVista,
         })),
       };
 

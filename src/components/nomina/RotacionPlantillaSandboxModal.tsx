@@ -193,11 +193,12 @@ export function RotacionPlantillaSandboxModal({
   const cuadrillaId = cuadrillaActiva?.id;
 
   const columnasActivas = useMemo(
-    () => normalizeColumnasVista(sandbox.columnasVista),
-    [sandbox.columnasVista],
+    () => normalizeColumnasVista(cuadrillaActiva?.columnasVista ?? sandbox.columnasVista),
+    [cuadrillaActiva?.columnasVista, sandbox.columnasVista],
   );
 
   function toggleColumna(key: PlantillaColumnaKey, checked: boolean) {
+    if (!cuadrillaId) return;
     const next = checked
       ? [...columnasActivas, key]
       : columnasActivas.filter((k) => k !== key);
@@ -205,7 +206,7 @@ export function RotacionPlantillaSandboxModal({
       toast.error('Debe quedar al menos una columna visible.');
       return;
     }
-    dispatch({ type: 'SET_COLUMNAS_VISTA', payload: next });
+    dispatch({ type: 'SET_CUADRILLA_COLUMNAS', payload: { id: cuadrillaId, columnasVista: next } });
   }
 
   return (
@@ -258,7 +259,7 @@ export function RotacionPlantillaSandboxModal({
 
             <div className={cn(mineosPanel('neutral'), '!p-2')}>
               <span className={cn('mb-1.5 block text-[9px] font-bold uppercase', mineosLabelAccent('neutral'))}>
-                Columnas planilla
+                {cuadrillaActiva ? `Columnas — ${cuadrillaActiva.nombre}` : 'Columnas planilla'}
               </span>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1">
                 {PLANTILLA_COLUMNAS_CATALOGO.map((col) => (

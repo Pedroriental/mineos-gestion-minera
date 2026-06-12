@@ -32,6 +32,8 @@ export type RotacionCuadrilla = {
   orden: number;
   semanas: RotacionSemanaColumn[];
   filas: RotacionTrabajadorFila[];
+  /** Columnas opcionales para esta cuadrilla específica (ignora sandbox.columnasVista si existe) */
+  columnasVista?: PlantillaColumnaKey[];
 };
 
 export type RotacionPlantillaSandbox = {

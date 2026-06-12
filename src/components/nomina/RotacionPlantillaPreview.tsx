@@ -77,9 +77,10 @@ function CuadrillaPreviewSection({
   columnas: PlantillaColumnaKey[];
 }) {
   const semanas = cuadrilla.semanas;
-  const dataCols = columnas.filter((k) => k !== 'subtotal_semanal' && k !== 'total_periodo');
-  const showSubtotalRow = columnas.includes('subtotal_semanal');
-  const showTotalCol = columnas.includes('total_periodo');
+  const activeCols = cuadrilla.columnasVista?.length ? cuadrilla.columnasVista : columnas;
+  const dataCols = activeCols.filter((k) => k !== 'subtotal_semanal' && k !== 'total_periodo');
+  const showSubtotalRow = activeCols.includes('subtotal_semanal');
+  const showTotalCol = activeCols.includes('total_periodo');
   const minTableWidth = Math.max(
     640,
     dataCols.length * 108 + semanas.length * 112 + (showTotalCol ? 96 : 0) + 48,
