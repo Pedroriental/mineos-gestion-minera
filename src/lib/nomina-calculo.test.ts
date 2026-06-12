@@ -8,11 +8,13 @@ import {
 } from '@/lib/nomina-calculo';
 
 const personal = {
-  esquema_rotacion: 'FIJO_SEMANAL',
+  esquema_rotacion: 'FIJO_SEMANAL' as const,
   rotacion_inicio_fecha: '2026-01-01',
   salario_base: 700,
   salario_libre: 350,
   bono_transporte: 70,
+  area: 'mina' as const,
+  area_detalle: 'extracción',
 };
 
 describe('resolveEstadoYDias', () => {
@@ -102,6 +104,8 @@ describe('calculateExplicitAsistenciaPay plantilla', () => {
     salario_base: 150,
     salario_libre: 150,
     bono_transporte: 0,
+    area: 'administracion' as const,
+    area_detalle: 'Recursos Humanos',
   };
 
   it('falta explícita no paga aunque el esquema personal esté en semana libre', () => {

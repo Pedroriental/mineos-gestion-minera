@@ -11,7 +11,7 @@ import {
   type DistribucionParte,
 } from '@/lib/nomina-distribucion';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
-import { formatNovedadTurnoObsForSave, reposoPagoUnicoMontoFromRow } from '@/lib/nomina-novedad-turno';
+import { formatNovedadTurnoObsForSave, reposoPagoUnicoMontoFromRow, type NominaNovedadTurno, type ReposoModoSueldoSemana } from '@/lib/nomina-novedad-turno';
 import {
   ensureManualVistaPeriodoId,
   findOrCreateNominaSemanaForCierre,
@@ -494,8 +494,8 @@ async function procesarCierreHistoricoManualV3(
     }
     const esSemanaLibre = r.esSemanaLibre ?? r.estadoAsistencia === 'libre';
     const pagoUnicoNovedad = reposoPagoUnicoMontoFromRow({
-      novedadTurno: r.novedadTurno,
-      reposoCondicion: r.reposoCondicion,
+      novedadTurno: r.novedadTurno as NominaNovedadTurno,
+      reposoCondicion: r.reposoCondicion as ReposoModoSueldoSemana | null,
       reposoCompensacionMonto: r.reposoCompensacionMonto,
     });
     const bonificacionesRegistro = (Number(r.bonificaciones) || 0) + pagoUnicoNovedad;
@@ -510,9 +510,9 @@ async function procesarCierreHistoricoManualV3(
       salario_base_calculado: r.salarioBaseCalculado ?? null,
       novedad_turno: r.novedadTurno ?? 'ACTIVO',
       novedad_turno_obs: formatNovedadTurnoObsForSave(
-        r.novedadTurno ?? 'ACTIVO',
+        (r.novedadTurno ?? 'ACTIVO') as NominaNovedadTurno,
         r.novedadTurnoObs ?? '',
-        r.reposoCondicion,
+        r.reposoCondicion as ReposoModoSueldoSemana | null,
         {
           reposoDiasPagados: r.reposoDiasPagados,
           reposoCompensacionMonto: r.reposoCompensacionMonto,

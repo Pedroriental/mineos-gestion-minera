@@ -20,7 +20,7 @@ const compresor = {
   asignacionKey: 'MINA BELÉN - TÉCNICO OPERADOR DE COMPRESOR - TRAB.',
   orden: 0,
   semanas: [{ id: 's1', nombre: 'Semana 1', orden: 0, estatusDefault: 'trabajada_paga' as const }],
-  filas: [{ id: 'f1', personalId: 'p-yosel', orden: 0 }],
+  filas: [{ id: 'f1', personalId: 'p-yosel', orden: 0, celdas: {} }],
 };
 
 const barrenador = {
@@ -37,6 +37,9 @@ const plantilla: RotacionPlantillaRecord = {
   nombre: 'Vertical',
   descripcion: '',
   area: 'mina',
+  activo: true,
+  created_at: '',
+  updated_at: '',
   columnasVista: [],
   cuadrillas: [compresor, barrenador],
 };
@@ -52,6 +55,11 @@ const yosel: Personal = {
   esquema_rotacion: 'FIJO_SEMANAL',
   activo: true,
   estatus: 'ACTIVO',
+  salario_libre: 100,
+  bono_transporte: 0,
+  fecha_ingreso: '2026-01-01',
+  created_at: '',
+  updated_at: '',
 };
 
 describe('asignacionMatchesCuadrilla', () => {
@@ -148,6 +156,7 @@ describe('resolveWorkerRotacionContext', () => {
           posicionActiva: 0,
           estado: 'ACTIVA',
           ciclosCompletados: 0,
+          modoRepeticion: 'continua',
           desfaseInicial: 0,
           semanas: compresor.semanas,
           filas: compresor.filas,

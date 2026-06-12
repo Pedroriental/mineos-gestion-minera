@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/app-toast';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { cn } from '@/lib/utils';
 
 import {
   ASIGNACION_NOMINA_OPCIONES,

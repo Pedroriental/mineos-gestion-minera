@@ -60,7 +60,7 @@ describe('rotacion projection', () => {
       [{ id: 'c1', nombre: 'Vertical 1', asignacion_key: 'Vertical 1' }],
     );
 
-    const ctx = resolveWorkerRotacionContext({ id: 'worker-1' }, snap, '2026-06-02');
+    const ctx = resolveWorkerRotacionContext({ id: 'worker-1', cargo: '', area: 'mina', area_detalle: 'Vertical 1' }, snap, '2026-06-02');
     assert.ok(ctx);
     assert.equal(ctx!.cuadrillaNombre, 'Vertical 1');
     assert.equal(ctx!.estatus, 'libre_paga');
@@ -85,8 +85,8 @@ describe('rotacion projection', () => {
 
     assert.equal(semanaAplicaInstanciaRotacion('2026-05-26', snap), false);
     assert.equal(semanaAplicaInstanciaRotacion('2026-06-09', snap), true);
-    assert.equal(resolveWorkerRotacionContext({ id: 'worker-1' }, snap, '2026-05-26'), null);
-    assert.ok(resolveWorkerRotacionContext({ id: 'worker-1' }, snap, '2026-06-09'));
+    assert.equal(resolveWorkerRotacionContext({ id: 'worker-1', cargo: '', area: 'mina', area_detalle: 'Vertical 1' }, snap, '2026-05-26'), null);
+    assert.ok(resolveWorkerRotacionContext({ id: 'worker-1', cargo: '', area: 'mina', area_detalle: 'Vertical 1' }, snap, '2026-06-09'));
   });
 
   it('avanzarPosicionCuadrilla detecta vuelta completa', () => {

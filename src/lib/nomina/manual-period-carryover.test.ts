@@ -39,8 +39,8 @@ describe('manual-period-carryover', () => {
     assert.equal(draft.novedadTurnoObs, '');
     assert.equal(draft.bonoTransporte, 50);
     assert.equal(draft.bonificaciones, 120);
-    assert.equal(draft.estadoAsistencia, undefined);
-    assert.equal(draft.diasTrabajados, undefined);
+    assert.equal((draft as any).estadoAsistencia, undefined);
+    assert.equal((draft as any).diasTrabajados, undefined);
   });
 
   it('preNominaRowToCarryoverDraft excluye pago único de bonificaciones arrastradas', () => {

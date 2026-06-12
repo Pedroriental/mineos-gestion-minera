@@ -203,7 +203,7 @@ export type ManualPlantillaNominaRow = {
   salarioBaseCalculado: number;
   valesPendientes: NominaVale[];
   totalVales: number;
-  novedadTurno: 'ninguna';
+  novedadTurno: 'ACTIVO';
   novedadTurnoObs: string;
   cicloPosicion: number;
   diasInputBloqueado: boolean;
@@ -266,7 +266,7 @@ export function buildManualExplicitNominaRow(
     salarioBaseCalculado: pay.salarioBaseCalculado,
     valesPendientes: workerVales,
     totalVales,
-    novedadTurno: 'ninguna',
+    novedadTurno: 'ACTIVO',
     novedadTurnoObs: '',
     cicloPosicion: 0,
     diasInputBloqueado: false,
@@ -379,7 +379,7 @@ export function buildManualPlantillaNominaRows(input: {
       salarioBaseCalculado: pay.salarioBaseCalculado,
       valesPendientes: workerVales,
       totalVales,
-      novedadTurno: 'ninguna',
+      novedadTurno: 'ACTIVO',
       novedadTurnoObs: '',
       cicloPosicion: rotacion.posicionCiclo,
       diasInputBloqueado: rotacion.diasInputBloqueado,

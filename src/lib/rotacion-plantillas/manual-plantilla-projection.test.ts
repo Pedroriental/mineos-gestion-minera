@@ -12,6 +12,9 @@ const plantilla: RotacionPlantillaRecord = {
   nombre: 'Vertical',
   descripcion: '',
   area: 'mina',
+  activo: true,
+  created_at: '',
+  updated_at: '',
   columnasVista: [],
   cuadrillas: [
     {
@@ -43,6 +46,11 @@ const worker: Personal = {
   esquema_rotacion: 'FIJO_SEMANAL',
   activo: true,
   estatus: 'ACTIVO',
+  salario_libre: 100,
+  bono_transporte: 0,
+  fecha_ingreso: '2026-01-01',
+  created_at: '',
+  updated_at: '',
 };
 
 describe('buildManualPlantillaNominaRows', () => {
