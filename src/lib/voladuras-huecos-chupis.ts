@@ -123,3 +123,38 @@ export function resolveChupisLineas(record: ReporteVoladura): LineaChupiVoladura
   }
   return [];
 }
+
+export function abbrevTipoHueco(tipo: TipoHuecoVoladura): string {
+  return tipo === 'hueco_salida' ? 'Salida' : 'Hueco';
+}
+
+export interface PerforacionTableDisplay {
+  total: number;
+  lineas: string[];
+}
+
+export function getHuecosTableDisplay(record: ReporteVoladura): PerforacionTableDisplay {
+  const resolved = resolveHuecosLineas(record);
+  const total = Number(record.huecos_cantidad) || resolved.reduce((sum, linea) => sum + linea.cantidad, 0);
+  if (resolved.length === 0) return { total: 0, lineas: [] };
+  return {
+    total,
+    lineas: resolved.map(
+      (linea) => `${linea.cantidad}×${linea.pies}p · ${abbrevTipoHueco(linea.tipo)}`,
+    ),
+  };
+}
+
+export function getChupisTableDisplay(record: ReporteVoladura): PerforacionTableDisplay {
+  const resolved = resolveChupisLineas(record);
+  const total = Number(record.chupis_cantidad) || resolved.reduce((sum, linea) => sum + linea.cantidad, 0);
+  if (resolved.length === 0) return { total: 0, lineas: [] };
+  return {
+    total,
+    lineas: resolved.map((linea) => `${linea.cantidad}×${linea.pies}p`),
+  };
+}
+
+export function formatPerforacionDetallePdf(lineas: string[]): string {
+  return lineas.length > 0 ? lineas.join(' / ') : '—';
+}

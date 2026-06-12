@@ -654,7 +654,14 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                         aria-label={`Ver detalle de voladura del ${fmtGerencialDate(row.original.fecha)}`}
                       >
                         {row.getVisibleCells().map((cell) => (
-                          <td key={cell.id} className="produccion-table-td whitespace-nowrap px-4 py-2.5 text-xs">
+                          <td
+                            key={cell.id}
+                            className={`produccion-table-td px-4 py-2.5 text-xs align-top ${
+                              (cell.column.columnDef.meta as { wrap?: boolean } | undefined)?.wrap
+                                ? 'whitespace-normal'
+                                : 'whitespace-nowrap'
+                            }`}
+                          >
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </td>
                         ))}

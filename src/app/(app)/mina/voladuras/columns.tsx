@@ -4,6 +4,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { MINEOS_TABLE_ACTION_DELETE, MINEOS_TABLE_ACTION_EDIT } from '@/lib/mineos-visual';
 import { formatTime12h } from '@/lib/format-time';
 import type { ReporteVoladura } from '@/lib/types';
+import { VoladurasChupisCell, VoladurasHuecosCell } from '@/components/voladuras/VoladurasPerforacionCell';
 import { Edit2, Trash2 } from 'lucide-react';
 
 const fmtDate = (fecha?: string | null) => {
@@ -14,6 +15,14 @@ const fmtDate = (fecha?: string | null) => {
     year: 'numeric',
   });
 };
+
+const turnoLabel = (val: string) => {
+  if (val === 'dia') return 'Día';
+  if (val === 'noche') return 'Noche';
+  return 'Comp.';
+};
+
+const WRAP_CELL_META = { wrap: true as const };
 
 export const columns = (
   openEdit: (item: ReporteVoladura) => void,
@@ -33,26 +42,34 @@ export const columns = (
     cell: ({ row }) => {
       const val = row.getValue('turno') as string;
       return (
-        <span className="text-xs whitespace-nowrap uppercase font-bold tracking-wider text-white/50 bg-white/[0.04] px-2 py-0.5 rounded-sm">
-          {val === 'dia' ? '☀ Día' : val === 'noche' ? '🌙 Noche' : '🔄 Comp.'}
+        <span className="whitespace-nowrap text-xs font-bold uppercase tracking-wider text-white/50 bg-white/[0.04] px-2 py-0.5 rounded-sm">
+          {turnoLabel(val)}
         </span>
       );
     },
   },
   {
-    accessorKey: 'frente',
-    header: 'Frente',
-    cell: ({ row }) => {
-      const f = row.getValue('frente') as string;
-      return <span className="text-amber-400 font-bold whitespace-nowrap">{f || '—'}</span>;
-    },
-  },
-  {
     accessorKey: 'mina',
     header: 'Mina',
-    cell: ({ row }) => {
-      return <span className="text-white/80 font-medium">{row.getValue('mina') || '—'}</span>;
-    },
+    cell: ({ row }) => (
+      <span className="text-white/80 font-medium">{row.getValue('mina') || '—'}</span>
+    ),
+  },
+  {
+    accessorKey: 'vertical_disparo',
+    header: 'Vertical',
+    cell: ({ row }) => (
+      <span className="text-white/60">{row.original.vertical_disparo || '—'}</span>
+    ),
+  },
+  {
+    accessorKey: 'responsable',
+    header: 'Responsable',
+    cell: ({ row }) => (
+      <span className="max-w-[8rem] truncate text-white/60" title={row.original.responsable || undefined}>
+        {row.original.responsable || '—'}
+      </span>
+    ),
   },
   {
     id: 'disparo',
@@ -60,55 +77,69 @@ export const columns = (
     cell: ({ row }) => {
       const nd = row.original.numero_disparo;
       const hd = row.original.hora_disparo;
-      const vd = row.original.vertical_disparo;
       return (
         <div className="text-white/55 whitespace-nowrap">
           {nd ? `N°${nd}` : '—'}
-          {hd && <span className="text-white/30 text-xs ml-1">— {formatTime12h(hd)}</span>}
-          {vd && <span className="mineos-icon-muted block text-[10px] mt-0.5 opacity-80">{vd}</span>}
+          {hd && <span className="text-white/30 text-xs ml-1">· {formatTime12h(hd)}</span>}
         </div>
       );
     },
   },
   {
     id: 'huecos',
-    header: () => <div className="text-center">Huecos</div>,
-    cell: ({ row }) => (
-      <div className="mineos-cell-general text-center font-semibold">
-        {row.original.huecos_cantidad}{' '}
-        <span className="text-white/30 text-xs">×{row.original.huecos_pies}p</span>
-      </div>
-    ),
+    header: 'Huecos',
+    meta: WRAP_CELL_META,
+    cell: ({ row }) => <VoladurasHuecosCell record={row.original} />,
   },
   {
     id: 'chupis',
-    header: () => <div className="text-center">Chupis</div>,
-    cell: ({ row }) => (
-      <div className="text-center font-semibold text-amber-400">
-        {row.original.chupis_cantidad}{' '}
-        <span className="text-white/30 text-xs">×{row.original.chupis_pies}p</span>
-      </div>
-    ),
+    header: 'Chupis',
+    meta: WRAP_CELL_META,
+    cell: ({ row }) => <VoladurasChupisCell record={row.original} />,
   },
   {
     accessorKey: 'fosforos_lp',
     header: () => <div className="text-center">Fósforos</div>,
-    cell: ({ row }) => <div className="mineos-cell-general text-center">{row.getValue('fosforos_lp')}</div>,
+    cell: ({ row }) => {
+      const value = Number(row.getValue('fosforos_lp')) || 0;
+      return <div className="mineos-cell-general text-center">{value > 0 ? value : '—'}</div>;
+    },
   },
   {
     accessorKey: 'espaguetis',
     header: () => <div className="text-center">Espag.</div>,
-    cell: ({ row }) => <div className="text-center text-white/60">{row.getValue('espaguetis')}</div>,
+    cell: ({ row }) => {
+      const value = Number(row.getValue('espaguetis')) || 0;
+      return <div className="text-center text-white/60">{value > 0 ? value : '—'}</div>;
+    },
   },
   {
     accessorKey: 'vitamina_e',
     header: () => <div className="text-center">Vit. E</div>,
-    cell: ({ row }) => <div className="mineos-cell-general text-center">{row.getValue('vitamina_e')}</div>,
+    cell: ({ row }) => {
+      const value = Number(row.getValue('vitamina_e')) || 0;
+      return <div className="mineos-cell-general text-center">{value > 0 ? value : '—'}</div>;
+    },
+  },
+  {
+    accessorKey: 'trenza_metros',
+    header: () => <div className="text-center">Trenza</div>,
+    cell: ({ row }) => {
+      const value = Number(row.getValue('trenza_metros')) || 0;
+      return <div className="text-center text-white/60">{value > 0 ? `${value} m` : '—'}</div>;
+    },
   },
   {
     accessorKey: 'arroz_kg',
     header: () => <div className="text-right">Arroz (kg)</div>,
-    cell: ({ row }) => <div className="mineos-cell-general text-right font-semibold">{row.getValue('arroz_kg')} kg</div>,
+    cell: ({ row }) => {
+      const value = Number(row.getValue('arroz_kg')) || 0;
+      return (
+        <div className="mineos-cell-general text-right font-semibold">
+          {value > 0 ? `${value} kg` : '—'}
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'sin_novedad',
