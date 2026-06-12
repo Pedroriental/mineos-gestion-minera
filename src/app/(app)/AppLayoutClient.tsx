@@ -182,9 +182,10 @@ export default function AppLayoutClient({
       <>
         <RouteTransitionGuard />
         <Sidebar
-          variant="dashboard"
           mobileOpen={mobileMenuOpen}
           onMobileClose={() => setMobileMenuOpen(false)}
+          onSearchOpen={() => setSearchOpen(true)}
+          alertCount={alerts.length}
         />
         <MobileShell
           header={
@@ -284,11 +285,12 @@ export default function AppLayoutClient({
       {/* ── App Shell — fondo exterior (chrome) + panel de contenido ── */}
       <div className="relative z-10 flex h-full w-full gap-2 p-2 sm:gap-3 sm:p-3 md:gap-3 md:p-4" data-app-shell>
         <Sidebar
-          variant="dashboard"
           expanded={sidebarExpanded}
           onExpandedChange={handleSidebarExpandedChange}
           mobileOpen={mobileMenuOpen}
           onMobileClose={() => setMobileMenuOpen(false)}
+          onSearchOpen={() => setSearchOpen(true)}
+          alertCount={alerts.length}
         />
 
         {/* ── Right column: rounded content card ── */}

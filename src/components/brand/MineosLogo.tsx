@@ -55,10 +55,6 @@ export function MineosLogo({
   );
 }
 
-export function sidebarIconSurface(
-  variant: 'default' | 'dashboard',
-  theme: 'light' | 'dark',
-): BrandSurface {
-  if (variant === 'default') return 'dark';
+export function sidebarIconSurface(theme: 'light' | 'dark'): BrandSurface {
   return theme === 'dark' ? 'dark' : 'light';
 }
