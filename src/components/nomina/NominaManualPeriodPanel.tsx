@@ -16,6 +16,7 @@ import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { AppCheckbox } from '@/components/ui/AppCheckbox';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { consolidarNominaPeriodoAction } from '@/lib/actions/nomina-actions';
+import { ensureManualPeriodoVistaAction } from '@/lib/actions/nomina-v3';
 import {
   buildDefaultWeekColumnAssignment,
   computeManualPeriodProgress,
@@ -239,6 +240,7 @@ export function NominaManualPeriodPanel({
       semanaIds: base.semanaIds ?? [],
       periodoArchivoId: undefined,
       periodoTotalUsd: undefined,
+      periodoVistaId: base.periodoVistaId,
       weekColumnAssignment: buildDefaultWeekColumnAssignment(
         calendarWeeks,
         columnCount || calendarWeeks.length,
@@ -255,6 +257,20 @@ export function NominaManualPeriodPanel({
     };
     onPeriodChange(next, { fromConsolidated: false });
     setDraft(next);
+    startTransition(async () => {
+      const res = await ensureManualPeriodoVistaAction({
+        area,
+        label: next.label,
+        rangeStart: next.rangeStart,
+        rangeEnd: next.rangeEnd,
+        plantillaId: next.plantillaId,
+      });
+      if (res.ok && res.data?.periodoId) {
+        const withDb: ManualNominaPeriod = { ...next, periodoVistaId: res.data.periodoId };
+        onPeriodChange(withDb, { fromConsolidated: false });
+        setDraft(withDb);
+      }
+    });
     const first = firstOpenWeekInPeriod(next, semanas, area);
     if (first) {
       onGoToWeek(first, getWeekEnd(first));

@@ -554,6 +554,44 @@ async function procesarCierreHistoricoManualV3(
   };
 }
 
+/** Crea o reutiliza nomina_periodos para un ciclo manual (aisla cierres por ciclo). */
+export async function ensureManualPeriodoVistaAction(input: {
+  area: string;
+  label: string;
+  rangeStart: string;
+  rangeEnd: string;
+  plantillaId?: string;
+}): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { ok: false, message: 'Debe iniciar sesión.' };
+    }
+
+    const periodoRes = await ensureManualVistaPeriodoId(supabase, {
+      periodo: {
+        label: input.label.trim(),
+        rangeStart: input.rangeStart,
+        rangeEnd: input.rangeEnd,
+        plantillaId: input.plantillaId,
+      },
+      area: input.area,
+      userId: user.id,
+    });
+    if ('error' in periodoRes) {
+      return { ok: false, message: periodoRes.error };
+    }
+    return { ok: true, message: 'Periodo listo.', data: { periodoId: periodoRes.periodoId } };
+  } catch (err) {
+    console.error('[ensureManualPeriodoVistaAction]', err);
+    return { ok: false, message: 'No se pudo preparar el periodo manual.' };
+  }
+}
+
 // ── CIERRE DE NÓMINA V3 (con vales y ajustes de socios) ──────
 // Blindado (Fase 1): Zod estricto + identidad real (auth.getUser) +
 // recálculo server-side de montos + transacción atómica vía RPC.

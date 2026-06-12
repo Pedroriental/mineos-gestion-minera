@@ -23,6 +23,8 @@ export type ManualNominaPeriod = {
   weekColumnCuadrillaNombres?: string[][];
   /** Registro archivado en nomina_periodos (vista manual o consolidado). */
   periodoArchivoId?: string;
+  /** Periodo DB creado al activar el ciclo (aisla cierres por ciclo). */
+  periodoVistaId?: string;
   /** Semanas cerradas que pertenecen solo a este ciclo. */
   semanaIds?: string[];
   /** Total USD archivado del periodo consolidado. */
@@ -60,12 +62,19 @@ export function resetManualPeriodSession(area: string): void {
     localStorage.removeItem(manualPeriodStorageKey(area));
     localStorage.removeItem(`nomina-manual-periods-v3-${area}`);
     localStorage.removeItem(`nomina-manual-period-${area}`);
-    const rosterPrefix = `nomina-manual-week-roster-v1-${area}-`;
-    const draftPrefix = `mineos-nomina-novedad-turno-v1:${area}:`;
+    const rosterPrefix = `nomina-manual-week-roster-v2-${area}-`;
+    const rosterLegacyPrefix = `nomina-manual-week-roster-v1-${area}-`;
+    const draftPrefix = `mineos-nomina-novedad-turno-v2:${area}:`;
+    const draftLegacyPrefix = `mineos-nomina-novedad-turno-v1:${area}:`;
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
       if (!key) continue;
-      if (key.startsWith(rosterPrefix) || key.startsWith(draftPrefix)) {
+      if (
+        key.startsWith(rosterPrefix) ||
+        key.startsWith(rosterLegacyPrefix) ||
+        key.startsWith(draftPrefix) ||
+        key.startsWith(draftLegacyPrefix)
+      ) {
         localStorage.removeItem(key);
       }
     }
@@ -78,9 +87,9 @@ export function resetManualPeriodSession(area: string): void {
 export function clearLocalDraftsForPeriod(area: string, period: ManualNominaPeriod): void {
   if (typeof window === 'undefined') return;
   for (const w of manualPeriodWeekStarts(period.rangeStart, period.rangeEnd)) {
-    clearManualWeekRoster(area, w);
+    clearManualWeekRoster(area, w, period.id);
     try {
-      localStorage.removeItem(nominaNovedadDraftKey(area, w));
+      localStorage.removeItem(nominaNovedadDraftKey(area, w, period.id));
     } catch {
       /* ignore */
     }
@@ -171,11 +180,12 @@ export function resolveClosedSemanaForManualPeriod(
     return candidates.find((s) => s.id && allowed.has(s.id));
   }
 
-  if (period.periodoArchivoId) {
-    return candidates.find((s) => s.periodo_id === period.periodoArchivoId);
+  const periodoDbId = period.periodoVistaId ?? period.periodoArchivoId;
+  if (periodoDbId) {
+    return candidates.find((s) => s.periodo_id === periodoDbId);
   }
 
-  return candidates[0];
+  return undefined;
 }
 
 function filterSemanasForManualPeriod(
@@ -209,10 +219,12 @@ export function attachSemanaToManualPeriod(
 ): ManualNominaPeriod {
   const ids = new Set(period.semanaIds ?? []);
   ids.add(semanaId);
+  const periodoDbId = periodoArchivoId ?? period.periodoArchivoId ?? period.periodoVistaId;
   return {
     ...period,
     semanaIds: [...ids],
-    periodoArchivoId: periodoArchivoId ?? period.periodoArchivoId,
+    periodoArchivoId: periodoDbId,
+    periodoVistaId: periodoDbId,
   };
 }
 
@@ -401,6 +413,10 @@ export function normalizeManualPeriod(
     periodoArchivoId:
       typeof raw.periodoArchivoId === 'string' && raw.periodoArchivoId.trim()
         ? raw.periodoArchivoId
+        : undefined,
+    periodoVistaId:
+      typeof raw.periodoVistaId === 'string' && raw.periodoVistaId.trim()
+        ? raw.periodoVistaId
         : undefined,
     semanaIds: Array.isArray(raw.semanaIds)
       ? raw.semanaIds.filter((id): id is string => typeof id === 'string')

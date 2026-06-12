@@ -78,6 +78,10 @@ describe('manual-period', () => {
       ),
       undefined,
     );
+    assert.equal(
+      resolveClosedSemanaForManualPeriod(period4, semanas, '2026-05-25', 'mina'),
+      undefined,
+    );
   });
 
   it('resolveManualPeriodForWeek prefiere editor sobre histórico en rangos solapados', () => {

@@ -655,6 +655,12 @@ export default function NominaClient({
   );
 
   const isManualPeriodWeek = Boolean(manualPeriodForView);
+  const manualPeriodId = manualPeriodForView?.id ?? null;
+
+  const novedadDraftKeyForWeek = useCallback(
+    (weekStart: string) => nominaNovedadDraftKey(area, weekStart, manualPeriodId),
+    [area, manualPeriodId],
+  );
 
   const manualPlantillaActiva = useMemo(() => {
     if (!isManualPeriodWeek || !manualPeriodForView?.plantillaId) return null;
@@ -830,7 +836,7 @@ export default function NominaClient({
             });
             if (rebuilt.length) {
               const weekDraft = readNominaNovedadDraft(
-                nominaNovedadDraftKey(area, weekRange.inicio),
+                novedadDraftKeyForWeek(weekRange.inicio),
               );
               const nextRow = applyWeekDraft(rebuilt[0], weekRange.inicio, weekDraft[personalId]);
               return prev.map((r) => (r.personal.id === personalId ? nextRow : r));
@@ -854,11 +860,11 @@ export default function NominaClient({
             forceIncludeIds: [personalId],
           });
           if (!built.length) return prev;
-          const weekDraft = readNominaNovedadDraft(nominaNovedadDraftKey(area, weekRange.inicio));
+          const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
           return [...prev, applyWeekDraft(built[0], weekRange.inicio, weekDraft[personalId])];
         }
 
-        const weekDraft = readNominaNovedadDraft(nominaNovedadDraftKey(area, weekRange.inicio));
+        const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
         return [
           ...prev,
           applyWeekDraft(
@@ -880,6 +886,7 @@ export default function NominaClient({
       weekRange.fin,
       buildOperationalNominaRow,
       applyWeekDraft,
+      novedadDraftKeyForWeek,
     ],
   );
 
@@ -890,7 +897,11 @@ export default function NominaClient({
     const initRows = async () => {
       const currentWeekStart = weekRange.inicio;
       const currentWeekEnd = weekRange.fin;
-      let rosterEntries = readManualWeekRosterEntries(area, currentWeekStart);
+      let rosterEntries = readManualWeekRosterEntries(
+        area,
+        currentWeekStart,
+        manualPeriodForView?.id,
+      );
       let weekRoster = rosterEntries.map((e) => e.id);
       const weekRosterSet = new Set(weekRoster);
 
@@ -999,8 +1010,19 @@ export default function NominaClient({
                   const prevRes = await getSemanaRegistrosAction(prevClosed.id);
                   if (prevRes.ok && prevRes.data?.length) {
                     const carryRows = carryoverRowsFromSemanaRegistros(prevRes.data, area);
-                    if (seedManualWeekIfEmpty(area, currentWeekStart, carryRows)) {
-                      rosterEntries = readManualWeekRosterEntries(area, currentWeekStart);
+                    if (
+                      seedManualWeekIfEmpty(
+                        area,
+                        currentWeekStart,
+                        carryRows,
+                        manualPeriodForView.id,
+                      )
+                    ) {
+                      rosterEntries = readManualWeekRosterEntries(
+                        area,
+                        currentWeekStart,
+                        manualPeriodForView.id,
+                      );
                       weekRoster = rosterEntries.map((e) => e.id);
                     }
                   }
@@ -1040,7 +1062,7 @@ export default function NominaClient({
             }
 
             const novedadDraft = readNominaNovedadDraft(
-              nominaNovedadDraftKey(area, currentWeekStart),
+              nominaNovedadDraftKey(area, currentWeekStart, manualPeriodForView.id),
             );
             const baseRows = buildManualPlantillaNominaRows({
               plantilla,
@@ -1169,7 +1191,7 @@ export default function NominaClient({
       } catch { /* silent */ }
 
       const novedadDraft = readNominaNovedadDraft(
-        nominaNovedadDraftKey(area, currentWeekStart),
+        nominaNovedadDraftKey(area, currentWeekStart, manualPeriodForView?.id),
       );
 
       const rows = activeWorkers.map((p) =>
@@ -1203,17 +1225,34 @@ export default function NominaClient({
     const linked = manualPeriodSession.workingWeekPeriodId;
     if (!linked || weekRange.inicio !== temporalCtx.workingWeekStart) return;
     const ids = preNominaRows.map((r) => r.personal.id).filter(Boolean);
-    if (ids.length) mergeManualWeekRosterIds(area, weekRange.inicio, ids);
+    if (ids.length && manualPeriodId) {
+      mergeManualWeekRosterIds(area, weekRange.inicio, ids, manualPeriodId);
+    }
   }, [
     manualPeriodSession.workingWeekPeriodId,
     weekRange.inicio,
     temporalCtx.workingWeekStart,
     area,
     preNominaRows,
+    manualPeriodId,
   ]);
 
-  const semanaActual = semanas.find((r) => r.semana_inicio === weekRange.inicio);
-  const semanaActualProcesada = !!semanaActual;
+  const semanaActual = useMemo(() => {
+    if (isManualPeriodWeek && manualPeriodForView) {
+      return resolveClosedSemanaForManualPeriod(
+        manualPeriodForView,
+        semanas,
+        weekRange.inicio,
+        area,
+      );
+    }
+    return (
+      semanas.find((s) => s.semana_inicio === weekRange.inicio && s.area === area) ??
+      semanas.find((s) => s.semana_inicio === weekRange.inicio)
+    );
+  }, [isManualPeriodWeek, manualPeriodForView, semanas, weekRange.inicio, area]);
+
+  const semanaActualProcesada = Boolean(semanaActual?.id);
 
   useEffect(() => {
     if (!instanciaSnapshot || semanaActualProcesada || preNominaRows.length === 0 || isManualPeriodWeek) {
@@ -1269,7 +1308,7 @@ export default function NominaClient({
       });
       if (!semanaActualProcesada) {
         writeNominaNovedadDraft(
-          nominaNovedadDraftKey(area, weekRange.inicio),
+          novedadDraftKeyForWeek(weekRange.inicio),
           Object.fromEntries(next.map((r) => [r.personal.id, preNominaRowToWeekDraft(r)])),
         );
       }
@@ -1654,7 +1693,7 @@ export default function NominaClient({
         });
         if (res.ok) {
           try {
-            localStorage.removeItem(nominaNovedadDraftKey(area, weekRange.inicio));
+            localStorage.removeItem(novedadDraftKeyForWeek(weekRange.inicio));
             if (isManualPeriodWeek && manualPeriodForView) {
               const closeData = res.data as { semanaId?: string; periodoId?: string } | undefined;
               const closedSemanaId = closeData?.semanaId ?? semanaActual?.id;
@@ -1692,7 +1731,7 @@ export default function NominaClient({
                 bonificaciones: r.bonificaciones,
               }));
               carryManualWeekToNext(area, manualPeriodForView, weekRange.inicio, carryRows);
-              clearManualWeekRoster(area, weekRange.inicio);
+              clearManualWeekRoster(area, weekRange.inicio, manualPeriodForView.id);
             }
           } catch {
             /* ignore */

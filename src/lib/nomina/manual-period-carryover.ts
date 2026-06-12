@@ -72,9 +72,14 @@ export function carryManualWeekToNext(
   const nextWeek = nextWeekInManualPeriod(period, closedWeekStart);
   if (!nextWeek || !rows.length) return null;
 
-  writeManualWeekRosterEntries(area, nextWeek, buildRosterEntriesFromCarryoverRows(rows));
+  writeManualWeekRosterEntries(
+    area,
+    nextWeek,
+    buildRosterEntriesFromCarryoverRows(rows),
+    period.id,
+  );
   writeNominaNovedadDraft(
-    nominaNovedadDraftKey(area, nextWeek),
+    nominaNovedadDraftKey(area, nextWeek, period.id),
     buildCarryoverDraftFromRows(rows),
   );
   return nextWeek;
@@ -161,11 +166,19 @@ export function seedManualWeekIfEmpty(
   area: string,
   weekStart: string,
   rows: ManualWeekCarryoverRow[],
+  periodId: string,
 ): boolean {
-  if (readManualWeekRosterEntries(area, weekStart).length > 0 || !rows.length) return false;
-  writeManualWeekRosterEntries(area, weekStart, buildRosterEntriesFromCarryoverRows(rows));
+  if (readManualWeekRosterEntries(area, weekStart, periodId).length > 0 || !rows.length) {
+    return false;
+  }
+  writeManualWeekRosterEntries(
+    area,
+    weekStart,
+    buildRosterEntriesFromCarryoverRows(rows),
+    periodId,
+  );
   writeNominaNovedadDraft(
-    nominaNovedadDraftKey(area, weekStart),
+    nominaNovedadDraftKey(area, weekStart, periodId),
     buildCarryoverDraftFromRows(rows),
   );
   return true;

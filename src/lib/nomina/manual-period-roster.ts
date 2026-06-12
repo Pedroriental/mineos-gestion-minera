@@ -5,7 +5,14 @@ export type ManualWeekRosterEntry = {
   areaDetalle?: string;
 };
 
-export function manualWeekRosterKey(area: string, weekStart: string): string {
+export function manualWeekRosterKey(
+  area: string,
+  weekStart: string,
+  periodId?: string | null,
+): string {
+  if (periodId) {
+    return `nomina-manual-week-roster-v2-${area}-${periodId}-${weekStart}`;
+  }
   return `nomina-manual-week-roster-v1-${area}-${weekStart}`;
 }
 
@@ -22,14 +29,9 @@ function normalizeRosterEntry(raw: unknown): ManualWeekRosterEntry | null {
   return { id, areaDetalle };
 }
 
-export function readManualWeekRosterEntries(
-  area: string,
-  weekStart: string,
-): ManualWeekRosterEntry[] {
-  if (typeof window === 'undefined') return [];
+function parseRosterRaw(raw: string | null): ManualWeekRosterEntry[] {
+  if (!raw) return [];
   try {
-    const raw = localStorage.getItem(manualWeekRosterKey(area, weekStart));
-    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     const out: ManualWeekRosterEntry[] = [];
@@ -43,14 +45,32 @@ export function readManualWeekRosterEntries(
   }
 }
 
-export function readManualWeekRoster(area: string, weekStart: string): string[] {
-  return readManualWeekRosterEntries(area, weekStart).map((e) => e.id);
+export function readManualWeekRosterEntries(
+  area: string,
+  weekStart: string,
+  periodId?: string | null,
+): ManualWeekRosterEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return parseRosterRaw(localStorage.getItem(manualWeekRosterKey(area, weekStart, periodId)));
+  } catch {
+    return [];
+  }
+}
+
+export function readManualWeekRoster(
+  area: string,
+  weekStart: string,
+  periodId?: string | null,
+): string[] {
+  return readManualWeekRosterEntries(area, weekStart, periodId).map((e) => e.id);
 }
 
 export function writeManualWeekRosterEntries(
   area: string,
   weekStart: string,
   entries: ManualWeekRosterEntry[],
+  periodId?: string | null,
 ): void {
   if (typeof window === 'undefined') return;
   try {
@@ -61,11 +81,12 @@ export function writeManualWeekRosterEntries(
       if (idx >= 0) unique[idx] = { ...unique[idx], ...entry };
       else unique.push(entry);
     }
+    const key = manualWeekRosterKey(area, weekStart, periodId);
     if (!unique.length) {
-      localStorage.removeItem(manualWeekRosterKey(area, weekStart));
+      localStorage.removeItem(key);
       return;
     }
-    localStorage.setItem(manualWeekRosterKey(area, weekStart), JSON.stringify(unique));
+    localStorage.setItem(key, JSON.stringify(unique));
   } catch {
     /* quota / private mode */
   }
@@ -75,11 +96,13 @@ export function writeManualWeekRoster(
   area: string,
   weekStart: string,
   personalIds: string[],
+  periodId?: string | null,
 ): void {
   writeManualWeekRosterEntries(
     area,
     weekStart,
     personalIds.map((id) => ({ id })),
+    periodId,
   );
 }
 
@@ -88,8 +111,9 @@ export function addToManualWeekRoster(
   weekStart: string,
   personalId: string,
   areaDetalle?: string,
+  periodId?: string | null,
 ): void {
-  const next = readManualWeekRosterEntries(area, weekStart);
+  const next = readManualWeekRosterEntries(area, weekStart, periodId);
   const idx = next.findIndex((e) => e.id === personalId);
   const entry: ManualWeekRosterEntry = {
     id: personalId,
@@ -97,18 +121,20 @@ export function addToManualWeekRoster(
   };
   if (idx >= 0) next[idx] = { ...next[idx], ...entry };
   else next.push(entry);
-  writeManualWeekRosterEntries(area, weekStart, next);
+  writeManualWeekRosterEntries(area, weekStart, next, periodId);
 }
 
 export function removeFromManualWeekRoster(
   area: string,
   weekStart: string,
   personalId: string,
+  periodId?: string | null,
 ): void {
   writeManualWeekRosterEntries(
     area,
     weekStart,
-    readManualWeekRosterEntries(area, weekStart).filter((e) => e.id !== personalId),
+    readManualWeekRosterEntries(area, weekStart, periodId).filter((e) => e.id !== personalId),
+    periodId,
   );
 }
 
@@ -116,21 +142,26 @@ export function mergeManualWeekRosterIds(
   area: string,
   weekStart: string,
   personalIds: string[],
+  periodId?: string | null,
 ): void {
   if (!personalIds.length) return;
-  const existing = readManualWeekRosterEntries(area, weekStart);
+  const existing = readManualWeekRosterEntries(area, weekStart, periodId);
   const byId = new Map(existing.map((e) => [e.id, e]));
   for (const id of personalIds) {
     if (!id) continue;
     if (!byId.has(id)) byId.set(id, { id });
   }
-  writeManualWeekRosterEntries(area, weekStart, [...byId.values()]);
+  writeManualWeekRosterEntries(area, weekStart, [...byId.values()], periodId);
 }
 
-export function clearManualWeekRoster(area: string, weekStart: string): void {
+export function clearManualWeekRoster(
+  area: string,
+  weekStart: string,
+  periodId?: string | null,
+): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.removeItem(manualWeekRosterKey(area, weekStart));
+    localStorage.removeItem(manualWeekRosterKey(area, weekStart, periodId));
   } catch {
     /* ignore */
   }

@@ -284,7 +284,14 @@ export function parseReposoCondicionFromObs(obs: string): {
   };
 }
 
-export function nominaNovedadDraftKey(area: string, weekStart: string): string {
+export function nominaNovedadDraftKey(
+  area: string,
+  weekStart: string,
+  periodId?: string | null,
+): string {
+  if (periodId) {
+    return `mineos-nomina-novedad-turno-v2:${area}:${periodId}:${weekStart}`;
+  }
   return `mineos-nomina-novedad-turno-v1:${area}:${weekStart}`;
 }
 
