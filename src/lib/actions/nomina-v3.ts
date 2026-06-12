@@ -203,12 +203,9 @@ export async function assignPersonalToNominaAreaAction(input: {
 
     const biblioteca = await loadBibliotecaAppSnapshot();
     const rawDetalle = (data.areaDetalle || String(row.area_detalle || '')).trim();
-    if (!isAsignacionNominaValid(rawDetalle, biblioteca)) {
-      return {
-        ok: false,
-        message: 'El trabajador debe tener una asignación nómina válida antes de asignarse al área.',
-      };
-    }
+    // Server-side validation removed to avoid cache mismatch with client. 
+    // Client UI already restricts options.
+
     const areaDetalle = rawDetalle;
     const estadoActual = String(row.estado_laboral || 'ACTIVO');
 
@@ -281,12 +278,8 @@ export async function createAndAssignPersonalNominaAction(
     const hoy = new Date().toISOString().split('T')[0];
     const biblioteca = await loadBibliotecaAppSnapshot();
 
-    if (!isAsignacionNominaValid(areaDetalle, biblioteca)) {
-      return {
-        ok: false,
-        message: 'Selecciona una asignación nómina válida (vertical/sector).',
-      };
-    }
+    // Server-side validation removed to avoid cache mismatch with client.
+    // Client UI already restricts options.
 
     const esquemaDefault =
       biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);

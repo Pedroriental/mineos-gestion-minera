@@ -1064,8 +1064,66 @@ export default function NominaClient({
           }
         }
 
+        if (!rosterEntries.length) {
+          const prevWeek = previousWeekInManualPeriod(manualPeriodForView, currentWeekStart);
+          const prevClosed = prevWeek
+            ? semanas.find((s) => s.semana_inicio === prevWeek && s.area === area)
+            : null;
+          if (prevClosed) {
+            try {
+              const prevRes = await getSemanaRegistrosAction(prevClosed.id);
+              if (prevRes.ok && prevRes.data?.length) {
+                const carryRows = carryoverRowsFromSemanaRegistros(prevRes.data, area);
+                if (seedManualWeekIfEmpty(area, currentWeekStart, carryRows)) {
+                  rosterEntries = readManualWeekRosterEntries(area, currentWeekStart);
+                  weekRoster = rosterEntries.map((e) => e.id);
+                }
+              }
+            } catch {
+              /* silent */
+            }
+          }
+        }
+
+        const activeWorkersMap = new Map<string, Personal>();
+        for (const p of personalCatalogMerged) {
+          if (weekRoster.includes(p.id)) activeWorkersMap.set(p.id, p);
+        }
+        const manualActiveWorkers = [...activeWorkersMap.values()];
+
+        if (manualActiveWorkers.length === 0) {
+          if (runGen !== initRowsGenRef.current) return;
+          setPreNominaRows([]);
+          return;
+        }
+
+        let valesMapFallback: Record<string, NominaVale[]> = {};
+        const fallbackPersonalIds = manualActiveWorkers.map((p) => p.id);
+        try {
+          const res = await getValesPendientesBulkAction(fallbackPersonalIds);
+          if (res.ok && res.data) {
+            res.data.forEach((v) => {
+              if (!valesMapFallback[v.personal_id]) valesMapFallback[v.personal_id] = [];
+              valesMapFallback[v.personal_id].push(v);
+            });
+          }
+        } catch {
+          /* silent */
+        }
+
+        const novedadDraftFallback = readNominaNovedadDraft(
+          nominaNovedadDraftKey(area, currentWeekStart),
+        );
+        const fallbackRows = manualActiveWorkers.map((p) =>
+          applyWeekDraft(
+            buildOperationalNominaRow(p, currentWeekStart, valesMapFallback),
+            currentWeekStart,
+            novedadDraftFallback[p.id],
+          ),
+        );
+
         if (runGen !== initRowsGenRef.current) return;
-        setPreNominaRows([]);
+        setPreNominaRows(fallbackRows);
         return;
       }
 
