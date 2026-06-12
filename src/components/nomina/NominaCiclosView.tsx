@@ -76,7 +76,11 @@ export function NominaCiclosView({
         workingWeekStart={workingWeekStart}
         canEdit={canEdit}
         onEditorPeriodChange={(id) =>
-          onSessionChange({ ...periodsSession, editorPeriodId: id })
+          onSessionChange({
+            ...periodsSession,
+            editorPeriodId: id,
+            historicalPeriodId: id ?? periodsSession.historicalPeriodId,
+          })
         }
         onWorkingWeekPeriodChange={onWorkingWeekPeriodChange}
         onStartNewPeriod={onStartNewPeriod}

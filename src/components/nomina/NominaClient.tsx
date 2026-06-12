@@ -75,6 +75,7 @@ import {
   weekInManualPeriod,
   clearLocalDraftsForPeriod,
   computeManualPeriodProgress,
+  resolveClosedSemanaForManualPeriod,
   type ManualNominaPeriod,
 } from '@/lib/nomina/manual-period';
 import {
@@ -893,9 +894,21 @@ export default function NominaClient({
       let weekRoster = rosterEntries.map((e) => e.id);
       const weekRosterSet = new Set(weekRoster);
 
-      // 1. Check if this is a closed week
-      const closedWeek = semanas.find(s => s.semana_inicio === currentWeekStart);
-      if (closedWeek) {
+      // 1. Check if this is a closed week (solo la del ciclo manual activo, no otra con mismas fechas)
+      const closedWeek =
+        manualPeriodForView && weekInManualPeriod(currentWeekStart, manualPeriodForView)
+          ? resolveClosedSemanaForManualPeriod(
+              manualPeriodForView,
+              semanas,
+              currentWeekStart,
+              area,
+            )
+          : semanas.find(
+              (s) =>
+                s.semana_inicio === currentWeekStart &&
+                (!s.area || s.area === area),
+            );
+      if (closedWeek?.id) {
         setIsHistoricalLoading(true);
         try {
           const res = await getSemanaRegistrosAction(closedWeek.id);
@@ -974,8 +987,13 @@ export default function NominaClient({
             if (!rosterEntries.length) {
               const prevWeek = previousWeekInManualPeriod(manualPeriodForView, currentWeekStart);
               const prevClosed = prevWeek
-                ? semanas.find((s) => s.semana_inicio === prevWeek && s.area === area)
-                : null;
+                ? resolveClosedSemanaForManualPeriod(
+                    manualPeriodForView,
+                    semanas,
+                    prevWeek,
+                    area,
+                  )
+                : undefined;
               if (prevClosed) {
                 try {
                   const prevRes = await getSemanaRegistrosAction(prevClosed.id);

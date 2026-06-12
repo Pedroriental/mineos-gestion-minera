@@ -60,21 +60,30 @@ export function resolveManualPeriodForWeek(
   weekStart: string,
   workingWeekStart: string,
 ): ManualNominaPeriod | null {
-  const contains = (id: string | null) => {
+  const candidates = session.periods.filter((p) => weekInManualPeriod(weekStart, p));
+  if (!candidates.length) return null;
+
+  const pick = (id: string | null | undefined) => {
     const p = getPeriodById(session, id);
     return p && weekInManualPeriod(weekStart, p) ? p : null;
   };
 
   if (weekStart === workingWeekStart) {
-    return contains(session.workingWeekPeriodId);
+    return pick(session.workingWeekPeriodId);
   }
 
-  return (
-    contains(session.historicalPeriodId) ??
-    contains(session.editorPeriodId) ??
-    session.periods.find((p) => weekInManualPeriod(weekStart, p)) ??
-    null
-  );
+  const editor = pick(session.editorPeriodId);
+  const historical = pick(session.historicalPeriodId);
+
+  const byAssignment = candidates.filter((p) => p.weekColumnAssignment?.includes(weekStart));
+  if (byAssignment.length === 1) return byAssignment[0];
+  if (byAssignment.length > 1) {
+    if (editor && byAssignment.some((p) => p.id === editor.id)) return editor;
+    if (historical && byAssignment.some((p) => p.id === historical.id)) return historical;
+    return byAssignment[0];
+  }
+
+  return editor ?? historical ?? candidates[0];
 }
 
 export function upsertPeriodInSession(

@@ -6,6 +6,7 @@ import {
   manualPeriodWeekStarts,
   nextWeekInManualPeriod,
   previousWeekInManualPeriod,
+  resolveClosedSemanaForManualPeriod,
   resolveManualPeriodWeekColumn,
   weekInManualPeriod,
   stripPeriodoLabelPrefix,
@@ -13,6 +14,10 @@ import {
   dedupeNominaPeriodoSummaries,
   manualPeriodoDedupKey,
 } from '@/lib/nomina/manual-period';
+import {
+  resolveManualPeriodForWeek,
+  type ManualPeriodsSession,
+} from '@/lib/nomina/manual-period-session';
 
 describe('manual-period', () => {
   it('manualPeriodWeekStarts filtra semanas dentro del mes', () => {
@@ -41,6 +46,68 @@ describe('manual-period', () => {
     assert.equal(p.weekTotalsUsd[weeks[0]], 1000);
     assert.equal(p.weekTotalsUsd[weeks[1]], 1200);
     assert.equal(p.allClosed, false);
+  });
+
+  it('resolveClosedSemanaForManualPeriod ignora cierre de otro ciclo con misma fecha', () => {
+    const period4 = {
+      id: 'ciclo-4',
+      label: '4ta semana',
+      rangeStart: '2026-05-04',
+      rangeEnd: '2026-05-24',
+      plantillaId: 'pl-1',
+      plantillaNombre: '14x7',
+      semanaIds: ['sem-4'],
+    };
+    const semanas = [
+      { id: 'sem-4', semana_inicio: '2026-05-18', total_pagado: 1200 },
+      { id: 'sem-5', semana_inicio: '2026-05-18', total_pagado: 1989 },
+    ];
+    const hit = resolveClosedSemanaForManualPeriod(period4, semanas, '2026-05-18', 'mina');
+    assert.equal(hit?.id, 'sem-4');
+    assert.equal(hit?.total_pagado, 1200);
+    assert.equal(
+      resolveClosedSemanaForManualPeriod(period4, semanas, '2026-05-18', 'mina')?.id,
+      'sem-4',
+    );
+    assert.equal(
+      resolveClosedSemanaForManualPeriod(
+        { ...period4, semanaIds: [] },
+        semanas,
+        '2026-05-18',
+        'mina',
+      ),
+      undefined,
+    );
+  });
+
+  it('resolveManualPeriodForWeek prefiere editor sobre histórico en rangos solapados', () => {
+    const session: ManualPeriodsSession = {
+      periods: [
+        {
+          id: 'c4',
+          label: '4ta',
+          rangeStart: '2026-05-04',
+          rangeEnd: '2026-05-24',
+          plantillaId: 'pl',
+          plantillaNombre: 'P',
+          semanaIds: [],
+        },
+        {
+          id: 'c5',
+          label: '5ta',
+          rangeStart: '2026-05-18',
+          rangeEnd: '2026-06-14',
+          plantillaId: 'pl',
+          plantillaNombre: 'P',
+          semanaIds: [],
+        },
+      ],
+      editorPeriodId: 'c4',
+      workingWeekPeriodId: null,
+      historicalPeriodId: 'c5',
+    };
+    const resolved = resolveManualPeriodForWeek(session, '2026-05-18', '2026-06-01');
+    assert.equal(resolved?.id, 'c4');
   });
 
   it('computeManualPeriodProgress solo cuenta semanas del ciclo (semanaIds)', () => {

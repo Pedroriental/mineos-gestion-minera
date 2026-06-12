@@ -151,6 +151,33 @@ export function buildDefaultWeekColumnAssignment(
   return out;
 }
 
+/** Semana cerrada que pertenece a este ciclo (no a otro con las mismas fechas). */
+export function resolveClosedSemanaForManualPeriod(
+  period: ManualNominaPeriod | null | undefined,
+  semanas: ManualPeriodSemanaRow[],
+  weekStart: string,
+  area?: string,
+): ManualPeriodSemanaRow | undefined {
+  const candidates = semanas.filter((s) => {
+    if (s.semana_inicio !== weekStart) return false;
+    if (area && s.area && s.area !== area) return false;
+    return true;
+  });
+  if (!candidates.length) return undefined;
+  if (!period) return candidates[0];
+
+  if (period.semanaIds !== undefined) {
+    const allowed = new Set(period.semanaIds);
+    return candidates.find((s) => s.id && allowed.has(s.id));
+  }
+
+  if (period.periodoArchivoId) {
+    return candidates.find((s) => s.periodo_id === period.periodoArchivoId);
+  }
+
+  return candidates[0];
+}
+
 function filterSemanasForManualPeriod(
   period: ManualNominaPeriod,
   semanas: ManualPeriodSemanaRow[],
@@ -377,7 +404,9 @@ export function normalizeManualPeriod(
         : undefined,
     semanaIds: Array.isArray(raw.semanaIds)
       ? raw.semanaIds.filter((id): id is string => typeof id === 'string')
-      : undefined,
+      : raw.periodoArchivoId
+        ? undefined
+        : [],
     periodoTotalUsd:
       typeof raw.periodoTotalUsd === 'number' && raw.periodoTotalUsd > 0
         ? raw.periodoTotalUsd
