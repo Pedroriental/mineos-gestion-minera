@@ -232,7 +232,7 @@ export function RotacionPlantillaSandboxModal({
             </p>
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-3 py-3">
+          <div className="flex-1 space-y-5 overflow-y-auto px-3.5 py-3.5">
             <div className={cn(mineosPanel('neutral'), '!p-3')}>
               <label className={cn('mb-2 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
                 Nombre plantilla
@@ -295,8 +295,8 @@ export function RotacionPlantillaSandboxModal({
             )}
 
             {/* Cuadrillas */}
-            <div>
-              <div className="mb-2 flex items-center justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
                 <span className={cn('text-[10px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                   Cuadrillas / secciones
                 </span>
@@ -304,13 +304,13 @@ export function RotacionPlantillaSandboxModal({
                   <button
                     type="button"
                     onClick={() => dispatch({ type: 'ADD_CUADRILLA' })}
-                    className={cn(mineosBtnSubtleClass('general'), 'text-[10px]')}
+                    className={cn(mineosBtnSubtleClass('general'), 'shrink-0 text-[10px]')}
                   >
                     <Plus className="h-3.5 w-3.5" /> Cuadrilla
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2 pt-0.5">
                 {sandbox.cuadrillas.map((c) => (
                   <button
                     key={c.id}
@@ -331,8 +331,8 @@ export function RotacionPlantillaSandboxModal({
             </div>
 
             {cuadrillaActiva && cuadrillaId && (
-              <>
-                <div className={cn(mineosPanel('neutral'), 'space-y-2.5 !p-3')}>
+              <div className="space-y-4">
+                <div className={cn(mineosPanel('neutral'), 'space-y-3 !p-3.5')}>
                   <label className={cn('block text-[10px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                     Cuadrilla activa
                   </label>
@@ -360,7 +360,7 @@ export function RotacionPlantillaSandboxModal({
                     placeholder="— Asignación nómina (opcional) —"
                   />
                   {canEdit && sandbox.cuadrillas.length > 1 && (
-                    <div className="flex justify-end gap-1 pt-1">
+                    <div className="flex justify-end gap-1.5 pt-2">
                       <button
                         type="button"
                         onClick={() =>
@@ -393,8 +393,8 @@ export function RotacionPlantillaSandboxModal({
                   )}
                 </div>
 
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
                     <span className={cn('text-[10px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                       Semanas — {cuadrillaActiva.nombre}
                     </span>
@@ -402,17 +402,17 @@ export function RotacionPlantillaSandboxModal({
                       <button
                         type="button"
                         onClick={() => dispatch({ type: 'ADD_SEMANA', payload: { cuadrillaId } })}
-                        className={cn(mineosBtnSubtleClass('general'), 'text-[10px]')}
+                        className={cn(mineosBtnSubtleClass('general'), 'shrink-0 text-[10px]')}
                       >
                         <Plus className="h-3.5 w-3.5" /> Semana
                       </button>
                     )}
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {cuadrillaActiva.semanas.map((sem) => (
                       <div
                         key={sem.id}
-                        className={cn(mineosPanel('neutral'), 'space-y-2 !p-2')}
+                        className={cn(mineosPanel('neutral'), 'space-y-2.5 !p-3')}
                       >
                         <div className="flex items-center gap-2">
                           <input
@@ -484,7 +484,7 @@ export function RotacionPlantillaSandboxModal({
                     ))}
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
           </div>
