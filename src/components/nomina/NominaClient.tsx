@@ -61,6 +61,10 @@ import {
   RotacionInstanciaBanner,
 } from '@/components/nomina/RotacionInstanciaPanel';
 import { resolveWorkerRotacionContext } from '@/lib/rotacion-plantillas/projection';
+import {
+  plantillaPermiteAjusteAsistencia,
+  resolveDiasInputBloqueadoPlantilla,
+} from '@/lib/rotacion-plantillas/semana-cierre';
 import { deserializeInstanciaSnapshot } from '@/lib/rotacion-plantillas/instancia-serialize';
 import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
@@ -269,18 +273,29 @@ function recomputePreNominaRow(
   const cicloPosicion = posicionEsquemaPersonal(p, weekStart);
   const esquemaDiasBloqueados = inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
   const fromPlantilla = merged.rotacionFuente === 'plantilla';
-  const diasBloqueados = fromPlantilla
-    ? Boolean(merged.diasInputBloqueado)
-    : esquemaDiasBloqueados;
 
   let estadoAsistencia = merged.estadoAsistencia;
   let diasTrabajados = merged.diasTrabajados;
+
+  const diasBloqueados =
+    fromPlantilla && merged.estatusPlantilla
+      ? resolveDiasInputBloqueadoPlantilla(merged.estatusPlantilla, estadoAsistencia)
+      : fromPlantilla
+        ? Boolean(merged.diasInputBloqueado)
+        : esquemaDiasBloqueados;
 
   if (overrides?.estadoAsistencia !== undefined) {
     if (overrides.diasTrabajados !== undefined && !diasBloqueados) {
       diasTrabajados = overrides.diasTrabajados;
     } else if (!diasBloqueados) {
       diasTrabajados = defaultDiasTrabajados(overrides.estadoAsistencia);
+    } else if (fromPlantilla) {
+      diasTrabajados =
+        overrides.estadoAsistencia === 'trabajada'
+          ? NOMINA_DIAS_POR_SEMANA
+          : overrides.estadoAsistencia === 'no_laborado'
+            ? 0
+            : defaultDiasTrabajados(overrides.estadoAsistencia);
     } else {
       diasTrabajados = diasTrabajadosPorDefectoCiclo(
         p.esquema_rotacion,
@@ -291,6 +306,7 @@ function recomputePreNominaRow(
   } else if (overrides?.diasTrabajados !== undefined && !diasBloqueados) {
     diasTrabajados = overrides.diasTrabajados;
   }
+
   if (diasBloqueados && !fromPlantilla) {
     diasTrabajados = 0;
   }
@@ -365,9 +381,10 @@ function recomputePreNominaRow(
   };
 }
 
-/** Semana fijada por plantilla (p. ej. Lib.Pag): asistencia no editable; pago según estatus. */
+/** Bloquea asistencia salvo en columnas libre/vacaciones (excepciones por trabajador). */
 function asistenciaBloqueadaPorPlantilla(row: PreNominaRowState): boolean {
-  return row.rotacionFuente === 'plantilla' && Boolean(row.diasInputBloqueado);
+  if (row.rotacionFuente !== 'plantilla' || !row.estatusPlantilla) return false;
+  return !plantillaPermiteAjusteAsistencia(row.estatusPlantilla);
 }
 
 const ICONS = {
@@ -733,7 +750,7 @@ export default function NominaClient({
       const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
       const cicloPosicion = rotacion ? rotacion.posicionCiclo : posicionEsquemaPersonal(p, weekStart);
       const diasBloqueados = rotacion
-        ? rotacion.diasInputBloqueado
+        ? resolveDiasInputBloqueadoPlantilla(rotacion.estatus, predicted)
         : inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
       const diasTrabajados = rotacion
         ? rotacion.estadoAsistencia === 'trabajada'
@@ -774,6 +791,7 @@ export default function NominaClient({
         cuadrillaNombre: rotacion?.cuadrillaNombre,
         posicionCiclo: rotacion?.posicionCiclo,
         estatusPlantillaLabel: rotacion?.estatusLabel,
+        estatusPlantilla: rotacion?.estatus,
       };
     },
     [instanciaSnapshot],

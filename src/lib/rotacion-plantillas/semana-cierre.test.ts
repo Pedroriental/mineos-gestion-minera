@@ -4,7 +4,18 @@ import {
   puedeAvanzarASiguienteSemana,
   validarCierreSemanal,
   buildBalanceExport,
+  plantillaPermiteAjusteAsistencia,
+  resolveDiasInputBloqueadoPlantilla,
 } from '@/lib/rotacion-plantillas/semana-cierre';
+
+describe('plantilla asistencia ajustable', () => {
+  it('libre pagada permite ajuste de asistencia', () => {
+    assert.equal(plantillaPermiteAjusteAsistencia('libre_paga'), true);
+    assert.equal(resolveDiasInputBloqueadoPlantilla('libre_paga', 'libre'), true);
+    assert.equal(resolveDiasInputBloqueadoPlantilla('libre_paga', 'no_laborado'), true);
+    assert.equal(resolveDiasInputBloqueadoPlantilla('libre_paga', 'trabajada'), false);
+  });
+});
 
 describe('rotacion plantillas — cierre semanal', () => {
   it('bloquea semana 2 si semana 1 no está auditada', () => {

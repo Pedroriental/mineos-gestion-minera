@@ -3,6 +3,7 @@ import {
   resolveEstatusCuadrilla,
   posicionEfectivaCuadrilla,
 } from '@/lib/rotacion-plantillas/projection';
+import { resolveDiasInputBloqueadoPlantilla } from '@/lib/rotacion-plantillas/semana-cierre';
 import {
   calculateNominaRowPay,
   calculateExplicitAsistenciaPay,
@@ -295,6 +296,7 @@ export type ManualPlantillaNominaRow = {
   cuadrillaNombre: string;
   posicionCiclo: number;
   estatusPlantillaLabel: string;
+  estatusPlantilla?: import('@/lib/rotacion-plantillas/types').EstatusRotacionPlantilla;
 };
 
 /** ¿La fila pertenece a esta cuadrilla de plantilla (por nombre o asignación)? */
@@ -434,7 +436,8 @@ export function buildManualPlantillaNominaRows(input: {
     const workerVales = valesMap[p.id] ?? [];
     const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
     const predicted = rotacion.estadoAsistencia;
-    const diasTrabajados = rotacion.diasInputBloqueado
+    const diasBloqueados = resolveDiasInputBloqueadoPlantilla(rotacion.estatus, predicted);
+    const diasTrabajados = diasBloqueados
       ? predicted === 'trabajada'
         ? NOMINA_DIAS_POR_SEMANA
         : predicted === 'no_laborado'
@@ -448,7 +451,7 @@ export function buildManualPlantillaNominaRows(input: {
       diasTrabajados,
       bonificaciones: 0,
       totalVales,
-      bonoTransporte: rotacion.diasInputBloqueado ? 0 : undefined,
+      bonoTransporte: diasBloqueados ? 0 : undefined,
     });
 
     rows.push({
@@ -466,11 +469,12 @@ export function buildManualPlantillaNominaRows(input: {
       novedadTurno: 'ACTIVO',
       novedadTurnoObs: '',
       cicloPosicion: rotacion.posicionCiclo,
-      diasInputBloqueado: rotacion.diasInputBloqueado,
+      diasInputBloqueado: diasBloqueados,
       rotacionFuente: 'plantilla',
       cuadrillaNombre: rotacion.cuadrillaNombre,
       posicionCiclo: rotacion.posicionCiclo,
       estatusPlantillaLabel: rotacion.estatusLabel,
+      estatusPlantilla: rotacion.estatus,
     });
   }
 
