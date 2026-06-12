@@ -1035,9 +1035,7 @@ export default function NominaClient({
             const plantillaIds = plantilla.cuadrillas.flatMap((c) =>
               c.filas.map((f) => f.personalId),
             );
-            const personalIds = [
-              ...new Set(weekRoster.length > 0 ? weekRoster : [...plantillaIds, ...weekRoster]),
-            ];
+            const personalIds = [...new Set([...plantillaIds, ...weekRoster])];
             const catalogForWeek =
               rosterEntries.length > 0
                 ? mergePersonalCatalogWithRosterEntries(
@@ -1089,15 +1087,31 @@ export default function NominaClient({
         if (!rosterEntries.length) {
           const prevWeek = previousWeekInManualPeriod(manualPeriodForView, currentWeekStart);
           const prevClosed = prevWeek
-            ? semanas.find((s) => s.semana_inicio === prevWeek && s.area === area)
-            : null;
+            ? resolveClosedSemanaForManualPeriod(
+                manualPeriodForView,
+                semanas,
+                prevWeek,
+                area,
+              )
+            : undefined;
           if (prevClosed) {
             try {
               const prevRes = await getSemanaRegistrosAction(prevClosed.id);
               if (prevRes.ok && prevRes.data?.length) {
                 const carryRows = carryoverRowsFromSemanaRegistros(prevRes.data, area);
-                if (seedManualWeekIfEmpty(area, currentWeekStart, carryRows)) {
-                  rosterEntries = readManualWeekRosterEntries(area, currentWeekStart);
+                if (
+                  seedManualWeekIfEmpty(
+                    area,
+                    currentWeekStart,
+                    carryRows,
+                    manualPeriodForView.id,
+                  )
+                ) {
+                  rosterEntries = readManualWeekRosterEntries(
+                    area,
+                    currentWeekStart,
+                    manualPeriodForView.id,
+                  );
                   weekRoster = rosterEntries.map((e) => e.id);
                 }
               }
@@ -1605,8 +1619,8 @@ export default function NominaClient({
     
     // Optimistic update: remover fila inmediatamente del estado local
     setPreNominaRows(prev => prev.filter(row => row.personal.id !== id));
-    if (isManualPeriodWeek) {
-      removeFromManualWeekRoster(area, weekRange.inicio, id);
+    if (isManualPeriodWeek && manualPeriodId) {
+      removeFromManualWeekRoster(area, weekRange.inicio, id, manualPeriodId);
     }
     
     startTransition(async () => {
@@ -2754,10 +2768,17 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         perfilesCompensacion={perfilesCompensacion}
         assignedIds={assignedIds}
         onAssigned={(personalId, areaDetalle) => {
-          addToManualWeekRoster(area, weekRange.inicio, personalId, areaDetalle);
-          setManualRosterTick((t) => t + 1);
+          if (manualPeriodId) {
+            addToManualWeekRoster(
+              area,
+              weekRange.inicio,
+              personalId,
+              areaDetalle,
+              manualPeriodId,
+            );
+          }
           appendAssignedWorker(personalId, areaDetalle);
-          router.refresh();
+          setManualRosterTick((t) => t + 1);
         }}
       />
 
