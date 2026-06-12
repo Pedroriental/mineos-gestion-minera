@@ -236,6 +236,9 @@ export function NominaManualPeriodPanel({
       id: base.id || createManualPeriodId(),
       label: base.label.trim(),
       plantillaNombre: pl?.nombre ?? base.plantillaNombre,
+      semanaIds: base.semanaIds ?? [],
+      periodoArchivoId: undefined,
+      periodoTotalUsd: undefined,
       weekColumnAssignment: buildDefaultWeekColumnAssignment(
         calendarWeeks,
         columnCount || calendarWeeks.length,
@@ -286,6 +289,7 @@ export function NominaManualPeriodPanel({
           week_column_cuadrilla_nombres: pl
             ? cuadrillaNombresForColumns(weekColumnCuadrillas, pl)
             : [],
+          semana_ids: period.semanaIds ?? [],
         },
       });
       if (res.ok) {

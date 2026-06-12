@@ -557,7 +557,7 @@ async function procesarCierreHistoricoManualV3(
   return {
     ok: true,
     message: `Semana histórica cerrada manualmente — $${totalNomina.toFixed(2)} (${rows.length} trabajadores).`,
-    data: { semanaId, totalNomina, distribucion: cierrePayload.lineas },
+    data: { semanaId, periodoId, totalNomina, distribucion: cierrePayload.lineas },
   };
 }
 

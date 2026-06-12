@@ -68,6 +68,8 @@ import type { PerfilCompensacion, PoliticaReposo } from '@/lib/types';
 import { validarCierreRotacionSemanalAction } from '@/lib/actions/rotacion-instancias';
 import { resolveNominaTemporalContext, resolveWorkingWeek, formatTemporalContextHint } from '@/lib/nomina/temporal-context';
 import {
+  attachSemanaToManualPeriod,
+  detachSemanaFromManualPeriod,
   normalizeManualPeriod,
   weekInManualPeriod,
   clearLocalDraftsForPeriod,
@@ -1568,6 +1570,26 @@ export default function NominaClient({
           try {
             localStorage.removeItem(nominaNovedadDraftKey(area, weekRange.inicio));
             if (isManualPeriodWeek && manualPeriodForView) {
+              const closeData = res.data as { semanaId?: string; periodoId?: string } | undefined;
+              const closedSemanaId = closeData?.semanaId ?? semanaActual?.id;
+              if (closedSemanaId) {
+                setManualPeriodSession((prev) => {
+                  const periodId =
+                    prev.editorPeriodId ??
+                    prev.workingWeekPeriodId ??
+                    manualPeriodForView.id;
+                  const period = getPeriodById(prev, periodId);
+                  if (!period) return prev;
+                  return upsertPeriodInSession(
+                    prev,
+                    attachSemanaToManualPeriod(
+                      period,
+                      closedSemanaId,
+                      closeData?.periodoId,
+                    ),
+                  );
+                });
+              }
               const carryRows: ManualWeekCarryoverRow[] = preNominaRows.map((r) => ({
                 personal: {
                   id: r.personal.id,
@@ -1615,6 +1637,11 @@ export default function NominaClient({
         const res = await revertirSemanaAction(sem);
         if (res.ok) {
           if (manualPeriodForView && weekInManualPeriod(sem.semana_inicio, manualPeriodForView)) {
+            setManualPeriodSession((prev) => {
+              const period = getPeriodById(prev, manualPeriodForView.id);
+              if (!period?.semanaIds?.length) return prev;
+              return upsertPeriodInSession(prev, detachSemanaFromManualPeriod(period, sem.id));
+            });
             setConsolidatedLockedIds((prev) => {
               const next = new Set(prev);
               next.delete(manualPeriodForView.id);

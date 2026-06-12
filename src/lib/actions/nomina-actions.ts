@@ -641,12 +641,17 @@ export async function consolidarNominaPeriodoAction(input: {
     const { rangeStart, rangeEnd, userId, area, metadata } = input;
     const label = stripPeriodoLabelPrefix(input.label.trim()) || `Periodo ${rangeStart}`;
 
+    const scopedSemanaIds = Array.isArray(metadata?.semana_ids)
+      ? metadata.semana_ids.filter((id): id is string => typeof id === 'string')
+      : [];
+
     let query = supabase
       .from('nomina_semanas')
       .select('id, total_pagado, semana_inicio, area')
       .gte('semana_inicio', rangeStart)
       .lte('semana_inicio', rangeEnd);
     if (area) query = query.eq('area', area);
+    if (scopedSemanaIds.length) query = query.in('id', scopedSemanaIds);
 
     const { data: semanas } = await query;
 

@@ -32,8 +32,8 @@ describe('manual-period', () => {
     };
     const weeks = manualPeriodWeekStarts(period.rangeStart, period.rangeEnd);
     const semanas = [
-      { semana_inicio: weeks[0], total_pagado: 1000 },
-      { semana_inicio: weeks[1], total_pagado: 1200 },
+      { id: 's-1', semana_inicio: weeks[0], total_pagado: 1000 },
+      { id: 's-2', semana_inicio: weeks[1], total_pagado: 1200 },
     ];
     const p = computeManualPeriodProgress(period, semanas);
     assert.equal(p.closedCount, 2);
@@ -41,6 +41,27 @@ describe('manual-period', () => {
     assert.equal(p.weekTotalsUsd[weeks[0]], 1000);
     assert.equal(p.weekTotalsUsd[weeks[1]], 1200);
     assert.equal(p.allClosed, false);
+  });
+
+  it('computeManualPeriodProgress solo cuenta semanas del ciclo (semanaIds)', () => {
+    const period = {
+      id: 'ciclo-a',
+      label: '4ta semana',
+      rangeStart: '2026-05-04',
+      rangeEnd: '2026-06-24',
+      plantillaId: 'pl-1',
+      plantillaNombre: '14x7',
+      semanaIds: ['sem-a'],
+    };
+    const semanas = [
+      { id: 'sem-a', semana_inicio: '2026-05-11', total_pagado: 1675 },
+      { id: 'sem-b', semana_inicio: '2026-05-18', total_pagado: 1989 },
+    ];
+    const p = computeManualPeriodProgress(period, semanas, 'mina');
+    assert.equal(p.closedCount, 1);
+    assert.equal(p.totalUsd, 1675);
+    assert.equal(p.weekTotalsUsd['2026-05-11'], 1675);
+    assert.equal(p.weekTotalsUsd['2026-05-18'], undefined);
   });
 
   it('formatManualWeekLabel cruza de mes correctamente', () => {

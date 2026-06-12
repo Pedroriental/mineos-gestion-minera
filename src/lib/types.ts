@@ -71,6 +71,7 @@ export interface NominaSemana {
   notas?: string;
   registrado_por?: string;
   gasto_id?: string;
+  periodo_id?: string | null;
   created_at: string;
 }
 

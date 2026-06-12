@@ -112,20 +112,22 @@ export async function ensureManualVistaPeriodoId(
 
   const { data: candidates, error: listError } = await supabase
     .from('nomina_periodos')
-    .select('id, metadata')
+    .select('id, label, metadata')
     .eq('range_start', input.periodo.rangeStart)
     .eq('range_end', input.periodo.rangeEnd)
     .eq('origen', 'consolidacion_manual');
 
   if (listError) return { error: listError.message };
 
-  const existing = (candidates ?? []).find(
-    (row) =>
-      row.metadata &&
-      typeof row.metadata === 'object' &&
-      (row.metadata as Record<string, unknown>).area === input.area &&
-      (row.metadata as Record<string, unknown>).source === 'vista_manual',
-  );
+  const existing = (candidates ?? []).find((row) => {
+    if (!row.metadata || typeof row.metadata !== 'object') return false;
+    const meta = row.metadata as Record<string, unknown>;
+    return (
+      meta.area === input.area &&
+      meta.source === 'vista_manual' &&
+      String(row.label ?? '').trim() === label
+    );
+  });
 
   if (existing?.id) return { periodoId: existing.id };
 
@@ -139,6 +141,7 @@ export async function ensureManualVistaPeriodoId(
       origen: 'consolidacion_manual',
       metadata: {
         ...metaFilter,
+        plantilla_id: input.periodo.plantillaId ?? null,
         plantillaId: input.periodo.plantillaId ?? null,
       },
       created_by: input.userId ?? null,

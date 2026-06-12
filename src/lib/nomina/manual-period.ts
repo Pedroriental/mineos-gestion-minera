@@ -21,6 +21,20 @@ export type ManualNominaPeriod = {
   weekColumnCuadrillas?: string[][];
   /** Nombres de cuadrilla por columna (persistencia estable si cambian los UUID) */
   weekColumnCuadrillaNombres?: string[][];
+  /** Registro archivado en nomina_periodos (vista manual o consolidado). */
+  periodoArchivoId?: string;
+  /** Semanas cerradas que pertenecen solo a este ciclo. */
+  semanaIds?: string[];
+  /** Total USD archivado del periodo consolidado. */
+  periodoTotalUsd?: number;
+};
+
+export type ManualPeriodSemanaRow = {
+  id?: string;
+  semana_inicio: string;
+  total_pagado?: number | string;
+  area?: string;
+  periodo_id?: string | null;
 };
 
 export type ManualPeriodProgress = {
@@ -137,17 +151,59 @@ export function buildDefaultWeekColumnAssignment(
   return out;
 }
 
-export function computeManualPeriodProgress(
+function filterSemanasForManualPeriod(
   period: ManualNominaPeriod,
-  semanas: Array<{ semana_inicio: string; total_pagado?: number | string; area?: string }>,
+  semanas: ManualPeriodSemanaRow[],
   area?: string,
-): ManualPeriodProgress {
-  const weeks = manualPeriodWeekStarts(period.rangeStart, period.rangeEnd);
-  const closedInRange = semanas.filter((s) => {
+): ManualPeriodSemanaRow[] {
+  let scoped = semanas.filter((s) => {
     if (s.semana_inicio < period.rangeStart || s.semana_inicio > period.rangeEnd) return false;
     if (area && s.area && s.area !== area) return false;
     return true;
   });
+
+  if (period.semanaIds !== undefined) {
+    const allowed = new Set(period.semanaIds);
+    scoped = scoped.filter((s) => s.id && allowed.has(s.id));
+    return scoped;
+  }
+
+  if (period.periodoArchivoId) {
+    scoped = scoped.filter((s) => s.periodo_id === period.periodoArchivoId);
+  }
+
+  return scoped;
+}
+
+export function attachSemanaToManualPeriod(
+  period: ManualNominaPeriod,
+  semanaId: string,
+  periodoArchivoId?: string,
+): ManualNominaPeriod {
+  const ids = new Set(period.semanaIds ?? []);
+  ids.add(semanaId);
+  return {
+    ...period,
+    semanaIds: [...ids],
+    periodoArchivoId: periodoArchivoId ?? period.periodoArchivoId,
+  };
+}
+
+export function detachSemanaFromManualPeriod(
+  period: ManualNominaPeriod,
+  semanaId: string,
+): ManualNominaPeriod {
+  if (!period.semanaIds?.length) return period;
+  return { ...period, semanaIds: period.semanaIds.filter((id) => id !== semanaId) };
+}
+
+export function computeManualPeriodProgress(
+  period: ManualNominaPeriod,
+  semanas: ManualPeriodSemanaRow[],
+  area?: string,
+): ManualPeriodProgress {
+  const weeks = manualPeriodWeekStarts(period.rangeStart, period.rangeEnd);
+  const closedInRange = filterSemanasForManualPeriod(period, semanas, area);
   const closedSet = new Set(closedInRange.map((s) => s.semana_inicio));
   const closedWeeks = weeks.filter((w) => closedSet.has(w));
   const openWeeks = weeks.filter((w) => !closedSet.has(w));
@@ -264,8 +320,12 @@ export function manualPeriodFromPeriodoSummary(p: NominaPeriodoSummary): ManualN
       )
     : undefined;
 
+  const semanaIds = Array.isArray(meta.semana_ids)
+    ? meta.semana_ids.filter((id): id is string => typeof id === 'string')
+    : undefined;
+
   return normalizeManualPeriod({
-    id: `arch-${p.rangeStart}-${p.rangeEnd}`,
+    id: `arch-${p.id}`,
     label: stripPeriodoLabelPrefix(p.label),
     rangeStart: p.rangeStart,
     rangeEnd: p.rangeEnd,
@@ -274,6 +334,9 @@ export function manualPeriodFromPeriodoSummary(p: NominaPeriodoSummary): ManualN
     weekColumnAssignment,
     weekColumnCuadrillas,
     weekColumnCuadrillaNombres,
+    periodoArchivoId: p.id,
+    semanaIds,
+    periodoTotalUsd: p.totalUsd > 0 ? p.totalUsd : undefined,
   })!;
 }
 
@@ -308,5 +371,16 @@ export function normalizeManualPeriod(
             : [],
         )
       : undefined,
+    periodoArchivoId:
+      typeof raw.periodoArchivoId === 'string' && raw.periodoArchivoId.trim()
+        ? raw.periodoArchivoId
+        : undefined,
+    semanaIds: Array.isArray(raw.semanaIds)
+      ? raw.semanaIds.filter((id): id is string => typeof id === 'string')
+      : undefined,
+    periodoTotalUsd:
+      typeof raw.periodoTotalUsd === 'number' && raw.periodoTotalUsd > 0
+        ? raw.periodoTotalUsd
+        : undefined,
   };
 }
