@@ -112,8 +112,8 @@ export function VoladurasRecordDetail({ record }: { record: ReporteVoladura }) {
           <div className="space-y-2">
             {chupisLineas.map((linea, index) => (
               <div key={`chupi-detail-${index}`} className="app-detail-panel grid grid-cols-2 gap-3 rounded-xl p-3">
-                <GerencialDetailField label="Pies / chupi" value={formatOptionalNumber(linea.pies, 0)} />
                 <GerencialDetailField label="Cantidad" value={formatOptionalNumber(linea.cantidad, 0)} highlight />
+                <GerencialDetailField label="Pies / chupi" value={formatOptionalNumber(linea.pies, 0)} />
               </div>
             ))}
           </div>

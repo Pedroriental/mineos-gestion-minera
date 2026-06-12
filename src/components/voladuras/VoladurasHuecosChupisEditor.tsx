@@ -114,18 +114,8 @@ export function VoladurasHuecosChupisEditor({
           {chupis.map((linea, index) => (
             <div
               key={`chupi-${index}`}
-              className="grid grid-cols-[minmax(5.5rem,0.85fr)_minmax(0,0.75fr)_auto] items-end gap-2"
+              className="grid grid-cols-[minmax(0,0.75fr)_minmax(5.5rem,0.85fr)_auto] items-end gap-2"
             >
-              <div>
-                <label className="input-label whitespace-nowrap">Pies / chupi</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={linea.pies}
-                  onChange={(e) => updateChupi(index, { pies: e.target.value })}
-                  className="input-field"
-                />
-              </div>
               <div>
                 <label className="input-label">Cantidad</label>
                 <input
@@ -133,6 +123,16 @@ export function VoladurasHuecosChupisEditor({
                   min={0}
                   value={linea.cantidad}
                   onChange={(e) => updateChupi(index, { cantidad: e.target.value })}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="input-label whitespace-nowrap">Pies / chupi</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={linea.pies}
+                  onChange={(e) => updateChupi(index, { pies: e.target.value })}
                   className="input-field"
                 />
               </div>
