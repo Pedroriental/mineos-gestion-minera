@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
-import { Calendar, Printer, RefreshCw, X, Archive } from 'lucide-react';
+import { Calendar, FileSpreadsheet, Printer, RefreshCw, X, Archive } from 'lucide-react';
 import NominaPreviewReport from '@/components/nomina/NominaPreviewReport';
 import NominaPreviewOptionsMenu from '@/components/nomina/NominaPreviewOptionsMenu';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
@@ -278,6 +278,19 @@ export default function NominaVistaPreviaContent({
     setContentZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta)));
   }
 
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExportXlsx() {
+    if (previewEmpty || exporting) return;
+    setExporting(true);
+    try {
+      const { downloadNominaPreviewXlsx } = await import('@/lib/nomina/nomina-export-xlsx');
+      await downloadNominaPreviewXlsx(report, divisionesConfig.divisiones);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function handlePrintPreview() {
     document.body.classList.add('nomina-preview-print-mode');
     const cleanup = () => {
@@ -421,6 +434,16 @@ export default function NominaVistaPreviaContent({
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                 >
                   <RefreshCw className={`h-4 w-4 ${isPending ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportXlsx}
+                  disabled={previewEmpty || exporting}
+                  title="Descargar planilla Excel (.xlsx)"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+                >
+                  <FileSpreadsheet className={`h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />
+                  <span className="hidden sm:inline">Excel</span>
                 </button>
                 <button
                   type="button"

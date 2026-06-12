@@ -49,6 +49,8 @@ export type NominaPreviewWorkerRow = {
   weeks: Record<string, NominaPreviewWeekCell>;
   total: number;
   observaciones: string;
+  /** Derivado de la rotación: la semana siguiente al rango le corresponde libre. */
+  saleLibre: boolean;
 };
 
 export type NominaPreviewNovedad = {
@@ -116,6 +118,12 @@ export type NominaRegistroCerrado = {
 function getWeekEnd(weekStart: string): string {
   const d = new Date(weekStart + 'T12:00:00');
   d.setDate(d.getDate() + 6);
+  return d.toISOString().split('T')[0];
+}
+
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
   return d.toISOString().split('T')[0];
 }
 
@@ -233,8 +241,11 @@ export function formatWeekColumnHeader(
 function buildObservaciones(
   weeks: Record<string, NominaPreviewWeekCell>,
   novedadesSemana: Array<{ weekStart: string; novedad: NominaNovedadTurno; obs: string }>,
+  derived?: { saleLibre?: boolean; retirado?: boolean },
 ): string {
   const parts: string[] = [];
+
+  if (derived?.retirado) parts.push('Retirado');
 
   for (const n of novedadesSemana) {
     if (!hasNovedadTurno(n.novedad, n.obs)) continue;
@@ -264,6 +275,7 @@ function buildObservaciones(
 
   if (librePagada) parts.push('Semana libre');
   if (noLaborado && !hasAbsenceNovelty) parts.push('No laborado');
+  if (derived?.saleLibre && !parts.includes('Salen libre')) parts.push('Salen libre');
   return parts.length ? parts.join(' · ') : '—';
 }
 
@@ -706,11 +718,33 @@ export function buildNominaPreviewReport(input: {
       total += weeks[w.weekStart].amount;
     }
 
+    // ── Anotaciones derivadas (estilo planilla Excel) ──
+    // «Salen libre»: trabajó en el rango y la semana siguiente le corresponde libre por rotación.
+    let saleLibre = false;
+    if (!importArchiveMode && weekColumns.length > 0) {
+      const trabajoEnRango = Object.values(weeks).some(
+        (w) => w.estado === 'trabajada' && w.amount > 0,
+      );
+      if (trabajoEnRango) {
+        const nextWeekStart = addDaysIso(weekColumns[weekColumns.length - 1].weekStart, 7);
+        const next = resolveNominaCell({
+          personal: p,
+          weekStart: nextWeekStart,
+          area: p.area,
+          archive,
+          allowProjection: true,
+        });
+        saleLibre = next.estado === 'libre';
+      }
+    }
+    const retirado = p.estado_laboral === 'DESPEDIDO';
+
     sectionMap.get(meta.id)!.rows.push({
       personal: p,
       weeks,
       total,
-      observaciones: buildObservaciones(weeks, novedadesSemana),
+      saleLibre,
+      observaciones: buildObservaciones(weeks, novedadesSemana, { saleLibre, retirado }),
     });
   }
 
@@ -812,6 +846,7 @@ export function buildPreviewReportFromParsed(period: ParsedNominaPeriod): Nomina
           } as unknown as Personal,
           weeks,
           total: r.total,
+          saleLibre: false,
           observaciones: r.observaciones || '—',
         };
       });

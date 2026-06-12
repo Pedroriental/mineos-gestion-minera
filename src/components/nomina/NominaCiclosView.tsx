@@ -2,6 +2,7 @@
 
 import { ManualPeriodsSessionBar } from '@/components/nomina/ManualPeriodsSessionBar';
 import { NominaManualPeriodPanel } from '@/components/nomina/NominaManualPeriodPanel';
+import { NominaProximosPagos } from '@/components/nomina/NominaProximosPagos';
 import { NominaPeriodosRegistradosPanel } from '@/components/nomina/NominaPeriodosRegistradosPanel';
 import { RotacionInstanciaBanner } from '@/components/nomina/RotacionInstanciaPanel';
 import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
@@ -13,7 +14,7 @@ import {
 } from '@/lib/nomina/manual-period-session';
 import type { ManualNominaPeriod } from '@/lib/nomina/manual-period';
 import { getWeekEnd } from '@/lib/nomina/week-utils';
-import type { NominaSemana } from '@/lib/types';
+import type { NominaSemana, Personal } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { LayoutGrid } from 'lucide-react';
 
@@ -41,6 +42,8 @@ type Props = {
   onConsolidated?: () => void;
   periodosRefreshKey?: number;
   consolidatedLockedPeriodIds?: Set<string>;
+  /** Catálogo de personal del área para la proyección de próximos pagos. */
+  personal?: Personal[];
 };
 
 export function NominaCiclosView({
@@ -64,6 +67,7 @@ export function NominaCiclosView({
   onConsolidated,
   periodosRefreshKey = 0,
   consolidatedLockedPeriodIds = new Set(),
+  personal = [],
 }: Props) {
   const editorPeriod = getEditorPeriod(periodsSession);
   const editorLocked =
@@ -113,6 +117,14 @@ export function NominaCiclosView({
           onSessionChange({ ...periodsSession, editorPeriodId: null })
         }
       />
+
+      {personal.length > 0 && (
+        <NominaProximosPagos
+          personal={personal}
+          area={area}
+          workingWeekStart={workingWeekStart}
+        />
+      )}
 
       {instanciaActiva && (
         <div className={cn(mineosPanel('general'), 'w-full min-w-0')}>

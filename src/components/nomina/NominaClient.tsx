@@ -2181,6 +2181,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                 onGoPlantillas={() => setViewMode('plantillas')}
                 instanciaActiva={instanciaActivaProp}
                 userId={user?.id}
+                personal={personalCatalogMerged}
                 consolidatedLockedPeriodIds={consolidatedLockedIds}
                 onConsolidated={() => {
                   setManualPeriodSession((prev) => {

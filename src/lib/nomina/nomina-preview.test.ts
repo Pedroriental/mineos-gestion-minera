@@ -264,3 +264,74 @@ describe('isNominaPreviewEmpty', () => {
     assert.equal(isNominaPreviewEmpty({ report, includeProjection: true }), false);
   });
 });
+
+describe('anotaciones derivadas (salen libre / retirado)', () => {
+  const range = { rangeStart: '2026-05-25', rangeEnd: '2026-05-31' };
+
+  const minero: Personal = {
+    id: 'p-minero-rotativo',
+    nombre_completo: 'Minero Rotativo',
+    cedula: '11111111',
+    area: 'mina',
+    cargo: 'Operador',
+    salario_base: 100,
+    fecha_ingreso: '2026-01-05',
+    estatus: 'ACTIVO',
+    esquema_rotacion: 'MINA_2X1',
+  } as Personal;
+
+  function registroCerrado(personalId: string, area: string): NominaRegistroCerrado {
+    return {
+      personal_id: personalId,
+      semana_inicio: '2026-05-25',
+      area,
+      monto_pagado: 100,
+      es_semana_libre: false,
+      estado_asistencia: 'trabajada',
+    } as NominaRegistroCerrado;
+  }
+
+  it('marca «Salen libre» cuando la semana siguiente es libre por rotación', () => {
+    // inicio 11/05 → 25/05 = posición 2 (Trab 2); 01/06 = posición 0 (Libre)
+    const p = { ...minero, rotacion_inicio_fecha: '2026-05-11' } as Personal;
+    const report = buildNominaPreviewReport({
+      personal: [p],
+      registrosCerrados: [registroCerrado(p.id, 'mina')],
+      allowProjection: false,
+      ...range,
+    });
+    const row = report.sections[0]?.rows[0];
+    assert.equal(row?.saleLibre, true);
+    assert.match(row?.observaciones ?? '', /Salen libre/);
+  });
+
+  it('no marca «Salen libre» cuando la semana siguiente es trabajada', () => {
+    // inicio 18/05 → 25/05 = posición 1 (Trab 1); 01/06 = posición 2 (Trab 2)
+    const p = { ...minero, rotacion_inicio_fecha: '2026-05-18' } as Personal;
+    const report = buildNominaPreviewReport({
+      personal: [p],
+      registrosCerrados: [registroCerrado(p.id, 'mina')],
+      allowProjection: false,
+      ...range,
+    });
+    const row = report.sections[0]?.rows[0];
+    assert.equal(row?.saleLibre, false);
+    assert.doesNotMatch(row?.observaciones ?? '', /Salen libre/);
+  });
+
+  it('marca «Retirado» para personal con estado laboral DESPEDIDO', () => {
+    const p = {
+      ...minero,
+      id: 'p-retirado',
+      estado_laboral: 'DESPEDIDO',
+    } as Personal;
+    const report = buildNominaPreviewReport({
+      personal: [p],
+      registrosCerrados: [registroCerrado(p.id, 'mina')],
+      allowProjection: false,
+      ...range,
+    });
+    const row = report.sections[0]?.rows[0];
+    assert.match(row?.observaciones ?? '', /Retirado/);
+  });
+});
