@@ -9,7 +9,7 @@ import {
   emptyChupiLinea,
   emptyHuecoLinea,
 } from '@/lib/voladuras-huecos-chupis';
-import { mineosLabelAccent, mineosModalDivider, mineosModalHeading, mineosPanel } from '@/lib/mineos-visual';
+import { mineosModalDivider, mineosModalHeading } from '@/lib/mineos-visual';
 
 interface VoladurasHuecosChupisEditorProps {
   huecos: HuecoLineaForm[];
@@ -35,15 +35,15 @@ export function VoladurasHuecosChupisEditor({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className={mineosModalHeading('general')}>
-            <span>🕳 Huecos</span>
+        <div className="flex items-center gap-2">
+          <h3 className={`${mineosModalHeading('general')} min-w-0 flex-1`}>
+            <span className="shrink-0">Huecos</span>
             <span className={mineosModalDivider('general')} />
           </h3>
           <button
             type="button"
             onClick={() => onHuecosChange([...huecos, emptyHuecoLinea()])}
-            className="btn-secondary !px-2.5 !py-1 !text-xs"
+            className="btn-secondary shrink-0 !px-2.5 !py-1 !text-xs"
           >
             <Plus className="mr-1 h-3.5 w-3.5" /> Agregar
           </button>
@@ -52,7 +52,7 @@ export function VoladurasHuecosChupisEditor({
           {huecos.map((linea, index) => (
             <div
               key={`hueco-${index}`}
-              className={`grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto] items-end gap-2 ${mineosPanel('general')}`}
+              className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.75fr)_minmax(5.5rem,0.85fr)_auto] items-end gap-2"
             >
               <div>
                 <label className="input-label">Tipo</label>
@@ -63,17 +63,17 @@ export function VoladurasHuecosChupisEditor({
                 />
               </div>
               <div>
-                <label className={mineosLabelAccent('general')}>Cantidad</label>
+                <label className="input-label">Cantidad</label>
                 <input
                   type="number"
                   min={0}
                   value={linea.cantidad}
                   onChange={(e) => updateHueco(index, { cantidad: e.target.value })}
-                  className="input-field font-bold"
+                  className="input-field"
                 />
               </div>
               <div>
-                <label className="input-label">Pies / hueco</label>
+                <label className="input-label whitespace-nowrap">Pies / hueco</label>
                 <input
                   type="number"
                   min={0}
@@ -97,14 +97,15 @@ export function VoladurasHuecosChupisEditor({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-amber-400">
-            <span>🔥 Chupis</span>
+        <div className="flex items-center gap-2">
+          <h3 className={`${mineosModalHeading('general')} min-w-0 flex-1`}>
+            <span className="shrink-0">Chupis</span>
+            <span className={mineosModalDivider('general')} />
           </h3>
           <button
             type="button"
             onClick={() => onChupisChange([...chupis, emptyChupiLinea()])}
-            className="btn-secondary !px-2.5 !py-1 !text-xs"
+            className="btn-secondary shrink-0 !px-2.5 !py-1 !text-xs"
           >
             <Plus className="mr-1 h-3.5 w-3.5" /> Agregar
           </button>
@@ -113,10 +114,10 @@ export function VoladurasHuecosChupisEditor({
           {chupis.map((linea, index) => (
             <div
               key={`chupi-${index}`}
-              className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,0.8fr)_auto] items-end gap-2 rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3"
+              className="grid grid-cols-[minmax(5.5rem,0.85fr)_minmax(0,0.75fr)_auto] items-end gap-2"
             >
               <div>
-                <label className="input-label !text-amber-400">Pies / chupi</label>
+                <label className="input-label whitespace-nowrap">Pies / chupi</label>
                 <input
                   type="number"
                   min={0}
@@ -126,13 +127,13 @@ export function VoladurasHuecosChupisEditor({
                 />
               </div>
               <div>
-                <label className="input-label !text-amber-400">Cantidad</label>
+                <label className="input-label">Cantidad</label>
                 <input
                   type="number"
                   min={0}
                   value={linea.cantidad}
                   onChange={(e) => updateChupi(index, { cantidad: e.target.value })}
-                  className="input-field font-bold"
+                  className="input-field"
                 />
               </div>
               <button

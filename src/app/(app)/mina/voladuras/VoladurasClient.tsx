@@ -55,8 +55,6 @@ import {
   mineosKpiValue,
   mineosModalDivider,
   mineosModalHeading,
-  mineosPanel,
-  mineosLabelAccent,
   MINEOS_BTN_VOLADURAS_NEW,
   type MineosTone,
 } from '@/lib/mineos-visual';
@@ -778,7 +776,6 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
         open={showModal}
         onClose={() => setShowModal(false)}
         sheetTitle={editItem ? 'Editar Reporte' : 'Nuevo Reporte de Voladura'}
-        sheetIcon={<SheetIconBadge icon={Zap} />}
         panelClassName="voladuras-page__modal sm:max-w-[72rem] sm:p-5"
       >
         <div className="mb-6 hidden items-center justify-between lg:flex">
@@ -798,7 +795,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
-                <span>📍 Identificación</span>
+                <span>Identificación</span>
                 <span className={mineosModalDivider('general')} />
               </h3>
               <div>
@@ -835,7 +832,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
 
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
-                <span>⛏ Proceso de Barrenado</span>
+                <span>Proceso de Barrenado</span>
                 <span className={mineosModalDivider('general')} />
               </h3>
               <div>
@@ -848,14 +845,14 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
               </div>
               <div className="mt-1">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="mineos-icon-general text-xs font-bold uppercase tracking-wider opacity-80">⏸ Pausas</span>
+                  <span className="input-label mb-0 uppercase tracking-wider">Pausas</span>
                   <button type="button" onClick={addPausa} className="btn-secondary !py-1 !px-2.5 !text-xs">
                     <Plus className="mr-1 h-3.5 w-3.5" /> Agregar
                   </button>
                 </div>
                 <div className="space-y-2">
                   {pausas.map((p, i) => (
-                    <div key={i} className={`grid grid-cols-[1fr_1fr_2fr_auto] items-start gap-2 ${mineosPanel('neutral')}`}>
+                    <div key={i} className="grid grid-cols-[1fr_1fr_2fr_auto] items-start gap-2">
                       <AppTimePicker value={p.hora_inicio} onChange={(val) => updatePausa(i, 'hora_inicio', val)} />
                       <AppTimePicker value={p.hora_fin} onChange={(val) => updatePausa(i, 'hora_fin', val)} />
                       <input value={p.motivo} onChange={(e) => updatePausa(i, 'motivo', e.target.value)} placeholder="Motivo" className="input-field" />
@@ -872,7 +869,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
-                <span>🧪 Condimentos</span>
+                <span>Condimentos</span>
                 <span className={mineosModalDivider('general')} />
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -892,9 +889,9 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                   <label className="input-label">Trenza (m)</label>
                   <input type="number" step="0.5" value={form.trenza_metros} onChange={(e) => set('trenza_metros', e.target.value)} className="input-field" />
                 </div>
-                <div className={`col-span-2 ${mineosPanel('general')}`}>
-                  <label className={mineosLabelAccent('general')}>Arroz (kg)</label>
-                  <input type="number" step="0.5" value={form.arroz_kg} onChange={(e) => set('arroz_kg', e.target.value)} className="input-field font-bold" />
+                <div className="col-span-2">
+                  <label className="input-label">Arroz (kg)</label>
+                  <input type="number" step="0.5" value={form.arroz_kg} onChange={(e) => set('arroz_kg', e.target.value)} className="input-field" />
                 </div>
               </div>
             </div>
@@ -908,9 +905,9 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
           </section>
 
           <section className="voladuras-page__modal-col flex flex-col gap-2.5">
-            <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-red-400">
-              <span>💥 Disparo</span>
-              <span className="h-px flex-1 bg-red-400/20" />
+            <h3 className={mineosModalHeading('general')}>
+              <span>Disparo</span>
+              <span className={mineosModalDivider('general')} />
             </h3>
             <div>
               <label className="input-label">N° Disparo</label>
@@ -925,7 +922,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                 <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${form.sin_novedad ? 'left-5' : 'left-0.5'}`} />
               </div>
               <span className={`text-sm font-semibold ${form.sin_novedad ? 'text-emerald-400' : 'text-red-400'}`}>
-                {form.sin_novedad ? '✓ Sin novedad' : '⚠ Novedad'}
+                {form.sin_novedad ? 'Sin novedad' : 'Con novedad'}
               </span>
             </label>
 
