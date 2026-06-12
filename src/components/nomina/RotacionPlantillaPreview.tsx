@@ -53,6 +53,8 @@ function valorColumnaEjemplo(key: PlantillaColumnaKey, estatusLabel: string): st
       return '—';
     case 'esquema':
       return '—';
+    case 'bono_transporte':
+      return '$0.00';
     default:
       return '—';
   }

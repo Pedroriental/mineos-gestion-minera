@@ -8,6 +8,7 @@ export const PLANTILLA_COLUMNAS_CATALOGO = [
   { key: 'estado', label: 'Estado / asistencia', grupo: 'opcional' as const, defaultOn: false },
   { key: 'area_detalle', label: 'Área detalle', grupo: 'opcional' as const, defaultOn: false },
   { key: 'esquema', label: 'Esquema rotación', grupo: 'opcional' as const, defaultOn: false },
+  { key: 'bono_transporte', label: 'Bono transporte', grupo: 'opcional' as const, defaultOn: false },
 ] as const;
 
 export type PlantillaColumnaKey = (typeof PLANTILLA_COLUMNAS_CATALOGO)[number]['key'];
