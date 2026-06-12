@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildManualPlantillaNominaRows,
   nominaRowBelongsToCuadrilla,
+  remapWeekColumnCuadrillasForPlantilla,
 } from '@/lib/rotacion-plantillas/manual-plantilla-projection';
 import type { Personal } from '@/lib/types';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
@@ -105,5 +106,41 @@ describe('buildManualPlantillaNominaRows', () => {
     assert.ok(
       nominaRowBelongsToCuadrilla(rows[0], plantilla.cuadrillas[0].nombre, plantilla),
     );
+  });
+});
+
+describe('remapWeekColumnCuadrillasForPlantilla', () => {
+  const plantillaV2: RotacionPlantillaRecord = {
+    ...plantilla,
+    cuadrillas: [
+      { ...plantilla.cuadrillas[0], id: 'cq-new-1' },
+      {
+        id: 'cq-new-2',
+        nombre: 'Vertical 1PD',
+        asignacionKey: 'Vertical 1PD',
+        orden: 1,
+        semanas: plantilla.cuadrillas[0].semanas,
+        filas: [],
+      },
+    ],
+  };
+
+  it('remapea por nombre cuando los UUID de cuadrilla cambiaron', () => {
+    const remapped = remapWeekColumnCuadrillasForPlantilla(
+      [['cq-old-1'], ['cq-old-1', 'cq-old-2']],
+      plantillaV2,
+      2,
+      [['MINA BELÉN - ADMINISTRACIÓN MINA - TRAB.'], ['MINA BELÉN - ADMINISTRACIÓN MINA - TRAB.', 'Vertical 1PD']],
+    );
+    assert.deepEqual(remapped, [['cq-new-1'], ['cq-new-1', 'cq-new-2']]);
+  });
+
+  it('usa todas las cuadrillas si los ids guardados ya no existen y no hay nombres', () => {
+    const remapped = remapWeekColumnCuadrillasForPlantilla(
+      [['cq-old-1']],
+      plantillaV2,
+      1,
+    );
+    assert.deepEqual(remapped, [['cq-new-1', 'cq-new-2']]);
   });
 });

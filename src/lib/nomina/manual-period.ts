@@ -19,6 +19,8 @@ export type ManualNominaPeriod = {
   weekColumnAssignment?: string[];
   /** Por columna de rotación (índice) → ids de cuadrillas activas en ese intervalo */
   weekColumnCuadrillas?: string[][];
+  /** Nombres de cuadrilla por columna (persistencia estable si cambian los UUID) */
+  weekColumnCuadrillaNombres?: string[][];
 };
 
 export type ManualPeriodProgress = {
@@ -256,6 +258,11 @@ export function manualPeriodFromPeriodoSummary(p: NominaPeriodoSummary): ManualN
         Array.isArray(col) ? col.filter((id): id is string => typeof id === 'string') : [],
       )
     : undefined;
+  const weekColumnCuadrillaNombres = Array.isArray(meta.week_column_cuadrilla_nombres)
+    ? meta.week_column_cuadrilla_nombres.map((col) =>
+        Array.isArray(col) ? col.filter((n): n is string => typeof n === 'string' && n.trim().length > 0) : [],
+      )
+    : undefined;
 
   return normalizeManualPeriod({
     id: `arch-${p.rangeStart}-${p.rangeEnd}`,
@@ -266,6 +273,7 @@ export function manualPeriodFromPeriodoSummary(p: NominaPeriodoSummary): ManualN
     plantillaNombre: typeof meta.plantilla_nombre === 'string' ? meta.plantilla_nombre : '',
     weekColumnAssignment,
     weekColumnCuadrillas,
+    weekColumnCuadrillaNombres,
   })!;
 }
 
@@ -291,6 +299,13 @@ export function normalizeManualPeriod(
     weekColumnCuadrillas: Array.isArray(raw.weekColumnCuadrillas)
       ? raw.weekColumnCuadrillas.map((col) =>
           Array.isArray(col) ? col.filter((id): id is string => typeof id === 'string') : [],
+        )
+      : undefined,
+    weekColumnCuadrillaNombres: Array.isArray(raw.weekColumnCuadrillaNombres)
+      ? raw.weekColumnCuadrillaNombres.map((col) =>
+          Array.isArray(col)
+            ? col.filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+            : [],
         )
       : undefined,
   };

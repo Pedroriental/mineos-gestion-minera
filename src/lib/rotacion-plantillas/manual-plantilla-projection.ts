@@ -58,6 +58,89 @@ export function buildDefaultWeekColumnCuadrillas(
   return Array.from({ length: columnCount }, () => [...allIds]);
 }
 
+function sortCuadrillaIds(ids: string[], plantilla: RotacionPlantillaRecord): string[] {
+  const orden = new Map(plantilla.cuadrillas.map((c) => [c.id, c.orden]));
+  return [...ids].sort((a, b) => (orden.get(a) ?? 0) - (orden.get(b) ?? 0));
+}
+
+export function cuadrillaNombresForColumns(
+  columns: string[][],
+  plantilla: RotacionPlantillaRecord,
+): string[][] {
+  const byId = new Map(plantilla.cuadrillas.map((c) => [c.id, c.nombre.trim()]));
+  return columns.map((col) =>
+    col.map((id) => byId.get(id) ?? '').filter((nombre) => nombre.length > 0),
+  );
+}
+
+/** Restaura checks de cuadrilla tras recargar plantilla o periodo archivado. */
+export function remapWeekColumnCuadrillasForPlantilla(
+  stored: string[][] | undefined,
+  plantilla: RotacionPlantillaRecord,
+  columnCount: number,
+  storedNombres?: string[][],
+): string[][] {
+  const allIds = plantilla.cuadrillas.map((c) => c.id);
+  if (!allIds.length) return Array.from({ length: columnCount }, () => []);
+
+  if (!stored?.length) {
+    return buildDefaultWeekColumnCuadrillas(plantilla, columnCount);
+  }
+
+  const validIds = new Set(allIds);
+  const byName = new Map(
+    plantilla.cuadrillas.map((c) => [c.nombre.trim().toLowerCase(), c.id]),
+  );
+
+  const result: string[][] = [];
+  for (let i = 0; i < columnCount; i++) {
+    const colIds = stored[i] ?? [];
+    const colNombres = storedNombres?.[i];
+
+    if (colNombres?.length) {
+      const fromNames = [
+        ...new Set(
+          colNombres
+            .map((n) => byName.get(n.trim().toLowerCase()))
+            .filter((id): id is string => typeof id === 'string'),
+        ),
+      ];
+      if (fromNames.length) {
+        result.push(sortCuadrillaIds(fromNames, plantilla));
+        continue;
+      }
+    }
+
+    const valid = colIds.filter((id) => validIds.has(id));
+    if (valid.length) {
+      result.push(sortCuadrillaIds(valid, plantilla));
+      continue;
+    }
+
+    if (colIds.length) {
+      result.push([...allIds]);
+      continue;
+    }
+
+    result.push([...allIds]);
+  }
+
+  return result;
+}
+
+export function weekColumnCuadrillasEqual(
+  a: string[][],
+  b: string[][],
+  plantilla: RotacionPlantillaRecord,
+): boolean {
+  if (a.length !== b.length) return false;
+  return a.every(
+    (col, i) =>
+      sortCuadrillaIds(col, plantilla).join('|') ===
+      sortCuadrillaIds(b[i] ?? [], plantilla).join('|'),
+  );
+}
+
 export function resolveActiveCuadrillaIdsForWeek(
   period: Pick<
     ManualNominaPeriod,
@@ -76,7 +159,8 @@ export function resolveActiveCuadrillaIdsForWeek(
   const picked = period.weekColumnCuadrillas?.[colIdx];
   if (picked?.length) {
     const valid = new Set(allIds);
-    return picked.filter((id) => valid.has(id));
+    const filtered = picked.filter((id) => valid.has(id));
+    if (filtered.length) return filtered;
   }
   return allIds;
 }
