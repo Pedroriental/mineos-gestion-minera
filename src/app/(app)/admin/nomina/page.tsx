@@ -8,6 +8,8 @@ export const metadata = {
   title: 'Nómina Administrativa - MineOS',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminNominaPage() {
   const supabase = await createServerClient();
   const area = 'administracion';

@@ -24,6 +24,29 @@ function revalidateNomina() {
   REVALIDATE.forEach((p) => revalidatePath(p));
 }
 
+function mapSemanaSaveError(message: string): string {
+  if (
+    message.includes('rotacion_plantilla_semanas_plantilla_id_orden_key') ||
+    (message.includes('duplicate key') && message.includes('orden'))
+  ) {
+    return (
+      'No se pudo guardar: la base de datos aún usa un índice antiguo de semanas ' +
+      '(solo permite una cuadrilla). Ejecute en su PC: npm run supabase:migrate:rotacion'
+    );
+  }
+  return message;
+}
+
+async function deletePlantillaCascade(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  plantillaId: string,
+): Promise<void> {
+  await supabase.from('rotacion_plantilla_asignaciones').delete().eq('plantilla_id', plantillaId);
+  await supabase.from('rotacion_plantilla_semanas').delete().eq('plantilla_id', plantillaId);
+  await supabase.from('rotacion_plantilla_cuadrillas').delete().eq('plantilla_id', plantillaId);
+  await supabase.from('rotacion_plantillas').delete().eq('id', plantillaId);
+}
+
 type DbCuadrilla = {
   id: string;
   plantilla_id: string;
@@ -203,6 +226,7 @@ export async function saveRotacionPlantillaAction(
   }
 
   let id = plantillaId;
+  const isNewPlantilla = !plantillaId;
 
   if (id) {
     const { data: instanciaActiva } = await supabase
@@ -269,7 +293,9 @@ export async function saveRotacionPlantillaAction(
       data = withColumnas.data;
       error = withColumnas.error;
     }
-    if (error || !data) return { ok: false, message: error?.message ?? 'No se pudo crear plantilla.' };
+    if (error || !data) {
+      return { ok: false, message: mapSemanaSaveError(error?.message ?? 'No se pudo crear plantilla.') };
+    }
     id = data.id;
   }
 
@@ -286,7 +312,9 @@ export async function saveRotacionPlantillaAction(
       .single();
 
     if (cuadrillaError || !cuadrillaRow) {
-      return { ok: false, message: cuadrillaError?.message ?? 'Error guardando cuadrilla.' };
+      const message = mapSemanaSaveError(cuadrillaError?.message ?? 'Error guardando cuadrilla.');
+      if (isNewPlantilla && id) await deletePlantillaCascade(supabase, id);
+      return { ok: false, message };
     }
 
     const semanaIdMap = new Map<string, string>();
@@ -304,14 +332,8 @@ export async function saveRotacionPlantillaAction(
         .select('id')
         .single();
       if (error || !inserted) {
-        const msg = error?.message ?? 'Error guardando semanas.';
-        if (msg.includes('rotacion_plantilla_semanas_plantilla_id_orden_key')) {
-          return {
-            ok: false,
-            message:
-              'Conflicto de semanas en base de datos (varias cuadrillas). Ejecute: npm run supabase:migrate:rotacion',
-          };
-        }
+        const msg = mapSemanaSaveError(error?.message ?? 'Error guardando semanas.');
+        if (isNewPlantilla && id) await deletePlantillaCascade(supabase, id);
         return { ok: false, message: msg };
       }
       semanaIdMap.set(sem.id, inserted.id);
@@ -336,7 +358,10 @@ export async function saveRotacionPlantillaAction(
 
     if (asignaciones.length) {
       const { error } = await supabase.from('rotacion_plantilla_asignaciones').insert(asignaciones);
-      if (error) return { ok: false, message: error.message };
+      if (error) {
+        if (isNewPlantilla && id) await deletePlantillaCascade(supabase, id);
+        return { ok: false, message: error.message };
+      }
     }
   }
 

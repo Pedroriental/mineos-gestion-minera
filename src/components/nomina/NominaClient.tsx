@@ -55,6 +55,7 @@ import NominaDistribucionPanel from '@/components/nomina/NominaDistribucionPanel
 import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config';
 import { NominaImportModal } from '@/components/nomina/NominaImportModal';
 import { RotacionPlantillaSandboxModal } from '@/components/nomina/RotacionPlantillaSandboxModal';
+import { listRotacionPlantillasAction } from '@/lib/actions/rotacion-plantillas';
 import {
   RotacionInstanciaPanel,
   RotacionInstanciaBanner,
@@ -409,10 +410,20 @@ export default function NominaClient({
   semanas,
   area,
   instanciaActiva: instanciaActivaProp = null,
-  rotacionPlantillas = [],
+  rotacionPlantillas: rotacionPlantillasProp = [],
   rotacionMigrationRequired = false,
 }: NominaClientProps) {
   const router = useRouter();
+  const [rotacionPlantillas, setRotacionPlantillas] = useState(rotacionPlantillasProp);
+
+  useEffect(() => {
+    setRotacionPlantillas(rotacionPlantillasProp);
+  }, [rotacionPlantillasProp]);
+
+  const refreshPlantillas = useCallback(async () => {
+    const list = await listRotacionPlantillasAction(area);
+    setRotacionPlantillas(list);
+  }, [area]);
   const confirmDialog = useConfirm();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -2031,7 +2042,10 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                     setSandboxPlantillaId(id);
                     setShowRotacionSandbox(true);
                   }}
-                  onInstanciaChange={() => router.refresh()}
+                  onInstanciaChange={() => {
+                    void refreshPlantillas();
+                    router.refresh();
+                  }}
                 />
               </div>
             ) : (
@@ -2764,7 +2778,10 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         area={area}
         canEdit={canEdit}
         initialPlantillaId={sandboxPlantillaId}
-        onSaved={() => router.refresh()}
+        onSaved={async () => {
+          await refreshPlantillas();
+          router.refresh();
+        }}
       />
 
       <PageFormModal

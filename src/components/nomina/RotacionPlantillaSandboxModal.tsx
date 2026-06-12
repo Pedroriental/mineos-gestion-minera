@@ -50,7 +50,7 @@ type Props = {
   area: string;
   canEdit: boolean;
   initialPlantillaId?: string;
-  onSaved?: () => void;
+  onSaved?: (plantillaId?: string) => void | Promise<void>;
 };
 
 export function RotacionPlantillaSandboxModal({
@@ -151,11 +151,14 @@ export function RotacionPlantillaSandboxModal({
     startTransition(async () => {
       const res = await saveRotacionPlantillaAction(sandboxSinPersonal, editId);
       if (res.ok) {
+        const list = await listRotacionPlantillasAction(area);
+        setSavedPlantillas(list);
+        if (res.id) setEditId(res.id);
         toast.success(res.message);
-        onSaved?.();
+        await onSaved?.(res.id);
         handleClose();
       } else {
-        toast.error(res.message);
+        toast.error(res.message, { duration: 8000 });
       }
     });
   }
@@ -229,8 +232,8 @@ export function RotacionPlantillaSandboxModal({
             </p>
           </div>
 
-          <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
-            <div className={cn(mineosPanel('neutral'), '!p-2.5')}>
+          <div className="flex-1 space-y-4 overflow-y-auto px-3 py-3">
+            <div className={cn(mineosPanel('neutral'), '!p-3')}>
               <label className={cn('mb-2 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
                 Nombre plantilla
               </label>
@@ -243,7 +246,7 @@ export function RotacionPlantillaSandboxModal({
               />
             </div>
 
-            <div className={cn(mineosPanel('neutral'), '!mt-1 !p-2.5')}>
+            <div className={cn(mineosPanel('neutral'), '!mt-1 !p-3')}>
               <label className={cn('mb-2 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
                 Descripción de plantilla
               </label>
@@ -257,11 +260,11 @@ export function RotacionPlantillaSandboxModal({
               />
             </div>
 
-            <div className={cn(mineosPanel('neutral'), '!p-2')}>
-              <span className={cn('mb-1.5 block text-[9px] font-bold uppercase', mineosLabelAccent('neutral'))}>
+            <div className={cn(mineosPanel('neutral'), '!p-3')}>
+              <span className={cn('mb-2 block text-[9px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                 {cuadrillaActiva ? `Columnas — ${cuadrillaActiva.nombre}` : 'Columnas planilla'}
               </span>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                 {PLANTILLA_COLUMNAS_CATALOGO.map((col) => (
                   <AppCheckbox
                     key={col.key}
@@ -269,7 +272,7 @@ export function RotacionPlantillaSandboxModal({
                     checked={columnasActivas.includes(col.key)}
                     disabled={!canEdit}
                     onChange={(checked) => toggleColumna(col.key, checked)}
-                    className="text-[10px] leading-tight"
+                    className="py-0.5 text-[10px] leading-snug"
                   >
                     <span className="truncate">{col.label}</span>
                   </AppCheckbox>
@@ -278,8 +281,8 @@ export function RotacionPlantillaSandboxModal({
             </div>
 
             {canEdit && (
-              <div>
-                <label className={cn('mb-1.5 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
+              <div className="pt-0.5">
+                <label className={cn('mb-2 block text-[10px] font-bold uppercase', mineosLabelAccent('general'))}>
                   Copiar modelo de plantilla
                 </label>
                 <AppSelect
@@ -329,7 +332,7 @@ export function RotacionPlantillaSandboxModal({
 
             {cuadrillaActiva && cuadrillaId && (
               <>
-                <div className={cn(mineosPanel('neutral'), 'space-y-2 !p-2.5')}>
+                <div className={cn(mineosPanel('neutral'), 'space-y-2.5 !p-3')}>
                   <label className={cn('block text-[10px] font-bold uppercase', mineosLabelAccent('neutral'))}>
                     Cuadrilla activa
                   </label>

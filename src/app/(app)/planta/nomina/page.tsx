@@ -10,6 +10,8 @@ export const metadata = {
   title: 'Nómina Molino - MineOS',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function PlantaNominaPage() {
   const supabase = await createServerClient();
   const area = 'planta';

@@ -10,6 +10,8 @@ export const metadata = {
   title: 'Nómina Mina - MineOS',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function MinaNominaPage() {
   const supabase = await createServerClient();
   const area = 'mina';
