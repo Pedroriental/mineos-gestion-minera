@@ -82,7 +82,9 @@ export async function upsertPersonalV3Action(raw: {
   try {
     const supabase = await createServerClient();
 
-    if (!isAsignacionNominaValid(data.area_detalle)) {
+    const biblioteca = await loadBibliotecaAppSnapshot();
+
+    if (!isAsignacionNominaValid(data.area_detalle, biblioteca)) {
       return { ok: false, message: 'La asignación nómina no es válida.' };
     }
 
@@ -199,8 +201,9 @@ export async function assignPersonalToNominaAreaAction(input: {
     if (fetchError) return { ok: false, message: fetchError.message };
     if (!row) return { ok: false, message: 'Trabajador no encontrado en la base.' };
 
+    const biblioteca = await loadBibliotecaAppSnapshot();
     const rawDetalle = (data.areaDetalle || String(row.area_detalle || '')).trim();
-    if (!isAsignacionNominaValid(rawDetalle)) {
+    if (!isAsignacionNominaValid(rawDetalle, biblioteca)) {
       return {
         ok: false,
         message: 'El trabajador debe tener una asignación nómina válida antes de asignarse al área.',
@@ -238,7 +241,6 @@ export async function assignPersonalToNominaAreaAction(input: {
       payload.estado_laboral = estadoActual;
     }
 
-    const biblioteca = await loadBibliotecaAppSnapshot();
     const esquemaActual = String(row.esquema_rotacion || '');
     const esquemaDefault =
       biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);
@@ -274,17 +276,18 @@ export async function createAndAssignPersonalNominaAction(
   }
   const data = parsed.data;
   const areaDetalle = data.areaDetalle.trim();
-  if (!isAsignacionNominaValid(areaDetalle)) {
-    return {
-      ok: false,
-      message: 'Selecciona una asignación nómina válida (vertical/sector).',
-    };
-  }
-
   try {
     const supabase = await createServerClient();
     const hoy = new Date().toISOString().split('T')[0];
     const biblioteca = await loadBibliotecaAppSnapshot();
+
+    if (!isAsignacionNominaValid(areaDetalle, biblioteca)) {
+      return {
+        ok: false,
+        message: 'Selecciona una asignación nómina válida (vertical/sector).',
+      };
+    }
+
     const esquemaDefault =
       biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);
 
