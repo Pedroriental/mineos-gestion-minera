@@ -163,7 +163,7 @@ export function aplicarPoliticaReposoSemanal(
 export function calculateNominaRowPay(input: {
   personal: Pick<
     Personal,
-    'esquema_rotacion' | 'rotacion_inicio_fecha' | 'salario_base' | 'salario_libre' | 'bono_transporte'
+    'esquema_rotacion' | 'rotacion_inicio_fecha' | 'salario_base' | 'salario_libre' | 'bono_transporte' | 'area' | 'area_detalle'
   >;
   estadoAsistencia: EstadoAsistenciaNomina;
   diasTrabajados: number;
@@ -189,15 +189,19 @@ export function calculateNominaRowPay(input: {
     diasTrabajados,
   );
 
+  const esAdmin = input.personal.area === 'administracion' || (input.personal.area_detalle || '').toLowerCase().includes('administra');
+
   const bonoTransporte =
-    input.bonoTransporte !== undefined
-      ? input.bonoTransporte
-      : calculateBonoTransporteMolino15(
-          input.personal,
-          estadoAsistencia,
-          input.weekStart,
-          diasTrabajados,
-        );
+    esAdmin
+      ? 0
+      : input.bonoTransporte !== undefined
+        ? input.bonoTransporte
+        : calculateBonoTransporteMolino15(
+            input.personal,
+            estadoAsistencia,
+            input.weekStart,
+            diasTrabajados,
+          );
 
   const bonificaciones = Number(input.bonificaciones) || 0;
   const totalVales = Number(input.totalVales) || 0;
@@ -215,7 +219,7 @@ export function calculateNominaRowPay(input: {
 
 /** Pago según Turno/Libre/Falta explícito (periodo manual con plantilla; ignora ciclo personal). */
 export function calculateExplicitAsistenciaPay(input: {
-  personal: Pick<Personal, 'salario_base' | 'salario_libre' | 'bono_transporte'>;
+  personal: Pick<Personal, 'salario_base' | 'salario_libre' | 'bono_transporte' | 'area' | 'area_detalle'>;
   estadoAsistencia: EstadoAsistenciaNomina;
   diasTrabajados: number;
   bonoTransporte?: number;
@@ -237,10 +241,13 @@ export function calculateExplicitAsistenciaPay(input: {
   let salarioBaseCalculado = 0;
   let bonoTransporte = 0;
 
+  const esAdmin = input.personal.area === 'administracion' || (input.personal.area_detalle || '').toLowerCase().includes('administra');
+
   if (estadoAsistencia === 'trabajada') {
     salarioBaseCalculado = applyProportionalWeeklyPay(base, diasTrabajados);
-    bonoTransporte =
-      input.bonoTransporte !== undefined
+    bonoTransporte = esAdmin
+      ? 0
+      : input.bonoTransporte !== undefined
         ? input.bonoTransporte
         : Number(input.personal.bono_transporte) || 0;
   } else if (estadoAsistencia === 'libre') {

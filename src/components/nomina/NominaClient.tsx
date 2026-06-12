@@ -1838,7 +1838,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                   <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1">
                     <Calendar className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
                     <span className="text-[9px] font-bold uppercase text-white/40">Desde:</span>
-                    <input type="date" value={weekRange.inicio} onChange={e => { const newInicio = e.target.value; const d = new Date(newInicio); d.setDate(d.getDate() + 6); setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] }); }} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
+                    <input type="date" value={weekRange.inicio} onChange={e => { const newInicio = e.target.value; if (!newInicio) { setWeekRange({ inicio: '', fin: '' }); return; } const d = new Date(newInicio); if (isNaN(d.getTime())) { setWeekRange(prev => ({ ...prev, inicio: newInicio })); return; } d.setDate(d.getDate() + 6); setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] }); }} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
                   </label>
                   <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1">
                     <Calendar className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
@@ -1863,7 +1863,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                   <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1.5">
                     <Calendar className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
                     <span className="text-[9px] font-bold uppercase text-white/40">Desde:</span>
-                    <input type="date" value={weekRange.inicio} onChange={e => { const newInicio = e.target.value; const d = new Date(newInicio); d.setDate(d.getDate() + 6); setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] }); }} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
+                    <input type="date" value={weekRange.inicio} onChange={e => { const newInicio = e.target.value; if (!newInicio) { setWeekRange({ inicio: '', fin: '' }); return; } const d = new Date(newInicio); if (isNaN(d.getTime())) { setWeekRange(prev => ({ ...prev, inicio: newInicio })); return; } d.setDate(d.getDate() + 6); setWeekRange({ inicio: newInicio, fin: d.toISOString().split('T')[0] }); }} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1.5">
                     <Calendar className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
