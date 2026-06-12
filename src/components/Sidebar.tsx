@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -18,7 +18,6 @@ import {
   HardHat,
   FlaskConical,
   Flame,
-  Layers,
   Truck,
   BookOpen,
   ChevronDown,
@@ -108,11 +107,28 @@ const navigation: NavSection[] = [
   },
 ];
 
+/* ── Visual language ──
+   Active   → hairline gold indicator + soft gold wash fading right
+   Idle     → muted text, hover lifts text + faint surface
+   Sections → quiet uppercase labels, no chrome                    */
+const itemBase =
+  'group relative flex w-full items-center gap-3 rounded-lg text-[13px] outline-none transition-all duration-200 ease-out';
 const activeClass =
-  'bg-amber-500/15 text-amber-400 font-medium rounded-lg border border-amber-500/20 shadow-[inset_0_1px_0_0_rgba(251,191,36,0.08)]';
-const idleClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] rounded-lg transition-colors duration-150';
-const activeSubClass = 'font-medium text-amber-400';
-const idleSubClass = 'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors duration-150';
+  'font-medium text-[var(--dashboard-text)] bg-gradient-to-r from-amber-500/[0.14] via-amber-500/[0.05] to-transparent';
+const idleClass =
+  'text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.05]';
+const iconActive = 'text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]';
+const iconIdle =
+  'text-[var(--dashboard-text-muted)] transition-colors duration-200 group-hover:text-[var(--dashboard-text)]';
+
+function ActiveIndicator() {
+  return (
+    <span
+      aria-hidden
+      className="absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.55)]"
+    />
+  );
+}
 
 function buildNavHref(href: string, searchParams: URLSearchParams) {
   if (href === '#') return href;
@@ -191,17 +207,18 @@ function NavItem({
   navHref: string;
 }) {
   const className = cn(
-    'flex w-full items-center gap-3 text-sm transition-all duration-150',
+    itemBase,
     expanded ? 'px-2.5 py-2 text-left' : 'justify-center px-0 py-2',
     active ? activeClass : idleClass,
   );
 
   const content = (
     <>
-      <span className={cn('flex-shrink-0', !active && 'text-[var(--dashboard-text-muted)]')}>
+      {active && <ActiveIndicator />}
+      <span className={cn('flex-shrink-0', active ? iconActive : iconIdle)}>
         {item.icon}
       </span>
-      {expanded && <span className="truncate text-[13px]">{item.label}</span>}
+      {expanded && <span className="truncate">{item.label}</span>}
     </>
   );
 
@@ -238,10 +255,13 @@ function NavItemWithSubmenu({
     (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
   );
   const [open, setOpen] = useState(anySubActive);
+  const [prevAnySubActive, setPrevAnySubActive] = useState(anySubActive);
 
-  useEffect(() => {
+  // Abrir el submenú cuando la ruta activa entra en él (ajuste de estado en render)
+  if (anySubActive !== prevAnySubActive) {
+    setPrevAnySubActive(anySubActive);
     if (anySubActive) setOpen(true);
-  }, [anySubActive]);
+  }
 
   if (!expanded) {
     return (
@@ -250,11 +270,13 @@ function NavItemWithSubmenu({
           type="button"
           onClick={() => onNav('#')}
           className={cn(
-            'flex w-full items-center justify-center px-0 py-2 text-sm transition-all duration-150',
+            itemBase,
+            'justify-center px-0 py-2',
             anySubActive ? activeClass : idleClass,
           )}
         >
-          <span className={cn('flex-shrink-0', !anySubActive && 'text-[var(--dashboard-text-muted)]')}>
+          {anySubActive && <ActiveIndicator />}
+          <span className={cn('flex-shrink-0', anySubActive ? iconActive : iconIdle)}>
             {item.icon}
           </span>
         </button>
@@ -268,31 +290,29 @@ function NavItemWithSubmenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={cn(
-          'flex w-full items-center gap-3 px-2.5 py-2 text-sm transition-all duration-150 text-left rounded-lg',
-          anySubActive ? activeClass : idleClass,
-        )}
+        className={cn(itemBase, 'px-2.5 py-2 text-left', anySubActive ? activeClass : idleClass)}
       >
-        <span className={cn('flex-shrink-0', !anySubActive && 'text-[var(--dashboard-text-muted)]')}>
+        {anySubActive && <ActiveIndicator />}
+        <span className={cn('flex-shrink-0', anySubActive ? iconActive : iconIdle)}>
           {item.icon}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px]">{item.label}</span>
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
         <ChevronDown
           className={cn(
-            'h-3.5 w-3.5 flex-shrink-0 text-[var(--dashboard-text-muted)] transition-transform duration-200',
+            'h-3.5 w-3.5 flex-shrink-0 text-[var(--dashboard-text-muted)] opacity-60 transition-transform duration-300 ease-out',
             open && 'rotate-180',
-            anySubActive && 'text-amber-500/80',
+            anySubActive && 'text-amber-400/80 opacity-100',
           )}
         />
       </button>
       <div
         className={cn(
-          'grid transition-[grid-template-rows,opacity] duration-200 ease-in-out',
+          'grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
           open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
         )}
       >
         <div className="overflow-hidden">
-          <div className="ml-9 mt-0.5 space-y-0 pb-0.5 border-l-2 border-[var(--dashboard-border)] pl-3">
+          <div className="ml-[19px] mt-1 space-y-0.5 border-l border-[var(--dashboard-border)] pb-1 pl-[15px]">
             {subItems.map((sub) => {
               const subActive =
                 sub.href === '/admin/gastos'
@@ -304,10 +324,18 @@ function NavItemWithSubmenu({
                   href={getNavHref(sub.href)}
                   onClick={() => onNav(sub.href)}
                   className={cn(
-                    'block w-full py-2 text-left text-[13px] transition-all duration-150',
-                    subActive ? activeSubClass : idleSubClass,
+                    'relative block w-full rounded-md px-2 py-1.5 text-left text-[12.5px] transition-all duration-200 ease-out',
+                    subActive
+                      ? 'font-medium text-amber-400'
+                      : 'text-[var(--dashboard-text-muted)] hover:translate-x-px hover:text-[var(--dashboard-text)]',
                   )}
                 >
+                  {subActive && (
+                    <span
+                      aria-hidden
+                      className="absolute -left-4 top-1/2 h-3.5 w-px -translate-y-1/2 bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]"
+                    />
+                  )}
                   {sub.label}
                 </Link>
               );
@@ -324,7 +352,6 @@ function Section({
   pathname,
   expanded,
   onNav,
-  defaultOpen,
   onCollapsedItemClick,
   getNavHref,
 }: {
@@ -332,96 +359,36 @@ function Section({
   pathname: string;
   expanded: boolean;
   onNav: (href: string) => void;
-  defaultOpen: boolean;
   onCollapsedItemClick?: (item: NavItemData) => void;
   getNavHref: (href: string) => string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  useEffect(() => {
-    if (defaultOpen) setOpen(true);
-  }, [defaultOpen]);
-
   if (!expanded) {
     return (
-      <div className="space-y-0.5 px-2">
-        {section.items.map((item) => {
-          if (item.subItems?.length) {
-            const anySubActive = item.subItems.some(
-              (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
-            );
-            return (
-              <NavTooltip key={item.label} label={item.label} show>
-                <button
-                  type="button"
-                  onClick={() => onCollapsedItemClick?.(item)}
-                  className={cn(
-                    'flex w-full items-center justify-center py-2 text-sm transition-all duration-150 rounded-lg',
-                    anySubActive ? activeClass : idleClass,
-                  )}
-                >
-                  <span className={cn('flex-shrink-0', !anySubActive && 'text-[var(--dashboard-text-muted)]')}>
-                    {item.icon}
-                  </span>
-                </button>
-              </NavTooltip>
-            );
-          }
-          const active = pathname === item.href || pathname.startsWith(item.href + '/');
-          return (
-            <NavItem
-              key={item.href}
-              item={item}
-              active={active}
-              expanded={false}
-              onNav={onNav}
-              navHref={getNavHref(item.href)}
-            />
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          'flex w-full items-center gap-2 px-3 py-1.5 mb-0.5 text-left group',
-        )}
-      >
-        <div className="flex-1 flex items-center gap-2">
-          <div className="h-px flex-1 bg-[var(--dashboard-border)]" />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--dashboard-text-muted)]">
-            {section.title}
-          </span>
-          <div className="h-px flex-1 bg-[var(--dashboard-border)]" />
-        </div>
-        <ChevronDown
-          className={cn(
-            'w-3 h-3 text-[var(--dashboard-text-muted)] transition-transform duration-200',
-            open && 'rotate-180',
-          )}
-        />
-      </button>
-      <div
-        className="overflow-hidden transition-all duration-200 ease-in-out"
-        style={{ maxHeight: open ? '600px' : '0px', opacity: open ? 1 : 0 }}
-      >
-        <div className="space-y-0.5 pb-1.5 px-2">
+      <div className="px-2">
+        <div aria-hidden className="mx-2 my-2 h-px bg-[var(--dashboard-border)]" />
+        <div className="space-y-0.5">
           {section.items.map((item) => {
             if (item.subItems?.length) {
+              const anySubActive = item.subItems.some(
+                (s) => pathname === s.href || pathname.startsWith(s.href + '/'),
+              );
               return (
-                <NavItemWithSubmenu
-                  key={item.label}
-                  item={item}
-                  pathname={pathname}
-                  expanded
-                  onNav={onNav}
-                  getNavHref={getNavHref}
-                />
+                <NavTooltip key={item.label} label={item.label} show>
+                  <button
+                    type="button"
+                    onClick={() => onCollapsedItemClick?.(item)}
+                    className={cn(
+                      itemBase,
+                      'justify-center px-0 py-2',
+                      anySubActive ? activeClass : idleClass,
+                    )}
+                  >
+                    {anySubActive && <ActiveIndicator />}
+                    <span className={cn('flex-shrink-0', anySubActive ? iconActive : iconIdle)}>
+                      {item.icon}
+                    </span>
+                  </button>
+                </NavTooltip>
               );
             }
             const active = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -430,13 +397,48 @@ function Section({
                 key={item.href}
                 item={item}
                 active={active}
-                expanded
+                expanded={false}
                 onNav={onNav}
                 navHref={getNavHref(item.href)}
               />
             );
           })}
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="select-none px-[1.375rem] pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--dashboard-text-muted)] opacity-60">
+        {section.title}
+      </p>
+      <div className="space-y-0.5 px-2">
+        {section.items.map((item) => {
+          if (item.subItems?.length) {
+            return (
+              <NavItemWithSubmenu
+                key={item.label}
+                item={item}
+                pathname={pathname}
+                expanded
+                onNav={onNav}
+                getNavHref={getNavHref}
+              />
+            );
+          }
+          const active = pathname === item.href || pathname.startsWith(item.href + '/');
+          return (
+            <NavItem
+              key={item.href}
+              item={item}
+              active={active}
+              expanded
+              onNav={onNav}
+              navHref={getNavHref(item.href)}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -502,16 +504,6 @@ export default function Sidebar({
     router.push('/');
   }, [signOut, router]);
 
-  const defaultOpenIds = navigation
-    .filter((s) =>
-      s.items.some(
-        (i) =>
-          (i.href !== '#' && pathname.startsWith(i.href)) ||
-          i.subItems?.some((sub) => pathname === sub.href || pathname.startsWith(sub.href + '/')),
-      ),
-    )
-    .map((s) => s.id);
-
   const initials = (user?.email?.charAt(0) ?? 'U').toUpperCase();
 
   const iconSurface = sidebarIconSurface(variant, theme);
@@ -526,13 +518,16 @@ export default function Sidebar({
       : 'rounded-[2rem] bg-zinc-900/40 backdrop-blur-2xl border border-white/5 shadow-2xl h-[calc(100vh-2rem)]',
   );
 
-  const dockContent = (showClose?: boolean, onClose?: () => void) => (
+  const collapseButtonClass =
+    'rounded-lg p-1.5 text-[var(--dashboard-text-muted)] opacity-70 transition-all duration-200 hover:bg-black/[0.05] hover:text-[var(--dashboard-text)] hover:opacity-100 dark:hover:bg-white/[0.06]';
+
+  const dockContent = (opts?: { showClose?: boolean; onClose?: () => void; desktop?: boolean }) => (
     <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
       <div
         className={cn(
-          'flex items-center gap-3 border-b border-[var(--dashboard-border)]',
-          isExpanded ? 'px-3 pb-3 mb-2' : 'px-3 pb-3 mb-2 justify-center',
+          'flex items-center gap-3 border-b border-[var(--dashboard-border)] px-3 pb-3 mb-1',
+          !isExpanded && 'justify-center',
         )}
       >
         <MineosLogo
@@ -551,48 +546,72 @@ export default function Sidebar({
                 MineOS
               </span>
             </div>
-            {showClose && onClose && (
+            {opts?.desktop && (
               <button
-                onClick={onClose}
-                className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-black/[0.06] transition-colors"
+                type="button"
+                onClick={() => onExpandedChange?.(false)}
+                aria-label="Plegar menú"
+                title="Plegar menú"
+                className={collapseButtonClass}
               >
-                <X className="w-4 h-4" />
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
+            )}
+            {opts?.showClose && opts?.onClose && (
+              <button
+                onClick={opts.onClose}
+                aria-label="Cerrar menú"
+                className={collapseButtonClass}
+              >
+                <X className="h-4 w-4" />
               </button>
             )}
           </>
         )}
       </div>
 
-      {/* Dashboard & Reportes (standalone) */}
-      <div className={cn(isExpanded ? 'px-2 space-y-0.5' : 'px-2 space-y-0.5')}>
-        <NavItem
-          item={standaloneItems[0]}
-          active={pathname === '/dashboard'}
-          expanded={isExpanded}
-          onNav={handleNav}
-          navHref={getNavHref('/dashboard')}
-        />
-        <NavItem
-          item={standaloneItems[1]}
-          active={pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')}
-          expanded={isExpanded}
-          onNav={handleNav}
-          navHref={getNavHref('/reportes-balances')}
-        />
-        <NavItem
-          item={standaloneItems[2]}
-          active={pathname === '/reportes/constructor' || pathname.startsWith('/reportes/constructor')}
-          expanded={isExpanded}
-          onNav={handleNav}
-          navHref={getNavHref('/reportes/constructor')}
-        />
-      </div>
-
-      {/* Divider */}
-      <div className={cn('border-t border-[var(--dashboard-border)]', isExpanded ? 'mx-3 my-2' : 'mx-2 my-2')} />
+      {/* Expand toggle (collapsed desktop only) */}
+      {opts?.desktop && !isExpanded && (
+        <div className="flex justify-center px-2 pb-1">
+          <NavTooltip label="Expandir menú" show>
+            <button
+              type="button"
+              onClick={() => onExpandedChange?.(true)}
+              aria-label="Expandir menú"
+              className={collapseButtonClass}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </button>
+          </NavTooltip>
+        </div>
+      )}
 
       {/* Sections */}
-      <nav className="sidebar-nav-scroll scroll-y-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto space-y-0.5">
+      <nav className="sidebar-nav-scroll scroll-y-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-1">
+        <div className="space-y-0.5 px-2">
+          <NavItem
+            item={standaloneItems[0]}
+            active={pathname === '/dashboard'}
+            expanded={isExpanded}
+            onNav={handleNav}
+            navHref={getNavHref('/dashboard')}
+          />
+          <NavItem
+            item={standaloneItems[1]}
+            active={pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')}
+            expanded={isExpanded}
+            onNav={handleNav}
+            navHref={getNavHref('/reportes-balances')}
+          />
+          <NavItem
+            item={standaloneItems[2]}
+            active={pathname === '/reportes/constructor' || pathname.startsWith('/reportes/constructor')}
+            expanded={isExpanded}
+            onNav={handleNav}
+            navHref={getNavHref('/reportes/constructor')}
+          />
+        </div>
+
         {navigation.map((section) => (
           <Section
             key={section.id}
@@ -600,7 +619,6 @@ export default function Sidebar({
             pathname={pathname}
             expanded={isExpanded}
             onNav={handleNav}
-            defaultOpen={defaultOpenIds.includes(section.id)}
             onCollapsedItemClick={handleCollapsedSectionItemClick}
             getNavHref={getNavHref}
           />
@@ -608,29 +626,41 @@ export default function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className={cn('mt-auto shrink-0 border-t border-[var(--dashboard-border)]', isExpanded ? 'px-2 pt-3' : 'px-2 pt-3')}>
+      <div className="mt-auto shrink-0 border-t border-[var(--dashboard-border)] px-2 pt-2">
         {isExpanded ? (
-          <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 bg-[var(--dashboard-card-muted)] border border-[var(--dashboard-border)]">
-            <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
-              <span className="text-amber-300 font-bold text-[12px]">{initials}</span>
+          <div className="group flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/25 to-amber-600/10 ring-1 ring-amber-500/30">
+              <span className="text-[12px] font-bold text-amber-300">{initials}</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold truncate text-[var(--dashboard-text)]">{user?.email}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] font-semibold text-[var(--dashboard-text)]">{user?.email}</p>
               <p className="text-[9px] uppercase tracking-wider text-[var(--dashboard-text-muted)]">Operaciones</p>
             </div>
             <button
               onClick={handleSignOut}
               title="Cerrar sesión"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+              aria-label="Cerrar sesión"
+              className="flex-shrink-0 rounded-lg p-1.5 text-[var(--dashboard-text-muted)] opacity-60 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400 hover:opacity-100"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="h-4 w-4" />
             </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2 pb-1">
-            <div className="w-9 h-9 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-              <span className="text-amber-300 font-bold text-[12px]">{initials}</span>
-            </div>
+          <div className="flex flex-col items-center gap-1 pb-1">
+            <NavTooltip label={user?.email ?? 'Usuario'} show>
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/25 to-amber-600/10 ring-1 ring-amber-500/30">
+                <span className="text-[12px] font-bold text-amber-300">{initials}</span>
+              </div>
+            </NavTooltip>
+            <NavTooltip label="Cerrar sesión" show>
+              <button
+                onClick={handleSignOut}
+                aria-label="Cerrar sesión"
+                className="rounded-lg p-1.5 text-[var(--dashboard-text-muted)] opacity-60 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400 hover:opacity-100"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </NavTooltip>
           </div>
         )}
       </div>
@@ -646,37 +676,7 @@ export default function Sidebar({
         data-expanded={isExpanded}
         className={cn('relative z-40 hidden md:flex', shellClass)}
       >
-        {dockContent()}
-
-        {/* Collapse toggle (desktop only) */}
-        <div className={cn(
-          'flex justify-center py-2',
-          isExpanded ? 'justify-end px-3 pt-1 pb-0' : 'justify-center pt-1 pb-2',
-        )}>
-          <button
-            type="button"
-            onClick={() => onExpandedChange?.(!isExpanded)}
-            aria-label={isExpanded ? 'Plegar menú' : 'Expandir menú'}
-            className={cn(
-              'rounded-lg transition-all duration-150',
-              isExpanded
-                ? 'flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]'
-                : 'p-2 text-zinc-500 hover:text-zinc-300 hover:bg-black/[0.06] dark:hover:bg-white/[0.06]',
-            )}
-            title={isExpanded ? 'Plegar menú' : 'Expandir menú'}
-          >
-            {isExpanded ? (
-              <PanelLeftClose className="h-4 w-4 shrink-0" />
-            ) : (
-              <NavTooltip label="Expandir menú" show>
-                <span className="inline-flex">
-                  <PanelLeft className="h-4 w-4" />
-                </span>
-              </NavTooltip>
-            )}
-            {isExpanded ? <span className="truncate">Plegar menú</span> : null}
-          </button>
-        </div>
+        {dockContent({ desktop: true })}
       </aside>
 
       {/* Mobile backdrop */}
@@ -702,7 +702,7 @@ export default function Sidebar({
           mobileOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)]',
         )}
       >
-        {dockContent(true, onMobileClose)}
+        {dockContent({ showClose: true, onClose: onMobileClose })}
       </aside>
     </>
   );
