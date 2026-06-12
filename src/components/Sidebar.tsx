@@ -780,30 +780,59 @@ export default function Sidebar({
 
   const initials = (user?.email?.charAt(0) ?? 'U').toUpperCase();
   const iconSurface = sidebarIconSurface(theme);
+  const peekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isPeekOpen, setIsPeekOpen] = useState(false);
 
-  const shellClass = cn(
-    'flex flex-col flex-shrink-0',
-    'transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
-    isExpanded ? 'w-[240px]' : 'w-[68px]',
-    'h-full max-h-full rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] py-3',
-  );
+  const clearPeekTimer = useCallback(() => {
+    if (peekTimerRef.current) {
+      clearTimeout(peekTimerRef.current);
+      peekTimerRef.current = null;
+    }
+  }, []);
 
-  const dockContent = (showClose?: boolean, onClose?: () => void, showCollapseToggle?: boolean) => (
+  const handleSidebarMouseEnter = useCallback(() => {
+    if (isExpanded) return;
+    clearPeekTimer();
+    peekTimerRef.current = setTimeout(() => setIsPeekOpen(true), 300);
+  }, [isExpanded, clearPeekTimer]);
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    clearPeekTimer();
+    setIsPeekOpen(false);
+    setFlyout(null);
+  }, [clearPeekTimer]);
+
+  useEffect(() => () => clearPeekTimer(), [clearPeekTimer]);
+
+  const shellClass = (widthExpanded: boolean) =>
+    cn(
+      'flex flex-col flex-shrink-0',
+      'transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
+      widthExpanded ? 'w-[240px]' : 'w-[68px]',
+      'h-full max-h-full rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] py-3',
+    );
+
+  const dockContent = (
+    navExpanded: boolean,
+    showClose?: boolean,
+    onClose?: () => void,
+    showCollapseToggle?: boolean,
+  ) => (
     <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
       <div
         className={cn(
           'sidebar-header-group mb-2 flex items-center gap-3 border-b border-[var(--dashboard-border)] pb-3',
-          isExpanded ? 'px-3' : 'justify-center px-3',
+          navExpanded ? 'px-3' : 'justify-center px-3',
         )}
       >
         <MineosLogo
           variant="icon"
           surface={iconSurface}
-          className={cn('shrink-0 object-[center_46%]', isExpanded ? 'h-9 w-9' : 'h-8 w-8')}
+          className={cn('shrink-0 object-[center_46%]', navExpanded ? 'h-9 w-9' : 'h-8 w-8')}
           alt=""
         />
-        {isExpanded ? (
+        {navExpanded ? (
           <>
             <div className="flex min-w-0 flex-1 flex-col gap-px leading-none">
               <span className="text-[14px] font-extrabold tracking-tight text-[var(--dashboard-text)]">
@@ -838,7 +867,7 @@ export default function Sidebar({
         ) : null}
       </div>
 
-      {!isExpanded && showCollapseToggle ? (
+      {!navExpanded && showCollapseToggle ? (
         <div className="flex justify-center pb-1">
           <NavTooltip label="Expandir menú" show>
             <button
@@ -853,7 +882,7 @@ export default function Sidebar({
         </div>
       ) : null}
 
-      <SidebarSearchButton expanded={isExpanded} onSearchOpen={onSearchOpen} />
+      <SidebarSearchButton expanded={navExpanded} onSearchOpen={onSearchOpen} />
 
       {/* Standalone items */}
       <div className="space-y-0.5 px-2">
@@ -862,7 +891,7 @@ export default function Sidebar({
             key={item.href}
             item={item}
             active={isNavActive(item.href, pathname)}
-            expanded={isExpanded}
+            expanded={navExpanded}
             onNav={handleNav}
             navHref={getNavHref(item.href)}
             showIndicator
@@ -870,7 +899,7 @@ export default function Sidebar({
         ))}
       </div>
 
-      <div className={cn('border-t border-[var(--dashboard-border)]', isExpanded ? 'mx-3 my-2' : 'mx-2 my-2')} />
+      <div className={cn('border-t border-[var(--dashboard-border)]', navExpanded ? 'mx-3 my-2' : 'mx-2 my-2')} />
 
       {/* Sections */}
       <MotionConfig reducedMotion="user">
@@ -881,7 +910,7 @@ export default function Sidebar({
                 key={section.id}
                 section={section}
                 pathname={pathname}
-                expanded={isExpanded}
+                expanded={navExpanded}
                 onNav={handleNav}
                 getNavHref={getNavHref}
                 alertCount={alertCount}
@@ -897,7 +926,7 @@ export default function Sidebar({
       {/* Footer */}
       <div className="mt-auto shrink-0 border-t border-[var(--dashboard-border)] px-2 pt-3">
         <SidebarAccountMenu
-          expanded={isExpanded}
+          expanded={navExpanded}
           email={user?.email}
           initials={initials}
           onSignOut={handleSignOut}
@@ -909,13 +938,27 @@ export default function Sidebar({
   return (
     <>
       {/* Desktop */}
-      <aside
-        data-sidebar
-        data-expanded={isExpanded}
-        className={cn('relative z-40 hidden md:flex', shellClass)}
+      <div
+        className="sidebar-rail-host relative z-40 hidden md:block"
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
       >
-        {dockContent(undefined, undefined, true)}
-      </aside>
+        <aside data-sidebar data-expanded={isExpanded} className={shellClass(isExpanded)}>
+          {dockContent(isExpanded, undefined, undefined, true)}
+        </aside>
+
+        {isPeekOpen && !isExpanded ? (
+          <aside
+            data-sidebar
+            data-sidebar-peek
+            data-expanded="true"
+            className="sidebar-peek-overlay"
+            aria-label="Vista previa del menú"
+          >
+            {dockContent(true, undefined, undefined, true)}
+          </aside>
+        ) : null}
+      </div>
 
       {/* Mobile backdrop */}
       {mobileOpen ? (
@@ -939,7 +982,7 @@ export default function Sidebar({
           mobileOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)]',
         )}
       >
-        {dockContent(true, onMobileClose)}
+        {dockContent(true, true, onMobileClose)}
       </aside>
     </>
   );
