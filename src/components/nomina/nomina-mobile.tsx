@@ -10,7 +10,6 @@ import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import type { NominaNovedadTurno, ReposoModoSueldoSemana } from '@/lib/nomina-novedad-turno';
 import { displayNombrePersonal } from '@/lib/personal-master';
 import type { NominaSemana, NominaVale, Personal } from '@/lib/types';
-import { plantillaPermiteAjusteAsistencia } from '@/lib/rotacion-plantillas/semana-cierre';
 import type { EstatusRotacionPlantilla } from '@/lib/rotacion-plantillas/types';
 import {
   AlertTriangle,
@@ -363,10 +362,6 @@ export function NominaMobileWorkerCard({
   fmtMoney: (n: number) => string;
 }) {
   const p = row.personal;
-  const asistenciaLocked =
-    row.rotacionFuente === 'plantilla' &&
-    !!row.estatusPlantilla &&
-    !plantillaPermiteAjusteAsistencia(row.estatusPlantilla);
 
   return (
     <article className="nomina-mobile-worker rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-2.5 backdrop-blur-sm">
@@ -476,7 +471,7 @@ export function NominaMobileWorkerCard({
                 <button
                   key={estado}
                   type="button"
-                  disabled={locked || asistenciaLocked}
+                  disabled={locked}
                   onClick={() => onUpdateRow({ estadoAsistencia: estado })}
                   className={cn(
                     'flex flex-1 items-center justify-center gap-1 rounded-md py-1.5 text-[8px] font-bold uppercase transition-all disabled:opacity-45',

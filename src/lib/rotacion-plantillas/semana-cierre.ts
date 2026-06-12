@@ -31,21 +31,17 @@ export function diasInputBloqueadosPorPlantilla(estatus: EstatusRotacionPlantill
   return estatus !== 'trabajada_paga' && estatus !== 'reposo';
 }
 
-/** Columnas libre/vacaciones: el operador puede marcar falta o turno por trabajador. */
-export function plantillaPermiteAjusteAsistencia(estatus: EstatusRotacionPlantilla): boolean {
-  return estatus === 'libre_paga' || estatus === 'libre_sin_pago' || estatus === 'vacaciones';
+/** La plantilla sugiere asistencia; nunca bloquea la UI semanal. */
+export function plantillaPermiteAjusteAsistencia(_estatus: EstatusRotacionPlantilla): boolean {
+  return true;
 }
 
-/** Días/bono editables tras ajustar asistencia respecto al default de la columna. */
+/** Días editables solo cuando la asistencia explícita es «trabajada». */
 export function resolveDiasInputBloqueadoPlantilla(
-  estatus: EstatusRotacionPlantilla,
+  _estatus: EstatusRotacionPlantilla,
   estadoAsistencia: EstadoAsistenciaNomina,
 ): boolean {
-  const defaultAsistencia = estatusPlantillaToAsistencia(estatus);
-  if (estadoAsistencia !== defaultAsistencia) {
-    return estadoAsistencia !== 'trabajada';
-  }
-  return diasInputBloqueadosPorPlantilla(estatus);
+  return estadoAsistencia !== 'trabajada';
 }
 
 /** Estimación de pago semanal simplificada para preview (no reemplaza motor nómina) */

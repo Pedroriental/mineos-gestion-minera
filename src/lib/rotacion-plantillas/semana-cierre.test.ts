@@ -9,11 +9,17 @@ import {
 } from '@/lib/rotacion-plantillas/semana-cierre';
 
 describe('plantilla asistencia ajustable', () => {
-  it('libre pagada permite ajuste de asistencia', () => {
+  it('nunca bloquea botones de asistencia', () => {
     assert.equal(plantillaPermiteAjusteAsistencia('libre_paga'), true);
+    assert.equal(plantillaPermiteAjusteAsistencia('trabajada_paga'), true);
+  });
+
+  it('días editables solo con asistencia trabajada', () => {
     assert.equal(resolveDiasInputBloqueadoPlantilla('libre_paga', 'libre'), true);
     assert.equal(resolveDiasInputBloqueadoPlantilla('libre_paga', 'no_laborado'), true);
     assert.equal(resolveDiasInputBloqueadoPlantilla('libre_paga', 'trabajada'), false);
+    assert.equal(resolveDiasInputBloqueadoPlantilla('trabajada_paga', 'trabajada'), false);
+    assert.equal(resolveDiasInputBloqueadoPlantilla('trabajada_paga', 'no_laborado'), true);
   });
 });
 

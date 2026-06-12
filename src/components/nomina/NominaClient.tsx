@@ -61,10 +61,7 @@ import {
   RotacionInstanciaBanner,
 } from '@/components/nomina/RotacionInstanciaPanel';
 import { resolveWorkerRotacionContext } from '@/lib/rotacion-plantillas/projection';
-import {
-  plantillaPermiteAjusteAsistencia,
-  resolveDiasInputBloqueadoPlantilla,
-} from '@/lib/rotacion-plantillas/semana-cierre';
+import { resolveDiasInputBloqueadoPlantilla } from '@/lib/rotacion-plantillas/semana-cierre';
 import { deserializeInstanciaSnapshot } from '@/lib/rotacion-plantillas/instancia-serialize';
 import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
@@ -381,11 +378,6 @@ function recomputePreNominaRow(
   };
 }
 
-/** Bloquea asistencia salvo en columnas libre/vacaciones (excepciones por trabajador). */
-function asistenciaBloqueadaPorPlantilla(row: PreNominaRowState): boolean {
-  if (row.rotacionFuente !== 'plantilla' || !row.estatusPlantilla) return false;
-  return !plantillaPermiteAjusteAsistencia(row.estatusPlantilla);
-}
 
 const ICONS = {
   administracion: Briefcase,
@@ -2338,15 +2330,15 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                 {/* Attendance Toggles - Turno/Libre/Falta */}
                                 <td className={`px-3 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/5 border-x border-amber-500/10' : ''}`}>
                                   <div className="inline-flex p-1 rounded-xl bg-zinc-950/60 border border-zinc-800/50">
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'trabajada' })} title="Semana Turno Laboral" disabled={semanaActualProcesada || asistenciaBloqueadaPorPlantilla(row)}
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'trabajada' })} title="Semana Turno Laboral" disabled={semanaActualProcesada}
                                       className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'trabajada' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 shadow-md shadow-amber-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <Hammer className="w-3.5 h-3.5" /> Turno
                                     </button>
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'libre' })} title="Semana Libre" disabled={semanaActualProcesada || asistenciaBloqueadaPorPlantilla(row)}
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'libre' })} title="Semana Libre" disabled={semanaActualProcesada}
                                       className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'libre' ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30 shadow-md shadow-cyan-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <Umbrella className="w-3.5 h-3.5" /> Libre
                                     </button>
-                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'no_laborado' })} title="No laboró" disabled={semanaActualProcesada || asistenciaBloqueadaPorPlantilla(row)}
+                                    <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'no_laborado' })} title="No laboró" disabled={semanaActualProcesada}
                                       className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'no_laborado' ? 'bg-red-500/15 text-red-400 border-red-500/30 shadow-md shadow-red-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
                                       <XCircle className="w-3.5 h-3.5" /> Falta
                                     </button>
