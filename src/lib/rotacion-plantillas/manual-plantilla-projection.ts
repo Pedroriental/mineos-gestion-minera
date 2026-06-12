@@ -207,7 +207,7 @@ export type ManualPlantillaNominaRow = {
   novedadTurnoObs: string;
   cicloPosicion: number;
   diasInputBloqueado: boolean;
-  rotacionFuente: 'plantilla';
+  rotacionFuente: 'plantilla' | 'legacy';
   cuadrillaNombre: string;
   posicionCiclo: number;
   estatusPlantillaLabel: string;

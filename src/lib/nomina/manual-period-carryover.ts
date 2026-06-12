@@ -92,7 +92,7 @@ export function mergePersonalCatalogWithRosterEntries(
     if (!base) continue;
     out.push({
       ...base,
-      area,
+      area: area as Personal['area'],
       ...(entry.areaDetalle ? { area_detalle: entry.areaDetalle } : {}),
     });
   }

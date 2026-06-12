@@ -15,7 +15,7 @@ export interface Personal {
   ubicacion_laboral?: string | null;
   salario_base: number;
   salario_libre: number;
-  bono_transporte: number;
+  bono_transporte?: number;
   estatus: 'ACTIVO' | 'LIQUIDADO' | 'INACTIVO';
   fecha_ingreso: string;
   activo: boolean;
@@ -80,7 +80,7 @@ export interface NominaRegistro {
   personal_id: string;
   monto_pagado: number;
   es_semana_libre: boolean;
-  bono_transporte_pagado: number;
+  bono_transporte_pagado?: number;
   estado_asistencia?: 'trabajada' | 'libre' | 'no_laborado' | null;
   dias_trabajados?: number | null;
   salario_base_calculado?: number | null;
@@ -221,7 +221,7 @@ export interface HistorialPagoRow {
   area: string;
   monto_pagado: number;
   es_semana_libre: boolean;
-  bono_transporte_pagado: number;
+  bono_transporte_pagado?: number;
   created_at: string;
 }
 

@@ -72,11 +72,14 @@ describe('manual-period', () => {
 
   it('weekInManualPeriod', () => {
     const period = {
+      id: 'p-1',
       label: 'Mayo',
       rangeStart: '2026-05-01',
       rangeEnd: '2026-05-31',
       plantillaId: '',
       plantillaNombre: '',
+      weekColumnAssignment: [],
+      weekColumnCuadrillas: [],
     };
     assert.equal(weekInManualPeriod('2026-05-05', period), true);
     assert.equal(weekInManualPeriod('2026-06-02', period), false);
@@ -84,11 +87,14 @@ describe('manual-period', () => {
 
   it('nextWeekInManualPeriod y previousWeekInManualPeriod', () => {
     const period = {
+      id: 'p-1',
       label: 'Mayo',
       rangeStart: '2026-05-01',
       rangeEnd: '2026-05-31',
       plantillaId: '',
       plantillaNombre: '',
+      weekColumnAssignment: [],
+      weekColumnCuadrillas: [],
     };
     const weeks = manualPeriodWeekStarts(period.rangeStart, period.rangeEnd);
     assert.equal(nextWeekInManualPeriod(period, weeks[0]), weeks[1]);

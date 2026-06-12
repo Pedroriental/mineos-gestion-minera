@@ -11,11 +11,14 @@ import type { ManualNominaPeriod } from '@/lib/nomina/manual-period';
 
 const area = 'mina';
 const period: ManualNominaPeriod = {
+  id: 'p-1',
   label: 'Mayo 2026',
   rangeStart: '2026-05-01',
   rangeEnd: '2026-05-31',
   plantillaId: 'pl-1',
   plantillaNombre: 'Vertical',
+  weekColumnAssignment: [],
+  weekColumnCuadrillas: [],
 };
 
 describe('manual-period-carryover', () => {

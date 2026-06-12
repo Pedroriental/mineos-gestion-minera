@@ -334,14 +334,14 @@ export default function NominaCiclosTable({
                       const initials = getInitials(p.nombre_completo);
 
                       const montosPorPosicion = columnasCiclo.map((col) =>
-                        trab.registros.find((r) => r.ciclo_semana?.posicion_en_ciclo === col.posicion),
+                        trab.registros.find((r) => r?.ciclo_semana?.posicion_en_ciclo === col.posicion),
                       );
 
                       const statusBadges: string[] = [];
-                      if (trab.registros.some(r => r.es_finiquito)) {
+                      if (trab.registros.some(r => r?.es_finiquito)) {
                         statusBadges.push('Retirado');
                       }
-                      if (trab.registros.some(r => r.novedad_turno === 'REPOSO')) {
+                      if (trab.registros.some(r => r?.novedad_turno === 'REPOSO')) {
                         statusBadges.push('Reposo');
                       }
                       // "Libre Pagado" si alguna posición con rol libre tiene monto > 0
@@ -354,7 +354,7 @@ export default function NominaCiclosTable({
                       }
 
                       // Calcular bonos totales
-                      const bonosTotal = trab.registros.reduce((s, r) => s + (r.bonificaciones || 0) + (r.bono_transporte_pagado || 0), 0);
+                      const bonosTotal = trab.registros.reduce((s, r) => s + (r?.bonificaciones || 0) + (r?.bono_transporte_pagado || 0), 0);
 
                       return (
                         <tr key={p.id} className="border-b border-zinc-850/20 hover:bg-zinc-800/20 transition-colors">
@@ -436,7 +436,7 @@ export default function NominaCiclosTable({
                   const initials = getInitials(p.nombre_completo);
 
                   const montosMobile = columnasCiclo.map((col) =>
-                    trab.registros.find((r) => r.ciclo_semana?.posicion_en_ciclo === col.posicion),
+                    trab.registros.find((r) => r?.ciclo_semana?.posicion_en_ciclo === col.posicion),
                   );
 
                   return (
