@@ -83,6 +83,7 @@ import {
   ensureWorkingWeekInPeriodAssignment,
   getPeriodById,
   loadManualPeriodsSession,
+  periodsEnCurso,
   removePeriodFromSession,
   resolveManualPeriodForWeek,
   saveManualPeriodsSession,
@@ -2270,7 +2271,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
             ) : Object.keys(groupedRows).length === 0 ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
                 <Users className="w-12 h-12 text-white/20 mx-auto mb-3" />
-                {manualPeriodSession.periods.length > 0 &&
+                {periodsEnCurso(manualPeriodSession).length > 0 &&
                 !isManualPeriodWeek &&
                 weekRange.inicio === temporalCtx.workingWeekStart ? (
                   <>

@@ -4,6 +4,7 @@ import { AppSelect } from '@/components/ui/AppSelect';
 import {
   getEditorPeriod,
   periodsContainingWeek,
+  periodsEnCurso,
   type ManualPeriodsSession,
 } from '@/lib/nomina/manual-period-session';
 import { formatManualWeekLabel } from '@/lib/nomina/manual-period';
@@ -30,11 +31,15 @@ export function ManualPeriodsSessionBar({
   onStartNewPeriod,
   onDeleteEditorPeriod,
 }: Props) {
-  const editor = getEditorPeriod(session);
-  const workingCandidates = periodsContainingWeek(session, workingWeekStart);
+  const draftPeriods = periodsEnCurso(session);
+  if (!draftPeriods.length) return null;
+
+  const draftSession: ManualPeriodsSession = { ...session, periods: draftPeriods };
+  const editor = getEditorPeriod(draftSession);
+  const workingCandidates = periodsContainingWeek(draftSession, workingWeekStart, true);
 
   const editorOptions = [
-    ...session.periods.map((p) => ({
+    ...draftPeriods.map((p) => ({
       value: p.id,
       label: p.label.trim() || `${p.rangeStart} — ${p.rangeEnd}`,
     })),
@@ -49,14 +54,12 @@ export function ManualPeriodsSessionBar({
     })),
   ];
 
-  if (!session.periods.length) return null;
-
   return (
     <section className={cn(mineosPanel('neutral'), 'w-full min-w-0 !p-2.5 lg:!p-3')}>
       <div className="mb-2 flex items-center gap-2">
         <Layers className="h-4 w-4 shrink-0 text-[var(--mineos-general-bright)]" />
         <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-          Ciclos armados ({session.periods.length})
+          Ciclos armados ({draftPeriods.length})
         </p>
       </div>
       <div className="grid gap-2 lg:grid-cols-2">

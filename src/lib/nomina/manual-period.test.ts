@@ -15,7 +15,11 @@ import {
   manualPeriodoDedupKey,
 } from '@/lib/nomina/manual-period';
 import {
+  filterManualPeriodsEnCurso,
+  isManualPeriodEnCurso,
+  periodsEnCurso,
   resolveManualPeriodForWeek,
+  sanitizeManualPeriodsSession,
   type ManualPeriodsSession,
 } from '@/lib/nomina/manual-period-session';
 
@@ -82,6 +86,36 @@ describe('manual-period', () => {
       resolveClosedSemanaForManualPeriod(period4, semanas, '2026-05-25', 'mina'),
       undefined,
     );
+  });
+
+  it('isManualPeriodEnCurso excluye réplicas arch- y deduplica ciclos locales', () => {
+    const mp = {
+      id: 'mp-1',
+      label: '5ta Semana',
+      rangeStart: '2026-05-11',
+      rangeEnd: '2026-05-31',
+      plantillaId: 'pl',
+      plantillaNombre: 'P',
+      semanaIds: [],
+    };
+    const arch = { ...mp, id: 'arch-db-1', periodoArchivoId: 'db-1' };
+    assert.equal(isManualPeriodEnCurso(mp), true);
+    assert.equal(isManualPeriodEnCurso(arch), false);
+    const deduped = filterManualPeriodsEnCurso([
+      mp,
+      { ...mp, id: 'mp-2' },
+      arch,
+    ]);
+    assert.equal(deduped.length, 1);
+    assert.equal(deduped[0]?.id, 'mp-2');
+    const session = sanitizeManualPeriodsSession({
+      periods: [mp, arch, { ...mp, id: 'mp-2' }],
+      editorPeriodId: 'arch-db-1',
+      workingWeekPeriodId: 'arch-db-1',
+      historicalPeriodId: 'arch-db-1',
+    });
+    assert.equal(periodsEnCurso(session).length, 1);
+    assert.equal(session.editorPeriodId, 'mp-2');
   });
 
   it('resolveManualPeriodForWeek prefiere editor sobre histórico en rangos solapados', () => {

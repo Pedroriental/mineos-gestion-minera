@@ -47,12 +47,49 @@ export function getEditorPeriod(session: ManualPeriodsSession): ManualNominaPeri
   return getPeriodById(session, session.editorPeriodId);
 }
 
+/** Ciclo local en armado (excluye réplicas arch- de periodos ya consolidados). */
+export function isManualPeriodEnCurso(period: ManualNominaPeriod): boolean {
+  return !period.id.startsWith('arch-');
+}
+
+export function manualPeriodEnCursoDedupKey(period: ManualNominaPeriod): string {
+  return `${period.plantillaId}|${period.rangeStart}|${period.rangeEnd}|${period.label.trim().toLowerCase()}`;
+}
+
+export function filterManualPeriodsEnCurso(periods: ManualNominaPeriod[]): ManualNominaPeriod[] {
+  const byKey = new Map<string, ManualNominaPeriod>();
+  for (const p of periods) {
+    if (!isManualPeriodEnCurso(p)) continue;
+    byKey.set(manualPeriodEnCursoDedupKey(p), p);
+  }
+  return [...byKey.values()];
+}
+
+export function periodsEnCurso(session: ManualPeriodsSession): ManualNominaPeriod[] {
+  return filterManualPeriodsEnCurso(session.periods);
+}
+
+/** Quita archivos importados y duplicados; reajusta ids de sesión. */
+export function sanitizeManualPeriodsSession(session: ManualPeriodsSession): ManualPeriodsSession {
+  const periods = filterManualPeriodsEnCurso(session.periods);
+  const valid = new Set(periods.map((p) => p.id));
+  const pick = (id: string | null | undefined) => (id && valid.has(id) ? id : null);
+  return {
+    periods,
+    editorPeriodId: pick(session.editorPeriodId) ?? periods[0]?.id ?? null,
+    workingWeekPeriodId: pick(session.workingWeekPeriodId),
+    historicalPeriodId: pick(session.historicalPeriodId),
+  };
+}
+
 /** Periodos cuyo rango incluye la semana de curso. */
 export function periodsContainingWeek(
   session: ManualPeriodsSession,
   weekStart: string,
+  onlyEnCurso = false,
 ): ManualNominaPeriod[] {
-  return session.periods.filter((p) => weekInManualPeriod(weekStart, p));
+  const pool = onlyEnCurso ? periodsEnCurso(session) : session.periods;
+  return pool.filter((p) => weekInManualPeriod(weekStart, p));
 }
 
 export function resolveManualPeriodForWeek(
@@ -154,12 +191,12 @@ export function loadManualPeriodsSession(area: string): ManualPeriodsSession {
       const periods = (parsed.periods ?? [])
         .map((p) => normalizeManualPeriod(p as Partial<ManualNominaPeriod>))
         .filter(Boolean) as ManualNominaPeriod[];
-      return {
+      return sanitizeManualPeriodsSession({
         periods,
         editorPeriodId: parsed.editorPeriodId ?? periods[0]?.id ?? null,
         workingWeekPeriodId: parsed.workingWeekPeriodId ?? null,
         historicalPeriodId: parsed.historicalPeriodId ?? null,
-      };
+      });
     }
 
     const v2 = localStorage.getItem(manualPeriodStorageKey(area));
@@ -168,12 +205,12 @@ export function loadManualPeriodsSession(area: string): ManualPeriodsSession {
     if (raw) {
       const single = normalizeManualPeriod(JSON.parse(raw) as Partial<ManualNominaPeriod>);
       if (single) {
-        return {
+        return sanitizeManualPeriodsSession({
           periods: [single],
           editorPeriodId: single.id,
           workingWeekPeriodId: null,
           historicalPeriodId: single.id,
-        };
+        });
       }
     }
   } catch {
@@ -185,11 +222,12 @@ export function loadManualPeriodsSession(area: string): ManualPeriodsSession {
 export function saveManualPeriodsSession(area: string, session: ManualPeriodsSession): void {
   if (typeof window === 'undefined') return;
   try {
-    if (!session.periods.length) {
+    const clean = sanitizeManualPeriodsSession(session);
+    if (!clean.periods.length) {
       localStorage.removeItem(manualPeriodsSessionKey(area));
       return;
     }
-    localStorage.setItem(manualPeriodsSessionKey(area), JSON.stringify(session));
+    localStorage.setItem(manualPeriodsSessionKey(area), JSON.stringify(clean));
   } catch {
     /* quota */
   }
