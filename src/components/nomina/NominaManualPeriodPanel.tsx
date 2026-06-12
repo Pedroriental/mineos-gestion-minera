@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
+  AlertTriangle,
   CalendarRange,
   ClipboardCheck,
   Eye,
   Loader2,
   Trash2,
+  Wand2,
   X,
   ArrowRight,
   LayoutGrid,
@@ -32,6 +34,7 @@ import {
 } from '@/lib/nomina/manual-period';
 import {
   buildDefaultWeekColumnCuadrillas,
+  buildManualPeriodPreviewRows,
   cuadrillaNombresForColumns,
   referenceRotationSemanas,
   remapWeekColumnCuadrillasForPlantilla,
@@ -42,6 +45,7 @@ import {
   estatusRotacionShort,
 } from '@/lib/rotacion-plantillas/types';
 import { getWeekEnd } from '@/lib/nomina/week-utils';
+import { addDays, format as formatDate, parseISO } from 'date-fns';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { AppSelectOption } from '@/components/ui/AppSelect';
 import {
@@ -52,6 +56,24 @@ import {
 } from '@/lib/mineos-visual';
 import type { NominaSemana } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+/** Lunes igual o posterior a la fecha dada (las semanas de nómina inician en lunes). */
+function nextMondayOnOrAfter(iso: string): string {
+  const d = parseISO(iso);
+  const day = d.getDay(); // 0 = domingo … 1 = lunes
+  const offset = (8 - day) % 7;
+  return formatDate(addDays(d, offset), 'yyyy-MM-dd');
+}
+
+function suggestPeriodLabel(rangeStart: string, rangeEnd: string): string {
+  try {
+    const s = parseISO(rangeStart);
+    const e = parseISO(rangeEnd);
+    return `Periodo ${formatDate(s, 'dd/MM')} – ${formatDate(e, 'dd/MM/yyyy')}`;
+  } catch {
+    return '';
+  }
+}
 
 type Props = {
   semanas: NominaSemana[];
@@ -122,6 +144,39 @@ export function NominaManualPeriodPanel({
       })),
     [plantillas],
   );
+
+  // ── Vista previa del periodo en borrador (antes de iniciar) ──
+  const draftPlantilla = useMemo(
+    () => plantillas.find((p) => p.id === draft.plantillaId) ?? null,
+    [plantillas, draft.plantillaId],
+  );
+  const draftWeeks = useMemo(
+    () => manualPeriodWeekStarts(draft.rangeStart, draft.rangeEnd),
+    [draft.rangeStart, draft.rangeEnd],
+  );
+  const draftCycleLen = draftPlantilla ? referenceRotationSemanas(draftPlantilla).length : 0;
+  const draftPreviewRows = useMemo(
+    () =>
+      draftPlantilla && draftWeeks.length
+        ? buildManualPeriodPreviewRows(draftPlantilla, draftWeeks)
+        : [],
+    [draftPlantilla, draftWeeks],
+  );
+  const draftCuadrillas = useMemo(
+    () =>
+      draftPlantilla
+        ? [...draftPlantilla.cuadrillas].sort((a, b) => a.orden - b.orden)
+        : [],
+    [draftPlantilla],
+  );
+  const weeksMismatch = draftCycleLen > 0 && draftWeeks.length !== draftCycleLen;
+
+  function adjustRangeToCycle() {
+    if (!draftCycleLen) return;
+    const base = draftWeeks[0] ?? nextMondayOnOrAfter(draft.rangeStart);
+    const end = formatDate(addDays(parseISO(base), draftCycleLen * 7 - 1), 'yyyy-MM-dd');
+    setDraft((d) => ({ ...d, rangeStart: base, rangeEnd: end }));
+  }
 
   const plantillaActiva = period ? plantillas.find((p) => p.id === period.plantillaId) : null;
   const rotationColumns = plantillaActiva ? referenceRotationSemanas(plantillaActiva) : [];
@@ -370,6 +425,20 @@ export function NominaManualPeriodPanel({
                 placeholder="Ej: 5ta semana de mayo"
                 className="input-field w-full text-sm"
               />
+              {!draft.label.trim() && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDraft((d) => ({
+                      ...d,
+                      label: suggestPeriodLabel(d.rangeStart, d.rangeEnd),
+                    }))
+                  }
+                  className="mt-1 text-[10px] text-[var(--text-muted)] underline decoration-dotted underline-offset-2 transition-colors hover:text-[var(--mineos-general-bright)]"
+                >
+                  Usar sugerencia: «{suggestPeriodLabel(draft.rangeStart, draft.rangeEnd)}»
+                </button>
+              )}
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -407,6 +476,106 @@ export function NominaManualPeriodPanel({
             </div>
           </div>
         </div>
+
+        {/* ── Mapa del periodo: semanas del rango × estado de cada cuadrilla ── */}
+        {draftPlantilla && (
+          <div className="space-y-1.5 border-t border-[var(--card-border)] pt-2.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                Mapa del periodo
+              </span>
+              <span className="rounded border border-[var(--card-border)] bg-[var(--surface-elevated)]/50 px-1.5 py-px text-[9px] font-semibold tabular-nums text-[var(--text-secondary)]">
+                {draftWeeks.length} semana{draftWeeks.length === 1 ? '' : 's'} en el rango
+              </span>
+              {draftCycleLen > 0 && (
+                <span className="rounded border border-[var(--card-border)] bg-[var(--surface-elevated)]/50 px-1.5 py-px text-[9px] font-semibold tabular-nums text-[var(--text-secondary)]">
+                  Ciclo de {draftCycleLen} semana{draftCycleLen === 1 ? '' : 's'}
+                </span>
+              )}
+              {weeksMismatch && (
+                <span className="inline-flex items-center gap-1 rounded border border-[var(--mineos-general-border)] bg-[var(--mineos-general-soft)] px-1.5 py-px text-[9px] font-semibold text-[var(--mineos-general-bright)]">
+                  <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                  El rango no coincide con el ciclo de la plantilla
+                </span>
+              )}
+              {weeksMismatch && (
+                <button
+                  type="button"
+                  onClick={adjustRangeToCycle}
+                  className={cn(mineosBtnSubtleClass('general'), 'h-5 gap-1 px-1.5 text-[9px]')}
+                >
+                  <Wand2 className="h-2.5 w-2.5" />
+                  Ajustar rango al ciclo
+                </button>
+              )}
+            </div>
+
+            {draftWeeks.length === 0 ? (
+              <p className="text-[10px] italic text-[var(--text-muted)]">
+                Ninguna semana de nómina (lunes a domingo) inicia dentro del rango elegido.
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-md border border-[var(--card-border)] bg-[var(--surface-elevated)]/30">
+                <table className="w-full min-w-[320px] border-collapse text-[9px]">
+                  <thead>
+                    <tr className="border-b border-[var(--card-border)] bg-sky-950/20">
+                      <th className="min-w-[110px] border-r border-[var(--card-border)] px-2 py-1.5 text-left font-bold text-[var(--text-primary)]">
+                        Semana
+                      </th>
+                      {draftCuadrillas.map((c) => (
+                        <th
+                          key={c.id}
+                          title={c.nombre}
+                          className="min-w-[88px] border-r border-[var(--card-border)] px-2 py-1.5 text-center font-bold text-[var(--text-primary)] last:border-r-0"
+                        >
+                          <span className="block max-w-[140px] truncate">{c.nombre}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftPreviewRows.map((row) => (
+                      <tr
+                        key={row.weekStart}
+                        className="border-b border-[var(--card-border)]/60 last:border-b-0"
+                      >
+                        <td className="border-r border-[var(--card-border)] px-2 py-1.5 align-middle">
+                          <span className="font-semibold tabular-nums text-[var(--text-secondary)]">
+                            {formatManualWeekLabel(row.weekStart)}
+                          </span>
+                        </td>
+                        {row.cells.map((cell) => (
+                          <td
+                            key={cell.cuadrillaId}
+                            className="border-r border-[var(--card-border)] px-2 py-1.5 text-center align-middle last:border-r-0"
+                          >
+                            {cell.estatus ? (
+                              <span
+                                title={cell.semanaNombre ?? undefined}
+                                className={cn(
+                                  'inline-flex rounded px-1.5 py-px text-[8px] font-semibold',
+                                  estatusRotacionPreviewClass(cell.estatus),
+                                )}
+                              >
+                                {estatusRotacionShort(cell.estatus)}
+                              </span>
+                            ) : (
+                              <span className="text-[var(--text-muted)]">—</span>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="border-t border-[var(--card-border)] px-2 py-1 text-[8px] leading-snug text-[var(--text-muted)]">
+                  Estado previsto de cada cuadrilla por semana según la plantilla. Podrá reasignar
+                  intervalos y cuadrillas después de iniciar el periodo.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </section>
     );
   }

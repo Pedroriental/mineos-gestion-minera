@@ -51,6 +51,41 @@ export function referenceRotationSemanas(plantilla: RotacionPlantillaRecord): Ro
   return best;
 }
 
+export type ManualPeriodPreviewCell = {
+  cuadrillaId: string;
+  cuadrillaNombre: string;
+  estatus: import('@/lib/rotacion-plantillas/types').EstatusRotacionPlantilla | null;
+  semanaNombre: string | null;
+};
+
+export type ManualPeriodPreviewRow = {
+  weekStart: string;
+  columnIndex: number;
+  cells: ManualPeriodPreviewCell[];
+};
+
+/** Mapa previo del periodo: estado de cada cuadrilla por semana calendario (antes de iniciar). */
+export function buildManualPeriodPreviewRows(
+  plantilla: RotacionPlantillaRecord,
+  weekStarts: string[],
+): ManualPeriodPreviewRow[] {
+  const cuadrillas = [...plantilla.cuadrillas].sort((a, b) => a.orden - b.orden);
+  return weekStarts.map((weekStart, idx) => ({
+    weekStart,
+    columnIndex: idx,
+    cells: cuadrillas.map((c) => {
+      const estatus = resolveEstatusCuadrilla(c, idx);
+      const pos = posicionEfectivaCuadrilla(c.semanas.length, idx);
+      return {
+        cuadrillaId: c.id,
+        cuadrillaNombre: c.nombre,
+        estatus,
+        semanaNombre: c.semanas[pos]?.nombre ?? null,
+      };
+    }),
+  }));
+}
+
 export function buildDefaultWeekColumnCuadrillas(
   plantilla: RotacionPlantillaRecord,
   columnCount: number,
