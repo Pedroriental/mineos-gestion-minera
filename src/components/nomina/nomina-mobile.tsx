@@ -213,9 +213,9 @@ export function NominaMobileStatusCard({
             <AppDatePicker
               value={weekRange.inicio}
               onChange={(val) => {
-                if (!val) { setWeekRange({ inicio: '', fin: '' }); return; }
+                if (!val) return;
                 const d = new Date(val);
-                if (isNaN(d.getTime())) { setWeekRange((prev) => ({ ...prev, inicio: val })); return; }
+                if (isNaN(d.getTime())) return;
                 d.setDate(d.getDate() + 6);
                 setWeekRange({ inicio: val, fin: d.toISOString().split('T')[0] });
               }}
