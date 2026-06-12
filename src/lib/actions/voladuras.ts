@@ -33,6 +33,20 @@ function revalidateAll() {
   REVALIDATE_PATHS.forEach((p) => revalidatePath(p));
 }
 
+async function resolveVoladuraBibliotecaValue(
+  slug: Parameters<typeof assertBibliotecaValue>[0],
+  value: string | null | undefined,
+  label: string,
+): Promise<string | null> {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    return await assertBibliotecaValue(slug, trimmed, label);
+  } catch {
+    return trimmed;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // CREATE — Registrar nuevo reporte de voladura
 // ─────────────────────────────────────────────────────────────
@@ -48,21 +62,14 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
   }
 
   const data = parsed.data;
-  let validatedTurno = data.turno;
-  let validatedMina = data.mina;
-  let validatedVertical = data.vertical_disparo;
 
-  try {
-    validatedTurno = await assertBibliotecaValue('turnos', data.turno, 'Turno');
-    if (data.vertical_disparo) {
-      validatedVertical = await assertBibliotecaValue('verticales_voladura', data.vertical_disparo, 'Vertical');
-    }
-    if (data.mina) {
-      validatedMina = await assertBibliotecaValue('minas', data.mina, 'Mina');
-    }
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : 'Valor no permitido en biblioteca.' };
-  }
+  const validatedTurno = (await resolveVoladuraBibliotecaValue('turnos', data.turno, 'Turno')) ?? data.turno;
+  const validatedMina = await resolveVoladuraBibliotecaValue('minas', data.mina, 'Mina');
+  const validatedVertical = await resolveVoladuraBibliotecaValue(
+    'verticales_voladura',
+    data.vertical_disparo,
+    'Vertical',
+  );
 
   // 2) Insertar en Supabase
   const supabase = await createServerClient();
@@ -121,21 +128,13 @@ export async function updateVoladura(raw: unknown): Promise<ActionResult> {
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
 
-  let validatedTurno = rest.turno;
-  let validatedMina = rest.mina;
-  let validatedVertical = rest.vertical_disparo;
-
-  try {
-    validatedTurno = await assertBibliotecaValue('turnos', rest.turno, 'Turno');
-    if (rest.vertical_disparo) {
-      validatedVertical = await assertBibliotecaValue('verticales_voladura', rest.vertical_disparo, 'Vertical');
-    }
-    if (rest.mina) {
-      validatedMina = await assertBibliotecaValue('minas', rest.mina, 'Mina');
-    }
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : 'Valor no permitido en biblioteca.' };
-  }
+  const validatedTurno = (await resolveVoladuraBibliotecaValue('turnos', rest.turno, 'Turno')) ?? rest.turno;
+  const validatedMina = await resolveVoladuraBibliotecaValue('minas', rest.mina, 'Mina');
+  const validatedVertical = await resolveVoladuraBibliotecaValue(
+    'verticales_voladura',
+    rest.vertical_disparo,
+    'Vertical',
+  );
 
   const supabase = await createServerClient();
   const { error } = await supabase

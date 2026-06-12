@@ -338,14 +338,15 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
 
   const handleSave = () => {
     startTransition(async () => {
-      const pausasValidas = pausas.filter(
-        (p) => p.hora_inicio?.trim() && p.hora_fin?.trim(),
-      );
       const payload = {
         ...form,
-        mina: resolveBibliotecaLabel(biblioteca, 'minas', form.mina) || undefined,
-        vertical_disparo: form.vertical_disparo || undefined,
-        pausas_barrenado: pausasValidas.length > 0 ? pausasValidas : null,
+        mina: form.mina.trim() || undefined,
+        vertical_disparo: form.vertical_disparo.trim() || undefined,
+        responsable: form.responsable.trim() || undefined,
+        numero_disparo: form.numero_disparo.trim() || undefined,
+        observaciones_disparo: form.observaciones_disparo.trim() || undefined,
+        observaciones: form.observaciones.trim() || undefined,
+        pausas_barrenado: pausas.length > 0 ? pausas : null,
         huecos_lineas: normalizeHuecosLineas(huecosLineas),
         chupis_lineas: normalizeChupisLineas(chupisLineas),
         registrado_por: user?.id,
@@ -799,11 +800,11 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                 <span className={mineosModalDivider('general')} />
               </h3>
               <div>
-                <label className="input-label">Fecha *</label>
+                <label className="input-label">Fecha</label>
                 <AppDatePicker value={form.fecha} onChange={(val) => set('fecha', val)} />
               </div>
               <div>
-                <label className="input-label">Turno *</label>
+                <label className="input-label">Turno</label>
                 <AppSelect value={form.turno} onChange={(v) => set('turno', v)} options={turnoOptions} />
               </div>
               <div>

@@ -1,15 +1,38 @@
 /**
  * Esquemas de validación Zod — Módulo de Voladuras.
  *
- * Usados en Server Actions (validación robusta en servidor).
- * Los campos numéricos vienen como string desde el form y se
- * coercionan a number con z.coerce.number() antes de guardar.
+ * Modo borrador: solo fecha y turno son obligatorios; el resto puede ir vacío o en cero.
  */
 import { z } from 'zod';
 import {
   aggregateChupisLineas,
   aggregateHuecosLineas,
 } from '@/lib/voladuras-huecos-chupis';
+
+function toNonNegativeNumber(value: unknown, fallback = 0): number {
+  if (value === '' || value === null || value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+}
+
+function toNonNegativeInt(value: unknown, fallback = 0): number {
+  return Math.trunc(toNonNegativeNumber(value, fallback));
+}
+
+const nonNegativeNumber = (fallback = 0) =>
+  z.preprocess((value) => toNonNegativeNumber(value, fallback), z.number().min(0));
+
+const nonNegativeInt = (fallback = 0) =>
+  z.preprocess((value) => toNonNegativeInt(value, fallback), z.number().int().min(0));
+
+const optionalTrimmed = (max: number) =>
+  z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((value) => {
+      const trimmed = (value ?? '').trim();
+      return trimmed || null;
+    })
+    .pipe(z.string().max(max).nullable());
 
 // ── Pausa de barrenado (JSON embebido) ────────────────────────
 const PausaBarrenadoSchema = z.object({
@@ -20,17 +43,17 @@ const PausaBarrenadoSchema = z.object({
 
 const LineaHuecoSchema = z.object({
   tipo: z.enum(['hueco', 'hueco_salida']),
-  cantidad: z.coerce.number({ message: 'Debe ser un número' }).int('Debe ser entero').min(0),
-  pies: z.coerce.number({ message: 'Debe ser un número' }).int('Debe ser entero').min(0),
+  cantidad: nonNegativeInt(),
+  pies: nonNegativeInt(),
 });
 
 const LineaChupiSchema = z.object({
-  cantidad: z.coerce.number({ message: 'Debe ser un número' }).int('Debe ser entero').min(0),
-  pies: z.coerce.number({ message: 'Debe ser un número' }).int('Debe ser entero').min(0),
+  cantidad: nonNegativeInt(),
+  pies: nonNegativeInt(),
 });
 
 // ── Schema base — crear ───────────────────────────────────────
-export const VoladuraSchema = z.object({
+const VoladuraBaseSchema = z.object({
   fecha: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)')
@@ -38,93 +61,44 @@ export const VoladuraSchema = z.object({
 
   turno: z.string().min(1, 'Turno requerido'),
 
-  mina: z
-    .string()
-    .max(100, 'Máximo 100 caracteres')
-    .transform((s) => s.trim())
-    .optional()
-    .nullable(),
+  mina: optionalTrimmed(100),
+  responsable: optionalTrimmed(150),
 
-  responsable: z
-    .string()
-    .max(150, 'Máximo 150 caracteres')
-    .transform((s) => s.trim())
-    .optional()
-    .nullable(),
+  hora_inicio_barrenado: z.union([z.string(), z.null(), z.undefined()]).transform((v) => v?.trim() || null),
+  hora_fin_barrenado: z.union([z.string(), z.null(), z.undefined()]).transform((v) => v?.trim() || null),
 
-  hora_inicio_barrenado: z.string().optional().nullable(),
-  hora_fin_barrenado:    z.string().optional().nullable(),
+  numero_disparo: optionalTrimmed(10),
 
-  numero_disparo: z
-    .string()
-    .max(10, 'Máximo 10 caracteres')
-    .optional()
-    .nullable(),
-
-  hora_disparo:    z.string().optional().nullable(),
-  vertical_disparo: z.string().max(50, 'Máximo 50 caracteres').optional().nullable(),
+  hora_disparo: z.union([z.string(), z.null(), z.undefined()]).transform((v) => v?.trim() || null),
+  vertical_disparo: optionalTrimmed(50),
 
   sin_novedad: z.boolean().default(true),
 
-  huecos_cantidad: z.coerce
-    .number({ message: 'Debe ser un número' })
-    .int('Debe ser entero')
-    .min(0, 'No puede ser negativo')
-    .default(0),
-
-  huecos_pies: z.coerce
-    .number({ message: 'Debe ser un número' })
-    .int('Debe ser entero')
-    .min(0)
-    .default(0),
-
-  chupis_cantidad: z.coerce
-    .number({ message: 'Debe ser un número' })
-    .int('Debe ser entero')
-    .min(0)
-    .default(0),
-
-  chupis_pies: z.coerce
-    .number({ message: 'Debe ser un número' })
-    .int('Debe ser entero')
-    .min(0)
-    .default(0),
+  huecos_cantidad: nonNegativeInt(),
+  huecos_pies: nonNegativeInt(),
+  chupis_cantidad: nonNegativeInt(),
+  chupis_pies: nonNegativeInt(),
 
   huecos_lineas: z.array(LineaHuecoSchema).optional().default([]),
   chupis_lineas: z.array(LineaChupiSchema).optional().default([]),
 
-  fosforos_lp: z.coerce.number().int().min(0).default(0),
-  espaguetis:  z.coerce.number().int().min(0).default(0),
-  vitamina_e:  z.coerce.number().int().min(0).default(0),
-
-  trenza_metros: z.coerce
-    .number({ message: 'Debe ser un número' })
-    .min(0)
-    .default(0),
-
-  arroz_kg: z.coerce
-    .number({ message: 'Debe ser un número' })
-    .min(0, 'No puede ser negativo')
-    .default(0),
+  fosforos_lp: nonNegativeInt(),
+  espaguetis: nonNegativeInt(),
+  vitamina_e: nonNegativeInt(),
+  trenza_metros: nonNegativeNumber(),
+  arroz_kg: nonNegativeNumber(),
 
   pausas_barrenado: z.array(PausaBarrenadoSchema).optional().nullable(),
 
-  observaciones_disparo: z
-    .string()
-    .max(1000, 'Máximo 1000 caracteres')
-    .transform((s) => s.trim())
-    .optional()
-    .nullable(),
-
-  observaciones: z
-    .string()
-    .max(1000, 'Máximo 1000 caracteres')
-    .transform((s) => s.trim())
-    .optional()
-    .nullable(),
+  observaciones_disparo: optionalTrimmed(1000),
+  observaciones: optionalTrimmed(1000),
 
   registrado_por: z.string().uuid().optional().nullable(),
-}).transform((data) => {
+});
+
+type VoladuraParsed = z.infer<typeof VoladuraBaseSchema>;
+
+function applyVoladuraAggregates(data: VoladuraParsed) {
   const huecosAgg = data.huecos_lineas.length > 0
     ? aggregateHuecosLineas(data.huecos_lineas)
     : { cantidad: data.huecos_cantidad, pies: data.huecos_pies };
@@ -139,12 +113,14 @@ export const VoladuraSchema = z.object({
     chupis_cantidad: chupisAgg.cantidad,
     chupis_pies: chupisAgg.pies,
   };
-});
+}
+
+export const VoladuraSchema = VoladuraBaseSchema.transform(applyVoladuraAggregates);
 
 // ── Schema para UPDATE — requiere id ─────────────────────────
-export const VoladuraUpdateSchema = VoladuraSchema.extend({
+export const VoladuraUpdateSchema = VoladuraBaseSchema.extend({
   id: z.string().uuid('ID de registro inválido'),
-});
+}).transform(applyVoladuraAggregates);
 
 // ── Tipos inferidos ──────────────────────────────────────────
 export type VoladuraInput  = z.infer<typeof VoladuraSchema>;
