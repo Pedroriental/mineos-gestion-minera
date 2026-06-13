@@ -276,12 +276,15 @@ function recomputePreNominaRow(
   let estadoAsistencia = merged.estadoAsistencia;
   let diasTrabajados = merged.diasTrabajados;
 
+  // La rotación (esquema o plantilla) solo SUGIERE asistencia; la elección
+  // explícita del operador manda. Con asistencia «trabajada» los días quedan
+  // siempre editables aunque el ciclo prediga semana libre.
   const diasBloqueados =
     fromPlantilla && merged.estatusPlantilla
       ? resolveDiasInputBloqueadoPlantilla(merged.estatusPlantilla, estadoAsistencia)
       : fromPlantilla
-        ? Boolean(merged.diasInputBloqueado)
-        : esquemaDiasBloqueados;
+        ? Boolean(merged.diasInputBloqueado) && estadoAsistencia !== 'trabajada'
+        : esquemaDiasBloqueados && estadoAsistencia !== 'trabajada';
 
   if (overrides?.estadoAsistencia !== undefined) {
     if (overrides.diasTrabajados !== undefined && !diasBloqueados) {
