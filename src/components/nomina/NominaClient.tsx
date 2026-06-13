@@ -788,6 +788,7 @@ export default function NominaClient({
         reposoCondicion: null,
         reposoDiasPagados: 0,
         reposoCompensacionMonto: 0,
+        ajusteMotivo: '',
         cicloPosicion,
         diasInputBloqueado: diasBloqueados,
         rotacionFuente: (rotacion ? 'plantilla' : 'legacy') as 'plantilla' | 'legacy',
@@ -1436,7 +1437,21 @@ export default function NominaClient({
       if (!groups[grupo]) groups[grupo] = [];
       groups[grupo].push(row);
     });
-    return groups;
+    const ordered: Record<string, PreNominaRowState[]> = {};
+    for (const key of ASIGNACION_NOMINA_OPCIONES) {
+      if (groups[key]) ordered[key] = groups[key];
+    }
+    Object.keys(groups)
+      .filter((key) => !(ASIGNACION_NOMINA_OPCIONES as readonly string[]).includes(key))
+      .sort((a, b) => {
+        if (a === 'Sin asignación') return 1;
+        if (b === 'Sin asignación') return -1;
+        return a.localeCompare(b, 'es');
+      })
+      .forEach((key) => {
+        ordered[key] = groups[key];
+      });
+    return ordered;
   }, [
     filteredRows,
     manualPlantillaActiva,
@@ -1603,6 +1618,7 @@ export default function NominaClient({
         cargo: form.cargo, area, area_detalle: form.area_detalle,
         perfil_compensacion_id: editItem?.perfil_compensacion_id || '',
         salario_base: Number(form.salario_base) || 0,
+        salario_libre: Number(form.salario_libre) || 0,
         bono_transporte: Number(form.bono_transporte) || 0, telefono: form.telefono, notas: form.notas,
         fecha_ingreso: form.fecha_ingreso,
         rotacion_inicio_fecha: form.rotacion_inicio_fecha || null,
@@ -1690,6 +1706,7 @@ export default function NominaClient({
             reposoCondicion: r.reposoCondicion ?? null,
             reposoDiasPagados: r.reposoDiasPagados ?? 0,
             reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
+            ajusteMotivo: r.ajusteMotivo?.trim() || undefined,
           };
         });
         const res = await procesarCierreNominaV3Action({
@@ -2557,14 +2574,24 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                 <td className="px-5 py-3 text-right text-xs font-black tabular-nums text-amber-500">{fmtMoney(row.total)}</td>
                                 {/* Actions */}
                                 <td className="px-5 py-3 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button onClick={() => setSelectedReceipt(row)} title="Ficha" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-white transition-colors"><Receipt className="w-4 h-4" /></button>
-                                    {canEdit && !semanaActualProcesada && (
-                                      <>
-                                        <button onClick={() => openEdit(p)} title="Editar" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-amber-500 transition-colors"><Edit2 className="w-4 h-4" /></button>
-                                        <button onClick={() => handleDelete(p.id)} title="Baja" className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                                      </>
-                                    )}
+                                  <div className="flex flex-col items-center gap-1.5">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button onClick={() => setSelectedReceipt(row)} title="Ficha" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-white transition-colors"><Receipt className="w-4 h-4" /></button>
+                                      {canEdit && !semanaActualProcesada && (
+                                        <>
+                                          <button onClick={() => openEdit(p)} title="Editar" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-amber-500 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                                          <button onClick={() => handleDelete(p.id)} title="Baja" className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                        </>
+                                      )}
+                                    </div>
+                                    {canEdit && !semanaActualProcesada ? (
+                                      <input
+                                        value={row.ajusteMotivo || ''}
+                                        onChange={(e) => handleUpdateRow(p.id, { ajusteMotivo: e.target.value })}
+                                        placeholder="Motivo ajuste"
+                                        className="w-32 rounded-md border border-zinc-800 bg-zinc-950/40 px-2 py-1 text-[10px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-amber-500"
+                                      />
+                                    ) : null}
                                   </div>
                                 </td>
                               </tr>

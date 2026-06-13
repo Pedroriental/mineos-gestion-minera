@@ -152,7 +152,7 @@ describe('verificarTotalesCierre (checksum server-side)', () => {
     );
     assert.equal(res.ok, false);
     if (!res.ok) {
-      assert.match(res.message, /Total inconsistente/);
+      assert.match(res.message, /Ajuste no auditado/);
       assert.match(res.message, /9000\.00/);
     }
   });
@@ -210,51 +210,128 @@ describe('verificarTotalesCierre (checksum server-side)', () => {
     assert.equal(res.ok, true);
   });
 
-  it('Mina 14x7: semana libre (posición 0) paga tarifa plana completa con días bloqueados', () => {
-    // rotacion_inicio 2026-06-01 → la semana 2026-06-01 es posición 0 (libre)
+  it('Mina 14x7: semana libre (posición 2) paga tarifa plana completa con días bloqueados', () => {
+    // rotacion_inicio 2026-06-01 → la semana 2026-06-15 es posición 2 (libre)
     const personal = basePersonal({
       esquema_rotacion: 'MINA_2X1',
       rotacion_inicio_fecha: '2026-06-01',
       salario_base: 140,
+      salario_libre: 100,
     });
     const res = verificarTotalesCierre(
-      [baseRow({ estadoAsistencia: 'libre', diasTrabajados: 0, total: 140 })],
+      [baseRow({ estadoAsistencia: 'libre', diasTrabajados: 0, total: 100 })],
+      [personal],
+      '2026-06-15',
+    );
+    assert.equal(res.ok, true);
+  });
+
+  it('Molinos 14x14: semanas libres físicas fuerzan $0.00', () => {
+    // rotacion_inicio 2026-06-01 → semanas 2026-06-15 y 2026-06-22 son descanso físico
+    const personal = basePersonal({
+      esquema_rotacion: 'MOLINO_14X14',
+      rotacion_inicio_fecha: '2026-06-01',
+      salario_base: 200,
+      salario_libre: 150,
+    });
+    const ok = verificarTotalesCierre(
+      [baseRow({ estadoAsistencia: 'no_laborado', diasTrabajados: 0, total: 0 })],
+      [personal],
+      '2026-06-15',
+    );
+    assert.equal(ok.ok, true);
+
+    // Intento de cobrar durante descanso → rechazo
+    const fraude = verificarTotalesCierre(
+      [baseRow({ estadoAsistencia: 'no_laborado', diasTrabajados: 0, total: 200 })],
+      [personal],
+      '2026-06-22',
+    );
+    assert.equal(fraude.ok, false);
+  });
+
+  it('Molinos 14x14: primera trabajada paga trabajo actual + libre diferida', () => {
+    const personal = basePersonal({
+      area: 'planta',
+      area_detalle: 'Molinos- Grupo (mixto)',
+      esquema_rotacion: 'MOLINO_14X14',
+      rotacion_inicio_fecha: '2026-06-01',
+      salario_base: 200,
+      salario_libre: 150,
+      bono_transporte: 50,
+    });
+    const res = verificarTotalesCierre(
+      [baseRow({ estadoAsistencia: 'trabajada', diasTrabajados: 7, bonoTransporte: 0, total: 350 })],
       [personal],
       '2026-06-01',
     );
     assert.equal(res.ok, true);
   });
 
-  it('Molinos 14x14: posición 1 (segunda libre) fuerza $0.00', () => {
-    // rotacion_inicio 2026-06-01 → la semana 2026-06-08 es posición 1 (no pagada)
+  it('Molinos 14x14: segunda trabajada paga trabajo actual + transporte', () => {
     const personal = basePersonal({
+      area: 'planta',
+      area_detalle: 'Molinos- Grupo (mixto)',
       esquema_rotacion: 'MOLINO_14X14',
       rotacion_inicio_fecha: '2026-06-01',
       salario_base: 200,
+      salario_libre: 150,
+      bono_transporte: 50,
     });
-    const ok = verificarTotalesCierre(
-      [baseRow({ estadoAsistencia: 'no_laborado', diasTrabajados: 0, total: 0 })],
+    const res = verificarTotalesCierre(
+      [baseRow({ estadoAsistencia: 'trabajada', diasTrabajados: 7, bonoTransporte: 50, total: 250 })],
       [personal],
       '2026-06-08',
     );
-    assert.equal(ok.ok, true);
-
-    // Intento de cobrar la semana no pagada → rechazo
-    const fraude = verificarTotalesCierre(
-      [baseRow({ estadoAsistencia: 'no_laborado', diasTrabajados: 0, total: 200 })],
-      [personal],
-      '2026-06-08',
-    );
-    assert.equal(fraude.ok, false);
+    assert.equal(res.ok, true);
   });
 
   it('deduce vales y bonos en el recálculo (total = salario + bono + bonif − vales)', () => {
     const res = verificarTotalesCierre(
-      [baseRow({ bonoTransporte: 10, bonificaciones: 20, totalVales: 30, total: 140 })],
+      [
+        baseRow({
+          bonoTransporte: 10,
+          bonificaciones: 20,
+          totalVales: 30,
+          total: 140,
+          ajusteMotivo: 'Bono transporte aprobado por gerencia',
+        }),
+      ],
       [basePersonal()],
       '2026-06-01',
     );
     // 140 + 10 + 20 − 30 = 140
     assert.equal(res.ok, true);
+  });
+
+  it('rechaza bono transporte manipulado aunque el total coincida', () => {
+    const res = verificarTotalesCierre(
+      [baseRow({ bonoTransporte: 10, bonificaciones: 0, totalVales: 10, total: 140 })],
+      [basePersonal()],
+      '2026-06-01',
+    );
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.match(res.message, /bono transporte/);
+  });
+
+  it('acepta bono transporte manual solo con motivo auditable', () => {
+    const res = verificarTotalesCierre(
+      [
+        baseRow({
+          bonoTransporte: 10,
+          bonificaciones: 0,
+          totalVales: 10,
+          total: 140,
+          ajusteMotivo: 'Transporte manual aprobado por administración',
+        }),
+      ],
+      [basePersonal()],
+      '2026-06-01',
+    );
+    assert.equal(res.ok, true);
+    if (res.ok) {
+      assert.equal(res.ajustes.length, 1);
+      assert.match(res.ajustes[0].campos?.join(' ') ?? '', /bono transporte/);
+    }
   });
 });

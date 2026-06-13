@@ -57,6 +57,7 @@ export interface PreNominaRowState {
   reposoCondicion?: ReposoModoSueldoSemana | null;
   reposoDiasPagados?: number;
   reposoCompensacionMonto?: number;
+  ajusteMotivo?: string;
   cicloPosicion?: number | null;
   diasInputBloqueado?: boolean;
   rotacionFuente?: 'plantilla' | 'legacy';

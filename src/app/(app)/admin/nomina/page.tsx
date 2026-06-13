@@ -1,6 +1,8 @@
 import { createServerClient } from '@/lib/supabase-server';
 import NominaWorkspace from '@/components/nomina/NominaWorkspace';
 import { isPersonalVisibleInNomina } from '@/lib/personal-master';
+import { syncRotacionEstadosLaboralesAction } from '@/lib/actions/rotacion-sync';
+import { getWeekStart } from '@/lib/rotacion-personal';
 import { loadNominaRotacionContext } from '@/lib/nomina/load-rotacion-context';
 import type { PerfilCompensacion, Personal, NominaSemana } from '@/lib/types';
 
@@ -13,6 +15,8 @@ export const dynamic = 'force-dynamic';
 export default async function AdminNominaPage() {
   const supabase = await createServerClient();
   const area = 'administracion';
+
+  await syncRotacionEstadosLaboralesAction(getWeekStart());
 
   // Obtener trabajadores activos de esta área
   const { data: personalRows } = await supabase

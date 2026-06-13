@@ -5,6 +5,7 @@ import { Loader2, Plus, Search, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageFormModal } from '@/components/ui/PageFormModal';
 import { AppSelect } from '@/components/ui/AppSelect';
+import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { useBiblioteca, useBibliotecaOptions } from '@/contexts/biblioteca-context';
 import {
   areaNominaLabel,
@@ -40,7 +41,9 @@ const EMPTY_CREATE = {
   cargo: '',
   perfil_compensacion_id: '',
   salario_base: '',
+  salario_libre: '',
   bono_transporte: '',
+  rotacion_inicio_fecha: '',
 };
 
 function workerProfileReady(p: Personal): { ok: true } | { ok: false; message: string } {
@@ -94,6 +97,14 @@ export function PersonalQuickAssignModal({
     () => perfilesCompensacion.map((p) => ({ value: p.id, label: p.nombre })),
     [perfilesCompensacion],
   );
+  const selectedCreatePerfil = useMemo(
+    () => perfilesCompensacion.find((p) => p.id === createForm.perfil_compensacion_id) ?? null,
+    [perfilesCompensacion, createForm.perfil_compensacion_id],
+  );
+  const createPerfilTieneRotacion =
+    !!selectedCreatePerfil &&
+    selectedCreatePerfil.esquema_rotacion_default !== 'FIJO_SEMANAL' &&
+    selectedCreatePerfil.esquema_rotacion_default !== 'MOLINO_FIJO';
 
   const asignacionOk = (v: string) => isAsignacionNominaValid(v, biblioteca);
 
@@ -278,7 +289,9 @@ export function PersonalQuickAssignModal({
         areaDetalle: asignacionNomina,
         perfil_compensacion_id: createForm.perfil_compensacion_id,
         salario_base: Number(createForm.salario_base),
+        salario_libre: createForm.salario_libre ? Number(createForm.salario_libre) : 0,
         bono_transporte: createForm.bono_transporte ? Number(createForm.bono_transporte) : 0,
+        rotacion_inicio_fecha: createForm.rotacion_inicio_fecha || null,
       });
       if (!res.ok || !res.personalId) {
         setError(res.message);
@@ -530,6 +543,18 @@ export function PersonalQuickAssignModal({
                   />
                 </div>
                 <div>
+                  <label className="input-label">Sueldo libre / tarifa plana</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="input-field"
+                    value={createForm.salario_libre}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, salario_libre: e.target.value }))}
+                    placeholder="Vacío = sueldo base"
+                  />
+                </div>
+                <div>
                   <label className="input-label">Bono transporte</label>
                   <input
                     type="number"
@@ -540,6 +565,15 @@ export function PersonalQuickAssignModal({
                     onChange={(e) => setCreateForm((f) => ({ ...f, bono_transporte: e.target.value }))}
                   />
                 </div>
+                {createPerfilTieneRotacion ? (
+                  <div>
+                    <label className="input-label">Inicio de rotación</label>
+                    <AppDatePicker
+                      value={createForm.rotacion_inicio_fecha}
+                      onChange={(v) => setCreateForm((f) => ({ ...f, rotacion_inicio_fecha: v }))}
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (

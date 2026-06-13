@@ -10,8 +10,6 @@ import type { PreNominaRow } from '@/lib/types';
 import { registrarAuditAction } from './nomina-v3';
 import { z } from 'zod';
 import {
-  PersonalV2Schema,
-  PersonalV2UpdateSchema,
   CierreNominaV2Schema,
   PersonalEstatusUpdateSchema,
 } from '@/lib/validations/nomina-v2';
@@ -72,41 +70,12 @@ export async function upsertPersonalV2Action(raw: {
   bono_transporte: number;
   fecha_ingreso: string;
 }): Promise<ActionResult> {
-  const schema = raw.id ? PersonalV2UpdateSchema : PersonalV2Schema;
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    const msg = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Datos inválidos';
-    return { ok: false, message: msg };
-  }
-
-  try {
-    const supabase = await createServerClient();
-    const payload: Record<string, unknown> = {
-      ...parsed.data,
-      activo: true,
-      estatus: 'ACTIVO',
-    };
-
-    const parsedId = 'id' in parsed.data ? parsed.data.id : undefined;
-
-    let error;
-    if (parsedId) {
-      delete payload.id;
-      ({ error } = await supabase.from('personal').update(payload).eq('id', parsedId));
-    } else {
-      delete payload.id;
-      ({ error } = await supabase.from('personal').insert(payload));
-    }
-
-    if (error) return { ok: false, message: error.message };
-    revalidateAll();
-    return {
-      ok: true,
-      message: 'id' in parsed.data ? 'Trabajador actualizado.' : 'Trabajador registrado.',
-    };
-  } catch (e) {
-    return { ok: false, message: 'Error interno del servidor.' };
-  }
+  void raw;
+  return {
+    ok: false,
+    message:
+      'Flujo V2 deshabilitado. Usa Base de Trabajadores o asignación V3 para conservar perfil, rotación y auditoría.',
+  };
 }
 
 // ── Procesar cierre de nómina con aportes de socios ─────────

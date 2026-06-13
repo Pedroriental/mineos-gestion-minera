@@ -97,6 +97,109 @@ describe('calculateNominaRowPay asistencia', () => {
     assert.equal(pay.salarioBaseCalculado, 0);
     assert.equal(pay.esSemanaLibre, false);
   });
+
+  it('turno fijo no administrativo cobra bono transporte maestro automáticamente', () => {
+    const pay = calculateNominaRowPay({
+      personal: {
+        ...personal,
+        area: 'mina',
+        area_detalle: 'Vertical 1PD',
+        bono_transporte: 70,
+      },
+      estadoAsistencia: 'trabajada',
+      diasTrabajados: 7,
+      weekStart: week,
+      totalVales: 0,
+    });
+    assert.equal(pay.bonoTransporte, 70);
+    assert.equal(pay.total, 770);
+  });
+});
+
+describe('calculateNominaRowPay ciclos reales', () => {
+  it('Mina 14x7 paga dos semanas trabajadas y la tercera libre plana', () => {
+    const mina = {
+      ...personal,
+      esquema_rotacion: 'MINA_2X1' as const,
+      rotacion_inicio_fecha: '2026-06-01',
+      salario_base: 140,
+      salario_libre: 100,
+      bono_transporte: 0,
+    };
+
+    assert.equal(
+      calculateNominaRowPay({
+        personal: mina,
+        estadoAsistencia: 'trabajada',
+        diasTrabajados: 7,
+        weekStart: '2026-06-01',
+      }).total,
+      140,
+    );
+    assert.equal(
+      calculateNominaRowPay({
+        personal: mina,
+        estadoAsistencia: 'trabajada',
+        diasTrabajados: 3,
+        weekStart: '2026-06-08',
+      }).total,
+      60,
+    );
+    assert.equal(
+      calculateNominaRowPay({
+        personal: mina,
+        estadoAsistencia: 'libre',
+        diasTrabajados: 0,
+        weekStart: '2026-06-15',
+      }).total,
+      100,
+    );
+  });
+
+  it('Molinos 14x14 difiere la libre al regreso y solo paga transporte en la segunda trabajada', () => {
+    const molino = {
+      ...personal,
+      area: 'planta' as const,
+      area_detalle: 'Molinos- Grupo (mixto)',
+      esquema_rotacion: 'MOLINO_14X14' as const,
+      rotacion_inicio_fecha: '2026-06-01',
+      salario_base: 140,
+      salario_libre: 100,
+      bono_transporte: 35,
+    };
+
+    const semanaRegreso = calculateNominaRowPay({
+      personal: molino,
+      estadoAsistencia: 'trabajada',
+      diasTrabajados: 7,
+      weekStart: '2026-06-01',
+    });
+    assert.equal(semanaRegreso.salarioBaseCalculado, 240);
+    assert.equal(semanaRegreso.bonoTransporte, 0);
+    assert.equal(semanaRegreso.total, 240);
+
+    const semanaContinuidad = calculateNominaRowPay({
+      personal: molino,
+      estadoAsistencia: 'trabajada',
+      diasTrabajados: 7,
+      weekStart: '2026-06-08',
+    });
+    assert.equal(semanaContinuidad.salarioBaseCalculado, 140);
+    assert.equal(semanaContinuidad.bonoTransporte, 35);
+    assert.equal(semanaContinuidad.total, 175);
+
+    for (const weekStart of ['2026-06-15', '2026-06-22']) {
+      const descanso = calculateNominaRowPay({
+        personal: molino,
+        estadoAsistencia: 'no_laborado',
+        diasTrabajados: 0,
+        weekStart,
+      });
+      assert.equal(descanso.salarioBaseCalculado, 0);
+      assert.equal(descanso.bonoTransporte, 0);
+      assert.equal(descanso.total, 0);
+    }
+  });
 });
 
 describe('calculateExplicitAsistenciaPay plantilla', () => {

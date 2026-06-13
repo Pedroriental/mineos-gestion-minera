@@ -59,6 +59,17 @@ export function getAsignacionNomina(p: Pick<Personal, 'area_detalle' | 'area'>):
   return normalizeAreaDetalle(p.area_detalle || '', p.area);
 }
 
+export function deriveAsignacionNominaFields(areaDetalle: string | null | undefined): {
+  vertical_asignada: string | null;
+  grupo_turno: string | null;
+} {
+  const detalle = (areaDetalle || '').trim();
+  return {
+    vertical_asignada: detalle.startsWith('Vertical') ? detalle : null,
+    grupo_turno: detalle === 'Molinos- Grupo (mixto)' ? detalle : null,
+  };
+}
+
 /**
  * Clave de agrupación en pantallas de nómina (Vertical 1, Vertical 2, etc.).
  * Prioriza area_detalle; si falta, usa cargo porque en registros antiguos de mina

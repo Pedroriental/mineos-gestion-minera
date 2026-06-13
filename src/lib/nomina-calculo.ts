@@ -114,8 +114,11 @@ export function calculateBonoTransporteMolino15(
   diasTrabajados?: number,
 ): number {
   const posicion = posicionEsquemaPersonal(p, weekStartStr);
-  if (posicion === null) return 0;
   const dias = clampDiasTrabajados(diasTrabajados ?? defaultDiasTrabajados(estadoAsistencia));
+  if (posicion === null) {
+    if (estadoAsistencia !== 'trabajada') return 0;
+    return applyProportionalWeeklyPay(Number(p.bono_transporte) || 0, dias);
+  }
   return calcularBonoTransportePorPosicion(
     p.esquema_rotacion,
     p,

@@ -2,8 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
-import { normalizeAreaDetalle, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
-import { PersonalSchema, PersonalUpdateSchema, ImportarPersonalSchema, EmpleadoParseadoType } from '@/lib/validations/nomina';
+import { PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { z } from 'zod';
 import { registrarAuditAction } from './nomina-v3';
 import { revertirCierreRotacionNominaAction } from './rotacion-instancias';
@@ -17,52 +16,21 @@ function revalidateAll() {
 }
 
 export async function createPersonal(raw: unknown): Promise<ActionResult> {
-  try {
-    const parsed = PersonalSchema.safeParse(raw);
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
-      return { ok: false, message: Object.values(fieldErrors).flat()[0] ?? 'Datos inválidos', fieldErrors };
-    }
-
-    const supabase = await createServerClient();
-    const { error } = await supabase.from('personal').insert(parsed.data);
-
-    if (error) {
-      console.error('[Action] createPersonal Supabase error:', error.message);
-      return { ok: false, message: `Error al crear personal: ${error.message}` };
-    }
-
-    revalidateAll();
-    return { ok: true, message: 'Trabajador registrado exitosamente.' };
-  } catch (err) {
-    console.error('[Action] createPersonal Exception:', err);
-    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
-  }
+  void raw;
+  return {
+    ok: false,
+    message:
+      'Flujo legacy deshabilitado. Registra trabajadores desde Base de Trabajadores o asignación V3 para conservar perfil, asignación y auditoría.',
+  };
 }
 
 export async function updatePersonal(raw: unknown): Promise<ActionResult> {
-  try {
-    const parsed = PersonalUpdateSchema.safeParse(raw);
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
-      return { ok: false, message: Object.values(fieldErrors).flat()[0] ?? 'Datos inválidos', fieldErrors };
-    }
-
-    const { id, ...data } = parsed.data;
-    const supabase = await createServerClient();
-    const { error } = await supabase.from('personal').update(data).eq('id', id);
-
-    if (error) {
-      console.error('[Action] updatePersonal Supabase error:', error.message);
-      return { ok: false, message: `Error al actualizar: ${error.message}` };
-    }
-
-    revalidateAll();
-    return { ok: true, message: 'Trabajador actualizado.' };
-  } catch (err) {
-    console.error('[Action] updatePersonal Exception:', err);
-    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
-  }
+  void raw;
+  return {
+    ok: false,
+    message:
+      'Flujo legacy deshabilitado. Edita trabajadores desde Base de Trabajadores para conservar perfil, asignación y auditoría.',
+  };
 }
 
 export async function togglePersonalActivo(id: string, activo: boolean): Promise<ActionResult> {
@@ -111,69 +79,13 @@ export async function borrarTodoPersonalArea(area: string): Promise<ActionResult
 }
 
 export async function importarPersonalAction(rawEmps: unknown, area: string): Promise<ActionResult> {
-  try {
-    const parsed = ImportarPersonalSchema.safeParse(rawEmps);
-    if (!parsed.success) {
-      return { ok: false, message: 'Los datos importados contienen errores o no cumplen el formato requerido.' };
-    }
-
-    const validEmps = parsed.data;
-    const supabase = await createServerClient();
-
-    // Guardar IDs de trabajadores activos antes de desactivarlos (para rollback)
-    const { data: prevActivos } = await supabase
-      .from('personal')
-      .select('id')
-      .eq('activo', true)
-      .eq('area', area);
-    const prevIds = (prevActivos ?? []).map((p: { id: string }) => p.id);
-
-    // Desactivar trabajadores actuales del área para reemplazarlos
-    await supabase.from('personal').update({ activo: false }).eq('activo', true).eq('area', area);
-
-    let nuevos = 0;
-    let actualizados = 0;
-
-    try {
-      for (const emp of validEmps) {
-        const payload = {
-          cedula: emp.cedula,
-          nombre_completo: emp.nombre_completo,
-          cargo: emp.cargo,
-          area: emp.area,
-          area_detalle: normalizeAreaDetalle(emp.cargo, emp.area),
-          salario_base: emp.salario_semanal,
-          fecha_ingreso: emp.fecha_ingreso,
-          activo: true,
-          estado_laboral: 'ACTIVO',
-          estatus: 'ACTIVO',
-        };
-
-        const { data: existing } = await supabase.from('personal').select('id').eq('cedula', emp.cedula).maybeSingle();
-
-        if (existing) {
-          await supabase.from('personal').update(payload).eq('id', existing.id);
-          actualizados++;
-        } else {
-          const { error: insertErr } = await supabase.from('personal').insert(payload);
-          if (insertErr) throw new Error(`Error al insertar trabajador ${emp.cedula}: ${insertErr.message}`);
-          nuevos++;
-        }
-      }
-    } catch (err) {
-      // Rollback: restaurar trabajadores que fueron desactivados
-      if (prevIds.length > 0) {
-        await supabase.from('personal').update({ activo: true }).in('id', prevIds);
-      }
-      throw err; // Re-lanzar para el catch exterior
-    }
-
-    revalidateAll();
-    return { ok: true, message: 'Importación completada', data: { nuevos, actualizados } };
-  } catch (err) {
-    console.error('[Action] importarPersonalAction Exception:', err);
-    return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
-  }
+  void rawEmps;
+  void area;
+  return {
+    ok: false,
+    message:
+      'Importación legacy deshabilitada: no asigna perfil de compensación ni rotación. Usa el importador V3/base de trabajadores.',
+  };
 }
 
 /**

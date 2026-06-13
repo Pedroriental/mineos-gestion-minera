@@ -12,6 +12,12 @@
  */
 import { z } from 'zod';
 import { calculateNominaRowPay } from '@/lib/nomina-calculo';
+import {
+  asistenciaEsperadaPorPosicion,
+  inputsDiasBloqueados,
+  posicionEsquemaPersonal,
+  totalSemanasEsquema,
+} from '@/lib/nomina/perfil-ciclo-reglas';
 import type { Personal } from '@/lib/types';
 
 /** Tolerancia de redondeo entre el total del cliente y el recalculado. */
@@ -185,6 +191,7 @@ export type AjusteDetectado = {
   totalRecalculado: number;
   totalCliente: number;
   motivo: string;
+  campos?: string[];
 };
 
 export type ChecksumCierreResult =
@@ -224,19 +231,54 @@ export function verificarTotalesCierre(
       estadoAsistencia: row.estadoAsistencia,
       diasTrabajados: row.diasTrabajados,
       weekStart,
-      bonoTransporte: row.bonoTransporte,
       bonificaciones: row.bonificaciones,
       totalVales: row.totalVales,
     });
 
+    const desviaciones: string[] = [];
+    const posicion = posicionEsquemaPersonal(personal, weekStart);
+    const totalSemanas = totalSemanasEsquema(personal.esquema_rotacion);
+    if (posicion !== null && totalSemanas > 1) {
+      const asistenciaEsperada = asistenciaEsperadaPorPosicion(personal.esquema_rotacion, posicion);
+      if (row.estadoAsistencia !== asistenciaEsperada) {
+        desviaciones.push(
+          `asistencia esperada ${asistenciaEsperada}, recibida ${row.estadoAsistencia}`,
+        );
+      }
+      if (inputsDiasBloqueados(personal.esquema_rotacion, posicion) && row.diasTrabajados !== 0) {
+        desviaciones.push('días trabajados modificados en una posición bloqueada por ciclo');
+      }
+    }
+
+    const baseCliente = row.salarioBaseCalculado;
+    if (
+      baseCliente !== undefined &&
+      Math.abs(baseCliente - pay.salarioBaseCalculado) > CIERRE_TOLERANCIA_USD
+    ) {
+      desviaciones.push(
+        `sueldo base calculado cliente $${baseCliente.toFixed(2)}, servidor $${pay.salarioBaseCalculado.toFixed(2)}`,
+      );
+    }
+
+    if (Math.abs(row.bonoTransporte - pay.bonoTransporte) > CIERRE_TOLERANCIA_USD) {
+      desviaciones.push(
+        `bono transporte cliente $${row.bonoTransporte.toFixed(2)}, servidor $${pay.bonoTransporte.toFixed(2)}`,
+      );
+    }
+
     const diff = Math.abs(pay.total - row.total);
     if (diff > CIERRE_TOLERANCIA_USD) {
+      desviaciones.push(
+        `total cliente $${row.total.toFixed(2)}, servidor $${pay.total.toFixed(2)}`,
+      );
+    }
+
+    if (desviaciones.length > 0) {
       if (!row.ajusteMotivo) {
         return {
           ok: false,
           message:
-            `Total inconsistente para ${personal.nombre_completo}: ` +
-            `el servidor calcula $${pay.total.toFixed(2)} y el cliente envió $${row.total.toFixed(2)}. ` +
+            `Ajuste no auditado para ${personal.nombre_completo}: ${desviaciones.join('; ')}. ` +
             'Recarga la pre-nómina o registra un ajuste explícito con motivo.',
         };
       }
@@ -246,6 +288,7 @@ export function verificarTotalesCierre(
         totalRecalculado: pay.total,
         totalCliente: row.total,
         motivo: row.ajusteMotivo,
+        campos: desviaciones,
       });
     }
 

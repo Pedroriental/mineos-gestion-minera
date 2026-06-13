@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  calcularBonoTransportePorPosicion,
   calcularSalarioPorPosicionCiclo,
   etiquetaEstadoRotacion,
   fechaInicioCicloParaPosicion,
@@ -14,20 +15,39 @@ import {
 } from '@/lib/nomina/perfil-ciclo-reglas';
 
 const PERSONAL = { salario_base: 140, salario_libre: 0 };
+const PERSONAL_CON_TRANSPORTE = { salario_base: 140, salario_libre: 100, bono_transporte: 35 };
 
 describe('coherencia etiqueta ↔ rol ↔ pago (single source of truth para UI)', () => {
-  it('MOLINO_14X14: etiqueta y pago consistentes por posición', () => {
-    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 0), 'Libre Pagada');
-    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 0), 'libre');
-    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL, 0, 'libre', 0), 140);
+  it('MOLINO_14X14: trabajo, trabajo, libre $0, libre $0 con libre diferida al regreso', () => {
+    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 0), 'Labor + Libre Diferida');
+    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 0), 'trabajada');
+    assert.equal(
+      calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 0, 'trabajada', 7),
+      240,
+    );
+    assert.equal(
+      calcularBonoTransportePorPosicion('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 0, 'trabajada', 7),
+      0,
+    );
 
-    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 1), 'Libre No Pagada');
-    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 1), 'no_laborada');
-    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL, 1, 'no_laborado', 0), 0);
+    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 1), 'Labor + Transporte');
+    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 1), 'trabajada');
+    assert.equal(
+      calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 1, 'trabajada', 7),
+      140,
+    );
+    assert.equal(
+      calcularBonoTransportePorPosicion('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 1, 'trabajada', 7),
+      35,
+    );
 
-    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 2), 'Labor (1)');
-    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 2), 'trabajada');
-    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL, 2, 'trabajada', 7), 140);
+    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 2), 'Libre $0');
+    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 2), 'no_laborada');
+    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 2, 'no_laborado', 0), 0);
+
+    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 3), 'Libre $0');
+    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 3), 'no_laborada');
+    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 3, 'no_laborado', 0), 0);
   });
 
   it('MOLINO_15X15: etiquetas nuevas alineadas con rol y pago', () => {
@@ -46,14 +66,18 @@ describe('coherencia etiqueta ↔ rol ↔ pago (single source of truth para UI)'
     assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_15X15', PERSONAL, 3, 'no_laborado', 0), 0);
   });
 
-  it('MINA_2X1 y MINA_ROTATIVA_3G: posición 0 es libre pagada (misma regla que el motor de pago)', () => {
+  it('MINA_2X1 y MINA_ROTATIVA_3G: trabaja día, trabaja noche, libre pagada', () => {
     for (const esquema of ['MINA_2X1', 'MINA_ROTATIVA_3G'] as const) {
-      assert.equal(etiquetaEstadoRotacion(esquema, 0), 'Libre (pred.)');
-      assert.equal(rolSemanaPorPosicion(esquema, 0), 'libre');
-      assert.equal(calcularSalarioPorPosicionCiclo(esquema, PERSONAL, 0, 'libre', 0), 140);
+      assert.equal(etiquetaEstadoRotacion(esquema, 0), 'Labor Día');
+      assert.equal(rolSemanaPorPosicion(esquema, 0), 'trabajada');
+      assert.equal(calcularSalarioPorPosicionCiclo(esquema, PERSONAL, 0, 'trabajada', 7), 140);
 
-      assert.equal(etiquetaEstadoRotacion(esquema, 1), 'Labor (pred.)');
+      assert.equal(etiquetaEstadoRotacion(esquema, 1), 'Labor Noche');
       assert.equal(rolSemanaPorPosicion(esquema, 1), 'trabajada');
+
+      assert.equal(etiquetaEstadoRotacion(esquema, 2), 'Libre Pagada');
+      assert.equal(rolSemanaPorPosicion(esquema, 2), 'libre');
+      assert.equal(calcularSalarioPorPosicionCiclo(esquema, PERSONAL, 2, 'libre', 0), 140);
     }
   });
 
@@ -82,15 +106,16 @@ describe('tarifaPlanaSemanaLibre (D2 — única fuente de verdad)', () => {
     const personal = { salario_base: 140, salario_libre: 100 };
     assert.equal(tarifaPlanaSemanaLibre(personal), 100);
     // Misma regla en cada motor de posición (antes divergían: D2)
-    assert.equal(calcularSalarioPorPosicionCiclo('MINA_2X1', personal, 0, 'libre', 0), 100);
-    assert.equal(calcularSalarioPorPosicionCiclo('MINA_ROTATIVA_3G', personal, 0, 'libre', 0), 100);
-    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 0, 'libre', 0), 100);
+    assert.equal(calcularSalarioPorPosicionCiclo('MINA_2X1', personal, 2, 'libre', 0), 100);
+    assert.equal(calcularSalarioPorPosicionCiclo('MINA_ROTATIVA_3G', personal, 2, 'libre', 0), 100);
+    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 0, 'trabajada', 7), 240);
     assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_15X15', personal, 2, 'libre', 0), 100);
   });
 
-  it('la segunda libre de Molinos 14x14 sigue siendo $0 aunque exista salario_libre', () => {
+  it('las semanas libres de Molinos 14x14 pagan $0 aunque exista salario_libre', () => {
     const personal = { salario_base: 140, salario_libre: 100 };
-    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 1, 'no_laborado', 0), 0);
+    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 2, 'no_laborado', 0), 0);
+    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 3, 'no_laborado', 0), 0);
   });
 });
 

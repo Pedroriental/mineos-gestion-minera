@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
-import { isAsignacionNominaValid, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
+import { deriveAsignacionNominaFields, isAsignacionNominaValid, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { AUTO_ROTACION_OBS, tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
 import {
@@ -100,8 +100,8 @@ export async function upsertPersonalV3Action(raw: {
     }
 
     const esquemaRotacion = perfil.esquema_rotacion_default;
-    const verticalAsignada = data.area_detalle.startsWith('Vertical') ? data.area_detalle : null;
-    const grupoTurno = data.area_detalle === 'Molinos- Grupo (mixto)' ? data.area_detalle : null;
+    const { vertical_asignada: verticalAsignada, grupo_turno: grupoTurno } =
+      deriveAsignacionNominaFields(data.area_detalle);
     const rotacionInicio =
       tieneEsquemaConRotacion(esquemaRotacion) && data.rotacion_inicio_fecha
         ? data.rotacion_inicio_fecha
@@ -131,7 +131,7 @@ export async function upsertPersonalV3Action(raw: {
       grupo_turno: grupoTurno,
       perfil_compensacion_id: data.perfil_compensacion_id,
       salario_base: data.salario_base,
-      salario_libre: 0,
+      salario_libre: data.salario_libre,
       bono_transporte: data.bono_transporte,
       telefono: data.telefono,
       notas: data.notas,
@@ -203,15 +203,19 @@ export async function assignPersonalToNominaAreaAction(input: {
 
     const biblioteca = await loadBibliotecaAppSnapshot();
     const rawDetalle = (data.areaDetalle || String(row.area_detalle || '')).trim();
-    // Server-side validation removed to avoid cache mismatch with client. 
-    // Client UI already restricts options.
+    if (!isAsignacionNominaValid(rawDetalle, biblioteca)) {
+      return { ok: false, message: 'La asignación nómina no es válida.' };
+    }
 
     const areaDetalle = rawDetalle;
     const estadoActual = String(row.estado_laboral || 'ACTIVO');
+    const asignacionFields = deriveAsignacionNominaFields(areaDetalle);
 
     const payload: Record<string, unknown> = {
       area: data.targetArea,
       area_detalle: areaDetalle,
+      vertical_asignada: asignacionFields.vertical_asignada,
+      grupo_turno: asignacionFields.grupo_turno,
       activo: true,
       estatus: 'ACTIVO',
     };
@@ -238,28 +242,28 @@ export async function assignPersonalToNominaAreaAction(input: {
       payload.estado_laboral = estadoActual;
     }
 
-    // El esquema de rotación lo dicta el PERFIL DE COMPENSACIÓN del trabajador
-    // (un administrativo fijo semanal nunca debe volverse rotativo por asignarlo
-    // a la nómina de un área con default rotativo). Sin perfil, solo se aplica
-    // el default del área cuando el trabajador no tiene esquema propio.
+    // El esquema de rotación lo dicta el perfil de compensación del trabajador;
+    // el default por área es solo fallback para registros antiguos sin perfil.
     const esquemaActual = String(row.esquema_rotacion || '');
-    let esquemaPerfil: string | null = null;
+    let esquemaFinal = esquemaActual;
     if (row.perfil_compensacion_id) {
-      const { data: perfilRow } = await supabase
+      const { data: perfil } = await supabase
         .from('perfiles_compensacion')
         .select('esquema_rotacion_default')
         .eq('id', row.perfil_compensacion_id)
+        .eq('activo', true)
         .maybeSingle();
-      esquemaPerfil = perfilRow?.esquema_rotacion_default ?? null;
+      if (perfil?.esquema_rotacion_default) {
+        esquemaFinal = String(perfil.esquema_rotacion_default);
+        if (esquemaFinal !== esquemaActual) {
+          payload.esquema_rotacion = esquemaFinal;
+        }
+      }
     }
-
-    if (esquemaPerfil && esquemaPerfil !== esquemaActual) {
-      payload.esquema_rotacion = esquemaPerfil;
-    } else if (!esquemaPerfil && !esquemaActual) {
-      payload.esquema_rotacion =
-        biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);
+    if (!esquemaFinal) {
+      esquemaFinal = biblioteca.esquemaDefaultPorArea[data.targetArea] || 'FIJO_SEMANAL';
+      payload.esquema_rotacion = esquemaFinal;
     }
-    const esquemaFinal = String(payload.esquema_rotacion || esquemaActual);
     if (tieneEsquemaConRotacion(esquemaFinal) && !row.rotacion_inicio_fecha) {
       payload.rotacion_inicio_fecha = new Date().toISOString().split('T')[0];
     }
@@ -297,22 +301,21 @@ export async function createAndAssignPersonalNominaAction(
     const supabase = await createServerClient();
     const hoy = new Date().toISOString().split('T')[0];
     const biblioteca = await loadBibliotecaAppSnapshot();
+    if (!isAsignacionNominaValid(areaDetalle, biblioteca)) {
+      return { ok: false, message: 'La asignación nómina no es válida.' };
+    }
 
-    // Server-side validation removed to avoid cache mismatch with client.
-    // Client UI already restricts options.
-
-    // El esquema lo dicta el perfil de compensación elegido (igual que en la
-    // ficha de Base de Trabajadores); el default del área es solo fallback.
-    const { data: perfilRow } = await supabase
+    const { data: perfil, error: perfilError } = await supabase
       .from('perfiles_compensacion')
       .select('esquema_rotacion_default')
       .eq('id', data.perfil_compensacion_id)
       .eq('activo', true)
       .maybeSingle();
-    const esquemaDefault =
-      perfilRow?.esquema_rotacion_default ||
-      biblioteca.esquemaDefaultPorArea[data.targetArea] ||
-      ('FIJO_SEMANAL' as const);
+    if (perfilError || !perfil) {
+      return { ok: false, message: 'El perfil de compensación seleccionado no es válido.' };
+    }
+    const esquemaDefault = String(perfil.esquema_rotacion_default);
+    const asignacionFields = deriveAsignacionNominaFields(areaDetalle);
 
     const payload: Record<string, unknown> = {
       cedula: data.cedula.trim(),
@@ -320,9 +323,11 @@ export async function createAndAssignPersonalNominaAction(
       cargo: data.cargo.trim() || 'General',
       area: data.targetArea,
       area_detalle: areaDetalle,
+      vertical_asignada: asignacionFields.vertical_asignada,
+      grupo_turno: asignacionFields.grupo_turno,
       perfil_compensacion_id: data.perfil_compensacion_id,
       salario_base: data.salario_base,
-      salario_libre: 0,
+      salario_libre: data.salario_libre ?? 0,
       bono_transporte: data.bono_transporte ?? 0,
       esquema_rotacion: esquemaDefault,
       estado_laboral: 'ACTIVO',
@@ -331,7 +336,7 @@ export async function createAndAssignPersonalNominaAction(
       fecha_ingreso: hoy,
     };
     if (tieneEsquemaConRotacion(esquemaDefault)) {
-      payload.rotacion_inicio_fecha = hoy;
+      payload.rotacion_inicio_fecha = data.rotacion_inicio_fecha || hoy;
     }
 
     const { data: inserted, error } = await supabase

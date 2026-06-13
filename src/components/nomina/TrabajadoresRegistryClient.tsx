@@ -80,7 +80,9 @@ type FormState = {
   observacion_estado: string;
   perfil_compensacion_id: string;
   salario_base: string;
+  salario_libre: string;
   bono_transporte: string;
+  rotacion_inicio_fecha: string;
 };
 
 type EstadoModal = {
@@ -113,7 +115,9 @@ const EMPTY_FORM: FormState = {
   observacion_estado: '',
   perfil_compensacion_id: '',
   salario_base: '',
+  salario_libre: '',
   bono_transporte: '',
+  rotacion_inicio_fecha: '',
 };
 
 function statusTone(estado: EstadoLaboral) {
@@ -228,6 +232,7 @@ export default function TrabajadoresRegistryClient({
   const router = useRouter();
   const biblioteca = useBiblioteca();
   const areaOptions = useBibliotecaOptions('areas_nomina');
+  const asignacionOptions = useBibliotecaOptions('asignacion_nomina');
   const [localTrabajadores, setLocalTrabajadores] = useState(trabajadores);
   const [search, setSearch] = useState('');
   const [filterNomina, setFilterNomina] = useState('');
@@ -264,6 +269,10 @@ export default function TrabajadoresRegistryClient({
     () => perfilesCompensacion.find((p) => p.id === form.perfil_compensacion_id) ?? null,
     [perfilesCompensacion, form.perfil_compensacion_id],
   );
+  const selectedPerfilTieneRotacion =
+    !!selectedPerfil &&
+    selectedPerfil.esquema_rotacion_default !== 'FIJO_SEMANAL' &&
+    selectedPerfil.esquema_rotacion_default !== 'MOLINO_FIJO';
 
   const ubicacionSugerencias = useMemo(
     () => biblioteca.ubicacionSugerenciasPorArea,
@@ -458,7 +467,9 @@ export default function TrabajadoresRegistryClient({
       observacion_estado: t.observacion_estado || '',
       perfil_compensacion_id: t.perfil_compensacion_id || '',
       salario_base: String(t.salario_base ?? ''),
+      salario_libre: String(t.salario_libre || ''),
       bono_transporte: String(t.bono_transporte ?? ''),
+      rotacion_inicio_fecha: t.rotacion_inicio_fecha || '',
     });
     setDocCedula(null);
     setFotoCarnet(null);
@@ -510,7 +521,7 @@ export default function TrabajadoresRegistryClient({
     fd.set('fecha_ingreso', form.fecha_ingreso);
     fd.set('ajuste_antiguedad_dias', form.ajuste_antiguedad_dias);
     fd.set('cargo', form.cargo);
-    if (form.id && form.area_detalle) {
+    if (form.area_detalle) {
       fd.set('area_detalle', form.area_detalle);
     }
     fd.set('ubicacion_laboral', form.ubicacion_laboral);
@@ -520,7 +531,9 @@ export default function TrabajadoresRegistryClient({
     fd.set('observacion_estado', form.observacion_estado);
     fd.set('perfil_compensacion_id', form.perfil_compensacion_id);
     fd.set('salario_base', form.salario_base);
+    fd.set('salario_libre', form.salario_libre);
     fd.set('bono_transporte', form.bono_transporte);
+    fd.set('rotacion_inicio_fecha', form.rotacion_inicio_fecha);
     if (docCedula) fd.set('doc_cedula', docCedula);
     if (fotoCarnet) fd.set('foto_carnet', fotoCarnet);
 
@@ -1199,13 +1212,12 @@ export default function TrabajadoresRegistryClient({
                   </div>
                 </dl>
                 <p className="mt-2 text-[10px] text-white/35">
-                  La asignación a vertical o sector se define al cargar el trabajador en Nómina.
+                  El esquema se deriva del perfil; el pago final siempre lo recalcula el backend.
                 </p>
               </div>
             ) : (
               <p className="mt-1 text-[10px] text-white/35">
-                Define esquema de rotación, políticas de pago y reglas del ciclo. La asignación nómina se elige al
-                agregar el trabajador en Vista Semanal.
+                Define esquema de rotación, políticas de pago y reglas del ciclo.
               </p>
             )}
           </div>
@@ -1222,6 +1234,19 @@ export default function TrabajadoresRegistryClient({
             />
           </div>
           <div>
+            <label className="input-label">Sueldo Libre / Tarifa Plana (USD)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input-field"
+              value={form.salario_libre}
+              onChange={(e) => setForm((p) => ({ ...p, salario_libre: e.target.value }))}
+              placeholder="Vacío = usa sueldo base"
+            />
+            <p className="mt-1 text-[10px] text-white/35">Usado para libre pagada o libre diferida según el perfil.</p>
+          </div>
+          <div>
             <label className="input-label">Bono Transporte (USD)</label>
             <input
               type="number"
@@ -1234,6 +1259,16 @@ export default function TrabajadoresRegistryClient({
             />
             <p className="mt-1 text-[10px] text-white/35">Opcional. Para grupos con bono fijo (ej: Molinos).</p>
           </div>
+          {selectedPerfilTieneRotacion ? (
+            <div>
+              <label className="input-label">Inicio de Rotación</label>
+              <AppDatePicker
+                value={form.rotacion_inicio_fecha}
+                onChange={(v) => setForm((p) => ({ ...p, rotacion_inicio_fecha: v }))}
+              />
+              <p className="mt-1 text-[10px] text-white/35">Ancla de posición 0 del ciclo real.</p>
+            </div>
+          ) : null}
           <div>
             <label className="input-label">Área / Sitio laboral</label>
             <input
@@ -1264,6 +1299,16 @@ export default function TrabajadoresRegistryClient({
               options={areaOptions}
             />
             <p className="mt-1 text-[10px] text-white/35">Define en qué nómina semanal aparece el trabajador.</p>
+          </div>
+          <div>
+            <label className="input-label">Asignación nómina</label>
+            <AppSelect
+              value={form.area_detalle}
+              onChange={(val) => setForm((p) => ({ ...p, area_detalle: val }))}
+              options={asignacionOptions}
+              placeholder="Vertical, Molinos, Administración..."
+            />
+            <p className="mt-1 text-[10px] text-white/35">Centro de costo para subtotales y reportes.</p>
           </div>
           <div>
             <label className="input-label">Estado Inicial</label>

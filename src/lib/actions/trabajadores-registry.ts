@@ -9,11 +9,13 @@ import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
 import { toUserFriendlyError } from '@/lib/app-toast';
 import {
   ASIGNACION_NOMINA_OPCIONES,
+  deriveAsignacionNominaFields,
   formatNombrePropio,
   isAsignacionNominaValid,
   PERSONAL_SYNC_PATHS,
 } from '@/lib/personal-master';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
+import { tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
 
 export type RegistryActionResult =
   | { ok: true; message: string }
@@ -46,6 +48,29 @@ async function saveOptionalFile(
   const bytes = await file.arrayBuffer();
   await writeFile(absPath, Buffer.from(bytes));
   return `/${relPath.replace(/\\/g, '/')}`;
+}
+
+async function registrarTrabajadorAudit(
+  accion: string,
+  entidadId: string,
+  detalle: string,
+): Promise<void> {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await supabase.from('nomina_audit_log').insert({
+      accion,
+      entidad: 'personal',
+      entidad_id: entidadId,
+      detalle,
+      usuario_id: user?.id ?? null,
+      usuario_nombre: user?.email ?? null,
+    });
+  } catch {
+    console.error('[trabajadores-registry] audit failed:', accion, entidadId);
+  }
 }
 
 export async function upsertTrabajadorRegistroAction(formData: FormData): Promise<RegistryActionResult> {
@@ -85,17 +110,12 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     // Nuevos campos financieros
     const perfilCompensacionId = String(formData.get('perfil_compensacion_id') ?? '').trim();
     const salarioBaseRaw = String(formData.get('salario_base') ?? '').trim();
+    const salarioLibreRaw = String(formData.get('salario_libre') ?? '').trim();
     const bonoTransporteRaw = String(formData.get('bono_transporte') ?? '').trim();
+    const rotacionInicioRaw = String(formData.get('rotacion_inicio_fecha') ?? '').trim();
 
     if (!nombre || !cedula) {
       return { ok: false, message: 'Nombre y cédula son obligatorios.' };
-    }
-
-    if (areaDetalle && !isAsignacionNominaValid(areaDetalle)) {
-      return {
-        ok: false,
-        message: `Asignación nómina inválida. Opciones: ${ASIGNACION_NOMINA_OPCIONES.join(', ')}.`,
-      };
     }
 
     if (!perfilCompensacionId) {
@@ -122,6 +142,11 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     if (salarioBase === null || !Number.isFinite(salarioBase) || salarioBase <= 0) {
       return { ok: false, message: 'El sueldo base semanal es obligatorio y debe ser mayor a 0.' };
     }
+
+    const salarioLibre = salarioLibreRaw ? Number(salarioLibreRaw) : 0;
+    if (!Number.isFinite(salarioLibre) || salarioLibre < 0) {
+      return { ok: false, message: 'El sueldo libre debe ser un número válido.' };
+    }
     
     // Validar bono_transporte (opcional)
     const bonoTransporte = bonoTransporteRaw ? Number(bonoTransporteRaw) : 0;
@@ -135,6 +160,13 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       await assertBibliotecaValue('areas_nomina', area, 'Área', biblioteca);
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : 'Área no válida.' };
+    }
+
+    if (areaDetalle && !isAsignacionNominaValid(areaDetalle, biblioteca)) {
+      return {
+        ok: false,
+        message: `Asignación nómina inválida. Opciones: ${ASIGNACION_NOMINA_OPCIONES.join(', ')}.`,
+      };
     }
 
     const supabase = await createServerClient();
@@ -202,8 +234,13 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       resolvedAreaDetalle = String(currentArea?.area_detalle || '').trim();
     }
 
-    const verticalAsignada = resolvedAreaDetalle.startsWith('Vertical') ? resolvedAreaDetalle : null;
-    const grupoTurno = resolvedAreaDetalle === 'Molinos- Grupo (mixto)' ? resolvedAreaDetalle : null;
+    const { vertical_asignada: verticalAsignada, grupo_turno: grupoTurno } =
+      deriveAsignacionNominaFields(resolvedAreaDetalle);
+    const esquemaRotacion = String(perfil.esquema_rotacion_default);
+    const rotacionInicio =
+      tieneEsquemaConRotacion(esquemaRotacion)
+        ? rotacionInicioRaw || fechaIngresoRaw || existingIngreso || new Date().toISOString().split('T')[0]
+        : null;
 
     const payloadBase = {
       cedula,
@@ -235,21 +272,25 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       // Nuevos campos financieros
       perfil_compensacion_id: perfilCompensacionId,
       salario_base: salarioBase,
+      salario_libre: salarioLibre,
       bono_transporte: bonoTransporte,
-      esquema_rotacion: perfil.esquema_rotacion_default,
+      esquema_rotacion: esquemaRotacion,
+      rotacion_inicio_fecha: rotacionInicio,
     };
 
     let error;
     if (targetId) {
       ({ error } = await supabase.from('personal').update(payloadBase).eq('id', targetId));
     } else {
-      ({ error } = await supabase.from('personal').insert({
-        ...payloadBase,
-        salario_libre: 0,
-      }));
+      ({ error } = await supabase.from('personal').insert(payloadBase));
     }
 
     if (error) return { ok: false, message: toUserFriendlyError(error.message) };
+    await registrarTrabajadorAudit(
+      id ? 'EDITAR_TRABAJADOR_REGISTRO' : 'CREAR_TRABAJADOR_REGISTRO',
+      targetId || cedula,
+      `${nombre} — perfil/asignación/salario sincronizados desde Base de Trabajadores`,
+    );
     revalidateAll();
     return { ok: true, message: id ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
   } catch (e) {

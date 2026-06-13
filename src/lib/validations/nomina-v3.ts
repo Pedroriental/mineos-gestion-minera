@@ -49,7 +49,15 @@ export const CreateAndAssignPersonalNominaSchema = z.object({
   areaDetalle: z.string().min(1, 'Selecciona una asignación nómina').max(200),
   perfil_compensacion_id: z.string().uuid('Perfil de compensación obligatorio'),
   salario_base: z.coerce.number().positive('El sueldo base debe ser mayor a 0'),
+  salario_libre: z.coerce.number().min(0).optional().default(0),
   bono_transporte: z.coerce.number().min(0).optional().default(0),
+  rotacion_inicio_fecha: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD requerido')
+    .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida')
+    .optional()
+    .nullable()
+    .default(null),
 });
 
 export const CrearValeSchema = z.object({

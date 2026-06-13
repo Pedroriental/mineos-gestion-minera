@@ -292,8 +292,8 @@ describe('anotaciones derivadas (salen libre / retirado)', () => {
   }
 
   it('marca «Salen libre» cuando la semana siguiente es libre por rotación', () => {
-    // inicio 11/05 → 25/05 = posición 2 (Trab 2); 01/06 = posición 0 (Libre)
-    const p = { ...minero, rotacion_inicio_fecha: '2026-05-11' } as Personal;
+    // inicio 18/05 → 25/05 = posición 1 (noche); 01/06 = posición 2 (libre)
+    const p = { ...minero, rotacion_inicio_fecha: '2026-05-18' } as Personal;
     const report = buildNominaPreviewReport({
       personal: [p],
       registrosCerrados: [registroCerrado(p.id, 'mina')],
@@ -306,8 +306,8 @@ describe('anotaciones derivadas (salen libre / retirado)', () => {
   });
 
   it('no marca «Salen libre» cuando la semana siguiente es trabajada', () => {
-    // inicio 18/05 → 25/05 = posición 1 (Trab 1); 01/06 = posición 2 (Trab 2)
-    const p = { ...minero, rotacion_inicio_fecha: '2026-05-18' } as Personal;
+    // inicio 11/05 → 25/05 = posición 2 (libre); 01/06 = posición 0 (día)
+    const p = { ...minero, rotacion_inicio_fecha: '2026-05-11' } as Personal;
     const report = buildNominaPreviewReport({
       personal: [p],
       registrosCerrados: [registroCerrado(p.id, 'mina')],
