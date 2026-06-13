@@ -39,6 +39,12 @@ export function toUserFriendlyError(raw: string | undefined | null): string {
   const message = (raw ?? '').trim();
   if (!message) return DEFAULT_ERROR;
 
+  // Mensajes generados por nuestras acciones de dominio. Aunque contengan
+  // palabras técnicas como "json" o "foreign key", ya son el diagnóstico útil.
+  if (message.startsWith('Error cierre:') || message.includes('CIERRE_NOMINA:')) {
+    return message;
+  }
+
   if (!TECHNICAL_PATTERN.test(message)) {
     return message;
   }

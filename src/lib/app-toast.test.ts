@@ -34,6 +34,16 @@ describe('toUserFriendlyError', () => {
     );
   });
 
+  it('no oculta errores de cierre de nómina emitidos por la app', () => {
+    const raw =
+      'Error cierre: invalid input syntax for type numeric: "abc"';
+    assert.equal(toUserFriendlyError(raw), raw);
+    assert.equal(
+      toUserFriendlyError('CIERRE_NOMINA:VALES_DESINCRONIZADOS trabajador=123'),
+      'CIERRE_NOMINA:VALES_DESINCRONIZADOS trabajador=123',
+    );
+  });
+
   it('maneja mensaje vacío', () => {
     assert.equal(
       toUserFriendlyError(''),
