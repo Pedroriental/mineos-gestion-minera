@@ -55,6 +55,35 @@ export function fechaInicioCicloParaPosicion(weekStart: string, posicion: number
   return `${y}-${m}-${day}`;
 }
 
+export type EstadoObservadoRotacion = {
+  posicion: number;
+  label: string;
+  estadoAsistencia: EstadoAsistenciaNomina;
+};
+
+export function estadoObservadoOpcionesPorEsquema(
+  esquema: EsquemaRotacion | string,
+): EstadoObservadoRotacion[] {
+  const total = totalSemanasEsquema(esquema);
+  if (total <= 1) return [];
+  return Array.from({ length: total }, (_, posicion) => ({
+    posicion,
+    label: etiquetaEstadoRotacion(esquema, posicion) ?? etiquetaColumnaCiclo(esquema, posicion),
+    estadoAsistencia: asistenciaEsperadaPorPosicion(esquema, posicion),
+  }));
+}
+
+export function fechaInicioRotacionDesdeEstadoObservado(
+  weekStart: string,
+  esquema: EsquemaRotacion | string,
+  posicionObservada: number,
+): string | null {
+  const total = totalSemanasEsquema(esquema);
+  if (total <= 1) return null;
+  const posicion = ((posicionObservada % total) + total) % total;
+  return fechaInicioCicloParaPosicion(weekStart, posicion);
+}
+
 /**
  * Posición de ciclo de un grupo/vertical para una semana, derivada del
  * CALENDARIO de rotación de sus trabajadores (moda de las posiciones
@@ -154,6 +183,7 @@ export function rolSemanaPorPosicion(
 ): RolSemana {
   if (esquema === 'MOLINO_14X14') {
     if (posicion <= 1) return 'trabajada';
+    if (posicion === 2) return 'libre';
     return 'no_laborada';
   }
 
@@ -174,8 +204,9 @@ export function rolSemanaPorPosicion(
 
 export function etiquetaColumnaCiclo(esquema: EsquemaRotacion | string, posicion: number): string {
   if (esquema === 'MOLINO_14X14') {
-    if (posicion === 0) return 'Trab + Libre';
-    if (posicion === 1) return 'Trab + Transp.';
+    if (posicion === 0) return 'Trab 1';
+    if (posicion === 1) return 'Trab 2';
+    if (posicion === 2) return 'Libre Pag.';
     return 'Libre $0';
   }
   if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
@@ -197,8 +228,9 @@ export function etiquetaEstadoRotacion(
   posicion: number,
 ): string | null {
   if (esquema === 'MOLINO_14X14') {
-    if (posicion === 0) return 'Labor + Libre Diferida';
-    if (posicion === 1) return 'Labor + Transporte';
+    if (posicion === 0) return 'Labor (1)';
+    if (posicion === 1) return 'Labor (2)';
+    if (posicion === 2) return 'Libre Pagada';
     return 'Libre $0';
   }
   if (esquema === 'MOLINO_15X15') {
@@ -249,19 +281,6 @@ export function tarifaPlanaSemanaLibre(
   return Number(personal.salario_libre) || Number(personal.salario_base) || 0;
 }
 
-export function esMolino14x14TrabajoConLibreDiferida(
-  esquema: EsquemaRotacion | string,
-  posicion: number,
-): boolean {
-  return esquema === 'MOLINO_14X14' && posicion === 0;
-}
-
-export function calcularLibreDiferidaMolino14x14(
-  personal: Pick<Personal, 'salario_base' | 'salario_libre'>,
-): number {
-  return tarifaPlanaSemanaLibre(personal);
-}
-
 export function calcularSalarioPorPosicionCiclo(
   esquema: EsquemaRotacion | string,
   personal: Pick<Personal, 'salario_base' | 'salario_libre'>,
@@ -272,13 +291,10 @@ export function calcularSalarioPorPosicionCiclo(
   const base = Number(personal.salario_base) || 0;
 
   if (esquema === 'MOLINO_14X14') {
-    if (posicion >= 2) return 0;
+    if (posicion === 2) return tarifaPlanaSemanaLibre(personal);
+    if (posicion >= 3) return 0;
     if (estadoAsistencia === 'no_laborado') return 0;
-    const pagoTrabajo = applyProportionalWeeklyPay(base, diasTrabajados);
-    if (esMolino14x14TrabajoConLibreDiferida(esquema, posicion)) {
-      return parseFloat((pagoTrabajo + calcularLibreDiferidaMolino14x14(personal)).toFixed(2));
-    }
-    return pagoTrabajo;
+    return applyProportionalWeeklyPay(base, diasTrabajados);
   }
 
   if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
@@ -316,9 +332,7 @@ export function calcularBonoTransportePorPosicion(
   if (override !== undefined) return override;
 
   if (esquema === 'MOLINO_14X14') {
-    if (posicion !== 1 || estadoAsistencia !== 'trabajada') return 0;
-    const bono = Number(personal.bono_transporte) || 0;
-    return applyProportionalWeeklyPay(bono, diasTrabajados);
+    return 0;
   }
 
   if (esquema === 'MOLINO_15X15') {

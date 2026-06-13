@@ -226,8 +226,8 @@ describe('verificarTotalesCierre (checksum server-side)', () => {
     assert.equal(res.ok, true);
   });
 
-  it('Molinos 14x14: semanas libres físicas fuerzan $0.00', () => {
-    // rotacion_inicio 2026-06-01 → semanas 2026-06-15 y 2026-06-22 son descanso físico
+  it('Molinos 14x14: primera libre física paga tarifa plana y segunda libre fuerza $0.00', () => {
+    // rotacion_inicio 2026-06-01 → 2026-06-15 es libre pagada y 2026-06-22 es libre sin pago
     const personal = basePersonal({
       esquema_rotacion: 'MOLINO_14X14',
       rotacion_inicio_fecha: '2026-06-01',
@@ -235,13 +235,20 @@ describe('verificarTotalesCierre (checksum server-side)', () => {
       salario_libre: 150,
     });
     const ok = verificarTotalesCierre(
-      [baseRow({ estadoAsistencia: 'no_laborado', diasTrabajados: 0, total: 0 })],
+      [baseRow({ estadoAsistencia: 'libre', diasTrabajados: 0, total: 150 })],
       [personal],
       '2026-06-15',
     );
     assert.equal(ok.ok, true);
 
-    // Intento de cobrar durante descanso → rechazo
+    const descanso = verificarTotalesCierre(
+      [baseRow({ estadoAsistencia: 'no_laborado', diasTrabajados: 0, total: 0 })],
+      [personal],
+      '2026-06-22',
+    );
+    assert.equal(descanso.ok, true);
+
+    // Intento de cobrar la libre sin pago → rechazo
     const fraude = verificarTotalesCierre(
       [baseRow({ estadoAsistencia: 'no_laborado', diasTrabajados: 0, total: 200 })],
       [personal],
@@ -250,7 +257,7 @@ describe('verificarTotalesCierre (checksum server-side)', () => {
     assert.equal(fraude.ok, false);
   });
 
-  it('Molinos 14x14: primera trabajada paga trabajo actual + libre diferida', () => {
+  it('Molinos 14x14: primera trabajada paga solo trabajo actual', () => {
     const personal = basePersonal({
       area: 'planta',
       area_detalle: 'Molinos- Grupo (mixto)',
@@ -261,14 +268,14 @@ describe('verificarTotalesCierre (checksum server-side)', () => {
       bono_transporte: 50,
     });
     const res = verificarTotalesCierre(
-      [baseRow({ estadoAsistencia: 'trabajada', diasTrabajados: 7, bonoTransporte: 0, total: 350 })],
+      [baseRow({ estadoAsistencia: 'trabajada', diasTrabajados: 7, bonoTransporte: 0, total: 200 })],
       [personal],
       '2026-06-01',
     );
     assert.equal(res.ok, true);
   });
 
-  it('Molinos 14x14: segunda trabajada paga trabajo actual + transporte', () => {
+  it('Molinos 14x14: segunda trabajada paga solo trabajo actual; transporte requiere motivo', () => {
     const personal = basePersonal({
       area: 'planta',
       area_detalle: 'Molinos- Grupo (mixto)',
@@ -279,11 +286,27 @@ describe('verificarTotalesCierre (checksum server-side)', () => {
       bono_transporte: 50,
     });
     const res = verificarTotalesCierre(
-      [baseRow({ estadoAsistencia: 'trabajada', diasTrabajados: 7, bonoTransporte: 50, total: 250 })],
+      [baseRow({ estadoAsistencia: 'trabajada', diasTrabajados: 7, bonoTransporte: 0, total: 200 })],
       [personal],
       '2026-06-08',
     );
     assert.equal(res.ok, true);
+
+    const transporte = verificarTotalesCierre(
+      [
+        baseRow({
+          estadoAsistencia: 'trabajada',
+          diasTrabajados: 7,
+          bonoTransporte: 50,
+          total: 250,
+          ajusteMotivo: 'Bono de transporte indicado en nomina origen',
+        }),
+      ],
+      [personal],
+      '2026-06-08',
+    );
+    assert.equal(transporte.ok, true);
+    if (transporte.ok) assert.equal(transporte.ajustes.length, 1);
   });
 
   it('deduce vales y bonos en el recálculo (total = salario + bono + bonif − vales)', () => {

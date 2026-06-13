@@ -11,6 +11,7 @@ import {
   type DistribucionParte,
 } from '@/lib/nomina-distribucion';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
+import { fechaInicioRotacionDesdeEstadoObservado } from '@/lib/nomina/perfil-ciclo-reglas';
 import { formatNovedadTurnoObsForSave, reposoPagoUnicoMontoFromRow, type NominaNovedadTurno, type ReposoModoSueldoSemana } from '@/lib/nomina-novedad-turno';
 import {
   ensureManualVistaPeriodoId,
@@ -102,12 +103,17 @@ export async function upsertPersonalV3Action(raw: {
     const esquemaRotacion = perfil.esquema_rotacion_default;
     const { vertical_asignada: verticalAsignada, grupo_turno: grupoTurno } =
       deriveAsignacionNominaFields(data.area_detalle);
-    const rotacionInicio =
-      tieneEsquemaConRotacion(esquemaRotacion) && data.rotacion_inicio_fecha
-        ? data.rotacion_inicio_fecha
-        : tieneEsquemaConRotacion(esquemaRotacion)
-          ? data.fecha_ingreso
-          : null;
+    const rotacionInicioDeducida =
+      data.rotacion_estado_referencia_semana && data.rotacion_estado_referencia_posicion !== null
+        ? fechaInicioRotacionDesdeEstadoObservado(
+            data.rotacion_estado_referencia_semana,
+            esquemaRotacion,
+            data.rotacion_estado_referencia_posicion,
+          )
+        : null;
+    const rotacionInicio = tieneEsquemaConRotacion(esquemaRotacion)
+      ? rotacionInicioDeducida || data.rotacion_inicio_fecha || data.fecha_ingreso
+      : null;
 
     const { data: existingByCedula } = await supabase
       .from('personal')
@@ -336,7 +342,15 @@ export async function createAndAssignPersonalNominaAction(
       fecha_ingreso: hoy,
     };
     if (tieneEsquemaConRotacion(esquemaDefault)) {
-      payload.rotacion_inicio_fecha = data.rotacion_inicio_fecha || hoy;
+      const rotacionInicioDeducida =
+        data.rotacion_estado_referencia_semana && data.rotacion_estado_referencia_posicion !== null
+          ? fechaInicioRotacionDesdeEstadoObservado(
+              data.rotacion_estado_referencia_semana,
+              esquemaDefault,
+              data.rotacion_estado_referencia_posicion,
+            )
+          : null;
+      payload.rotacion_inicio_fecha = rotacionInicioDeducida || data.rotacion_inicio_fecha || hoy;
     }
 
     const { data: inserted, error } = await supabase

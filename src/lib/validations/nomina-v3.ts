@@ -29,6 +29,14 @@ export const PersonalV3Schema = z.object({
     .optional()
     .nullable()
     .default(null),
+  rotacion_estado_referencia_semana: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD requerido')
+    .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida')
+    .optional()
+    .nullable()
+    .default(null),
+  rotacion_estado_referencia_posicion: z.coerce.number().int().min(0).max(12).optional().nullable().default(null),
 });
 
 export const PersonalV3UpdateSchema = PersonalV3Schema.extend({
@@ -58,6 +66,14 @@ export const CreateAndAssignPersonalNominaSchema = z.object({
     .optional()
     .nullable()
     .default(null),
+  rotacion_estado_referencia_semana: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD requerido')
+    .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida')
+    .optional()
+    .nullable()
+    .default(null),
+  rotacion_estado_referencia_posicion: z.coerce.number().int().min(0).max(12).optional().nullable().default(null),
 });
 
 export const CrearValeSchema = z.object({

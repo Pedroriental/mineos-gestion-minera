@@ -56,6 +56,10 @@ import {
   useMobileFilterSheet,
 } from '@/components/mobile';
 import { TrabajadoresImportAliasesPanel } from '@/components/nomina/TrabajadoresImportAliasesPanel';
+import {
+  estadoObservadoOpcionesPorEsquema,
+  fechaInicioRotacionDesdeEstadoObservado,
+} from '@/lib/nomina/perfil-ciclo-reglas';
 
 type EstadoLaboral = 'ACTIVO' | 'DESPEDIDO' | 'REPOSO' | 'VACACIONES' | 'REENGANCHADO';
 
@@ -83,6 +87,8 @@ type FormState = {
   salario_libre: string;
   bono_transporte: string;
   rotacion_inicio_fecha: string;
+  rotacion_estado_referencia_semana: string;
+  rotacion_estado_referencia_posicion: string;
 };
 
 type EstadoModal = {
@@ -118,6 +124,8 @@ const EMPTY_FORM: FormState = {
   salario_libre: '',
   bono_transporte: '',
   rotacion_inicio_fecha: '',
+  rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
+  rotacion_estado_referencia_posicion: '',
 };
 
 function statusTone(estado: EstadoLaboral) {
@@ -273,6 +281,40 @@ export default function TrabajadoresRegistryClient({
     !!selectedPerfil &&
     selectedPerfil.esquema_rotacion_default !== 'FIJO_SEMANAL' &&
     selectedPerfil.esquema_rotacion_default !== 'MOLINO_FIJO';
+
+  const rotacionEstadoOptions = useMemo(
+    () =>
+      selectedPerfil
+        ? estadoObservadoOpcionesPorEsquema(selectedPerfil.esquema_rotacion_default).map((o) => ({
+            value: String(o.posicion),
+            label: o.label,
+          }))
+        : [],
+    [selectedPerfil],
+  );
+
+  const rotacionInicioDeducido = useMemo(() => {
+    if (
+      !selectedPerfilTieneRotacion ||
+      !selectedPerfil ||
+      !form.rotacion_estado_referencia_semana ||
+      form.rotacion_estado_referencia_posicion === ''
+    ) {
+      return '';
+    }
+    return (
+      fechaInicioRotacionDesdeEstadoObservado(
+        form.rotacion_estado_referencia_semana,
+        selectedPerfil.esquema_rotacion_default,
+        Number(form.rotacion_estado_referencia_posicion),
+      ) ?? ''
+    );
+  }, [
+    selectedPerfilTieneRotacion,
+    selectedPerfil,
+    form.rotacion_estado_referencia_semana,
+    form.rotacion_estado_referencia_posicion,
+  ]);
 
   const ubicacionSugerencias = useMemo(
     () => biblioteca.ubicacionSugerenciasPorArea,
@@ -470,6 +512,8 @@ export default function TrabajadoresRegistryClient({
       salario_libre: String(t.salario_libre || ''),
       bono_transporte: String(t.bono_transporte ?? ''),
       rotacion_inicio_fecha: t.rotacion_inicio_fecha || '',
+      rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
+      rotacion_estado_referencia_posicion: '',
     });
     setDocCedula(null);
     setFotoCarnet(null);
@@ -534,6 +578,8 @@ export default function TrabajadoresRegistryClient({
     fd.set('salario_libre', form.salario_libre);
     fd.set('bono_transporte', form.bono_transporte);
     fd.set('rotacion_inicio_fecha', form.rotacion_inicio_fecha);
+    fd.set('rotacion_estado_referencia_semana', form.rotacion_estado_referencia_semana);
+    fd.set('rotacion_estado_referencia_posicion', form.rotacion_estado_referencia_posicion);
     if (docCedula) fd.set('doc_cedula', docCedula);
     if (fotoCarnet) fd.set('foto_carnet', fotoCarnet);
 
@@ -1244,7 +1290,7 @@ export default function TrabajadoresRegistryClient({
               onChange={(e) => setForm((p) => ({ ...p, salario_libre: e.target.value }))}
               placeholder="Vacío = usa sueldo base"
             />
-            <p className="mt-1 text-[10px] text-white/35">Usado para libre pagada o libre diferida según el perfil.</p>
+            <p className="mt-1 text-[10px] text-white/35">Usado para la semana libre pagada según el perfil.</p>
           </div>
           <div>
             <label className="input-label">Bono Transporte (USD)</label>
@@ -1260,13 +1306,47 @@ export default function TrabajadoresRegistryClient({
             <p className="mt-1 text-[10px] text-white/35">Opcional. Para grupos con bono fijo (ej: Molinos).</p>
           </div>
           {selectedPerfilTieneRotacion ? (
-            <div>
-              <label className="input-label">Inicio de Rotación</label>
-              <AppDatePicker
-                value={form.rotacion_inicio_fecha}
-                onChange={(v) => setForm((p) => ({ ...p, rotacion_inicio_fecha: v }))}
-              />
-              <p className="mt-1 text-[10px] text-white/35">Ancla de posición 0 del ciclo real.</p>
+            <div className="sm:col-span-2 rounded-lg border border-[var(--card-border)] bg-[var(--surface-elevated)] p-3">
+              <p className="text-xs font-semibold text-[var(--text-primary)]">Asistente de rotación</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                No necesitas saber cuándo empezó a rotar. Indica una semana conocida y cómo estaba el trabajador; MineOS deduce el inicio del ciclo.
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="input-label">Semana de referencia</label>
+                  <AppDatePicker
+                    value={form.rotacion_estado_referencia_semana}
+                    onChange={(v) =>
+                      setForm((p) => ({
+                        ...p,
+                        rotacion_estado_referencia_semana: v,
+                        rotacion_inicio_fecha: '',
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="input-label">Estado observado en esa semana</label>
+                  <AppSelect
+                    value={form.rotacion_estado_referencia_posicion}
+                    onChange={(v) =>
+                      setForm((p) => ({
+                        ...p,
+                        rotacion_estado_referencia_posicion: v,
+                        rotacion_inicio_fecha: '',
+                      }))
+                    }
+                    options={rotacionEstadoOptions}
+                    placeholder="Seleccionar estado observado"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 rounded-md border border-[var(--card-border)] bg-black/10 px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+                Inicio deducido:{' '}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {rotacionInicioDeducido || form.rotacion_inicio_fecha || 'pendiente'}
+                </span>
+              </div>
             </div>
           ) : null}
           <div>

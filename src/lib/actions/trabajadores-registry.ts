@@ -16,6 +16,7 @@ import {
 } from '@/lib/personal-master';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
+import { fechaInicioRotacionDesdeEstadoObservado } from '@/lib/nomina/perfil-ciclo-reglas';
 
 export type RegistryActionResult =
   | { ok: true; message: string }
@@ -113,6 +114,8 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     const salarioLibreRaw = String(formData.get('salario_libre') ?? '').trim();
     const bonoTransporteRaw = String(formData.get('bono_transporte') ?? '').trim();
     const rotacionInicioRaw = String(formData.get('rotacion_inicio_fecha') ?? '').trim();
+    const rotacionReferenciaSemana = String(formData.get('rotacion_estado_referencia_semana') ?? '').trim();
+    const rotacionReferenciaPosicionRaw = String(formData.get('rotacion_estado_referencia_posicion') ?? '').trim();
 
     if (!nombre || !cedula) {
       return { ok: false, message: 'Nombre y cédula son obligatorios.' };
@@ -237,9 +240,25 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     const { vertical_asignada: verticalAsignada, grupo_turno: grupoTurno } =
       deriveAsignacionNominaFields(resolvedAreaDetalle);
     const esquemaRotacion = String(perfil.esquema_rotacion_default);
+    const rotacionReferenciaPosicion =
+      rotacionReferenciaPosicionRaw === '' ? null : Number(rotacionReferenciaPosicionRaw);
+    if (
+      rotacionReferenciaPosicion !== null &&
+      (!Number.isInteger(rotacionReferenciaPosicion) || rotacionReferenciaPosicion < 0)
+    ) {
+      return { ok: false, message: 'Estado observado de rotación inválido.' };
+    }
+    const rotacionInicioDeducida =
+      rotacionReferenciaSemana && rotacionReferenciaPosicion !== null
+        ? fechaInicioRotacionDesdeEstadoObservado(
+            rotacionReferenciaSemana,
+            esquemaRotacion,
+            rotacionReferenciaPosicion,
+          )
+        : null;
     const rotacionInicio =
       tieneEsquemaConRotacion(esquemaRotacion)
-        ? rotacionInicioRaw || fechaIngresoRaw || existingIngreso || new Date().toISOString().split('T')[0]
+        ? rotacionInicioDeducida || rotacionInicioRaw || fechaIngresoRaw || existingIngreso || new Date().toISOString().split('T')[0]
         : null;
 
     const payloadBase = {

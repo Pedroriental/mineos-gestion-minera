@@ -156,7 +156,7 @@ describe('calculateNominaRowPay ciclos reales', () => {
     );
   });
 
-  it('Molinos 14x14 difiere la libre al regreso y solo paga transporte en la segunda trabajada', () => {
+  it('Molinos 14x14 paga dos trabajadas, una libre pagada y una libre $0 sin transporte automático', () => {
     const molino = {
       ...personal,
       area: 'planta' as const,
@@ -168,37 +168,68 @@ describe('calculateNominaRowPay ciclos reales', () => {
       bono_transporte: 35,
     };
 
-    const semanaRegreso = calculateNominaRowPay({
+    const semanaTrabajada1 = calculateNominaRowPay({
       personal: molino,
       estadoAsistencia: 'trabajada',
       diasTrabajados: 7,
       weekStart: '2026-06-01',
     });
-    assert.equal(semanaRegreso.salarioBaseCalculado, 240);
-    assert.equal(semanaRegreso.bonoTransporte, 0);
-    assert.equal(semanaRegreso.total, 240);
+    assert.equal(semanaTrabajada1.salarioBaseCalculado, 140);
+    assert.equal(semanaTrabajada1.bonoTransporte, 0);
+    assert.equal(semanaTrabajada1.total, 140);
 
-    const semanaContinuidad = calculateNominaRowPay({
+    const semanaTrabajada2 = calculateNominaRowPay({
       personal: molino,
       estadoAsistencia: 'trabajada',
       diasTrabajados: 7,
       weekStart: '2026-06-08',
     });
-    assert.equal(semanaContinuidad.salarioBaseCalculado, 140);
-    assert.equal(semanaContinuidad.bonoTransporte, 35);
-    assert.equal(semanaContinuidad.total, 175);
+    assert.equal(semanaTrabajada2.salarioBaseCalculado, 140);
+    assert.equal(semanaTrabajada2.bonoTransporte, 0);
+    assert.equal(semanaTrabajada2.total, 140);
 
-    for (const weekStart of ['2026-06-15', '2026-06-22']) {
-      const descanso = calculateNominaRowPay({
-        personal: molino,
-        estadoAsistencia: 'no_laborado',
-        diasTrabajados: 0,
-        weekStart,
-      });
-      assert.equal(descanso.salarioBaseCalculado, 0);
-      assert.equal(descanso.bonoTransporte, 0);
-      assert.equal(descanso.total, 0);
-    }
+    const librePagada = calculateNominaRowPay({
+      personal: molino,
+      estadoAsistencia: 'libre',
+      diasTrabajados: 0,
+      weekStart: '2026-06-15',
+    });
+    assert.equal(librePagada.salarioBaseCalculado, 100);
+    assert.equal(librePagada.bonoTransporte, 0);
+    assert.equal(librePagada.total, 100);
+
+    const libreSinPago = calculateNominaRowPay({
+      personal: molino,
+      estadoAsistencia: 'no_laborado',
+      diasTrabajados: 0,
+      weekStart: '2026-06-22',
+    });
+    assert.equal(libreSinPago.salarioBaseCalculado, 0);
+    assert.equal(libreSinPago.bonoTransporte, 0);
+    assert.equal(libreSinPago.total, 0);
+  });
+
+  it('Molinos 14x14 permite capturar transporte como componente separado con motivo en cierre', () => {
+    const molino = {
+      ...personal,
+      area: 'planta' as const,
+      area_detalle: 'Molinos- Grupo (mixto)',
+      esquema_rotacion: 'MOLINO_14X14' as const,
+      rotacion_inicio_fecha: '2026-06-01',
+      salario_base: 140,
+      salario_libre: 100,
+      bono_transporte: 35,
+    };
+    const pay = calculateNominaRowPay({
+      personal: molino,
+      estadoAsistencia: 'trabajada',
+      diasTrabajados: 7,
+      weekStart: '2026-06-01',
+      bonoTransporte: 35,
+    });
+    assert.equal(pay.salarioBaseCalculado, 140);
+    assert.equal(pay.bonoTransporte, 35);
+    assert.equal(pay.total, 175);
   });
 });
 

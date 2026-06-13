@@ -4,6 +4,8 @@ import {
   calcularBonoTransportePorPosicion,
   calcularSalarioPorPosicionCiclo,
   etiquetaEstadoRotacion,
+  estadoObservadoOpcionesPorEsquema,
+  fechaInicioRotacionDesdeEstadoObservado,
   fechaInicioCicloParaPosicion,
   planificarVinculoCiclo,
   posicionEnCicloDesdeSemana,
@@ -18,19 +20,19 @@ const PERSONAL = { salario_base: 140, salario_libre: 0 };
 const PERSONAL_CON_TRANSPORTE = { salario_base: 140, salario_libre: 100, bono_transporte: 35 };
 
 describe('coherencia etiqueta ↔ rol ↔ pago (single source of truth para UI)', () => {
-  it('MOLINO_14X14: trabajo, trabajo, libre $0, libre $0 con libre diferida al regreso', () => {
-    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 0), 'Labor + Libre Diferida');
+  it('MOLINO_14X14: dos trabajadas, una libre pagada y una libre $0; transporte separado', () => {
+    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 0), 'Labor (1)');
     assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 0), 'trabajada');
     assert.equal(
       calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 0, 'trabajada', 7),
-      240,
+      140,
     );
     assert.equal(
       calcularBonoTransportePorPosicion('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 0, 'trabajada', 7),
       0,
     );
 
-    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 1), 'Labor + Transporte');
+    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 1), 'Labor (2)');
     assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 1), 'trabajada');
     assert.equal(
       calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 1, 'trabajada', 7),
@@ -38,12 +40,12 @@ describe('coherencia etiqueta ↔ rol ↔ pago (single source of truth para UI)'
     );
     assert.equal(
       calcularBonoTransportePorPosicion('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 1, 'trabajada', 7),
-      35,
+      0,
     );
 
-    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 2), 'Libre $0');
-    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 2), 'no_laborada');
-    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 2, 'no_laborado', 0), 0);
+    assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 2), 'Libre Pagada');
+    assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 2), 'libre');
+    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', PERSONAL_CON_TRANSPORTE, 2, 'libre', 0), 100);
 
     assert.equal(etiquetaEstadoRotacion('MOLINO_14X14', 3), 'Libre $0');
     assert.equal(rolSemanaPorPosicion('MOLINO_14X14', 3), 'no_laborada');
@@ -108,13 +110,13 @@ describe('tarifaPlanaSemanaLibre (D2 — única fuente de verdad)', () => {
     // Misma regla en cada motor de posición (antes divergían: D2)
     assert.equal(calcularSalarioPorPosicionCiclo('MINA_2X1', personal, 2, 'libre', 0), 100);
     assert.equal(calcularSalarioPorPosicionCiclo('MINA_ROTATIVA_3G', personal, 2, 'libre', 0), 100);
-    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 0, 'trabajada', 7), 240);
+    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 2, 'libre', 0), 100);
     assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_15X15', personal, 2, 'libre', 0), 100);
   });
 
-  it('las semanas libres de Molinos 14x14 pagan $0 aunque exista salario_libre', () => {
+  it('solo la segunda libre de Molinos 14x14 paga $0 aunque exista salario_libre', () => {
     const personal = { salario_base: 140, salario_libre: 100 };
-    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 2, 'no_laborado', 0), 0);
+    assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 2, 'libre', 0), 100);
     assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_14X14', personal, 3, 'no_laborado', 0), 0);
   });
 });
@@ -129,6 +131,32 @@ describe('helpers de calendario de ciclos (D1)', () => {
   it('fechaInicioCicloParaPosicion retrocede la ventana del ciclo', () => {
     assert.equal(fechaInicioCicloParaPosicion('2026-06-15', 0), '2026-06-15');
     assert.equal(fechaInicioCicloParaPosicion('2026-06-15', 2), '2026-06-01');
+  });
+
+  it('fechaInicioRotacionDesdeEstadoObservado deduce el ancla desde una semana conocida', () => {
+    assert.equal(
+      fechaInicioRotacionDesdeEstadoObservado('2026-05-18', 'MOLINO_14X14', 2),
+      '2026-05-04',
+    );
+    assert.equal(
+      fechaInicioRotacionDesdeEstadoObservado('2026-05-25', 'MOLINO_14X14', 0),
+      '2026-05-25',
+    );
+    assert.equal(
+      fechaInicioRotacionDesdeEstadoObservado('2026-05-25', 'MINA_2X1', 2),
+      '2026-05-11',
+    );
+  });
+
+  it('estadoObservadoOpcionesPorEsquema expone opciones humanas por esquema rotativo', () => {
+    assert.deepEqual(
+      estadoObservadoOpcionesPorEsquema('MOLINO_14X14').map((o) => o.label),
+      ['Labor (1)', 'Labor (2)', 'Libre Pagada', 'Libre $0'],
+    );
+    assert.deepEqual(
+      estadoObservadoOpcionesPorEsquema('MINA_2X1').map((o) => o.label),
+      ['Labor Día', 'Labor Noche', 'Libre Pagada'],
+    );
   });
 
   it('posicionGrupoDesdeTrabajadores usa la moda de las rotaciones', () => {

@@ -22,6 +22,10 @@ import {
   createAndAssignPersonalNominaAction,
 } from '@/lib/actions/nomina-v3';
 import type { PerfilCompensacion, Personal } from '@/lib/types';
+import {
+  estadoObservadoOpcionesPorEsquema,
+  fechaInicioRotacionDesdeEstadoObservado,
+} from '@/lib/nomina/perfil-ciclo-reglas';
 
 type Props = {
   open: boolean;
@@ -44,6 +48,8 @@ const EMPTY_CREATE = {
   salario_libre: '',
   bono_transporte: '',
   rotacion_inicio_fecha: '',
+  rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
+  rotacion_estado_referencia_posicion: '',
 };
 
 function workerProfileReady(p: Personal): { ok: true } | { ok: false; message: string } {
@@ -105,6 +111,38 @@ export function PersonalQuickAssignModal({
     !!selectedCreatePerfil &&
     selectedCreatePerfil.esquema_rotacion_default !== 'FIJO_SEMANAL' &&
     selectedCreatePerfil.esquema_rotacion_default !== 'MOLINO_FIJO';
+  const rotacionEstadoOptions = useMemo(
+    () =>
+      selectedCreatePerfil
+        ? estadoObservadoOpcionesPorEsquema(selectedCreatePerfil.esquema_rotacion_default).map((o) => ({
+            value: String(o.posicion),
+            label: o.label,
+          }))
+        : [],
+    [selectedCreatePerfil],
+  );
+  const rotacionInicioDeducido = useMemo(() => {
+    if (
+      !createPerfilTieneRotacion ||
+      !selectedCreatePerfil ||
+      !createForm.rotacion_estado_referencia_semana ||
+      createForm.rotacion_estado_referencia_posicion === ''
+    ) {
+      return '';
+    }
+    return (
+      fechaInicioRotacionDesdeEstadoObservado(
+        createForm.rotacion_estado_referencia_semana,
+        selectedCreatePerfil.esquema_rotacion_default,
+        Number(createForm.rotacion_estado_referencia_posicion),
+      ) ?? ''
+    );
+  }, [
+    createPerfilTieneRotacion,
+    selectedCreatePerfil,
+    createForm.rotacion_estado_referencia_semana,
+    createForm.rotacion_estado_referencia_posicion,
+  ]);
 
   const asignacionOk = (v: string) => isAsignacionNominaValid(v, biblioteca);
 
@@ -292,6 +330,11 @@ export function PersonalQuickAssignModal({
         salario_libre: createForm.salario_libre ? Number(createForm.salario_libre) : 0,
         bono_transporte: createForm.bono_transporte ? Number(createForm.bono_transporte) : 0,
         rotacion_inicio_fecha: createForm.rotacion_inicio_fecha || null,
+        rotacion_estado_referencia_semana: createForm.rotacion_estado_referencia_semana || null,
+        rotacion_estado_referencia_posicion:
+          createForm.rotacion_estado_referencia_posicion === ''
+            ? null
+            : Number(createForm.rotacion_estado_referencia_posicion),
       });
       if (!res.ok || !res.personalId) {
         setError(res.message);
@@ -566,12 +609,47 @@ export function PersonalQuickAssignModal({
                   />
                 </div>
                 {createPerfilTieneRotacion ? (
-                  <div>
-                    <label className="input-label">Inicio de rotación</label>
-                    <AppDatePicker
-                      value={createForm.rotacion_inicio_fecha}
-                      onChange={(v) => setCreateForm((f) => ({ ...f, rotacion_inicio_fecha: v }))}
-                    />
+                  <div className="sm:col-span-2 rounded-lg border border-[var(--card-border)] bg-[var(--surface-elevated)] p-3">
+                    <p className="text-xs font-semibold text-[var(--text-primary)]">Asistente de rotación</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                      Indica una semana conocida y el estado observado. MineOS deduce el inicio del ciclo.
+                    </p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="input-label">Semana de referencia</label>
+                        <AppDatePicker
+                          value={createForm.rotacion_estado_referencia_semana}
+                          onChange={(v) =>
+                            setCreateForm((f) => ({
+                              ...f,
+                              rotacion_estado_referencia_semana: v,
+                              rotacion_inicio_fecha: '',
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="input-label">Estado observado</label>
+                        <AppSelect
+                          value={createForm.rotacion_estado_referencia_posicion}
+                          onChange={(v) =>
+                            setCreateForm((f) => ({
+                              ...f,
+                              rotacion_estado_referencia_posicion: v,
+                              rotacion_inicio_fecha: '',
+                            }))
+                          }
+                          options={rotacionEstadoOptions}
+                          placeholder="Seleccionar estado"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3 rounded-md border border-[var(--card-border)] bg-black/10 px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+                      Inicio deducido:{' '}
+                      <span className="font-semibold text-[var(--text-primary)]">
+                        {rotacionInicioDeducido || createForm.rotacion_inicio_fecha || 'pendiente'}
+                      </span>
+                    </div>
                   </div>
                 ) : null}
               </div>
