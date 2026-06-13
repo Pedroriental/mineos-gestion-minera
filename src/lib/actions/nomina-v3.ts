@@ -238,15 +238,35 @@ export async function assignPersonalToNominaAreaAction(input: {
       payload.estado_laboral = estadoActual;
     }
 
+    // El esquema de rotación lo dicta el PERFIL DE COMPENSACIÓN del trabajador
+    // (un administrativo fijo semanal nunca debe volverse rotativo por asignarlo
+    // a la nómina de un área con default rotativo). Sin perfil, solo se aplica
+    // el default del área cuando el trabajador no tiene esquema propio.
     const esquemaActual = String(row.esquema_rotacion || '');
-    const esquemaDefault =
-      biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);
-    if (!esquemaActual || esquemaActual === 'FIJO_SEMANAL') {
-      payload.esquema_rotacion = esquemaDefault;
+    let esquemaPerfil: string | null = null;
+    if (row.perfil_compensacion_id) {
+      const { data: perfilRow } = await supabase
+        .from('perfiles_compensacion')
+        .select('esquema_rotacion_default')
+        .eq('id', row.perfil_compensacion_id)
+        .maybeSingle();
+      esquemaPerfil = perfilRow?.esquema_rotacion_default ?? null;
+    }
+
+    if (esquemaPerfil && esquemaPerfil !== esquemaActual) {
+      payload.esquema_rotacion = esquemaPerfil;
+    } else if (!esquemaPerfil && !esquemaActual) {
+      payload.esquema_rotacion =
+        biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);
     }
     const esquemaFinal = String(payload.esquema_rotacion || esquemaActual);
     if (tieneEsquemaConRotacion(esquemaFinal) && !row.rotacion_inicio_fecha) {
       payload.rotacion_inicio_fecha = new Date().toISOString().split('T')[0];
+    }
+    if (!tieneEsquemaConRotacion(esquemaFinal) && row.rotacion_inicio_fecha) {
+      // Limpia restos de una conversión rotativa anterior para que la
+      // proyección no vuelva a predecir semanas libres.
+      payload.rotacion_inicio_fecha = null;
     }
 
     const { error } = await supabase.from('personal').update(payload).eq('id', data.personalId);
@@ -281,8 +301,18 @@ export async function createAndAssignPersonalNominaAction(
     // Server-side validation removed to avoid cache mismatch with client.
     // Client UI already restricts options.
 
+    // El esquema lo dicta el perfil de compensación elegido (igual que en la
+    // ficha de Base de Trabajadores); el default del área es solo fallback.
+    const { data: perfilRow } = await supabase
+      .from('perfiles_compensacion')
+      .select('esquema_rotacion_default')
+      .eq('id', data.perfil_compensacion_id)
+      .eq('activo', true)
+      .maybeSingle();
     const esquemaDefault =
-      biblioteca.esquemaDefaultPorArea[data.targetArea] || ('FIJO_SEMANAL' as const);
+      perfilRow?.esquema_rotacion_default ||
+      biblioteca.esquemaDefaultPorArea[data.targetArea] ||
+      ('FIJO_SEMANAL' as const);
 
     const payload: Record<string, unknown> = {
       cedula: data.cedula.trim(),
