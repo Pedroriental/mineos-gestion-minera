@@ -67,6 +67,71 @@ describe('rotacion projection', () => {
     assert.equal(ctx!.estadoAsistencia, 'libre');
   });
 
+  it('fijo semanal no hereda libre de la columna en periodo manual', async () => {
+    const { resolveManualPlantillaWorker } = await import(
+      '@/lib/rotacion-plantillas/manual-plantilla-projection'
+    );
+    const admin = {
+      id: 'worker-1',
+      nombre_completo: 'Admin Molinos',
+      cedula: '1',
+      cargo: 'Administrativo',
+      area: 'planta',
+      area_detalle: 'Vertical 1',
+      esquema_rotacion: 'MOLINO_FIJO',
+      salario_base: 125,
+      estatus: 'ACTIVO',
+    } as unknown as import('@/lib/types').Personal;
+
+    // Semana 1 del periodo → columna 0 = «Libre» en la plantilla
+    const ctx = resolveManualPlantillaWorker(
+      plantillaBase,
+      admin,
+      '2026-06-01',
+      '2026-06-01',
+      '2026-06-14',
+    );
+    assert.ok(ctx);
+    assert.equal(ctx!.estatus, 'trabajada_paga');
+    assert.equal(ctx!.estadoAsistencia, 'trabajada');
+
+    // Un rotativo en la misma columna sí queda libre
+    const rotativo = { ...admin, id: 'worker-1', esquema_rotacion: 'MINA_2X1' } as typeof admin;
+    const ctxRot = resolveManualPlantillaWorker(
+      plantillaBase,
+      rotativo,
+      '2026-06-01',
+      '2026-06-01',
+      '2026-06-14',
+    );
+    assert.ok(ctxRot);
+    assert.equal(ctxRot!.estatus, 'libre_paga');
+  });
+
+  it('fijo semanal no hereda libre de la columna en instancia activa', () => {
+    const snap = buildInstanciaSnapshot(
+      { id: 'i1', plantilla_id: 'p1', fecha_inicio_ciclo: '2026-06-01', estado: 'ACTIVA' },
+      plantillaBase,
+      [{ id: 'ic1', cuadrilla_id: 'c1', posicion_activa: 0, estado: 'ACTIVA', ciclos_completados: 0 }],
+      [{ id: 'c1', nombre: 'Vertical 1', asignacion_key: 'Vertical 1' }],
+    );
+
+    const ctx = resolveWorkerRotacionContext(
+      {
+        id: 'worker-1',
+        cargo: 'Administrativo',
+        area: 'planta',
+        area_detalle: 'Vertical 1',
+        esquema_rotacion: 'FIJO_SEMANAL',
+      },
+      snap,
+      '2026-06-02',
+    );
+    assert.ok(ctx);
+    assert.equal(ctx!.estatus, 'trabajada_paga');
+    assert.equal(ctx!.estadoAsistencia, 'trabajada');
+  });
+
   it('resolveWorkerRotacionContext respeta periodo operativo', () => {
     const snap = buildInstanciaSnapshot(
       {

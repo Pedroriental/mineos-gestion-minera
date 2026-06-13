@@ -4,6 +4,7 @@ import type { Personal } from '@/lib/types';
 import { asignacionMatchesCuadrilla, resolveCeldaEstatus } from '@/lib/rotacion-plantillas/sandbox-state';
 import { semanaEnPeriodoOperativo } from '@/lib/rotacion-plantillas/period-scope';
 import {
+  coerceEstatusPlantillaParaEsquema,
   diasInputBloqueadosPorPlantilla,
   estatusPlantillaToAsistencia,
 } from '@/lib/rotacion-plantillas/semana-cierre';
@@ -184,7 +185,8 @@ export function findCuadrillaForPersonal(
 }
 
 export function resolveWorkerRotacionContext(
-  personal: Pick<Personal, 'id' | 'area_detalle' | 'area' | 'cargo'>,
+  personal: Pick<Personal, 'id' | 'area_detalle' | 'area' | 'cargo'> &
+    Partial<Pick<Personal, 'esquema_rotacion'>>,
   instancia: InstanciaActivaSnapshot | null | undefined,
   weekStart?: string,
 ): WorkerRotacionContext | null {
@@ -208,10 +210,17 @@ export function resolveWorkerRotacionContext(
 
   const fila = cuadrilla.filas.find((f) => f.personalId === personal.id);
   const posicion = posicionEfectivaCuadrilla(cuadrilla.semanas.length, cuadrilla.posicionActiva);
-  const estatus = resolveEstatusCuadrilla(cuadrilla, cuadrilla.posicionActiva, fila);
-  if (!estatus) return null;
+  const estatusBase = resolveEstatusCuadrilla(cuadrilla, cuadrilla.posicionActiva, fila);
+  if (!estatusBase) return null;
 
   const semana = cuadrilla.semanas[posicion];
+  // Fijo semanal (Perfil A) nunca hereda «libre» del default de la columna.
+  const tieneOverrideExplicito = Boolean(semana && fila?.celdas[semana.id] != null);
+  const estatus = coerceEstatusPlantillaParaEsquema(
+    estatusBase,
+    personal.esquema_rotacion,
+    tieneOverrideExplicito,
+  );
   const { estadoAsistencia, diasInputBloqueado } = resolveAsistenciaDesdePlantilla(estatus);
 
   return {

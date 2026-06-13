@@ -36,6 +36,28 @@ export function plantillaPermiteAjusteAsistencia(_estatus: EstatusRotacionPlanti
   return true;
 }
 
+/** Perfil A — esquemas sin rotación: trabajan y cobran todas las semanas. */
+export function esquemaEsFijoSemanal(esquema: string | null | undefined): boolean {
+  return esquema === 'FIJO_SEMANAL' || esquema === 'MOLINO_FIJO';
+}
+
+/**
+ * Las columnas «libre» de una plantilla describen la rotación de las cuadrillas
+ * operativas; NUNCA aplican a personal fijo semanal (administrativos, cocina,
+ * técnicos), que trabaja todas las semanas. Un override explícito de celda
+ * (vacaciones, reposo o libre puntual marcado a mano) sí se respeta.
+ */
+export function coerceEstatusPlantillaParaEsquema(
+  estatus: EstatusRotacionPlantilla,
+  esquemaRotacion: string | null | undefined,
+  tieneOverrideExplicito: boolean,
+): EstatusRotacionPlantilla {
+  if (tieneOverrideExplicito) return estatus;
+  if (!esquemaEsFijoSemanal(esquemaRotacion)) return estatus;
+  if (estatus === 'libre_paga' || estatus === 'libre_sin_pago') return 'trabajada_paga';
+  return estatus;
+}
+
 /** Días editables solo cuando la asistencia explícita es «trabajada». */
 export function resolveDiasInputBloqueadoPlantilla(
   _estatus: EstatusRotacionPlantilla,

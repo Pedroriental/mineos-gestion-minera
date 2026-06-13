@@ -3,7 +3,10 @@ import {
   resolveEstatusCuadrilla,
   posicionEfectivaCuadrilla,
 } from '@/lib/rotacion-plantillas/projection';
-import { resolveDiasInputBloqueadoPlantilla } from '@/lib/rotacion-plantillas/semana-cierre';
+import {
+  coerceEstatusPlantillaParaEsquema,
+  resolveDiasInputBloqueadoPlantilla,
+} from '@/lib/rotacion-plantillas/semana-cierre';
 import {
   calculateNominaRowPay,
   calculateExplicitAsistenciaPay,
@@ -231,6 +234,7 @@ export function resolveManualPlantillaWorkerForCuadrilla(
   periodEnd: string,
   weekColumnAssignment?: string[],
   fila?: RotacionTrabajadorFila,
+  esquemaRotacion?: string | null,
 ): Omit<ManualPlantillaWorkerContext, 'cuadrillaId' | 'cuadrillaNombre'> | null {
   if (!cuadrilla.semanas.length) return null;
 
@@ -241,10 +245,17 @@ export function resolveManualPlantillaWorkerForCuadrilla(
     weekColumnAssignment,
   );
   const posicion = posicionEfectivaCuadrilla(cuadrilla.semanas.length, weekIdx);
-  const estatus = resolveEstatusCuadrilla(cuadrilla, weekIdx, fila);
-  if (!estatus) return null;
+  const estatusBase = resolveEstatusCuadrilla(cuadrilla, weekIdx, fila);
+  if (!estatusBase) return null;
 
   const semana = cuadrilla.semanas[posicion];
+  // Fijo semanal (Perfil A) nunca hereda «libre» del default de la columna.
+  const tieneOverrideExplicito = Boolean(semana && fila?.celdas[semana.id] != null);
+  const estatus = coerceEstatusPlantillaParaEsquema(
+    estatusBase,
+    esquemaRotacion,
+    tieneOverrideExplicito,
+  );
   const { estadoAsistencia, diasInputBloqueado } = resolveAsistenciaDesdePlantilla(estatus);
 
   return {
@@ -287,6 +298,7 @@ export function resolveManualPlantillaWorker(
     periodEnd,
     weekColumnAssignment,
     fila,
+    personal.esquema_rotacion,
   );
   if (!ctx) return null;
 

@@ -6,7 +6,33 @@ import {
   buildBalanceExport,
   plantillaPermiteAjusteAsistencia,
   resolveDiasInputBloqueadoPlantilla,
+  coerceEstatusPlantillaParaEsquema,
+  esquemaEsFijoSemanal,
 } from '@/lib/rotacion-plantillas/semana-cierre';
+
+describe('fijo semanal vs columnas libres de plantilla', () => {
+  it('detecta esquemas fijos', () => {
+    assert.equal(esquemaEsFijoSemanal('FIJO_SEMANAL'), true);
+    assert.equal(esquemaEsFijoSemanal('MOLINO_FIJO'), true);
+    assert.equal(esquemaEsFijoSemanal('MINA_2X1'), false);
+    assert.equal(esquemaEsFijoSemanal('MOLINO_14X14'), false);
+  });
+
+  it('fijo semanal nunca hereda libre del default de columna', () => {
+    assert.equal(coerceEstatusPlantillaParaEsquema('libre_paga', 'FIJO_SEMANAL', false), 'trabajada_paga');
+    assert.equal(coerceEstatusPlantillaParaEsquema('libre_sin_pago', 'MOLINO_FIJO', false), 'trabajada_paga');
+  });
+
+  it('respeta overrides explícitos de celda y esquemas rotativos', () => {
+    // Override manual (vacaciones, libre puntual) sí aplica al fijo
+    assert.equal(coerceEstatusPlantillaParaEsquema('libre_paga', 'FIJO_SEMANAL', true), 'libre_paga');
+    // Los rotativos siguen la columna
+    assert.equal(coerceEstatusPlantillaParaEsquema('libre_paga', 'MINA_2X1', false), 'libre_paga');
+    // Estados deliberados no se tocan (reposo, vacaciones, no laborada)
+    assert.equal(coerceEstatusPlantillaParaEsquema('no_laborada', 'FIJO_SEMANAL', false), 'no_laborada');
+    assert.equal(coerceEstatusPlantillaParaEsquema('vacaciones', 'FIJO_SEMANAL', false), 'vacaciones');
+  });
+});
 
 describe('plantilla asistencia ajustable', () => {
   it('nunca bloquea botones de asistencia', () => {
