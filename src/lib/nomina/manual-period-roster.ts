@@ -166,3 +166,32 @@ export function clearManualWeekRoster(
     /* ignore */
   }
 }
+
+function operationalWeekEmptyKey(area: string, weekStart: string): string {
+  return `nomina-operational-week-empty-v1-${area}-${weekStart}`;
+}
+
+/** Marca la semana operativa como vaciada (sin auto-incluir todo el personal del área). */
+export function markOperationalWeekEmptied(
+  area: string,
+  weekStart: string,
+  emptied: boolean,
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const key = operationalWeekEmptyKey(area, weekStart);
+    if (emptied) localStorage.setItem(key, '1');
+    else localStorage.removeItem(key);
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function isOperationalWeekEmptied(area: string, weekStart: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(operationalWeekEmptyKey(area, weekStart)) === '1';
+  } catch {
+    return false;
+  }
+}

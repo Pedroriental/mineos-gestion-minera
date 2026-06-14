@@ -13,6 +13,7 @@ import {
   buildNominaPreviewReport,
   isNominaPreviewEmpty,
   listWeekStartsInRange,
+  nominaPeriodoMatchesArea,
   normalizePreviewRange,
   type NominaPreviewImportSection,
   type NominaRegistroCerrado,
@@ -137,31 +138,34 @@ export default function NominaVistaPreviaContent({
     return registrosEnRango.filter((r) => r.area === filterArea);
   }, [registrosEnRango, filterArea]);
 
+  const archivedPeriodsForArea = useMemo(() => {
+    if (!filterArea) return archivedPeriods;
+    return archivedPeriods.filter((p) => nominaPeriodoMatchesArea(p, filterArea));
+  }, [archivedPeriods, filterArea]);
+
   // Para UI: usa periodoId como shortcut (etiquetas, estilos, orden de secciones)
   const matchingArchivedPeriod = useMemo(() => {
     if (periodoId) {
-      const exact = archivedPeriods.find((p) => p.id === periodoId);
+      const exact = archivedPeriodsForArea.find((p) => p.id === periodoId);
       if (exact) return exact;
     }
     const { start, end } = normalizePreviewRange(rangeStart, rangeEnd);
-    const exact = archivedPeriods.find((p) => p.rangeStart === start && p.rangeEnd === end);
+    const exact = archivedPeriodsForArea.find((p) => p.rangeStart === start && p.rangeEnd === end);
     if (exact) return exact;
-    return archivedPeriods.find(
+    return archivedPeriodsForArea.find(
       (p) => p.origen === 'import_historico' && p.rangeStart <= start && p.rangeEnd >= end,
     );
-  }, [archivedPeriods, rangeStart, rangeEnd, periodoId]);
+  }, [archivedPeriodsForArea, rangeStart, rangeEnd, periodoId]);
 
   // Para auto-detección: SOLO mira las fechas, nunca el periodoId activo.
-  // Esto permite detectar el cambio A → B cuando el usuario cambia fechas manualmente
-  // aunque periodoId siga siendo "A" (el shortcut de matchingArchivedPeriod bloquearía eso).
   const autoDetectedPeriod = useMemo(() => {
     const { start, end } = normalizePreviewRange(rangeStart, rangeEnd);
-    const exact = archivedPeriods.find((p) => p.rangeStart === start && p.rangeEnd === end);
+    const exact = archivedPeriodsForArea.find((p) => p.rangeStart === start && p.rangeEnd === end);
     if (exact) return exact;
-    return archivedPeriods.find(
+    return archivedPeriodsForArea.find(
       (p) => p.origen === 'import_historico' && p.rangeStart <= start && p.rangeEnd >= end,
     );
-  }, [archivedPeriods, rangeStart, rangeEnd]); // ← sin periodoId
+  }, [archivedPeriodsForArea, rangeStart, rangeEnd]);
 
   /**
    * Auto-detección inteligente: cuando el usuario cambia las fechas manualmente
@@ -211,11 +215,13 @@ export default function NominaVistaPreviaContent({
       return {
         ...p,
         cargo: snap.cargo || p.cargo,
-        area: (snap.area as Personal['area']) || p.area,
+        area: filterArea
+          ? (filterArea as Personal['area'])
+          : ((snap.area as Personal['area']) || p.area),
         area_detalle: snap.area_detalle || p.area_detalle,
       };
     });
-  }, [roster, personalSnapshots]);
+  }, [roster, personalSnapshots, filterArea]);
 
   const report = useMemo(
     () =>
@@ -226,6 +232,7 @@ export default function NominaVistaPreviaContent({
         registrosCerrados: registrosFiltrados,
         valesPorPersonal: valesMap,
         allowProjection: includeProjection && !isConsolidatedImport,
+        filterArea,
         importSectionOrder,
         personalSnapshots,
       }),
@@ -240,6 +247,7 @@ export default function NominaVistaPreviaContent({
       isConsolidatedImport,
       importSectionOrder,
       personalSnapshots,
+      filterArea,
     ],
   );
 
@@ -366,7 +374,7 @@ export default function NominaVistaPreviaContent({
                 />
               </div>
 
-              {archivedPeriods.length > 0 ? (
+              {archivedPeriodsForArea.length > 0 ? (
                 <div className="flex min-w-0 max-w-[240px] flex-1 items-center gap-1.5 sm:flex-none">
                   <Archive className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
                   <AppSelect
@@ -376,7 +384,7 @@ export default function NominaVistaPreviaContent({
                         clearPeriodFilter();
                         return;
                       }
-                      const p = archivedPeriods.find((x) => x.id === val);
+                      const p = archivedPeriodsForArea.find((x) => x.id === val);
                       if (p) applyPeriodRange(p);
                     }}
                     options={[
@@ -388,7 +396,7 @@ export default function NominaVistaPreviaContent({
                             ? `${format(parseISO(rangeStart), 'dd/MM')} — ${format(parseISO(rangeEnd), 'dd/MM/yyyy')}`
                             : 'Semana en curso',
                       },
-                      ...archivedPeriods.map((p) => ({
+                      ...archivedPeriodsForArea.map((p) => ({
                         value: p.id,
                         label: `${p.label} (${p.totalUsd.toLocaleString('es', { minimumFractionDigits: 0 })})`,
                       })),
@@ -497,9 +505,9 @@ export default function NominaVistaPreviaContent({
               Agregue trabajadores y complete asistencia/vales en la vista semanal, o cierre la semana para consolidar.
               Para estimados por rotación, active <strong>Ajustes → Con estimados</strong>.
             </p>
-            {archivedPeriods.length > 0 ? (
+            {archivedPeriodsForArea.length > 0 ? (
               <div className="mt-2 flex flex-wrap justify-center gap-2">
-                {archivedPeriods.slice(0, 4).map((p) => (
+                {archivedPeriodsForArea.slice(0, 4).map((p) => (
                   <button
                     key={p.id}
                     type="button"

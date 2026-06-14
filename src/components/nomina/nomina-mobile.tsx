@@ -663,11 +663,11 @@ export function NominaMobileMoreSheet({
       ? [{ label: 'Ir al inicio', icon: Home, onClick: onInicio, needsEdit: false }]
       : []),
     ...(onExcel
-      ? [{ label: 'Vista Excel (propuesta)', icon: FileSpreadsheet, onClick: onExcel, needsEdit: false }]
+      ? [{ label: 'Previsualización', icon: FileSpreadsheet, onClick: onExcel, needsEdit: false }]
       : []),
     { label: 'Exportar PDF', icon: Printer, onClick: onPdf, needsEdit: false },
     { label: 'Exportar CSV', icon: Download, onClick: onCsv, needsEdit: false },
-    { label: 'Dar de baja todo', icon: Trash2, onClick: onBorrar, needsEdit: true, danger: true },
+    { label: 'Vaciar semana', icon: Trash2, onClick: onBorrar, needsEdit: true, danger: false },
   ];
 
   return (
@@ -687,7 +687,7 @@ export function NominaMobileMoreSheet({
             icon: item.icon,
             destructive: item.danger,
             disabled: item.needsEdit && !canEdit,
-            hidden: item.label.includes('baja') && !hasData,
+            hidden: item.label.includes('Vaciar') && !hasData,
             onClick: () => {
               item.onClick();
               onClose();

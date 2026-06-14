@@ -9,6 +9,7 @@ export async function loadNominaVistaPreviaDataAction(options?: {
   rangeStart?: string;
   rangeEnd?: string;
   periodoId?: string;
+  filterArea?: string;
 }): Promise<{
   ok: boolean;
   personal: Personal[];
@@ -24,6 +25,10 @@ export async function loadNominaVistaPreviaDataAction(options?: {
       .from('nomina_semanas')
       .select('id, semana_inicio, semana_fin, area, periodo_id')
       .order('semana_inicio', { ascending: false });
+
+    if (options?.filterArea) {
+      semanasQuery = semanasQuery.eq('area', options.filterArea);
+    }
 
     if (options?.periodoId) {
       // Filtrar semanas directamente por periodo_id (columna en nomina_semanas)

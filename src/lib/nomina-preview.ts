@@ -22,7 +22,7 @@ import {
   type NominaNovedadTurno,
 } from '@/lib/nomina-novedad-turno';
 import { getWeekStart } from '@/lib/rotacion-personal';
-import type { PersonalSnapshot, ParsedNominaPeriod } from '@/lib/nomina/types';
+import type { PersonalSnapshot, ParsedNominaPeriod, NominaPeriodoSummary } from '@/lib/nomina/types';
 import type { Personal } from '@/lib/types';
 
 export type NominaPreviewPeriodKind = 'day' | 'days' | 'week' | 'weeks' | 'long';
@@ -536,6 +536,59 @@ function sectionSortKey(id: string, importOrder: Map<string, number>): number {
   return 99;
 }
 
+/** Periodo archivado pertenece a un solo área de nómina (mina, planta, etc.). */
+export function nominaPeriodoMatchesArea(
+  period: NominaPeriodoSummary,
+  filterArea: string,
+): boolean {
+  const meta = period.metadata ?? {};
+  const metaArea = typeof meta.area === 'string' ? meta.area.trim() : '';
+  if (metaArea) return metaArea === filterArea;
+
+  const sections = meta.sectionTotals as Array<{ id?: string; title?: string }> | undefined;
+  if (sections?.length) {
+    const areas = new Set<string>();
+    for (const s of sections) {
+      const id = (s.id ?? '').toLowerCase();
+      const title = (s.title ?? '').toLowerCase();
+      if (id.startsWith('planta') || title.includes('molino')) areas.add('planta');
+      else if (id.startsWith('mina') || title.includes('mina')) areas.add('mina');
+      else if (id.startsWith('admin') || title.includes('administr')) areas.add('administracion');
+    }
+    if (areas.size === 1) return areas.has(filterArea);
+    return false;
+  }
+
+  return false;
+}
+
+function inferAreaFromSectionId(id: string): string | null {
+  if (id.startsWith('planta')) return 'planta';
+  if (id.startsWith('mina')) return 'mina';
+  if (id.startsWith('admin')) return 'administracion';
+  return null;
+}
+
+function sumClosedRegistrosInRange(
+  registros: NominaRegistroCerrado[],
+  rangeStart: string,
+  rangeEnd: string,
+  filterArea?: string,
+): number {
+  const weekSet = new Set(listWeekStartsInRange(rangeStart, rangeEnd));
+  const seen = new Set<string>();
+  let total = 0;
+  for (const r of registros) {
+    if (!weekSet.has(r.semana_inicio)) continue;
+    if (filterArea && r.area !== filterArea) continue;
+    const key = `${r.personal_id}|${r.semana_inicio}|${r.area}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    total += Number(r.monto_pagado) || 0;
+  }
+  return parseFloat(total.toFixed(2));
+}
+
 function applyImportSectionOrder(
   sectionMap: Map<string, NominaPreviewSection>,
   importSectionOrder?: NominaPreviewImportSection[],
@@ -565,6 +618,8 @@ export function buildNominaPreviewReport(input: {
   valesPorPersonal?: Record<string, number>;
   /** Si false, solo filas con nómina cerrada/archivada en el rango (sin proyección por rotación). */
   allowProjection?: boolean;
+  /** Limita filas, registros y totales a un área de nómina (mina, planta, etc.). */
+  filterArea?: string;
   /** Orden y títulos de secciones del periodo importado (metadata.sectionTotals). */
   importSectionOrder?: NominaPreviewImportSection[];
   /** Snapshots del import histórico por personal_id (para reconstruir secciones). */
@@ -572,12 +627,18 @@ export function buildNominaPreviewReport(input: {
 }): NominaPreviewReport {
   const {
     personal,
-    registrosCerrados,
     valesPorPersonal = {},
     allowProjection = false,
     importSectionOrder,
     personalSnapshots = {},
+    filterArea,
   } = input;
+  const registrosCerrados = filterArea
+    ? input.registrosCerrados.filter((r) => r.area === filterArea)
+    : input.registrosCerrados;
+  const personalFiltered = filterArea
+    ? personal.filter((p) => p.area === filterArea)
+    : personal;
   const { start: rangeStart, end: rangeEnd } = normalizePreviewRange(
     input.rangeStart,
     input.rangeEnd,
@@ -612,30 +673,26 @@ export function buildNominaPreviewReport(input: {
       ? periodMeta.label
       : `Sin semanas de nómina entre ${format(parseISO(rangeStart), 'dd/MM/yyyy')} y ${format(parseISO(rangeEnd), 'dd/MM/yyyy')}`;
 
-  // Mapa de registros cerrados por (personal_id | semana_inicio | area).
-  // Se indexa también por área del snapshot para tolerar que el área del personal
-  // haya cambiado desde que se cerró la nómina (p. ej. traslado de Mina a Planta).
   const cerradoMap = new Map<string, NominaRegistroCerrado>();
   for (const r of registrosCerrados) {
     if (!weekSet.has(r.semana_inicio)) continue;
-    // Clave con área del registro (la más fiable)
     cerradoMap.set(`${r.personal_id}|${r.semana_inicio}|${r.area}`, r);
-    // Clave con área del snapshot (si existe y difiere del área del registro)
-    const snapArea = r.personal_snapshot?.area;
-    if (snapArea && snapArea !== r.area) {
-      cerradoMap.set(`${r.personal_id}|${r.semana_inicio}|${snapArea}`, r);
-    }
-    // Clave sin área — solo si aún no existe (evita sobrescritura por registros multi-área)
-    if (!cerradoMap.has(`${r.personal_id}|${r.semana_inicio}`)) {
-      cerradoMap.set(`${r.personal_id}|${r.semana_inicio}`, r);
+    if (!filterArea) {
+      const snapArea = r.personal_snapshot?.area;
+      if (snapArea && snapArea !== r.area) {
+        cerradoMap.set(`${r.personal_id}|${r.semana_inicio}|${snapArea}`, r);
+      }
+      if (!cerradoMap.has(`${r.personal_id}|${r.semana_inicio}`)) {
+        cerradoMap.set(`${r.personal_id}|${r.semana_inicio}`, r);
+      }
     }
   }
   const archive = buildArchiveMap(registrosCerrados);
   const lastOpenWeekStart = weekStarts[weekStarts.length - 1];
   const importArchiveMode = Boolean(importSectionOrder?.length);
   const peopleToProcess = importArchiveMode
-    ? collectImportPreviewPeople(personal, registrosCerrados, weekSet, personalSnapshots)
-    : personal;
+    ? collectImportPreviewPeople(personalFiltered, registrosCerrados, weekSet, personalSnapshots)
+    : personalFiltered;
 
   const closedWeeksByArea = new Set<string>();
   for (const r of registrosCerrados) {
@@ -677,9 +734,10 @@ export function buildNominaPreviewReport(input: {
         continue;
       }
 
-      const closed =
-        cerradoMap.get(`${p.id}|${w.weekStart}|${p.area}`) ??
-        cerradoMap.get(`${p.id}|${w.weekStart}`);
+      const closed = filterArea
+        ? cerradoMap.get(`${p.id}|${w.weekStart}|${filterArea}`)
+        : cerradoMap.get(`${p.id}|${w.weekStart}|${p.area}`) ??
+          cerradoMap.get(`${p.id}|${w.weekStart}`);
       if (closed) {
         const estado =
           (closed.estado_asistencia as EstadoAsistenciaNomina | undefined) ??
@@ -753,6 +811,21 @@ export function buildNominaPreviewReport(input: {
 
   const sections = [...sectionMap.values()]
     .filter((s) => s.rows.length > 0)
+    .filter((s) => {
+      if (!filterArea) return true;
+      const fromId = inferAreaFromSectionId(s.id);
+      if (fromId) return fromId === filterArea;
+      if (filterArea === 'planta') {
+        return s.id.startsWith('planta') || s.title.toLowerCase().includes('molino');
+      }
+      if (filterArea === 'mina') {
+        return s.id.startsWith('mina') || s.title.toLowerCase().includes('mina');
+      }
+      if (filterArea === 'administracion') {
+        return s.id.startsWith('admin') || s.title.toLowerCase().includes('administr');
+      }
+      return true;
+    })
     .map((s) => {
       s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
       s.sectionTotal = s.rows.reduce((n, r) => n + r.total, 0);
@@ -770,14 +843,26 @@ export function buildNominaPreviewReport(input: {
     total: s.sectionTotal,
   }));
 
-  const grandTotal = summary.reduce((n, s) => n + s.total, 0);
-  const personalById = new Map(personal.map((p) => [p.id, p]));
-  const novedades = buildNominaPreviewNovedadesDesdeRegistros(
+  let grandTotal = summary.reduce((n, s) => n + s.total, 0);
+  const closedExact = sumClosedRegistrosInRange(
+    registrosCerrados,
+    rangeStart,
+    rangeEnd,
+    filterArea,
+  );
+  if (!allowProjection || calculatedCells === 0) {
+    grandTotal = closedExact;
+  }
+  const personalById = new Map(personalFiltered.map((p) => [p.id, p]));
+  let novedades = buildNominaPreviewNovedadesDesdeRegistros(
     registrosCerrados,
     personalById,
     rangeStart,
     rangeEnd,
   );
+  if (filterArea) {
+    novedades = novedades.filter((n) => n.area === filterArea);
+  }
 
   return {
     periodLabel,

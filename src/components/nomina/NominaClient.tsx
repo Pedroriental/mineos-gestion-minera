@@ -95,6 +95,8 @@ import {
 import {
   addToManualWeekRoster,
   clearManualWeekRoster,
+  isOperationalWeekEmptied,
+  markOperationalWeekEmptied,
   mergeManualWeekRosterIds,
   readManualWeekRosterEntries,
   removeFromManualWeekRoster,
@@ -151,7 +153,6 @@ import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, RolSemana, T
 
 import { 
   revertirSemanaAction,
-  borrarTodoPersonalArea
 } from '@/lib/actions/nomina';
 
 import {
@@ -1233,18 +1234,23 @@ export default function NominaClient({
       }
 
       // 3. Semana operativa (no cerrada) → roster vigente
+      const operationalEmptied =
+        !manualPeriodForView && isOperationalWeekEmptied(area, currentWeekStart);
+
       const activeWorkersMap = new Map<string, Personal>();
-      for (const p of personalCatalog) {
-        if (p.estatus && p.estatus !== 'ACTIVO') continue;
-        if (
-          p.fecha_ingreso &&
-          currentWeekEnd &&
-          p.fecha_ingreso > currentWeekEnd &&
-          !weekRosterSet.has(p.id)
-        ) {
-          continue;
+      if (!operationalEmptied) {
+        for (const p of personalCatalog) {
+          if (p.estatus && p.estatus !== 'ACTIVO') continue;
+          if (
+            p.fecha_ingreso &&
+            currentWeekEnd &&
+            p.fecha_ingreso > currentWeekEnd &&
+            !weekRosterSet.has(p.id)
+          ) {
+            continue;
+          }
+          activeWorkersMap.set(p.id, p);
         }
-        activeWorkersMap.set(p.id, p);
       }
       for (const personalId of weekRoster) {
         if (activeWorkersMap.has(personalId)) continue;
@@ -1975,14 +1981,21 @@ export default function NominaClient({
     });
   }
 
-  function handleBorrarTodo() {
+  function handleVaciarSemana() {
+    if (semanaActualProcesada) {
+      toastError('La semana ya está cerrada.');
+      return;
+    }
     startTransition(async () => {
-      const res = await borrarTodoPersonalArea(area);
-      if (res.ok) {
-        await registrarAuditAction('BORRAR_TODO_PERSONAL', 'personal', area, `Todos los trabajadores de ${area} desactivados`, user?.id, user?.email);
-        setShowBorrarModal(false);
-        toast.success('Todos los trabajadores desactivados.');
-      } else toastError(res.message);
+      if (manualPeriodId) {
+        clearManualWeekRoster(area, weekRange.inicio, manualPeriodId);
+      } else {
+        markOperationalWeekEmptied(area, weekRange.inicio, true);
+      }
+      setPreNominaRows([]);
+      setManualRosterTick((t) => t + 1);
+      setShowBorrarModal(false);
+      toast.success('Semana vaciada. Los trabajadores siguen activos en la base.');
     });
   }
 
@@ -2016,10 +2029,10 @@ export default function NominaClient({
           setPreviewInitialRange({ start: weekRange.inicio, end: weekRange.fin });
           setShowExcelPreview(true);
         }}
-        title="Vista previa Excel"
-        className="nomina-page__toolbar-btn btn-secondary border border-amber-500/40 text-amber-200/95 hover:bg-amber-500/10"
+        title="Vista previa de la planilla"
+        className="nomina-page__toolbar-btn btn-secondary"
       >
-        <FileSpreadsheet className="shrink-0" /> Excel
+        <FileSpreadsheet className="shrink-0 text-zinc-400" /> Previsualización
       </button>
       <button onClick={handlePrintReport} title="PDF" className="nomina-page__toolbar-btn btn-secondary">
         <Printer className="shrink-0 text-zinc-400" /> PDF
@@ -2027,9 +2040,9 @@ export default function NominaClient({
       <button onClick={handleExportCSV} title="CSV" className="nomina-page__toolbar-btn btn-secondary">
         <Download className="shrink-0 text-zinc-400" /> CSV
       </button>
-      {canEdit && data.length > 0 && (
-        <button onClick={() => setShowBorrarModal(true)} title="Baja todo" className="nomina-page__toolbar-btn nomina-page__toolbar-btn--danger">
-          <Trash2 className="shrink-0" /> Baja
+      {canEdit && preNominaRows.length > 0 && !semanaActualProcesada && (
+        <button onClick={() => setShowBorrarModal(true)} title="Quitar todos de la semana actual" className="nomina-page__toolbar-btn btn-secondary">
+          <Trash2 className="shrink-0 text-zinc-400" /> Vaciar
         </button>
       )}
     </>
@@ -2060,7 +2073,7 @@ export default function NominaClient({
           </div>
 
           {(preNominaRows.length > 0 || semanaActualProcesada) && (
-            <div className="nomina-page__distribucion-aside shrink-0 max-h-[min(22rem,40vh)] overflow-y-auto">
+            <div className="nomina-page__distribucion-aside shrink-0">
               <NominaDistribucionPanel
                 totalNomina={totalSemana}
                 partes={distribucion.partes}
@@ -2809,7 +2822,7 @@ export default function NominaClient({
         open={mobileMoreOpen}
         onClose={() => setMobileMoreOpen(false)}
         canEdit={canEdit}
-        hasData={data.length > 0}
+        hasData={preNominaRows.length > 0 && !semanaActualProcesada}
         onPdf={handlePrintReport}
         onCsv={handleExportCSV}
         onExcel={() => {
@@ -2861,6 +2874,7 @@ export default function NominaClient({
         perfilesCompensacion={perfilesCompensacion}
         assignedIds={assignedIds}
         onAssigned={(personalId, areaDetalle) => {
+          markOperationalWeekEmptied(area, weekRange.inicio, false);
           if (manualPeriodId) {
             addToManualWeekRoster(
               area,
@@ -3121,16 +3135,18 @@ export default function NominaClient({
       <PageFormModal
         open={showBorrarModal}
         onClose={() => setShowBorrarModal(false)}
-        sheetTitle="¿Dar de baja todo?"
-        sheetIcon={<SheetIconBadge icon={AlertTriangle} tone="danger" />}
+        sheetTitle="¿Vaciar la semana?"
+        sheetIcon={<SheetIconBadge icon={AlertTriangle} tone="warn" />}
         panelClassName="max-w-sm text-center"
       >
-            <AlertTriangle className="mx-auto mb-4 h-12 w-12 animate-bounce text-red-500" />
-            <h3 className="page-form-modal-title mb-2 hidden text-lg font-bold lg:block">¿Dar de baja todo?</h3>
-            <p className="mb-6 text-xs text-white/50">{data.length} trabajadores de {area.toUpperCase()} serán desactivados.</p>
+            <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-amber-500" />
+            <h3 className="page-form-modal-title mb-2 hidden text-lg font-bold lg:block">¿Vaciar la semana?</h3>
+            <p className="mb-6 text-xs text-white/50">
+              Se quitarán {preNominaRows.length} trabajadores de la planilla de esta semana. No se desactivan de la base de datos.
+            </p>
             <PageFormModalFooter className="flex gap-3">
               <button type="button" onClick={() => setShowBorrarModal(false)} className="btn-secondary flex-1 py-2.5 text-xs font-bold">Cancelar</button>
-              <button type="button" onClick={handleBorrarTodo} disabled={isPending} className="flex h-10 flex-1 items-center justify-center rounded-lg bg-red-600 px-4 text-xs font-bold text-white transition-colors hover:bg-red-500 disabled:opacity-40">{isPending ? 'Procesando...' : 'Dar de baja'}</button>
+              <button type="button" onClick={handleVaciarSemana} disabled={isPending} className="btn-primary flex-1 py-2.5 text-xs font-bold disabled:opacity-40">{isPending ? 'Procesando...' : 'Vaciar semana'}</button>
             </PageFormModalFooter>
       </PageFormModal>
 

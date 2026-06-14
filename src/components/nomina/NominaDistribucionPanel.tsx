@@ -1,6 +1,7 @@
 'use client';
 
-import { Plus, Save, Trash2, Scale } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Plus, Save, Trash2, Scale } from 'lucide-react';
 import type { DistribucionLinea, DistribucionParte } from '@/lib/nomina-distribucion';
 
 function fmtMoney(n: number) {
@@ -26,6 +27,13 @@ type Props = {
 
 const COLORS = ['cyan', 'amber', 'emerald', 'violet', 'rose', 'sky'] as const;
 
+function amountColor(color: (typeof COLORS)[number], isLight: boolean) {
+  if (color === 'cyan') return 'text-cyan-400';
+  if (color === 'emerald') return isLight ? 'text-emerald-700' : 'text-emerald-400';
+  if (color === 'amber') return isLight ? 'text-amber-700' : 'text-amber-400';
+  return 'text-violet-400';
+}
+
 export default function NominaDistribucionPanel({
   totalNomina,
   partes,
@@ -42,6 +50,7 @@ export default function NominaDistribucionPanel({
   compact = false,
   readOnly = false,
 }: Props) {
+  const [configOpen, setConfigOpen] = useState(false);
   const isLight = variant === 'light';
   const border = isLight ? 'border-slate-400' : 'border-zinc-800';
   const muted = isLight ? 'text-slate-600' : 'text-white/40';
@@ -51,20 +60,24 @@ export default function NominaDistribucionPanel({
     : 'bg-zinc-950/40 border-zinc-800 text-white focus:border-amber-500/50';
 
   return (
-    <div className={`space-y-3 ${compact ? '' : 'rounded-xl border p-4 ' + (isLight ? 'border-slate-500 bg-slate-50' : 'border-zinc-800 bg-zinc-950/40')}`}>
+    <div
+      className={`space-y-2.5 ${compact ? '' : 'rounded-xl border p-4 ' + (isLight ? 'border-slate-500 bg-slate-50' : 'border-zinc-800 bg-zinc-950/40')}`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className={`text-[10px] font-bold uppercase tracking-wider ${muted}`}>
             Total a distribuir
           </p>
-          <p className={`text-2xl font-black tabular-nums ${isLight ? 'text-amber-800' : 'text-amber-500'}`}>
+          <p
+            className={`text-xl font-black tabular-nums ${isLight ? 'text-amber-800' : 'text-amber-500'}`}
+          >
             {fmtMoney(totalNomina)}
           </p>
         </div>
         <div className="text-right">
           <p className={`text-[10px] font-bold uppercase ${muted}`}>Suma %</p>
           <p
-            className={`text-lg font-black tabular-nums ${
+            className={`text-base font-black tabular-nums ${
               validationOk ? (isLight ? 'text-emerald-700' : 'text-emerald-400') : 'text-red-400'
             }`}
           >
@@ -79,133 +92,151 @@ export default function NominaDistribucionPanel({
         </p>
       ) : null}
 
-      <div className="space-y-2">
+      <ul className="space-y-1" aria-label="Resumen de distribución">
         {lineas.map((l, i) => {
           const color = COLORS[i % COLORS.length];
           return (
-            <div
-              key={l.id}
-              className={`rounded-lg border ${border} p-2.5 ${isLight ? 'bg-white' : 'bg-zinc-900/50'}`}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                {!readOnly ? (
-                  <input
-                    type="text"
-                    value={l.nombre}
-                    onChange={(e) => onUpdateParte(l.id, { nombre: e.target.value })}
-                    className={`min-w-[8rem] flex-1 rounded-md border px-2 py-1 text-xs font-semibold outline-none ${inputCls}`}
-                    placeholder="Beneficiario"
-                  />
-                ) : (
-                  <p className={`flex-1 text-xs font-semibold ${text}`}>{l.nombre}</p>
-                )}
-                <div className="flex items-center gap-1">
-                  {!readOnly ? (
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.01}
-                      value={l.porcentaje}
-                      onChange={(e) =>
-                        onUpdateParte(l.id, { porcentaje: Number(e.target.value) || 0 })
-                      }
-                      className={`w-16 rounded-md border px-2 py-1 text-right text-xs font-bold tabular-nums outline-none ${inputCls}`}
-                      title="Porcentaje"
-                    />
-                  ) : (
-                    <span className={`text-xs font-bold tabular-nums ${text}`}>{l.porcentaje}%</span>
-                  )}
-                  <span className={`text-[10px] ${muted}`}>%</span>
-                </div>
-                <p
-                  className={`text-sm font-bold tabular-nums ${
-                    color === 'cyan'
-                      ? 'text-cyan-400'
-                      : color === 'emerald'
-                        ? 'text-emerald-400'
-                        : color === 'amber'
-                          ? 'text-amber-400'
-                          : 'text-violet-400'
-                  }`}
+            <li key={l.id} className={`text-[11px] leading-snug ${text}`}>
+              <span className="font-bold tabular-nums">{l.porcentaje}%</span>
+              <span className={muted}> · </span>
+              <span className="font-medium">{l.nombre || 'Sin nombre'}</span>
+              <span className={muted}> · </span>
+              <span className={`font-bold tabular-nums ${amountColor(color, isLight)}`}>
+                {fmtMoney(l.bruto)}
+              </span>
+              <span className={muted}> · neto </span>
+              <span className={`font-bold tabular-nums ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>
+                {fmtMoney(l.neto)}
+              </span>
+              {l.pagoDirecto > 0 ? (
+                <span className={muted}> · directos {fmtMoney(l.pagoDirecto)}</span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+
+      {!readOnly ? (
+        <div>
+          <button
+            type="button"
+            onClick={() => setConfigOpen((o) => !o)}
+            className={`flex w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide ${border} ${muted} hover:border-amber-500/40`}
+            aria-expanded={configOpen}
+          >
+            Configurar distribución
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 transition-transform ${configOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {configOpen ? (
+            <div className="mt-2 space-y-2 border-t border-zinc-800/80 pt-2">
+              {lineas.map((l, i) => {
+                const color = COLORS[i % COLORS.length];
+                return (
+                  <div
+                    key={l.id}
+                    className={`rounded-lg border ${border} p-2.5 ${isLight ? 'bg-white' : 'bg-zinc-900/50'}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={l.nombre}
+                        onChange={(e) => onUpdateParte(l.id, { nombre: e.target.value })}
+                        className={`min-w-[8rem] flex-1 rounded-md border px-2 py-1 text-xs font-semibold outline-none ${inputCls}`}
+                        placeholder="Beneficiario"
+                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.01}
+                          value={l.porcentaje}
+                          onChange={(e) =>
+                            onUpdateParte(l.id, { porcentaje: Number(e.target.value) || 0 })
+                          }
+                          className={`w-16 rounded-md border px-2 py-1 text-right text-xs font-bold tabular-nums outline-none ${inputCls}`}
+                          title="Porcentaje"
+                        />
+                        <span className={`text-[10px] ${muted}`}>%</span>
+                      </div>
+                      <p className={`text-sm font-bold tabular-nums ${amountColor(color, isLight)}`}>
+                        {fmtMoney(l.bruto)}
+                      </p>
+                      {partes.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => onRemoveParte(l.id)}
+                          className="rounded p-1 text-white/30 hover:bg-red-500/10 hover:text-red-400"
+                          aria-label="Quitar beneficiario"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 pl-1">
+                      <span className={`text-[10px] ${muted}`}>Pagos directos:</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={l.pagoDirecto || ''}
+                        onChange={(e) =>
+                          onUpdateParte(l.id, { pagoDirecto: Number(e.target.value) || 0 })
+                        }
+                        className={`w-24 rounded-md border px-2 py-0.5 text-right text-xs tabular-nums outline-none ${inputCls}`}
+                      />
+                      <span className={`ml-auto text-[10px] font-bold ${muted}`}>
+                        Neto:{' '}
+                        <span className={isLight ? 'text-emerald-800' : 'text-emerald-400'}>
+                          {fmtMoney(l.neto)}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={onAddParte}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase ${border} ${muted} hover:border-amber-500/40`}
                 >
-                  {fmtMoney(l.bruto)}
-                </p>
-                {!readOnly && partes.length > 1 ? (
+                  <Plus className="h-3.5 w-3.5" />
+                  Agregar
+                </button>
+                <button
+                  type="button"
+                  onClick={onRebalance}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase ${border} ${muted} hover:border-amber-500/40`}
+                >
+                  <Scale className="h-3.5 w-3.5" />
+                  Repartir igual
+                </button>
+                {onSaveDefault ? (
                   <button
                     type="button"
-                    onClick={() => onRemoveParte(l.id)}
-                    className="rounded p-1 text-white/30 hover:bg-red-500/10 hover:text-red-400"
-                    aria-label="Quitar beneficiario"
+                    onClick={onSaveDefault}
+                    className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-bold uppercase text-amber-400"
+                    title="Guarda estos porcentajes y nombres para futuras semanas y la vista previa"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Save className="h-3.5 w-3.5" />
+                    Guardar plantilla
                   </button>
                 ) : null}
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 pl-1">
-                <span className={`text-[10px] ${muted}`}>Pagos directos:</span>
-                {readOnly ? (
-                  <span className={`text-xs tabular-nums ${text}`}>{fmtMoney(l.pagoDirecto)}</span>
-                ) : (
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={l.pagoDirecto || ''}
-                    onChange={(e) =>
-                      onUpdateParte(l.id, { pagoDirecto: Number(e.target.value) || 0 })
-                    }
-                    className={`w-24 rounded-md border px-2 py-0.5 text-right text-xs tabular-nums outline-none ${inputCls}`}
-                  />
-                )}
-                <span className={`ml-auto text-[10px] font-bold ${muted}`}>
-                  Neto:{' '}
-                  <span className={isLight ? 'text-emerald-800' : 'text-emerald-400'}>
-                    {fmtMoney(l.neto)}
-                  </span>
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
 
-      {!readOnly ? (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onAddParte}
-            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase ${border} ${muted} hover:border-amber-500/40`}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Agregar
-          </button>
-          <button
-            type="button"
-            onClick={onRebalance}
-            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase ${border} ${muted} hover:border-amber-500/40`}
-          >
-            <Scale className="h-3.5 w-3.5" />
-            Repartir igual
-          </button>
-          {onSaveDefault ? (
-            <button
-              type="button"
-              onClick={onSaveDefault}
-              className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-bold uppercase text-amber-400"
-              title="Guarda estos porcentajes y nombres para futuras semanas y la vista previa"
-            >
-              <Save className="h-3.5 w-3.5" />
-              Guardar plantilla
-            </button>
+              <p className={`text-[10px] leading-snug ${muted}`}>
+                La plantilla guardada se reutiliza en cierre, vista previa e impresión. Al cerrar la
+                semana, estos porcentajes quedan registrados en el cierre.
+              </p>
+            </div>
           ) : null}
         </div>
       ) : null}
-
-      <p className={`text-[10px] leading-snug ${muted}`}>
-        La plantilla guardada se reutiliza en cierre, vista previa Excel e impresión. Al cerrar la
-        semana, estos porcentajes quedan registrados en el cierre.
-      </p>
     </div>
   );
 }
