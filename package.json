@@ -23,7 +23,7 @@
     "supabase:migrate:plataforma": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-plataforma.ps1",
     "supabase:migrate:nomina": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-nomina.ps1",
     "supabase:migrate:nomina-archive": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-nomina-archive.ps1",
-    "test:nomina": "npx tsx --test src/lib/nomina/nomina-read-model.test.ts src/lib/nomina/nomina-engine.test.ts src/lib/nomina/nomina-preview.test.ts src/lib/nomina/nomina-export-xlsx.test.ts src/lib/nomina/nomina-semana-export.test.ts src/lib/nomina/perfil-ciclo-reglas.test.ts src/lib/nomina/proximos-pagos.test.ts src/lib/validations/nomina-cierre.test.ts src/lib/gastos-resumen.test.ts",
+    "test:nomina": "npx tsx --test src/lib/nomina/nomina-read-model.test.ts src/lib/nomina/nomina-engine.test.ts src/lib/nomina/nomina-preview.test.ts src/lib/nomina/nomina-export-xlsx.test.ts src/lib/nomina/nomina-semana-export.test.ts src/lib/nomina/perfil-ciclo-reglas.test.ts src/lib/nomina/proximos-pagos.test.ts src/lib/nomina/grupo-mixto-roster.test.ts src/lib/validations/nomina-cierre.test.ts src/lib/gastos-resumen.test.ts",
     "test:rotacion-plantillas": "npx tsx --test src/lib/rotacion-plantillas/semana-cierre.test.ts src/lib/rotacion-plantillas/projection.test.ts src/lib/rotacion-plantillas/cierre-integracion.test.ts",
     "supabase:migrate:rotacion": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-rotacion.ps1",
     "supabase:migrate:reconciliation": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-reconciliation.ps1",

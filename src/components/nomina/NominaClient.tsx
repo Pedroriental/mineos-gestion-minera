@@ -146,6 +146,12 @@ import {
   posicionEsquemaPersonal,
   rolSemanaPorPosicion,
 } from '@/lib/nomina/perfil-ciclo-reglas';
+import {
+  buildGrupoMixtoRosterProjection,
+  isGrupoMixtoPersonal,
+  type GrupoMixtoHistoryWeek,
+  type GrupoMixtoRosterProjection,
+} from '@/lib/nomina/grupo-mixto-roster';
 import { useBiblioteca } from '@/contexts/biblioteca-context';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
 import {
@@ -550,6 +556,8 @@ export default function NominaClient({
 
   // Pre-Nómina
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
+  const [grupoMixtoRosterProjection, setGrupoMixtoRosterProjection] =
+    useState<GrupoMixtoRosterProjection | null>(null);
   const proximosPagosValesPorPersonal = useMemo(() => {
     const map: Record<string, number> = {};
     for (const row of preNominaRows) {
@@ -1070,6 +1078,7 @@ export default function NominaClient({
               };
             });
             if (runGen !== initRowsGenRef.current) return;
+            setGrupoMixtoRosterProjection(null);
             setPreNominaRows(rows);
             setIsHistoricalLoading(false);
             return;
@@ -1084,6 +1093,7 @@ export default function NominaClient({
       if (manualPeriodForView) {
         if (!weekInManualPeriod(currentWeekStart, manualPeriodForView)) {
           if (runGen !== initRowsGenRef.current) return;
+          setGrupoMixtoRosterProjection(null);
           setPreNominaRows([]);
           return;
         }
@@ -1175,6 +1185,7 @@ export default function NominaClient({
               applyWeekDraft(row, currentWeekStart, novedadDraft[row.personal.id]),
             );
             if (runGen !== initRowsGenRef.current) return;
+            setGrupoMixtoRosterProjection(null);
             setPreNominaRows(rows);
             return;
           }
@@ -1225,6 +1236,7 @@ export default function NominaClient({
 
         if (manualActiveWorkers.length === 0) {
           if (runGen !== initRowsGenRef.current) return;
+          setGrupoMixtoRosterProjection(null);
           setPreNominaRows([]);
           return;
         }
@@ -1255,6 +1267,7 @@ export default function NominaClient({
         );
 
         if (runGen !== initRowsGenRef.current) return;
+        setGrupoMixtoRosterProjection(null);
         setPreNominaRows(fallbackRows);
         return;
       }
@@ -1285,10 +1298,64 @@ export default function NominaClient({
         if (p.estatus && p.estatus !== 'ACTIVO') continue;
         activeWorkersMap.set(p.id, p);
       }
-      const activeWorkers = [...activeWorkersMap.values()];
+      let activeWorkers = [...activeWorkersMap.values()];
+
+      let grupoMixtoProjection: GrupoMixtoRosterProjection | null = null;
+      if (
+        area === 'planta' &&
+        !operationalEmptied &&
+        activeWorkers.some(isGrupoMixtoPersonal)
+      ) {
+        const historyWeeksMeta = semanas
+          .filter((sem) => sem.area === area && sem.semana_inicio < currentWeekStart)
+          .slice(0, 12);
+        const historyWeeks = (
+          await Promise.all(
+            historyWeeksMeta.map(async (sem): Promise<GrupoMixtoHistoryWeek | null> => {
+              try {
+                const res = await getSemanaRegistrosAction(sem.id);
+                if (!res.ok || !res.data?.length) return null;
+                return {
+                  id: sem.id,
+                  semana_inicio: sem.semana_inicio,
+                  registros: (res.data as SemanaRegistroDetalle[]).map((reg) => ({
+                    personal_id: reg.personal_id,
+                    monto_pagado: reg.monto_pagado,
+                    estado_asistencia: reg.estado_asistencia,
+                    personal: reg.personal
+                      ? {
+                          id: reg.personal.id,
+                          area_detalle: reg.personal.area_detalle,
+                          area: reg.personal.area,
+                          cargo: reg.personal.cargo,
+                        }
+                      : null,
+                  })),
+                };
+              } catch {
+                return null;
+              }
+            }),
+          )
+        ).filter((week): week is GrupoMixtoHistoryWeek => Boolean(week));
+
+        grupoMixtoProjection = buildGrupoMixtoRosterProjection({
+          activePersonal: activeWorkers,
+          targetWeekStart: currentWeekStart,
+          historyWeeks,
+        });
+
+        if (grupoMixtoProjection.shouldApply) {
+          const expectedIds = new Set([...grupoMixtoProjection.expectedIds, ...weekRoster]);
+          activeWorkers = activeWorkers.filter(
+            (p) => !isGrupoMixtoPersonal(p) || expectedIds.has(p.id),
+          );
+        }
+      }
 
       if (activeWorkers.length === 0) {
         if (runGen !== initRowsGenRef.current) return;
+        setGrupoMixtoRosterProjection(null);
         setPreNominaRows([]);
         return;
       }
@@ -1317,6 +1384,7 @@ export default function NominaClient({
         ),
       );
       if (runGen !== initRowsGenRef.current) return;
+      setGrupoMixtoRosterProjection(grupoMixtoProjection?.shouldApply ? grupoMixtoProjection : null);
       setPreNominaRows(rows);
     };
     initRows();
@@ -2223,6 +2291,21 @@ export default function NominaClient({
                   </label>
                   <p className="text-[11px] text-white/50">{preNominaRows.length} activos · <span className="font-bold text-amber-400">{fmtMoney(totalSemana)}</span></p>
                 </div>
+                {grupoMixtoRosterProjection && (
+                  <div className="rounded-lg border border-[var(--mineos-benefit-border)] bg-[var(--mineos-benefit-soft)] px-2.5 py-2">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--mineos-benefit)]">
+                      <Users className="h-3.5 w-3.5" />
+                      Roster mixto proyectado
+                    </div>
+                    <p className="mt-1 text-[10px] leading-snug text-[var(--text-secondary)]">
+                      {grupoMixtoRosterProjection.expectedIds.length} esperados ·{' '}
+                      {grupoMixtoRosterProjection.suppressedIds.length} no esperados. Fuente:{' '}
+                      {grupoMixtoRosterProjection.sourceWeekStart
+                        ? fmtDate(grupoMixtoRosterProjection.sourceWeekStart)
+                        : 'historial'}.
+                    </p>
+                  </div>
+                )}
                 {procesadoOk && <div className="mt-2.5 flex items-center gap-2 text-xs text-emerald-400 font-bold"><CheckCircle2 className="w-3.5 h-3.5" />{procesadoOk}</div>}
               </div>
             )}
