@@ -55,7 +55,7 @@ import {
   RotacionInstanciaBanner,
 } from '@/components/nomina/RotacionInstanciaPanel';
 import { resolveWorkerRotacionContext } from '@/lib/rotacion-plantillas/projection';
-import { resolveDiasInputBloqueadoPlantilla } from '@/lib/rotacion-plantillas/semana-cierre';
+import { resolveDiasInputBloqueadoPlantilla, calculatePayForPlantillaNominaRow } from '@/lib/rotacion-plantillas/semana-cierre';
 import { deserializeInstanciaSnapshot } from '@/lib/rotacion-plantillas/instancia-serialize';
 import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
@@ -116,7 +116,6 @@ import { distribucionFromCierreLegacy } from '@/lib/nomina-distribucion';
 import { calculateExpectedAttendance, getWeekStart } from '@/lib/rotacion-personal';
 import {
   calculateNominaRowPay,
-  calculatePayFromPlantillaEstatus,
   calculateWeeklyBaseRate,
   explicitWeeklyBaseRate,
   defaultDiasTrabajados,
@@ -355,11 +354,12 @@ function recomputePreNominaRow(
   const bonificaciones = diasBloqueados && !esSemanaBono ? 0 : merged.bonificaciones;
   const pay =
     fromPlantilla && merged.estatusPlantilla
-      ? calculatePayFromPlantillaEstatus({
+      ? calculatePayForPlantillaNominaRow({
           estatus: merged.estatusPlantilla,
           personal: p,
+          estadoAsistencia: resolved.estadoAsistencia,
           diasTrabajados: resolved.diasTrabajados,
-          bonoTransporte: esSemanaBono ? bonoManual || undefined : 0,
+          bonoTransporte: esSemanaBono ? bonoManual || undefined : bonoManual,
           bonificaciones,
           totalVales: merged.totalVales,
         })

@@ -11,7 +11,8 @@
  * Módulo puro (sin 'use server'): testeable con `tsx --test`.
  */
 import { z } from 'zod';
-import { calculateNominaRowPay, calculatePayFromPlantillaEstatus } from '@/lib/nomina-calculo';
+import { calculateNominaRowPay } from '@/lib/nomina-calculo';
+import { calculatePayForPlantillaNominaRow } from '@/lib/rotacion-plantillas/semana-cierre';
 import type { EstatusRotacionPlantilla } from '@/lib/rotacion-plantillas/types';
 import {
   asistenciaEsperadaPorPosicion,
@@ -243,9 +244,10 @@ export function verificarTotalesCierre(
     }
 
     const pay = row.estatusPlantilla
-      ? calculatePayFromPlantillaEstatus({
+      ? calculatePayForPlantillaNominaRow({
           estatus: row.estatusPlantilla as EstatusRotacionPlantilla,
           personal,
+          estadoAsistencia: row.estadoAsistencia,
           diasTrabajados: row.diasTrabajados,
           bonoTransporte: row.bonoTransporte,
           bonificaciones: row.bonificaciones,

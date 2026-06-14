@@ -8,6 +8,7 @@ import {
   resolveDiasInputBloqueadoPlantilla,
   coerceEstatusPlantillaParaEsquema,
   esquemaEsFijoSemanal,
+  calculatePayForPlantillaNominaRow,
 } from '@/lib/rotacion-plantillas/semana-cierre';
 
 describe('fijo semanal vs columnas libres de plantilla', () => {
@@ -46,6 +47,35 @@ describe('plantilla asistencia ajustable', () => {
     assert.equal(resolveDiasInputBloqueadoPlantilla('libre_paga', 'trabajada'), false);
     assert.equal(resolveDiasInputBloqueadoPlantilla('trabajada_paga', 'trabajada'), false);
     assert.equal(resolveDiasInputBloqueadoPlantilla('trabajada_paga', 'no_laborado'), true);
+  });
+
+  it('libre_paga respeta turno explícito (Molinos/Mina manual)', () => {
+    const molino = {
+      salario_base: 140,
+      salario_libre: 100,
+      bono_transporte: 30,
+      area: 'planta' as const,
+      area_detalle: 'Molinos- Grupo (mixto)',
+    };
+
+    const defaultLibre = calculatePayForPlantillaNominaRow({
+      estatus: 'libre_paga',
+      personal: molino,
+      estadoAsistencia: 'libre',
+      diasTrabajados: 0,
+    });
+    assert.equal(defaultLibre.estadoAsistencia, 'libre');
+    assert.equal(defaultLibre.salarioBaseCalculado, 100);
+
+    const overrideTurno = calculatePayForPlantillaNominaRow({
+      estatus: 'libre_paga',
+      personal: molino,
+      estadoAsistencia: 'trabajada',
+      diasTrabajados: 7,
+    });
+    assert.equal(overrideTurno.estadoAsistencia, 'trabajada');
+    assert.equal(overrideTurno.salarioBaseCalculado, 140);
+    assert.equal(overrideTurno.esSemanaLibre, false);
   });
 });
 

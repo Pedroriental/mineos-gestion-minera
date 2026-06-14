@@ -5,7 +5,15 @@ import type {
   SemanaEjecucionEstado,
 } from '@/lib/rotacion-plantillas/types';
 import type { EstadoAsistenciaNomina } from '@/lib/nomina-calculo';
-import { NOMINA_DIAS_POR_SEMANA, applyProportionalWeeklyPay } from '@/lib/nomina-calculo';
+import {
+  NOMINA_DIAS_POR_SEMANA,
+  applyProportionalWeeklyPay,
+  calculateExplicitAsistenciaPay,
+  calculatePayFromPlantillaEstatus,
+  resolveEstadoYDias,
+} from '@/lib/nomina-calculo';
+import type { Personal } from '@/lib/types';
+import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-transporte-semana';
 
 /** Mapeo estatus plantilla → asistencia nómina semanal */
 export function estatusPlantillaToAsistencia(estatus: EstatusRotacionPlantilla): EstadoAsistenciaNomina {
@@ -66,6 +74,67 @@ export function resolveDiasInputBloqueadoPlantilla(
   estadoAsistencia: EstadoAsistenciaNomina,
 ): boolean {
   return estadoAsistencia !== 'trabajada';
+}
+
+type PlantillaNominaPayInput = {
+  estatus: EstatusRotacionPlantilla;
+  personal: Pick<Personal, 'salario_base' | 'salario_libre' | 'bono_transporte' | 'area' | 'area_detalle'>;
+  estadoAsistencia: EstadoAsistenciaNomina;
+  diasTrabajados: number;
+  bonoTransporte?: number;
+  bonificaciones?: number;
+  totalVales?: number;
+};
+
+/**
+ * Pago en filas con plantilla: la columna sugiere asistencia/pago, pero si el operador
+ * elige Turno/Libre/Falta distinto, el cálculo sigue la asistencia explícita (igual Mina/Molinos).
+ */
+export function calculatePayForPlantillaNominaRow(input: PlantillaNominaPayInput): ReturnType<
+  typeof calculatePayFromPlantillaEstatus
+> {
+  const esperada = estatusPlantillaToAsistencia(input.estatus);
+  const resolved = resolveEstadoYDias(input.estadoAsistencia, input.diasTrabajados);
+  const asistenciaExplicita = resolved.estadoAsistencia !== esperada;
+
+  if (!asistenciaExplicita) {
+    return calculatePayFromPlantillaEstatus({
+      estatus: input.estatus,
+      personal: input.personal,
+      diasTrabajados: resolved.diasTrabajados,
+      bonoTransporte: input.bonoTransporte,
+      bonificaciones: input.bonificaciones,
+      totalVales: input.totalVales,
+    });
+  }
+
+  if (
+    esEstatusSemanaBonoTransporte(input.estatus) &&
+    resolved.estadoAsistencia === 'no_laborado'
+  ) {
+    return calculatePayFromPlantillaEstatus({
+      estatus: input.estatus,
+      personal: input.personal,
+      diasTrabajados: resolved.diasTrabajados,
+      bonoTransporte: input.bonoTransporte,
+      bonificaciones: input.bonificaciones,
+      totalVales: input.totalVales,
+    });
+  }
+
+  const explicit = calculateExplicitAsistenciaPay({
+    personal: input.personal,
+    estadoAsistencia: resolved.estadoAsistencia,
+    diasTrabajados: resolved.diasTrabajados,
+    bonoTransporte: input.bonoTransporte,
+    bonificaciones: input.bonificaciones,
+    totalVales: input.totalVales,
+  });
+
+  return {
+    ...explicit,
+    estadoAsistencia: resolved.estadoAsistencia,
+  };
 }
 
 /** Estimación de pago semanal simplificada para preview (no reemplaza motor nómina) */
