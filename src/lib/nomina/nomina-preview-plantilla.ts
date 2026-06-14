@@ -6,6 +6,9 @@ import {
   manualPlantillaCuadrillaOrderForWeek,
   nominaRowBelongsToCuadrilla,
   resolveActiveCuadrillaIdsForWeek,
+  resolveManualPlantillaWorker,
+  findCuadrillaForPersonal,
+  resolveCuadrillaForPersonal,
 } from '@/lib/rotacion-plantillas/manual-plantilla-projection';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { NominaPreviewImportSection, NominaRegistroCerrado } from '@/lib/nomina-preview';
@@ -127,6 +130,130 @@ function resolveCuadrillaNombreForWorker(
   return null;
 }
 
+/** Sección derivada de cuadrilla persistida en snapshot (cierre o import enriquecido). */
+export function sectionMetaFromSnapshotCuadrilla(
+  snapshot: PersonalSnapshot | null | undefined,
+  plantilla: RotacionPlantillaRecord,
+): { id: string; title: string } | null {
+  if (snapshot?.section_id && snapshot?.section_title) {
+    return { id: snapshot.section_id, title: snapshot.section_title };
+  }
+
+  const cuadrillaId = snapshot?.cuadrilla_id?.trim() || null;
+  const cuadrillaNombre = snapshot?.cuadrilla_nombre?.trim() || null;
+  if (!cuadrillaId && !cuadrillaNombre) return null;
+
+  const nombre =
+    cuadrillaNombre ??
+    plantilla.cuadrillas.find((c) => c.id === cuadrillaId)?.nombre ??
+    '';
+  if (!nombre) return null;
+
+  const prefix = previewTitlePrefix(plantilla);
+  return {
+    id: plantillaSectionIdForCuadrillaNombre(plantilla, nombre),
+    title: `${prefix}${nombre}`,
+  };
+}
+
+/** Sección de un registro cerrado: snapshot > rotación por semana > heurística. */
+export function resolveRegistroPlantillaSection(
+  registro: NominaRegistroCerrado,
+  personal: Personal,
+  plantilla: RotacionPlantillaRecord,
+  manualPeriod?: ManualPeriodPlantillaContext,
+): { id: string; title: string } {
+  const fromSnap = sectionMetaFromSnapshotCuadrilla(registro.personal_snapshot, plantilla);
+  if (fromSnap) return fromSnap;
+
+  if (manualPeriod) {
+    const ctx = resolveManualPlantillaWorker(
+      plantilla,
+      personal,
+      registro.semana_inicio,
+      manualPeriod.rangeStart,
+      manualPeriod.rangeEnd,
+      manualPeriod.weekColumnAssignment,
+      manualPeriod.weekColumnCuadrillas,
+    );
+    if (ctx) {
+      const prefix = previewTitlePrefix(plantilla);
+      return {
+        id: plantillaSectionIdForCuadrillaNombre(plantilla, ctx.cuadrillaNombre),
+        title: `${prefix}${ctx.cuadrillaNombre}`,
+      };
+    }
+
+    const activeIds = resolveActiveCuadrillaIdsForWeek(
+      manualPeriod,
+      registro.semana_inicio,
+      plantilla,
+    );
+    const filaCuadrilla = findCuadrillaForPersonal(plantilla, personal.id);
+    if (filaCuadrilla && activeIds.includes(filaCuadrilla.id)) {
+      const prefix = previewTitlePrefix(plantilla);
+      return {
+        id: plantillaSectionIdForCuadrillaNombre(plantilla, filaCuadrilla.nombre),
+        title: `${prefix}${filaCuadrilla.nombre}`,
+      };
+    }
+
+    const resolvedCuadrilla = resolveCuadrillaForPersonal(plantilla, personal, activeIds);
+    if (resolvedCuadrilla) {
+      const prefix = previewTitlePrefix(plantilla);
+      return {
+        id: plantillaSectionIdForCuadrillaNombre(plantilla, resolvedCuadrilla.nombre),
+        title: `${prefix}${resolvedCuadrilla.nombre}`,
+      };
+    }
+  }
+
+  return resolveWorkerPlantillaPreviewSection(personal, plantilla, manualPeriod, registro.personal_snapshot);
+}
+
+/** Ubica al trabajador en la cuadrilla donde más pagó en el periodo (registros cerrados). */
+export function resolveWorkerPlantillaPreviewSectionFromRegistros(
+  p: Personal,
+  registros: NominaRegistroCerrado[],
+  weekSet: Set<string>,
+  plantilla: RotacionPlantillaRecord,
+  manualPeriod?: ManualPeriodPlantillaContext,
+  snapshot?: PersonalSnapshot | null,
+): { id: string; title: string; subtitle: string } {
+  const workerRegs = registros.filter(
+    (r) => r.personal_id === p.id && weekSet.has(r.semana_inicio),
+  );
+
+  for (const r of workerRegs) {
+    const fromSnap = sectionMetaFromSnapshotCuadrilla(r.personal_snapshot, plantilla);
+    if (fromSnap) {
+      return { ...fromSnap, subtitle: plantilla.nombre };
+    }
+  }
+
+  const bySection = new Map<string, { id: string; title: string; total: number }>();
+  for (const r of workerRegs) {
+    const meta = resolveRegistroPlantillaSection(r, p, plantilla, manualPeriod);
+    const prev = bySection.get(meta.id);
+    const add = Number(r.monto_pagado);
+    bySection.set(meta.id, {
+      id: meta.id,
+      title: meta.title,
+      total: (prev?.total ?? 0) + add,
+    });
+  }
+
+  let best: { id: string; title: string; total: number } | null = null;
+  for (const entry of bySection.values()) {
+    if (!best || entry.total > best.total) best = entry;
+  }
+  if (best) {
+    return { id: best.id, title: best.title, subtitle: plantilla.nombre };
+  }
+
+  return resolveWorkerPlantillaPreviewSection(p, plantilla, manualPeriod, snapshot);
+}
+
 /** Sección de vista previa según cuadrilla de plantilla (misma lógica que Vista Semanal). */
 export function resolveWorkerPlantillaPreviewSection(
   p: Personal,
@@ -134,6 +261,11 @@ export function resolveWorkerPlantillaPreviewSection(
   manualPeriod?: ManualPeriodPlantillaContext,
   snapshot?: PersonalSnapshot | null,
 ): { id: string; title: string; subtitle: string } {
+  const fromSnap = sectionMetaFromSnapshotCuadrilla(snapshot, plantilla);
+  if (fromSnap) {
+    return { ...fromSnap, subtitle: plantilla.nombre };
+  }
+
   const cuadrillaNombre = resolveCuadrillaNombreForWorker(p, plantilla, manualPeriod);
   if (cuadrillaNombre) {
     const prefix = previewTitlePrefix(plantilla);
@@ -173,19 +305,11 @@ export function aggregatePlantillaSectionTotalsFromRegistros(input: {
     const p = input.personalById.get(r.personal_id);
     if (!p) continue;
 
-    const cuadrillaNombre = resolveCuadrillaNombreForWorkerWeek(
-      p,
-      input.plantilla,
-      input.manualPeriod,
-      r.semana_inicio,
-    );
-    const sectionId = cuadrillaNombre
-      ? plantillaSectionIdForCuadrillaNombre(input.plantilla, cuadrillaNombre)
-      : resolveWorkerPlantillaPreviewSection(p, input.plantilla, input.manualPeriod).id;
+    const section = resolveRegistroPlantillaSection(r, p, input.plantilla, input.manualPeriod);
 
     totals.set(
-      sectionId,
-      parseFloat(((totals.get(sectionId) ?? 0) + Number(r.monto_pagado)).toFixed(2)),
+      section.id,
+      parseFloat(((totals.get(section.id) ?? 0) + Number(r.monto_pagado)).toFixed(2)),
     );
   }
   return totals;

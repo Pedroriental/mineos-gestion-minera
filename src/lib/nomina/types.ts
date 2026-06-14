@@ -13,11 +13,20 @@ export type PersonalSnapshot = {
   section_id?: string | null;
   /** Título de la planilla en el Excel (p. ej. Nómina Administrativos Molinos). */
   section_title?: string | null;
+  /** Cuadrilla de plantilla al cerrar (Vista Semanal manual). */
+  cuadrilla_id?: string | null;
+  cuadrilla_nombre?: string | null;
   salario_base: number;
   salario_libre: number;
   bono_transporte: number;
   esquema_rotacion: string;
   rotacion_inicio_fecha: string | null;
+};
+
+export type CuadrillaSnapshotInput = {
+  cuadrillaId?: string | null;
+  cuadrillaNombre?: string | null;
+  plantillaArea?: 'mina' | 'planta';
 };
 
 export type ParsedWeekColumn = {
@@ -127,8 +136,15 @@ export type NominaPeriodoSummary = {
   semanaCount: number;
 };
 
-export function buildPersonalSnapshot(p: Personal): PersonalSnapshot {
-  return {
+function previewSectionPrefixForPlantillaArea(area?: 'mina' | 'planta'): string {
+  return area === 'planta' ? 'Semanas Molinos — ' : 'Semanas Mina Belén — ';
+}
+
+export function buildPersonalSnapshot(
+  p: Personal,
+  cuadrilla?: CuadrillaSnapshotInput,
+): PersonalSnapshot {
+  const base: PersonalSnapshot = {
     cedula: p.cedula,
     nombre_completo: p.nombre_completo,
     cargo: p.cargo,
@@ -139,5 +155,22 @@ export function buildPersonalSnapshot(p: Personal): PersonalSnapshot {
     bono_transporte: Number(p.bono_transporte) || 0,
     esquema_rotacion: p.esquema_rotacion || 'FIJO_SEMANAL',
     rotacion_inicio_fecha: p.rotacion_inicio_fecha || null,
+  };
+
+  const cuadrillaId = cuadrilla?.cuadrillaId?.trim() || null;
+  const cuadrillaNombre = cuadrilla?.cuadrillaNombre?.trim() || null;
+  if (!cuadrillaId && !cuadrillaNombre) return base;
+
+  const prefix = previewSectionPrefixForPlantillaArea(cuadrilla?.plantillaArea);
+  return {
+    ...base,
+    cuadrilla_id: cuadrillaId,
+    cuadrilla_nombre: cuadrillaNombre,
+    section_id: cuadrillaId
+      ? `plantilla__${cuadrillaId}`
+      : cuadrillaNombre
+        ? `plantilla__${cuadrillaNombre}`
+        : null,
+    section_title: cuadrillaNombre ? `${prefix}${cuadrillaNombre}` : null,
   };
 }

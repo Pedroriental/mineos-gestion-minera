@@ -1676,21 +1676,36 @@ export default function NominaClient({
   );
 
   const previewActiveRegistros = useMemo((): NominaRegistroCerrado[] => {
-    return preNominaRows.map((row) => ({
-      personal_id: row.personal.id,
-      semana_inicio: weekRange.inicio,
-      area: area,
-      monto_pagado: row.total,
-      es_semana_libre: row.esSemanaLibre,
-      estado_asistencia: row.estadoAsistencia,
-      dias_trabajados: row.diasTrabajados,
-      salario_base_calculado: row.salarioBaseCalculado,
-      novedad_turno: row.novedadTurno ?? null,
-      novedad_turno_obs: row.novedadTurnoObs,
-      personal_snapshot: buildPersonalSnapshot(row.personal),
-      periodo_id: null,
-    }));
-  }, [preNominaRows, weekRange.inicio, area]);
+    return preNominaRows.map((row) => {
+      const cuadrillaNombre = row.cuadrillaNombre?.trim() || null;
+      const cuadrillaId =
+        manualPlantillaActiva?.cuadrillas.find((c) => c.nombre === cuadrillaNombre)?.id ?? null;
+      return {
+        personal_id: row.personal.id,
+        semana_inicio: weekRange.inicio,
+        area: area,
+        monto_pagado: row.total,
+        es_semana_libre: row.esSemanaLibre,
+        estado_asistencia: row.estadoAsistencia,
+        dias_trabajados: row.diasTrabajados,
+        salario_base_calculado: row.salarioBaseCalculado,
+        novedad_turno: row.novedadTurno ?? null,
+        novedad_turno_obs: row.novedadTurnoObs,
+        personal_snapshot: buildPersonalSnapshot(
+          row.personal,
+          cuadrillaNombre || cuadrillaId
+            ? {
+                cuadrillaId,
+                cuadrillaNombre,
+                plantillaArea:
+                  manualPlantillaActiva?.area ?? (area === 'planta' ? 'planta' : 'mina'),
+              }
+            : undefined,
+        ),
+        periodo_id: null,
+      };
+    });
+  }, [preNominaRows, weekRange.inicio, area, manualPlantillaActiva]);
 
   const previewManualPeriod = useMemo((): ManualPeriodPlantillaContext | undefined => {
     if (!manualPeriodForView) return undefined;
@@ -1998,6 +2013,10 @@ export default function NominaClient({
             reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
             ajusteMotivo: r.ajusteMotivo?.trim() || undefined,
             estatusPlantilla: r.estatusPlantilla,
+            cuadrillaId: manualPlantillaActiva?.cuadrillas.find(
+              (c) => c.nombre === r.cuadrillaNombre,
+            )?.id,
+            cuadrillaNombre: r.cuadrillaNombre?.trim() || undefined,
           };
         });
         const res = await procesarCierreNominaV3Action({

@@ -472,4 +472,81 @@ describe('plantilla cuadrillas en vista previa', () => {
     assert.equal(barSection?.sectionTotal, 150);
     assert.equal(report.grandTotal, 350);
   });
+
+  it('prioriza cuadrilla persistida en snapshot sobre inferencia por plantilla', () => {
+    const compresor = {
+      id: 'cq-comp',
+      nombre: 'MINA BELÉN - TÉCNICO OPERADOR DE COMPRESOR - TRAB.',
+      asignacionKey: 'MINA BELÉN - TÉCNICO OPERADOR DE COMPRESOR - TRAB.',
+      orden: 0,
+      semanas: [{ id: 's1', nombre: 'Semana 1', orden: 0, estatusDefault: 'trabajada_paga' as const }],
+      filas: [{ id: 'f1', personalId: 'p-yosel', orden: 0, celdas: {} }],
+    };
+    const barrenador = {
+      id: 'cq-bar',
+      nombre: 'Mina Bélen - Técnico Ayudante Barrenador',
+      asignacionKey: 'Mina Belén - Técnico Ayudante Barrenador',
+      orden: 1,
+      semanas: [{ id: 's2', nombre: 'Semana 1', orden: 0, estatusDefault: 'trabajada_paga' as const }],
+      filas: [],
+    };
+    const plantilla = {
+      id: 'pl-1',
+      nombre: 'Vertical',
+      descripcion: '',
+      area: 'mina' as const,
+      activo: true,
+      created_at: '',
+      updated_at: '',
+      columnasVista: [],
+      cuadrillas: [compresor, barrenador],
+    };
+    const worker: Personal = {
+      ...trabajadorMock,
+      id: 'p-yosel',
+      area: 'mina',
+      area_detalle: 'Mina Belén - Técnico Ayudante Barrenador',
+      cargo: 'Operador',
+    } as Personal;
+
+    const report = buildNominaPreviewReport({
+      personal: [worker],
+      registrosCerrados: [
+        {
+          personal_id: worker.id,
+          semana_inicio: '2026-05-04',
+          area: 'mina',
+          monto_pagado: 100,
+          es_semana_libre: false,
+          personal_snapshot: {
+            cedula: worker.cedula,
+            nombre_completo: worker.nombre_completo,
+            cargo: worker.cargo,
+            area: worker.area,
+            area_detalle: worker.area_detalle,
+            cuadrilla_id: compresor.id,
+            cuadrilla_nombre: compresor.nombre,
+            section_id: `plantilla__${compresor.id}`,
+            section_title: `Semanas Mina Belén — ${compresor.nombre}`,
+            salario_base: 0,
+            salario_libre: 0,
+            bono_transporte: 0,
+            esquema_rotacion: 'FIJO_SEMANAL',
+            rotacion_inicio_fecha: null,
+          },
+        },
+      ],
+      allowProjection: false,
+      rangeStart: '2026-05-04',
+      rangeEnd: '2026-05-10',
+      plantilla,
+      manualPeriodPlantilla: {
+        rangeStart: '2026-05-04',
+        rangeEnd: '2026-05-24',
+      },
+    });
+
+    assert.equal(report.sections[0]?.id, 'plantilla__cq-comp');
+    assert.match(report.sections[0]?.title ?? '', /COMPRESOR/);
+  });
 });

@@ -29,6 +29,7 @@ import {
   buildPlantillaPreviewSectionOrderForPeriod,
   plantillaSummaryLabel,
   resolveWorkerPlantillaPreviewSection,
+  resolveWorkerPlantillaPreviewSectionFromRegistros,
   type ManualPeriodPlantillaContext,
 } from '@/lib/nomina/nomina-preview-plantilla';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
@@ -801,13 +802,23 @@ export function buildNominaPreviewReport(input: {
     if (p.estatus && p.estatus !== 'ACTIVO' && !hasRegistroInRange) continue;
     if (p.fecha_ingreso && p.fecha_ingreso > rangeEnd) continue;
     const snap = personalSnapshots[p.id];
-    const meta = resolveWorkerPreviewSection(
-      p,
-      snap,
-      importSectionOrder,
-      plantilla,
-      manualPeriodPlantilla,
-    );
+    const meta =
+      plantilla && manualPeriodPlantilla
+        ? resolveWorkerPlantillaPreviewSectionFromRegistros(
+            p,
+            registrosCerrados,
+            weekSet,
+            plantilla,
+            manualPeriodPlantilla,
+            snap,
+          )
+        : resolveWorkerPreviewSection(
+            p,
+            snap,
+            importSectionOrder,
+            plantilla,
+            manualPeriodPlantilla,
+          );
     if (!sectionMap.has(meta.id)) {
       sectionMap.set(meta.id, {
         id: meta.id,

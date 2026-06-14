@@ -11,6 +11,7 @@ import {
   type DistribucionParte,
 } from '@/lib/nomina-distribucion';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
+import type { RegistroCierreInput } from '@/lib/validations/nomina-cierre';
 import { fechaInicioRotacionDesdeEstadoObservado } from '@/lib/nomina/perfil-ciclo-reglas';
 import { formatNovedadTurnoObsForSave, reposoPagoUnicoMontoFromRow, type NominaNovedadTurno, type ReposoModoSueldoSemana } from '@/lib/nomina-novedad-turno';
 import {
@@ -54,6 +55,23 @@ export type ActionResult =
 
 function revalidateAll() {
   PERSONAL_SYNC_PATHS.forEach((p) => revalidatePath(p));
+}
+
+function snapshotFromCierreRow(
+  personal: Personal,
+  row: RegistroCierreInput,
+  area: string,
+) {
+  const cuadrillaId = row.cuadrillaId?.trim() || null;
+  const cuadrillaNombre = row.cuadrillaNombre?.trim() || null;
+  if (!cuadrillaId && !cuadrillaNombre) {
+    return buildPersonalSnapshot(personal);
+  }
+  return buildPersonalSnapshot(personal, {
+    cuadrillaId,
+    cuadrillaNombre,
+    plantillaArea: area === 'planta' ? 'planta' : 'mina',
+  });
 }
 
 // ── Crear/Actualizar trabajador con campos V3 (rotación) ─────
@@ -592,7 +610,7 @@ async function procesarCierreHistoricoManualV3(
       ).trim(),
       bonificaciones: bonificacionesRegistro,
       total_vales: Number(r.totalVales) || 0,
-      personal_snapshot: buildPersonalSnapshot(personal),
+      personal_snapshot: snapshotFromCierreRow(personal, r, area),
       origen: origenRegistro,
       periodo_id: periodoId,
     };
@@ -768,7 +786,7 @@ export async function procesarCierreNominaV3Action(
         novedad_turno_obs: (r.input.novedadTurnoObs ?? '').trim(),
         bonificaciones: r.input.bonificaciones,
         total_vales: r.input.totalVales,
-        personal_snapshot: buildPersonalSnapshot(r.personal as Personal),
+        personal_snapshot: snapshotFromCierreRow(r.personal as Personal, r.input, area),
       })),
       cierre: {
         pct_pedro: cierrePayload.pct_pedro,
