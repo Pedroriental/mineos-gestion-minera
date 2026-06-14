@@ -240,6 +240,76 @@ WHERE p.origen = 'consolidacion_manual'
       )
   );
 
+-- ── 4c) Semanas area=mina ligadas a periodo planta (bug INSERT sin area) ─
+--    Ocurre al cerrar desde Molino: default DB 'mina' + periodo_id planta.
+DELETE FROM nomina_registros nr
+USING nomina_semanas ns, nomina_periodos p
+WHERE nr.semana_id = ns.id
+  AND ns.periodo_id = p.id
+  AND ns.area = 'mina'
+  AND p.metadata->>'area' = 'planta';
+
+DELETE FROM nomina_cierres nc
+USING nomina_semanas ns, nomina_periodos p
+WHERE nc.semana_id = ns.id
+  AND ns.periodo_id = p.id
+  AND ns.area = 'mina'
+  AND p.metadata->>'area' = 'planta';
+
+DELETE FROM nomina_periodo_semanas nps
+USING nomina_semanas ns, nomina_periodos p
+WHERE nps.semana_id = ns.id
+  AND ns.periodo_id = p.id
+  AND ns.area = 'mina'
+  AND p.metadata->>'area' = 'planta';
+
+DELETE FROM nomina_semanas ns
+USING nomina_periodos p
+WHERE ns.periodo_id = p.id
+  AND ns.area = 'mina'
+  AND p.metadata->>'area' = 'planta';
+
+-- Semanas mina sin periodo pero en rango molino (intentos fallidos parciales)
+DELETE FROM nomina_registros nr
+USING nomina_semanas ns
+WHERE nr.semana_id = ns.id
+  AND ns.area = 'mina'
+  AND ns.origen = 'ajuste_manual'
+  AND ns.periodo_id IS NULL
+  AND ns.semana_inicio >= '2026-05-11'::date
+  AND ns.semana_inicio <= '2026-05-24'::date
+  AND NOT EXISTS (
+    SELECT 1 FROM nomina_periodos p
+    WHERE p.metadata->>'area' = 'mina'
+      AND ns.semana_inicio BETWEEN p.range_start AND p.range_end
+  );
+
+DELETE FROM nomina_cierres nc
+USING nomina_semanas ns
+WHERE nc.semana_id = ns.id
+  AND ns.area = 'mina'
+  AND ns.origen = 'ajuste_manual'
+  AND ns.periodo_id IS NULL
+  AND ns.semana_inicio >= '2026-05-11'::date
+  AND ns.semana_inicio <= '2026-05-24'::date
+  AND NOT EXISTS (
+    SELECT 1 FROM nomina_periodos p
+    WHERE p.metadata->>'area' = 'mina'
+      AND ns.semana_inicio BETWEEN p.range_start AND p.range_end
+  );
+
+DELETE FROM nomina_semanas ns
+WHERE ns.area = 'mina'
+  AND ns.origen = 'ajuste_manual'
+  AND ns.periodo_id IS NULL
+  AND ns.semana_inicio >= '2026-05-11'::date
+  AND ns.semana_inicio <= '2026-05-24'::date
+  AND NOT EXISTS (
+    SELECT 1 FROM nomina_periodos p
+    WHERE p.metadata->>'area' = 'mina'
+      AND ns.semana_inicio BETWEEN p.range_start AND p.range_end
+  );
+
 -- ── 5) metadata.area en periodos legacy ─────────────────────
 UPDATE nomina_periodos p
 SET metadata = jsonb_set(COALESCE(p.metadata, '{}'::jsonb), '{area}', '"mina"'::jsonb, true)

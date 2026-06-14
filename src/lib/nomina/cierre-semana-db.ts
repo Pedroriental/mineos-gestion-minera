@@ -81,6 +81,7 @@ export async function findOrCreateNominaSemanaForCierre(
 
   const patch = {
     semana_fin: input.semanaFin,
+    area: input.area,
     total_trabajadores: input.totalTrabajadores,
     total_pagado: input.totalPagado,
     registrado_por: input.registradoPor ?? null,

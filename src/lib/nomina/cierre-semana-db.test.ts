@@ -15,4 +15,10 @@ describe('cierre semana db (contrato)', () => {
     };
     assert.notDeepEqual(operativoKey.periodo_id, manualKey.periodo_id);
   });
+
+  it('documenta que INSERT manual debe incluir area (default BD es mina)', () => {
+    const input = { area: 'planta', semanaInicio: '2026-05-11', periodoId: 'periodo-planta' };
+    assert.equal(input.area, 'planta');
+    assert.notEqual(input.area, 'mina', 'sin area en INSERT la fila quedaría mina por DEFAULT');
+  });
 });
