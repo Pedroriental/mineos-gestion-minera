@@ -6,6 +6,7 @@ import {
   manualPeriodWeekStarts,
   nextWeekInManualPeriod,
   previousWeekInManualPeriod,
+  resolveClosedOperationalSemana,
   resolveClosedSemanaForManualPeriod,
   resolveManualPeriodWeekColumn,
   weekInManualPeriod,
@@ -85,6 +86,32 @@ describe('manual-period', () => {
     assert.equal(
       resolveClosedSemanaForManualPeriod(period4, semanas, '2026-05-25', 'mina'),
       undefined,
+    );
+  });
+
+  it('resolveClosedOperationalSemana no cruza Mina con Molinos por coincidir fecha', () => {
+    const semanas = [
+      { id: 'molinos', semana_inicio: '2026-04-27', area: 'planta', total_pagado: 950 },
+      { id: 'mina-next', semana_inicio: '2026-05-04', area: 'mina', total_pagado: 1075 },
+    ];
+    assert.equal(
+      resolveClosedOperationalSemana(semanas, '2026-04-27', 'mina'),
+      undefined,
+    );
+    assert.equal(
+      resolveClosedOperationalSemana(semanas, '2026-04-27', 'planta')?.id,
+      'molinos',
+    );
+  });
+
+  it('resolveClosedOperationalSemana conserva fallback legacy solo si la semana no tiene area', () => {
+    const semanas = [
+      { id: 'legacy', semana_inicio: '2026-04-27', total_pagado: 800 },
+      { id: 'molinos', semana_inicio: '2026-04-27', area: 'planta', total_pagado: 950 },
+    ];
+    assert.equal(
+      resolveClosedOperationalSemana(semanas, '2026-04-27', 'mina')?.id,
+      'legacy',
     );
   });
 

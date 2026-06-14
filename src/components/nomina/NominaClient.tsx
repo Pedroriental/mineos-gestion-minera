@@ -75,6 +75,7 @@ import {
   weekInManualPeriod,
   clearLocalDraftsForPeriod,
   computeManualPeriodProgress,
+  resolveClosedOperationalSemana,
   resolveClosedSemanaForManualPeriod,
   type ManualNominaPeriod,
 } from '@/lib/nomina/manual-period';
@@ -919,11 +920,7 @@ export default function NominaClient({
               currentWeekStart,
               area,
             )
-          : semanas.find(
-              (s) =>
-                s.semana_inicio === currentWeekStart &&
-                (!s.area || s.area === area),
-            );
+          : resolveClosedOperationalSemana(semanas, currentWeekStart, area);
       if (closedWeek?.id) {
         setIsHistoricalLoading(true);
         try {
@@ -1210,7 +1207,7 @@ export default function NominaClient({
       } catch { /* silent */ }
 
       const novedadDraft = readNominaNovedadDraft(
-        nominaNovedadDraftKey(area, currentWeekStart, manualPeriodForView?.id),
+        nominaNovedadDraftKey(area, currentWeekStart, null),
       );
 
       const rows = activeWorkers.map((p) =>
@@ -1266,12 +1263,12 @@ export default function NominaClient({
       );
     }
     return (
-      semanas.find((s) => s.semana_inicio === weekRange.inicio && s.area === area) ??
-      semanas.find((s) => s.semana_inicio === weekRange.inicio)
+      resolveClosedOperationalSemana(semanas, weekRange.inicio, area)
     );
   }, [isManualPeriodWeek, manualPeriodForView, semanas, weekRange.inicio, area]);
 
-  const semanaActualProcesada = Boolean(semanaActual?.id);
+  const semanaActualCerrada = semanaActual?.id ? semanaActual : undefined;
+  const semanaActualProcesada = Boolean(semanaActualCerrada);
 
   useEffect(() => {
     if (!instanciaSnapshot || semanaActualProcesada || preNominaRows.length === 0 || isManualPeriodWeek) {
@@ -1350,13 +1347,13 @@ export default function NominaClient({
   );
 
   useEffect(() => {
-    if (!semanaActual?.id || !semanaActualProcesada) return;
-    getSemanaCierreAction(semanaActual.id).then((res) => {
+    if (!semanaActualCerrada) return;
+    getSemanaCierreAction(semanaActualCerrada.id).then((res) => {
       if (res.ok && res.data) {
         distribucion.applyPlantilla(distribucionFromCierreLegacy(res.data));
       }
     });
-  }, [semanaActual?.id, semanaActualProcesada, distribucion.applyPlantilla]);
+  }, [semanaActualCerrada?.id, distribucion.applyPlantilla]);
 
   // Week-over-week comparison
   const prevSemana = semanas.length >= 2 ? semanas.find(s => s.semana_inicio < weekRange.inicio) : null;
@@ -1680,7 +1677,7 @@ export default function NominaClient({
       return;
     }
     }
-    if (semanaActual && !(await confirmDialog({
+    if (semanaActualCerrada && !(await confirmDialog({
       title: 'Sobreescribir nómina',
       message: 'La semana ya fue procesada. ¿Deseas sobreescribirla?',
       variant: 'warning'
@@ -1731,7 +1728,7 @@ export default function NominaClient({
             localStorage.removeItem(novedadDraftKeyForWeek(weekRange.inicio));
             if (isManualPeriodWeek && manualPeriodForView) {
               const closeData = res.data as { semanaId?: string; periodoId?: string } | undefined;
-              const closedSemanaId = closeData?.semanaId ?? semanaActual?.id;
+              const closedSemanaId = closeData?.semanaId ?? semanaActualCerrada?.id;
               if (closedSemanaId) {
                 setManualPeriodSession((prev) => {
                   const periodId =
@@ -1880,7 +1877,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
           <Wallet className="w-3.5 h-3.5 shrink-0" /> Cerrar
         </button>
       ) : (
-        <button onClick={() => semanaActual && handleRevertirSemana(semanaActual)} disabled={!canEdit || isPending} title="Revertir cierre" className="nomina-page__toolbar-btn btn-danger h-9 shrink-0 text-xs disabled:opacity-40">
+        <button onClick={() => semanaActualCerrada && handleRevertirSemana(semanaActualCerrada)} disabled={!canEdit || isPending || !semanaActualCerrada} title="Revertir cierre" className="nomina-page__toolbar-btn btn-danger h-9 shrink-0 text-xs disabled:opacity-40">
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
         </button>
       )}
@@ -2044,9 +2041,9 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                     <span className="text-[9px] font-bold uppercase text-white/40">Hasta:</span>
                     <input type="date" value={weekRange.fin} onChange={e => setWeekRange(prev => ({ ...prev, fin: e.target.value }))} className="nomina-page__date-input min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-white/90 outline-none focus:ring-0" />
                   </label>
-                  <p className="text-[11px] text-white/50">{semanaActual.total_trabajadores} trabajadores · <span className="font-bold text-emerald-400">{fmtMoney(Number(semanaActual.total_pagado))}</span></p>
+                  <p className="text-[11px] text-white/50">{semanaActualCerrada?.total_trabajadores ?? 0} trabajadores · <span className="font-bold text-emerald-400">{fmtMoney(Number(semanaActualCerrada?.total_pagado ?? 0))}</span></p>
                 </div>
-                <button onClick={() => handleRevertirSemana(semanaActual)} disabled={!canEdit || isPending} className="h-8 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-40">
+                <button onClick={() => semanaActualCerrada && handleRevertirSemana(semanaActualCerrada)} disabled={!canEdit || isPending || !semanaActualCerrada} className="h-8 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-40">
                   {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
                 </button>
               </div>
@@ -2685,7 +2682,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         hasRows={preNominaRows.length > 0}
         isPending={isPending}
         onCerrar={() => setShowProcesarModal(true)}
-        onRevertir={() => semanaActual && handleRevertirSemana(semanaActual)}
+        onRevertir={() => semanaActualCerrada && handleRevertirSemana(semanaActualCerrada)}
         onRegistrar={() => setShowAssignModal(true)}
         onMore={() => setMobileMoreOpen(true)}
       />
@@ -2693,7 +2690,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         open={semanaSheetOpen}
         onClose={() => setSemanaSheetOpen(false)}
         cerrada={semanaActualProcesada}
-        semanaActual={semanaActual}
+        semanaActual={semanaActualCerrada}
         weekRange={weekRange}
         setWeekRange={setWeekRange}
         preNominaCount={preNominaRows.length}

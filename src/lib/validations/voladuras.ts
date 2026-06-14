@@ -98,7 +98,7 @@ const VoladuraBaseSchema = z.object({
 
 type VoladuraParsed = z.infer<typeof VoladuraBaseSchema>;
 
-function applyVoladuraAggregates(data: VoladuraParsed) {
+function applyVoladuraAggregates<T extends VoladuraParsed>(data: T) {
   const huecosAgg = data.huecos_lineas.length > 0
     ? aggregateHuecosLineas(data.huecos_lineas)
     : { cantidad: data.huecos_cantidad, pies: data.huecos_pies };

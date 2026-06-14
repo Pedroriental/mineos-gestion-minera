@@ -51,6 +51,16 @@ export type ManualPeriodProgress = {
   allClosed: boolean;
 };
 
+export function resolveClosedOperationalSemana<T extends ManualPeriodSemanaRow>(
+  semanas: T[],
+  weekStart: string,
+  area: string,
+): T | undefined {
+  const scoped = semanas.find((s) => s.semana_inicio === weekStart && s.area === area);
+  if (scoped) return scoped;
+  return semanas.find((s) => s.semana_inicio === weekStart && !s.area);
+}
+
 export function manualPeriodStorageKey(area: string): string {
   return `nomina-manual-period-v2-${area}`;
 }
@@ -161,12 +171,12 @@ export function buildDefaultWeekColumnAssignment(
 }
 
 /** Semana cerrada que pertenece a este ciclo (no a otro con las mismas fechas). */
-export function resolveClosedSemanaForManualPeriod(
+export function resolveClosedSemanaForManualPeriod<T extends ManualPeriodSemanaRow>(
   period: ManualNominaPeriod | null | undefined,
-  semanas: ManualPeriodSemanaRow[],
+  semanas: T[],
   weekStart: string,
   area?: string,
-): ManualPeriodSemanaRow | undefined {
+): T | undefined {
   const candidates = semanas.filter((s) => {
     if (s.semana_inicio !== weekStart) return false;
     if (area && s.area && s.area !== area) return false;

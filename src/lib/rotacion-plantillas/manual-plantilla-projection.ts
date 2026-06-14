@@ -25,6 +25,7 @@ import type { Personal } from '@/lib/types';
 import type { NominaVale } from '@/lib/types';
 import type {
   RotacionCuadrilla,
+  EstatusRotacionPlantilla,
   RotacionPlantillaRecord,
   RotacionSemanaColumn,
   RotacionTrabajadorFila,
@@ -36,7 +37,7 @@ export type ManualPlantillaWorkerContext = {
   cuadrillaNombre: string;
   posicionCiclo: number;
   semanaNombre: string;
-  estatus: ReturnType<typeof resolveEstatusCuadrilla>;
+  estatus: EstatusRotacionPlantilla;
   estatusLabel: string;
   estadoAsistencia: ReturnType<typeof resolveAsistenciaDesdePlantilla>['estadoAsistencia'];
   diasInputBloqueado: boolean;
@@ -57,7 +58,7 @@ export function referenceRotationSemanas(plantilla: RotacionPlantillaRecord): Ro
 export type ManualPeriodPreviewCell = {
   cuadrillaId: string;
   cuadrillaNombre: string;
-  estatus: import('@/lib/rotacion-plantillas/types').EstatusRotacionPlantilla | null;
+  estatus: EstatusRotacionPlantilla | null;
   semanaNombre: string | null;
 };
 
@@ -343,7 +344,7 @@ export type ManualPlantillaNominaRow = {
   cuadrillaNombre: string;
   posicionCiclo: number;
   estatusPlantillaLabel: string;
-  estatusPlantilla?: import('@/lib/rotacion-plantillas/types').EstatusRotacionPlantilla;
+  estatusPlantilla?: EstatusRotacionPlantilla;
 };
 
 /** ¿La fila pertenece a esta cuadrilla de plantilla (por nombre o asignación)? */
