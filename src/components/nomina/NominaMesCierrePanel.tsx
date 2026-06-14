@@ -72,21 +72,61 @@ function StatChip({
   label,
   value,
   tone,
+  isMoney = false,
 }: {
   label: string;
   value: string;
   tone: 'general' | 'benefit' | 'neutral';
+  isMoney?: boolean;
 }) {
   return (
     <div className="gerencial-kpi-card relative min-w-0 flex-1 overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--surface-elevated)]/40 px-2.5 py-2">
       <div className={mineosKpiGlow(tone)} aria-hidden />
-      <p className="relative text-[8px] font-bold uppercase text-[var(--text-muted)]">
-        {label}
-      </p>
+      <p className="relative text-[8px] font-bold uppercase text-[var(--text-muted)]">{label}</p>
       <p
         className={cn(
           mineosKpiValue(tone),
-          'relative mt-0.5 truncate text-sm font-bold tabular-nums',
+          'relative mt-0.5 font-bold tabular-nums',
+          isMoney
+            ? 'overflow-x-auto text-sm leading-tight whitespace-nowrap sm:text-base'
+            : 'text-sm',
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function PrepMetric({
+  icon: Icon,
+  label,
+  value,
+  tone = 'neutral',
+  prominent = false,
+}: {
+  icon: typeof CircleDollarSign;
+  label: string;
+  value: string;
+  tone?: 'benefit' | 'neutral';
+  prominent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/55 px-3 py-2',
+        prominent && 'py-2.5',
+      )}
+    >
+      <div className="mb-1 flex items-center gap-1.5 text-[9px] font-bold uppercase text-[var(--text-muted)]">
+        <Icon className="size-3 shrink-0" />
+        <span className="truncate">{label}</span>
+      </div>
+      <p
+        className={cn(
+          tone === 'benefit' ? mineosKpiValue('benefit') : 'text-[var(--text-primary)]',
+          'overflow-x-auto font-bold tabular-nums leading-tight whitespace-nowrap',
+          prominent ? 'text-xl sm:text-2xl' : 'text-lg sm:text-xl',
         )}
       >
         {value}
@@ -263,6 +303,7 @@ export function NominaMesCierrePanel({
               label="Total archivado"
               value={fmtUsd(totalMesesHistorico)}
               tone="benefit"
+              isMoney
             />
           </div>
         </div>
@@ -297,38 +338,25 @@ export function NominaMesCierrePanel({
                   </span>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/55 px-3 py-2">
-                    <div className="mb-1 flex items-center gap-1.5 text-[9px] font-bold uppercase text-[var(--text-muted)]">
-                      <CircleDollarSign className="size-3" />
-                      Total a registrar
-                    </div>
-                    <p
-                      className={cn(
-                        mineosKpiValue('benefit'),
-                        'text-xl font-bold tabular-nums leading-tight',
-                      )}
-                    >
-                      {fmtUsd(previewTotal)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/55 px-3 py-2">
-                    <div className="mb-1 flex items-center gap-1.5 text-[9px] font-bold uppercase text-[var(--text-muted)]">
-                      <ReceiptText className="size-3" />
-                      Ciclos incluidos
-                    </div>
-                    <p className="text-xl font-bold tabular-nums text-[var(--text-primary)]">
-                      {selectedCiclos.length}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/55 px-3 py-2">
-                    <div className="mb-1 flex items-center gap-1.5 text-[9px] font-bold uppercase text-[var(--text-muted)]">
-                      <CalendarDays className="size-3" />
-                      Semanas
-                    </div>
-                    <p className="text-xl font-bold tabular-nums text-[var(--text-primary)]">
-                      {previewSemanas}
-                    </p>
+                <div className="space-y-2">
+                  <PrepMetric
+                    icon={CircleDollarSign}
+                    label="Total a registrar"
+                    value={fmtUsd(previewTotal)}
+                    tone="benefit"
+                    prominent
+                  />
+                  <div className="grid min-w-0 grid-cols-2 gap-2">
+                    <PrepMetric
+                      icon={ReceiptText}
+                      label="Ciclos incluidos"
+                      value={String(selectedCiclos.length)}
+                    />
+                    <PrepMetric
+                      icon={CalendarDays}
+                      label="Semanas"
+                      value={String(previewSemanas)}
+                    />
                   </div>
                 </div>
 
