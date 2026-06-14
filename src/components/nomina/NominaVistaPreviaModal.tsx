@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Loader2 } from 'lucide-react';
 import { PageFormModal } from '@/components/ui/PageFormModal';
 import NominaVistaPreviaContent, {
@@ -110,68 +110,122 @@ export function NominaVistaPreviaModal({
   const [isPeriodSwitching, startPeriodSwitch] = useTransition();
 
   const loadOptions = { filterArea };
+  const activeWeekRef = useRef(activeWeek);
+  const activeRegistrosRef = useRef(activeRegistros);
+  activeWeekRef.current = activeWeek;
+  activeRegistrosRef.current = activeRegistros;
 
-  // Carga inicial: semanas activas (sin filtro) + lista de periodos archivados
+  const applyPreviewPayload = useCallback(
+    (
+      previewRes: Awaited<ReturnType<typeof loadNominaVistaPreviaDataAction>>,
+      periodoId: string | null,
+    ) => {
+      if (!previewRes.ok) return false;
+
+      let mergedRegistros = mergeActiveRegistros(
+        previewRes.registrosCerrados,
+        activeWeekRef.current,
+        activeRegistrosRef.current,
+        filterArea,
+      );
+      let mergedSemanas = [...previewRes.semanasCerradas];
+
+      const activeForArea = filterRegistrosByArea(activeRegistrosRef.current ?? [], filterArea);
+      const week = activeWeekRef.current;
+      if (week && activeForArea.length > 0 && !periodoId) {
+        const weekListed = mergedSemanas.some((s) => s.semana_inicio === week.semana_inicio);
+        if (!weekListed) {
+          mergedSemanas = [week, ...mergedSemanas];
+        }
+      }
+
+      let personalForArea = filterArea
+        ? previewRes.personal.filter((p) => p.area === filterArea)
+        : previewRes.personal;
+      personalForArea = enrichPersonalFromRegistros(personalForArea, mergedRegistros);
+
+      setPersonal(personalForArea);
+      setRegistrosCerrados(mergedRegistros);
+      setSemanasCerradas(mergedSemanas);
+      setTotalRegistrosHistoricos(previewRes.totalRegistrosHistoricos);
+      setSelectedPeriodoId(periodoId);
+      return true;
+    },
+    [filterArea],
+  );
+
+  function resolvePeriodForRange(
+    periodos: NominaPeriodoSummary[],
+    range: NominaPreviewRange | null | undefined,
+  ): NominaPeriodoSummary | null {
+    if (!range?.start || !range?.end) return null;
+    const scoped = filterArea
+      ? periodos.filter((p) => nominaPeriodoMatchesArea(p, filterArea))
+      : periodos;
+    return scoped.find((p) => p.rangeStart === range.start && p.rangeEnd === range.end) ?? null;
+  }
+
+  // Carga inicial al abrir o cuando refreshKey cambia (sin depender de activeRegistros).
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setSelectedPeriodoId(null);
 
-    Promise.all([
-      loadNominaVistaPreviaDataAction(loadOptions),
-      listNominaPeriodosAction(),
-    ]).then(([previewRes, periodosRes]) => {
-        if (cancelled) return;
-        setLoading(false);
-        if (!previewRes.ok) {
-          setError(previewRes.message || 'No se pudo cargar la vista previa');
-          return;
-        }
+    const periodoToKeep = selectedPeriodoId;
 
-        let mergedRegistros = mergeActiveRegistros(
-          previewRes.registrosCerrados,
-          activeWeek,
-          activeRegistros,
-          filterArea,
-        );
-        let mergedSemanas = [...previewRes.semanasCerradas];
+    (async () => {
+      const periodosRes = await listNominaPeriodosAction();
+      if (cancelled) return;
 
-        const activeForArea = filterRegistrosByArea(activeRegistros ?? [], filterArea);
-        if (activeWeek && activeForArea.length > 0) {
-          const weekListed = mergedSemanas.some(
-            (s) => s.semana_inicio === activeWeek.semana_inicio,
-          );
-          if (!weekListed) {
-            mergedSemanas = [activeWeek, ...mergedSemanas];
-          }
-        }
+      const periodos = periodosRes.ok
+        ? periodosRes.periodos.filter((p) => p.totalUsd > 0 || p.semanaCount > 0)
+        : [];
+      const archived = filterArea
+        ? periodos.filter((p) => nominaPeriodoMatchesArea(p, filterArea))
+        : periodos;
+      setArchivedPeriods(archived);
 
-        let personalForArea = filterArea
-          ? previewRes.personal.filter((p) => p.area === filterArea)
-          : previewRes.personal;
-        personalForArea = enrichPersonalFromRegistros(personalForArea, mergedRegistros);
+      const matchedPeriod =
+        (periodoToKeep ? archived.find((p) => p.id === periodoToKeep) : null) ??
+        resolvePeriodForRange(archived, initialRange);
 
-        setPersonal(personalForArea);
-        setRegistrosCerrados(mergedRegistros);
-        setSemanasCerradas(mergedSemanas);
-        setTotalRegistrosHistoricos(previewRes.totalRegistrosHistoricos);
-        if (periodosRes.ok) {
-          const periodos = periodosRes.periodos.filter((p) => p.totalUsd > 0 || p.semanaCount > 0);
-          setArchivedPeriods(
-            filterArea
-              ? periodos.filter((p) => nominaPeriodoMatchesArea(p, filterArea))
-              : periodos,
-          );
-        }
-      },
-    );
+      const previewRes = await loadNominaVistaPreviaDataAction(
+        matchedPeriod
+          ? { periodoId: matchedPeriod.id, filterArea }
+          : loadOptions,
+      );
+      if (cancelled) return;
+
+      setLoading(false);
+      if (!previewRes.ok) {
+        setError(previewRes.message || 'No se pudo cargar la vista previa');
+        return;
+      }
+
+      applyPreviewPayload(previewRes, matchedPeriod?.id ?? null);
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [open, refreshKey, activeWeek, activeRegistros, filterArea]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedPeriodoId se lee solo para preservar ciclo en refresh
+  }, [open, refreshKey, filterArea, initialRange?.start, initialRange?.end, applyPreviewPayload]);
+
+  // Al cerrar el modal, limpiar periodo seleccionado para la próxima apertura.
+  useEffect(() => {
+    if (!open) {
+      setSelectedPeriodoId(null);
+    }
+  }, [open]);
+
+  // Mezclar datos en vivo de la semana actual sin recargar del servidor.
+  useEffect(() => {
+    if (!open || selectedPeriodoId) return;
+    setRegistrosCerrados((prev) =>
+      mergeActiveRegistros(prev, activeWeekRef.current, activeRegistrosRef.current, filterArea),
+    );
+  }, [open, selectedPeriodoId, filterArea, activeRegistros, activeWeek]);
 
   function handlePeriodSelect(period: NominaPeriodoSummary) {
     startPeriodSwitch(async () => {
@@ -180,9 +234,7 @@ export function NominaVistaPreviaModal({
         filterArea,
       });
       if (!res.ok) return;
-      setRegistrosCerrados(dedupePreviewRegistros(res.registrosCerrados));
-      setSemanasCerradas(res.semanasCerradas);
-      setSelectedPeriodoId(period.id);
+      applyPreviewPayload(res, period.id);
     });
   }
 
@@ -190,28 +242,7 @@ export function NominaVistaPreviaModal({
     startPeriodSwitch(async () => {
       const res = await loadNominaVistaPreviaDataAction(loadOptions);
       if (!res.ok) return;
-
-      let mergedRegistros = mergeActiveRegistros(
-        res.registrosCerrados,
-        activeWeek,
-        activeRegistros,
-        filterArea,
-      );
-      let mergedSemanas = [...res.semanasCerradas];
-
-      const activeForArea = filterRegistrosByArea(activeRegistros ?? [], filterArea);
-      if (activeWeek && activeForArea.length > 0) {
-        const weekListed = mergedSemanas.some(
-          (s) => s.semana_inicio === activeWeek.semana_inicio,
-        );
-        if (!weekListed) {
-          mergedSemanas = [activeWeek, ...mergedSemanas];
-        }
-      }
-
-      setRegistrosCerrados(mergedRegistros);
-      setSemanasCerradas(mergedSemanas);
-      setSelectedPeriodoId(null);
+      applyPreviewPayload(res, null);
     });
   }
 

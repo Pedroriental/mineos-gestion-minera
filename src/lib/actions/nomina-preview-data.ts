@@ -61,23 +61,38 @@ export async function loadNominaVistaPreviaDataAction(options?: {
 
     const { data: semanasRows } = await semanasQuery;
 
-    // Deduplicar semanasCerradas por (semana_inicio, area):
-    // Cuando hay múltiples semanas con la misma fecha y área (de distintos periodos),
-    // conservamos solo una por clave. Esto evita que la Vista Previa muestre columnas duplicadas.
-    const semanasCerradasMap = new Map<string, { semana_inicio: string; semana_fin?: string }>();
-    for (const s of (semanasRows || []) as { id: string; semana_inicio: string; semana_fin?: string; area: string }[]) {
+    type SemanaRow = {
+      id: string;
+      semana_inicio: string;
+      semana_fin?: string;
+      area: string;
+      periodo_id?: string | null;
+    };
+    const semanasTyped = (semanasRows || []) as SemanaRow[];
+
+    // Deduplicar semanas por (semana_inicio, area): preferir la del periodo activo o con periodo_id.
+    const semanasCerradasMap = new Map<string, SemanaRow>();
+    const semanaScore = (s: SemanaRow) =>
+      (options?.periodoId && s.periodo_id === options.periodoId ? 8 : 0) + (s.periodo_id ? 4 : 0);
+
+    for (const s of semanasTyped) {
       const key = `${s.semana_inicio}|${s.area}`;
-      if (!semanasCerradasMap.has(key)) {
-        semanasCerradasMap.set(key, { semana_inicio: s.semana_inicio, semana_fin: s.semana_fin });
+      const existing = semanasCerradasMap.get(key);
+      if (!existing || semanaScore(s) > semanaScore(existing)) {
+        semanasCerradasMap.set(key, s);
       }
     }
-    const semanasCerradas = [...semanasCerradasMap.values()];
+    const preferredSemanas = [...semanasCerradasMap.values()];
+    const semanasCerradas = preferredSemanas.map((s) => ({
+      semana_inicio: s.semana_inicio,
+      semana_fin: s.semana_fin,
+    }));
 
     const { count: totalRegistrosHistoricos } = await supabase
       .from('nomina_registros')
       .select('id', { count: 'exact', head: true });
 
-    const semanaIds = (semanasRows || []).map((s: { id: string }) => s.id);
+    const semanaIds = preferredSemanas.map((s) => s.id);
     let registrosCerrados: NominaRegistroCerrado[] = [];
     const personalIdsFromRegistros = new Set<string>();
 
@@ -96,12 +111,7 @@ export async function loadNominaVistaPreviaDataAction(options?: {
 
       const { data: regRows } = await regQuery;
 
-      const semanaById = new Map(
-        (semanasRows || []).map((s: { id: string; semana_inicio: string; area: string }) => [
-          s.id,
-          s,
-        ]),
-      );
+      const semanaById = new Map(preferredSemanas.map((s) => [s.id, s]));
 
       registrosCerrados = (regRows || [])
         .map(
@@ -144,21 +154,19 @@ export async function loadNominaVistaPreviaDataAction(options?: {
         )
         .filter(Boolean) as NominaRegistroCerrado[];
 
-      // Deduplicar por (personal_id, semana_inicio, area):
-      // Si hay múltiples registros para el mismo trabajador + semana (de distintos periodos
-      // importados que comparten fechas), conservamos solo uno.
-      // Preferimos el que tenga periodo_id definido (import nuevo) sobre el que no tenga (import viejo).
+      // Preferir registro del periodo activo cuando hay duplicados por fecha.
       const dedupMap = new Map<string, NominaRegistroCerrado>();
+      const registroScore = (reg: NominaRegistroCerrado) =>
+        (options?.periodoId && reg.periodo_id === options.periodoId ? 8 : 0) +
+        (reg.periodo_id ? 4 : 0) +
+        (reg.personal_snapshot ? 2 : 0) +
+        (Number(reg.monto_pagado) > 0 ? 1 : 0);
+
       for (const reg of registrosCerrados) {
         const key = `${reg.personal_id}|${reg.semana_inicio}|${reg.area}`;
         const existing = dedupMap.get(key);
-        if (!existing) {
+        if (!existing || registroScore(reg) > registroScore(existing)) {
           dedupMap.set(key, reg);
-        } else {
-          // Preferir el registro con periodo_id (más reciente / correcto)
-          if (reg.periodo_id && !existing.periodo_id) {
-            dedupMap.set(key, reg);
-          }
         }
       }
       registrosCerrados = [...dedupMap.values()];

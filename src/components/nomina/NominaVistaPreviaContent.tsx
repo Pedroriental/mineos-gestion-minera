@@ -135,11 +135,14 @@ export default function NominaVistaPreviaContent({
   }, [registrosCerrados, rangeStart, rangeEnd]);
 
   const registrosFiltrados = useMemo(() => {
-    const inRange = !filterArea
+    let inRange = !filterArea
       ? registrosEnRango
       : registrosEnRango.filter((r) => r.area === filterArea);
+    if (periodoId) {
+      inRange = inRange.filter((r) => !r.periodo_id || r.periodo_id === periodoId);
+    }
     return dedupePreviewRegistros(inRange);
-  }, [registrosEnRango, filterArea]);
+  }, [registrosEnRango, filterArea, periodoId]);
 
   const archivedPeriodsForArea = useMemo(() => {
     if (!filterArea) return archivedPeriods;
@@ -156,7 +159,7 @@ export default function NominaVistaPreviaContent({
     const exact = archivedPeriodsForArea.find((p) => p.rangeStart === start && p.rangeEnd === end);
     if (exact) return exact;
     return archivedPeriodsForArea.find(
-      (p) => p.origen === 'import_historico' && p.rangeStart <= start && p.rangeEnd >= end,
+      (p) => p.rangeStart <= start && p.rangeEnd >= end,
     );
   }, [archivedPeriodsForArea, rangeStart, rangeEnd, periodoId]);
 
@@ -166,7 +169,7 @@ export default function NominaVistaPreviaContent({
     const exact = archivedPeriodsForArea.find((p) => p.rangeStart === start && p.rangeEnd === end);
     if (exact) return exact;
     return archivedPeriodsForArea.find(
-      (p) => p.origen === 'import_historico' && p.rangeStart <= start && p.rangeEnd >= end,
+      (p) => p.rangeStart <= start && p.rangeEnd >= end,
     );
   }, [archivedPeriodsForArea, rangeStart, rangeEnd]);
 
@@ -465,17 +468,17 @@ export default function NominaVistaPreviaContent({
                   onClick={handleExportXlsx}
                   disabled={previewEmpty || exporting}
                   title="Descargar planilla Excel (.xlsx)"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                 >
                   <FileSpreadsheet className={`h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />
-                  <span className="hidden sm:inline">Excel</span>
+                  <span className="hidden sm:inline">Previsualización</span>
                 </button>
                 <button
                   type="button"
                   onClick={handlePrintPreview}
                   disabled={previewEmpty}
                   title="Imprimir"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-40"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                 >
                   <Printer className="h-4 w-4" />
                   <span className="hidden sm:inline">Imprimir</span>

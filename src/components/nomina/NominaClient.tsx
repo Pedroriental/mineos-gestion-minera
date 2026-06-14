@@ -28,6 +28,7 @@ import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
 import NominaTrabajadorModal from '@/components/nomina/NominaTrabajadorModal';
 import { NominaCiclosView } from '@/components/nomina/NominaCiclosView';
 import { NominaVistaPreviaModal } from '@/components/nomina/NominaVistaPreviaModal';
+import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
 import type { NominaImportResult } from '@/components/nomina/NominaImportWizard';
 import { NominaArchivoModal } from '@/components/nomina/NominaArchivoModal';
@@ -2889,6 +2890,23 @@ export default function NominaClient({
         }}
       />
 
+  const previewActiveRegistros = useMemo((): NominaRegistroCerrado[] => {
+    return preNominaRows.map((row) => ({
+      personal_id: row.personal.id,
+      semana_inicio: weekRange.inicio,
+      area: area,
+      monto_pagado: row.total,
+      es_semana_libre: row.esSemanaLibre,
+      estado_asistencia: row.estadoAsistencia,
+      dias_trabajados: row.diasTrabajados,
+      salario_base_calculado: row.salarioBaseCalculado,
+      novedad_turno: row.novedadTurno ?? null,
+      novedad_turno_obs: row.novedadTurnoObs,
+      personal_snapshot: buildPersonalSnapshot(row.personal),
+      periodo_id: null,
+    }));
+  }, [preNominaRows, weekRange.inicio, area]);
+
       <NominaVistaPreviaModal
         open={showExcelPreview}
         onClose={() => {
@@ -2904,20 +2922,7 @@ export default function NominaClient({
             ? { semana_inicio: weekRange.inicio, semana_fin: weekRange.fin }
             : undefined
         }
-        activeRegistros={preNominaRows.map((row) => ({
-          personal_id: row.personal.id,
-          semana_inicio: weekRange.inicio,
-          area: area,
-          monto_pagado: row.total,
-          es_semana_libre: row.esSemanaLibre,
-          estado_asistencia: row.estadoAsistencia,
-          dias_trabajados: row.diasTrabajados,
-          salario_base_calculado: row.salarioBaseCalculado,
-          novedad_turno: row.novedadTurno ? JSON.stringify(row.novedadTurno) : null,
-          novedad_turno_obs: row.novedadTurnoObs,
-          personal_snapshot: buildPersonalSnapshot(row.personal),
-          periodo_id: null,
-        }))}
+        activeRegistros={previewActiveRegistros}
       />
 
       <NominaArchivoModal

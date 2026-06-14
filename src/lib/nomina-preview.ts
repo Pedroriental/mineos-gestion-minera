@@ -479,8 +479,7 @@ function collectImportPreviewPeople(
       }
       return existing ?? null;
     })
-    .filter((p): p is Personal => p != null)
-    .filter((p) => !filterArea || p.area === filterArea);
+    .filter((p): p is Personal => p != null);
 }
 
 /** Elimina duplicados por trabajador+semana+área; prefiere registros con periodo_id (cierre guardado). */
@@ -856,10 +855,6 @@ export function buildNominaPreviewReport(input: {
 
   const sections = [...sectionMap.values()]
     .filter((s) => s.rows.length > 0)
-    .filter((s) => {
-      if (!filterArea) return true;
-      return s.rows.some((r) => r.personal.area === filterArea);
-    })
     .map((s) => {
       s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
       s.sectionTotal = s.rows.reduce((n, r) => n + r.total, 0);
@@ -878,9 +873,9 @@ export function buildNominaPreviewReport(input: {
   }));
 
   let grandTotal = parseFloat(summary.reduce((n, s) => n + s.total, 0).toFixed(2));
-  if (!allowProjection) {
+  if (!allowProjection && sections.length === 0) {
     grandTotal = sumClosedRegistrosInRange(registrosCerrados, rangeStart, rangeEnd, filterArea);
-  } else if (calculatedCells === 0) {
+  } else if (allowProjection && calculatedCells === 0) {
     const closedExact = sumClosedRegistrosInRange(
       registrosCerrados,
       rangeStart,
