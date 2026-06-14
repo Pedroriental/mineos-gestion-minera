@@ -27,6 +27,7 @@ import { PersonalQuickAssignModal } from '@/components/nomina/PersonalQuickAssig
 import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
 import NominaTrabajadorModal from '@/components/nomina/NominaTrabajadorModal';
 import { NominaCiclosView } from '@/components/nomina/NominaCiclosView';
+import { NominaCierreMesView } from '@/components/nomina/NominaCierreMesView';
 import { NominaVistaPreviaModal } from '@/components/nomina/NominaVistaPreviaModal';
 import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
@@ -85,6 +86,7 @@ import {
   emptyManualPeriodsSession,
   ensureWorkingWeekInPeriodAssignment,
   getPeriodById,
+  getEditorPeriod,
   loadManualPeriodsSession,
   periodsEnCurso,
   removePeriodFromSession,
@@ -537,7 +539,7 @@ export default function NominaClient({
   const [newValeMonto, setNewValeMonto] = useState('');
   const [newValeMotivo, setNewValeMotivo] = useState('');
   // Vista activa: Semanal (tradicional), Ciclos (21 días) o Plantillas rotación
-  const [viewMode, setViewMode] = useState<'semanal' | 'ciclos' | 'plantillas'>('semanal');
+  const [viewMode, setViewMode] = useState<'semanal' | 'ciclos' | 'cierre_mes' | 'plantillas'>('semanal');
 
   // Pre-Nómina
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
@@ -2241,11 +2243,11 @@ export default function NominaClient({
           <div className="nomina-page__main nomina-page__table-stack flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/30 lg:border lg:bg-zinc-900/30">
             {/* Tabs de Vista */}
             <div className="shrink-0 border-b border-zinc-800/80 bg-zinc-950/40 px-2 py-1">
-              <div className="grid w-full grid-cols-3 gap-1">
+              <div className="grid w-full grid-cols-2 gap-1 sm:grid-cols-4">
                 <button
                   type="button"
                   onClick={() => setViewMode('semanal')}
-                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wide transition-all ${
+                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase transition-all ${
                     viewMode === 'semanal'
                       ? 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
                       : 'border border-transparent text-white/50 hover:text-white/70'
@@ -2256,7 +2258,7 @@ export default function NominaClient({
                 <button
                   type="button"
                   onClick={() => setViewMode('ciclos')}
-                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wide transition-all ${
+                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase transition-all ${
                     viewMode === 'ciclos'
                       ? 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
                       : 'border border-transparent text-white/50 hover:text-white/70'
@@ -2266,8 +2268,19 @@ export default function NominaClient({
                 </button>
                 <button
                   type="button"
+                  onClick={() => setViewMode('cierre_mes')}
+                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase transition-all ${
+                    viewMode === 'cierre_mes'
+                      ? 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
+                      : 'border border-transparent text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  Cierre de mes
+                </button>
+                <button
+                  type="button"
                   onClick={() => setViewMode('plantillas')}
-                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wide transition-all ${
+                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase transition-all ${
                     viewMode === 'plantillas'
                       ? 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
                       : 'border border-transparent text-white/50 hover:text-white/70'
@@ -2278,7 +2291,39 @@ export default function NominaClient({
               </div>
             </div>
 
-            {viewMode === 'ciclos' ? (
+            {viewMode === 'cierre_mes' ? (
+              <NominaCierreMesView
+                area={area}
+                canEdit={canEdit}
+                semanas={semanas}
+                activePeriod={getEditorPeriod(manualPeriodSession)}
+                refreshKey={archivoRefreshKey}
+                userId={user?.id}
+                onConsolidated={() => {
+                  setManualPeriodSession((prev) => {
+                    const editorId = prev.editorPeriodId;
+                    return editorId ? removePeriodFromSession(prev, editorId) : prev;
+                  });
+                  setConsolidatedLockedIds(new Set());
+                  router.refresh();
+                  setArchivoRefreshKey((k) => k + 1);
+                }}
+                onViewPeriod={(p) => {
+                  handleEditorPeriodChange(p, { fromConsolidated: true });
+                  setViewMode('ciclos');
+                }}
+                onWorkWeek={(p, ws) => {
+                  handleEditorPeriodChange(p, { fromConsolidated: true, resetReconsolidation: false });
+                  setManualPeriodSession((prev) => ({
+                    ...prev,
+                    editorPeriodId: p.id,
+                    historicalPeriodId: p.id,
+                  }));
+                  setWeekRange({ inicio: ws, fin: getWeekEnd(ws) });
+                  setViewMode('semanal');
+                }}
+              />
+            ) : viewMode === 'ciclos' ? (
               <NominaCiclosView
                 area={area}
                 canEdit={canEdit}
@@ -2295,6 +2340,7 @@ export default function NominaClient({
                 onGoToWeek={(inicio, fin) => setWeekRange({ inicio, fin })}
                 onOpenSemanal={() => setViewMode('semanal')}
                 onGoPlantillas={() => setViewMode('plantillas')}
+                onGoCierreMes={() => setViewMode('cierre_mes')}
                 instanciaActiva={instanciaActivaProp}
                 userId={user?.id}
                 personal={personalCatalogMerged}

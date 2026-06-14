@@ -3,8 +3,6 @@
 import { ManualPeriodsSessionBar } from '@/components/nomina/ManualPeriodsSessionBar';
 import { NominaManualPeriodPanel } from '@/components/nomina/NominaManualPeriodPanel';
 import { NominaProximosPagos } from '@/components/nomina/NominaProximosPagos';
-import { NominaPeriodosRegistradosPanel } from '@/components/nomina/NominaPeriodosRegistradosPanel';
-import { NominaMesCierrePanel } from '@/components/nomina/NominaMesCierrePanel';
 import { RotacionInstanciaBanner } from '@/components/nomina/RotacionInstanciaPanel';
 import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
@@ -14,7 +12,6 @@ import {
   type ManualPeriodsSession,
 } from '@/lib/nomina/manual-period-session';
 import type { ManualNominaPeriod } from '@/lib/nomina/manual-period';
-import { getWeekEnd } from '@/lib/nomina/week-utils';
 import type { NominaSemana, Personal } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { LayoutGrid } from 'lucide-react';
@@ -38,12 +35,11 @@ type Props = {
   onGoToWeek: (inicio: string, fin: string) => void;
   onOpenSemanal: () => void;
   onGoPlantillas: () => void;
+  onGoCierreMes?: () => void;
   instanciaActiva?: InstanciaActivaSerialized | null;
   userId?: string;
   onConsolidated?: () => void;
-  periodosRefreshKey?: number;
   consolidatedLockedPeriodIds?: Set<string>;
-  /** Catálogo de personal del área para la proyección de próximos pagos. */
   personal?: Personal[];
 };
 
@@ -63,10 +59,10 @@ export function NominaCiclosView({
   onGoToWeek,
   onOpenSemanal,
   onGoPlantillas,
+  onGoCierreMes,
   instanciaActiva = null,
   userId,
   onConsolidated,
-  periodosRefreshKey = 0,
   consolidatedLockedPeriodIds = new Set(),
   personal = [],
 }: Props) {
@@ -92,6 +88,29 @@ export function NominaCiclosView({
         onDeleteEditorPeriod={canEdit ? onDeleteDraftPeriod : undefined}
       />
 
+      {onGoCierreMes ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--mineos-general-border)]/40 bg-[var(--mineos-general-soft)]/10 px-3 py-2">
+          <p className="text-pretty text-[11px] text-[var(--text-muted)]">
+            ¿Listo para archivar el mes? Los ciclos consolidados se cierran en su propia vista.
+          </p>
+          <button
+            type="button"
+            onClick={onGoCierreMes}
+            className="shrink-0 text-[11px] font-bold text-[var(--mineos-general-bright)] hover:underline"
+          >
+            Ir a Cierre de mes →
+          </button>
+        </div>
+      ) : null}
+
+      {personal.length > 0 && (
+        <NominaProximosPagos
+          personal={personal}
+          area={area}
+          workingWeekStart={workingWeekStart}
+        />
+      )}
+
       <NominaManualPeriodPanel
         semanas={semanas}
         area={area}
@@ -101,7 +120,7 @@ export function NominaCiclosView({
         onPeriodChange={onEditorPeriodChange}
         onGoToWeek={onGoToWeek}
         onOpenSemanal={onOpenSemanal}
-        onOpenWeek={(w) => {
+        onOpenWeek={() => {
           if (editorPeriod) {
             onSessionChange({
               ...periodsSession,
@@ -119,17 +138,9 @@ export function NominaCiclosView({
         }
       />
 
-      {personal.length > 0 && (
-        <NominaProximosPagos
-          personal={personal}
-          area={area}
-          workingWeekStart={workingWeekStart}
-        />
-      )}
-
       {instanciaActiva && (
         <div className={cn(mineosPanel('general'), 'w-full min-w-0')}>
-          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase text-[var(--text-muted)]">
             <LayoutGrid className="h-3.5 w-3.5 text-[var(--mineos-general-bright)]" />
             Rotación operativa (plantilla)
           </div>
@@ -143,34 +154,6 @@ export function NominaCiclosView({
           </button>
         </div>
       )}
-
-      <NominaPeriodosRegistradosPanel
-        area={area}
-        semanas={semanas}
-        activePeriod={editorPeriod}
-        refreshKey={periodosRefreshKey}
-        userId={userId}
-        onViewPeriod={(p) => onEditorPeriodChange(p, { fromConsolidated: true })}
-        onWorkWeek={(p, ws) => {
-          onEditorPeriodChange(p, { fromConsolidated: true, resetReconsolidation: false });
-          onSessionChange({
-            ...periodsSession,
-            editorPeriodId: p.id,
-            historicalPeriodId: p.id,
-          });
-          onGoToWeek(ws, getWeekEnd(ws));
-          onOpenSemanal();
-        }}
-        onPeriodDeleted={onConsolidated}
-      />
-
-      <NominaMesCierrePanel
-        area={area === 'planta' || area === 'mina' ? area : 'mina'}
-        canEdit={canEdit}
-        userId={userId}
-        refreshKey={periodosRefreshKey}
-        onMesClosed={onConsolidated}
-      />
     </div>
   );
 }
