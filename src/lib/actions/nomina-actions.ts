@@ -527,11 +527,16 @@ export async function listNominaPeriodosAction(): Promise<{
         metadata: Record<string, unknown> | null;
         created_at: string;
         nomina_periodo_semanas?: Array<{ semana_id: string }>;
-      }) =>
-        mapPeriodoRow({
+      }) => {
+        const semanaIds = row.nomina_periodo_semanas
+          ?.map((link) => link.semana_id)
+          .filter((id): id is string => typeof id === 'string') ?? [];
+        return mapPeriodoRow({
           ...row,
-          semana_count: row.nomina_periodo_semanas?.length ?? 0,
-        }),
+          semana_count: semanaIds.length,
+          semana_ids: semanaIds,
+        });
+      },
     );
 
     return { ok: true, periodos };

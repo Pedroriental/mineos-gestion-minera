@@ -12,9 +12,11 @@ import {
   weekInManualPeriod,
   stripPeriodoLabelPrefix,
   manualPeriodConsolidateLabel,
+  manualPeriodFromPeriodoSummary,
   dedupeNominaPeriodoSummaries,
   manualPeriodoDedupKey,
 } from '@/lib/nomina/manual-period';
+import { mapPeriodoRow } from '@/lib/nomina/archive';
 import {
   filterManualPeriodsEnCurso,
   isManualPeriodEnCurso,
@@ -194,6 +196,35 @@ describe('manual-period', () => {
     assert.equal(p.totalUsd, 1675);
     assert.equal(p.weekTotalsUsd['2026-05-11'], 1675);
     assert.equal(p.weekTotalsUsd['2026-05-18'], undefined);
+  });
+
+  it('manualPeriodFromPeriodoSummary usa semana_ids derivados desde la tabla puente', () => {
+    const periodo = mapPeriodoRow({
+      id: 'periodo-molinos-4',
+      label: 'Nómina Molino La Fé 4ta Semana Mayo 2026',
+      range_start: '2026-05-11',
+      range_end: '2026-05-24',
+      total_usd: 1658.57,
+      origen: 'consolidacion_manual',
+      metadata: { area: 'planta' },
+      created_at: '2026-06-13T00:00:00.000Z',
+      semana_ids: ['sem-11', 'sem-18'],
+    });
+    const manual = manualPeriodFromPeriodoSummary(periodo);
+    const progress = computeManualPeriodProgress(
+      manual,
+      [
+        { id: 'sem-11', semana_inicio: '2026-05-11', area: 'planta', total_pagado: 950 },
+        { id: 'sem-18', semana_inicio: '2026-05-18', area: 'planta', total_pagado: 708.57 },
+        { id: 'mina-11', semana_inicio: '2026-05-11', area: 'mina', total_pagado: 999 },
+      ],
+      'planta',
+    );
+
+    assert.deepEqual(manual.semanaIds, ['sem-11', 'sem-18']);
+    assert.equal(progress.closedCount, 2);
+    assert.equal(progress.allClosed, true);
+    assert.equal(progress.totalUsd, 1658.57);
   });
 
   it('formatManualWeekLabel cruza de mes correctamente', () => {

@@ -10,7 +10,15 @@ export function mapPeriodoRow(row: {
   metadata: Record<string, unknown> | null;
   created_at: string;
   semana_count?: number;
+  semana_ids?: string[];
 }): NominaPeriodoSummary {
+  const metadata = row.metadata ?? {};
+  const bridgeSemanaIds = row.semana_ids?.filter((id) => typeof id === 'string') ?? [];
+  const metadataSemanaIds = Array.isArray(metadata.semana_ids)
+    ? metadata.semana_ids.filter((id): id is string => typeof id === 'string')
+    : [];
+  const semanaIds = metadataSemanaIds.length ? metadataSemanaIds : bridgeSemanaIds;
+
   return {
     id: row.id,
     label: row.label,
@@ -18,9 +26,9 @@ export function mapPeriodoRow(row: {
     rangeEnd: row.range_end,
     totalUsd: Number(row.total_usd),
     origen: row.origen,
-    metadata: row.metadata ?? {},
+    metadata: semanaIds.length ? { ...metadata, semana_ids: semanaIds } : metadata,
     createdAt: row.created_at,
-    semanaCount: row.semana_count ?? 0,
+    semanaCount: row.semana_count ?? semanaIds.length,
   };
 }
 
