@@ -335,3 +335,59 @@ describe('anotaciones derivadas (salen libre / retirado)', () => {
     assert.match(row?.observaciones ?? '', /Retirado/);
   });
 });
+
+describe('plantilla cuadrillas en vista previa', () => {
+  it('groups workers by plantilla cuadrilla when plantilla is provided', () => {
+    const compresor = {
+      id: 'cq-comp',
+      nombre: 'MINA BELÉN - TÉCNICO OPERADOR DE COMPRESOR - TRAB.',
+      asignacionKey: 'MINA BELÉN - TÉCNICO OPERADOR DE COMPRESOR - TRAB.',
+      orden: 0,
+      semanas: [{ id: 's1', nombre: 'Semana 1', orden: 0, estatusDefault: 'trabajada_paga' as const }],
+      filas: [{ id: 'f1', personalId: 'p-yosel', orden: 0, celdas: {} }],
+    };
+    const plantilla = {
+      id: 'pl-1',
+      nombre: 'Vertical',
+      descripcion: '',
+      area: 'mina' as const,
+      activo: true,
+      created_at: '',
+      updated_at: '',
+      columnasVista: [],
+      cuadrillas: [compresor],
+    };
+    const worker: Personal = {
+      ...trabajadorMock,
+      id: 'p-yosel',
+      area: 'mina',
+      area_detalle: 'Mina Belén - Técnico Ayudante Barrenador',
+      cargo: 'Operador',
+    } as Personal;
+
+    const report = buildNominaPreviewReport({
+      personal: [worker],
+      registrosCerrados: [
+        {
+          personal_id: worker.id,
+          semana_inicio: '2026-05-04',
+          area: 'mina',
+          monto_pagado: 100,
+          es_semana_libre: false,
+        },
+      ],
+      allowProjection: false,
+      rangeStart: '2026-05-04',
+      rangeEnd: '2026-05-10',
+      plantilla,
+      manualPeriodPlantilla: {
+        rangeStart: '2026-05-04',
+        rangeEnd: '2026-05-24',
+      },
+    });
+
+    assert.equal(report.sections[0]?.id, 'plantilla__cq-comp');
+    assert.match(report.sections[0]?.title ?? '', /COMPRESOR/);
+    assert.equal(report.sections[0]?.rows[0]?.total, 100);
+  });
+});

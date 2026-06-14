@@ -67,7 +67,11 @@ BEGIN
         IF v_table IS NULL THEN CONTINUE; END IF;
 
         v_date_col := CASE v_module
-          WHEN 'nomina' THEN 'semana_inicio' ELSE 'fecha'
+          WHEN 'nomina' THEN CASE
+            WHEN v_group_by IN ('mes', 'ano') OR (v_date_to - v_date_from) > 7 THEN 'semana_fin'
+            ELSE 'semana_inicio'
+          END
+          ELSE 'fecha'
         END;
 
         -- Determinar columna de cruce segun tipo
@@ -145,7 +149,11 @@ BEGIN
     END IF;
 
     v_date_col := CASE v_module
-      WHEN 'nomina' THEN 'semana_inicio' ELSE 'fecha'
+      WHEN 'nomina' THEN CASE
+        WHEN v_group_by IN ('mes', 'ano', 'dia') OR (v_date_to - v_date_from) > 7 THEN 'semana_fin'
+        ELSE 'semana_inicio'
+      END
+      ELSE 'fecha'
     END;
 
     v_join := CASE v_module
@@ -249,8 +257,14 @@ BEGIN
       )
 
       WHEN 'nomina' THEN format(
-        'WITH rows AS (SELECT %s AS periodo, %s AS periodo_label, COUNT(*)::int AS semanas, COALESCE(SUM(total_pagado),0) AS total_pagado_usd FROM nomina_semanas WHERE %s GROUP BY 1,2 ORDER BY 1), totals AS (SELECT COALESCE(SUM(total_pagado),0) AS total_pagado_usd, COUNT(*)::int AS total_semanas FROM nomina_semanas WHERE %s) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb), ''totals'', COALESCE((SELECT row_to_json(totals.*)::jsonb FROM totals), ''{}''::jsonb))',
-        v_group_expr, v_label_expr, v_where, v_where
+        'WITH src AS (SELECT semana_inicio, semana_fin, area, total_pagado FROM nomina_semanas_deduped_in_range(%L::date, %L::date, %L)), rows AS (SELECT %s AS periodo, %s AS periodo_label, COUNT(*)::int AS semanas, COALESCE(SUM(total_pagado),0) AS total_pagado_usd FROM src WHERE %s GROUP BY 1,2 ORDER BY 1), totals AS (SELECT COALESCE(SUM(total_pagado),0) AS total_pagado_usd, COUNT(*)::int AS total_semanas FROM src WHERE %s) SELECT jsonb_build_object(''rows'', COALESCE((SELECT jsonb_agg(row_to_json(rows.*)) FROM rows), ''[]''::jsonb), ''totals'', COALESCE((SELECT row_to_json(totals.*)::jsonb FROM totals), ''{}''::jsonb))',
+        v_date_from,
+        v_date_to,
+        (v_date_col = 'semana_fin'),
+        v_group_expr,
+        v_label_expr,
+        replace(v_where, 'nomina_semanas.', ''),
+        replace(v_where, 'nomina_semanas.', '')
       )
 
       WHEN 'balance' THEN format(

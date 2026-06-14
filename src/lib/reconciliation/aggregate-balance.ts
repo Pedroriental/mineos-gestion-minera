@@ -1,5 +1,6 @@
 import type { BalanceReportData } from '@/lib/actions/report-actions';
 import { computeOperationalInputs } from '@/lib/reconciliation/operational-inputs';
+import { assignNominaSemanaToMonthKey } from '@/lib/nomina/nomina-read-model';
 import { getWeekRangeLabel, safeFormatDate } from '@/lib/reports/report-date-utils';
 
 export interface BalanceSummary {
@@ -74,7 +75,7 @@ export function aggregateBalance(
     const grupo =
       agruparPor === 'semana'
         ? getWeekRangeLabel(n.semana_inicio)
-        : safeFormatDate(n.semana_inicio, 'MMMM yyyy');
+        : assignNominaSemanaToMonthKey(n.semana_fin);
     const current = gruposMap.get(grupo) || { oroGramos: 0, arenasUsd: 0, gastoNomina: 0, gastoOperativo: 0 };
     current.gastoNomina += Number(n.monto_pagado ?? 0);
     gruposMap.set(grupo, current);

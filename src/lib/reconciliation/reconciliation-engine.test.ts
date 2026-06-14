@@ -93,3 +93,25 @@ describe('aggregate-balance uses motor KPIs', () => {
     assert.equal(summary.kpis.costoPorGramoOro, Number(inputs.costoPorGramo.toFixed(2)));
   });
 });
+
+describe('computeOperationalInputs nomina read-model', () => {
+  it('uses nominaSemanasUsd as primary gastoNominaUsd KPI', () => {
+    const balance = {
+      produccion: [] as never[],
+      gastos: [] as never[],
+      nomina: [{ semana_inicio: '2026-05-01', monto_pagado: 500 } as never],
+      ventasArenas: [] as never[],
+    };
+    const inputs = computeOperationalInputs({
+      balance,
+      produccion: [],
+      sacosExtraccion: 0,
+      oroQuemadoG: 0,
+      nominaSemanasUsd: 1200,
+      precioOroUsd: 80,
+    });
+    assert.equal(inputs.gastoNominaUsd, 1200);
+    assert.equal(inputs.nominaRegistrosUsd, 500);
+    assert.equal(inputs.nominaSemanasUsd, 1200);
+  });
+});

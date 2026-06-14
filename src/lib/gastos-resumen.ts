@@ -61,11 +61,25 @@ export type GastosResumenSummary = {
   nominaSemanas: GastosResumenNominaSemana[];
 };
 
+export {
+  buildNominaSemanasDateFilter,
+  monthBounds,
+  nominaSemanaCierraEnMes,
+  type NominaSemanasContieneDiaFilter,
+  type NominaSemanasDateFilter,
+  type NominaSemanasSemanaFinFilter,
+} from '@/lib/nomina/nomina-read-model';
+
+import {
+  aggregateNominaSemanas,
+  normalizeNominaArea,
+} from '@/lib/nomina/nomina-read-model';
+
 function pad2(n: number) {
   return String(n).padStart(2, '0');
 }
 
-function monthBounds(mes: string): { desde: string; hasta: string } {
+function monthBoundsLocal(mes: string): { desde: string; hasta: string } {
   const [y, m] = mes.split('-').map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   return {
@@ -105,7 +119,7 @@ export function resolveGastosResumenPeriod(mes?: string, dia?: string): GastosRe
     };
   }
 
-  const bounds = monthBounds(month);
+  const bounds = monthBoundsLocal(month);
   return {
     mes: month,
     ...bounds,
@@ -116,54 +130,6 @@ export function resolveGastosResumenPeriod(mes?: string, dia?: string): GastosRe
 
 export function gastoCategoriaNombre(gasto: GastosResumenGastoRow): string {
   return gasto.categorias_gasto?.nombre ?? '';
-}
-
-/** Filtro de nómina: mes calendario por cierre de semana (`semana_fin`). */
-export type NominaSemanasSemanaFinFilter = {
-  mode: 'semana_fin';
-  semanaFinGte: string;
-  semanaFinLte: string;
-};
-
-/** Filtro puntual: semana que contiene el día seleccionado. */
-export type NominaSemanasContieneDiaFilter = {
-  mode: 'contiene_dia';
-  semanaInicioLte: string;
-  semanaFinGte: string;
-};
-
-export type NominaSemanasDateFilter =
-  | NominaSemanasSemanaFinFilter
-  | NominaSemanasContieneDiaFilter;
-
-/**
- * Agrupa nómina por mes usando la fecha de cierre de la semana.
- * Evita que una misma semana cuente en dos meses al sumar ene…dic.
- * Con filtro por día, usa solapamiento (la semana que contiene ese día).
- */
-export function buildNominaSemanasDateFilter(
-  period: GastosResumenPeriod,
-): NominaSemanasDateFilter {
-  if (period.dia) {
-    return {
-      mode: 'contiene_dia',
-      semanaInicioLte: period.dia,
-      semanaFinGte: period.dia,
-    };
-  }
-  return {
-    mode: 'semana_fin',
-    semanaFinGte: period.desde,
-    semanaFinLte: period.hasta,
-  };
-}
-
-export function nominaSemanaCierraEnMes(
-  semanaFin: string,
-  mes: string,
-): boolean {
-  const bounds = monthBounds(mes);
-  return semanaFin >= bounds.desde && semanaFin <= bounds.hasta;
 }
 
 export function buildGastosResumenSummary(
@@ -208,17 +174,25 @@ export function buildGastosResumenSummary(
     dailyMap.set(g.fecha, day);
   }
 
-  const nominaRows: GastosResumenNominaSemana[] = nominaSemanas.map((s) => ({
+  const nominaAgg = aggregateNominaSemanas(
+    nominaSemanas.map((s) => ({
+      id: s.id,
+      semana_inicio: s.semana_inicio,
+      semana_fin: s.semana_fin,
+      area: s.area,
+      total_pagado: s.total_pagado,
+      total_trabajadores: s.total_trabajadores,
+    })),
+  );
+
+  const nominaRows: GastosResumenNominaSemana[] = nominaAgg.rows.map((s) => ({
     id: s.id,
     semana_inicio: s.semana_inicio,
     semana_fin: s.semana_fin,
-    area: s.area || 'planta',
+    area: normalizeNominaArea(s.area),
     total_pagado: Number(s.total_pagado) || 0,
     total_trabajadores: Number(s.total_trabajadores) || 0,
   }));
-
-  const nominaTotal = nominaRows.reduce((acc, s) => acc + s.total_pagado, 0);
-  const nominaTrabajadores = nominaRows.reduce((acc, s) => acc + s.total_trabajadores, 0);
 
   const gastosTotal = mina.total + molino.total;
   const gastosCount = mina.count + molino.count;
@@ -228,12 +202,12 @@ export function buildGastosResumenSummary(
     mina,
     molino,
     nomina: {
-      total: nominaTotal,
-      semanas: nominaRows.length,
-      trabajadores: nominaTrabajadores,
+      total: nominaAgg.totalUsd,
+      semanas: nominaAgg.rowCount,
+      trabajadores: nominaAgg.trabajadoresSum,
     },
     combined: {
-      total: gastosTotal + nominaTotal,
+      total: gastosTotal + nominaAgg.totalUsd,
       count: gastosCount,
     },
     daily: Array.from(dailyMap.values()).sort((a, b) => a.fecha.localeCompare(b.fecha)),

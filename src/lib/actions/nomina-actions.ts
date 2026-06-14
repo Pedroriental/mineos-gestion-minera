@@ -26,6 +26,7 @@ import { normalizeWorkerName } from '@/lib/nomina/worker-match';
 import type { Personal } from '@/lib/types';
 import { registrarAuditAction } from '@/lib/actions/nomina-v3';
 import { refreshPeriodoTotalUsd } from '@/lib/nomina/cierre-semana-db';
+import { aggregateNominaSemanas } from '@/lib/nomina/nomina-read-model';
 import { loadBibliotecaCompleta, upsertBibliotecaVariableAction } from '@/lib/actions/biblioteca-variables';
 import {
   serializeNominaDivisionesJson,
@@ -709,9 +710,15 @@ export async function consolidarNominaPeriodoAction(input: {
     }
 
     const resolvedArea = area;
-    const totalUsd = parseFloat(
-      semanas.reduce((s, row) => s + Number(row.total_pagado), 0).toFixed(2),
-    );
+    const totalUsd = aggregateNominaSemanas(
+      semanas.map((row) => ({
+        id: row.id,
+        semana_inicio: row.semana_inicio,
+        semana_fin: row.semana_inicio,
+        area: row.area,
+        total_pagado: row.total_pagado,
+      })),
+    ).totalUsd;
 
     const periodoMetadata = {
       semana_ids: semanas.map((s) => s.id),

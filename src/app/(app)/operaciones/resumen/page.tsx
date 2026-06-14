@@ -16,6 +16,8 @@ import {
   getGastosPorCategoria,
 } from '@/lib/rpc/rentabilidad';
 import { createServerClient } from '@/lib/supabase-server';
+import { getNominaAggregationForPeriod } from '@/lib/nomina/nomina-read-model.server';
+import { monthBounds, sumNominaByArea } from '@/lib/nomina/nomina-read-model';
 import { FadeIn, StaggerGrid, StaggerItem, FadeInSection } from '@/components/ui/motion';
 import {
   TrendingUp, TrendingDown, Gem, DollarSign,
@@ -42,36 +44,28 @@ interface PageProps { searchParams: SearchParams }
 
 // ─────────────────────────────────────────────────────────────
 export default async function ResumenEjecutivoPage({ searchParams }: PageProps) {
-  const { desde, hasta } = await searchParams;
-  const hasParams = !!desde && !!hasta;
+  const { desde: desdeParam, hasta: hastaParam } = await searchParams;
+  const now = new Date();
+  const defaultMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const defaultBounds = monthBounds(defaultMes);
+  const desde = desdeParam && hastaParam ? desdeParam : defaultBounds.desde;
+  const hasta = desdeParam && hastaParam ? hastaParam : defaultBounds.hasta;
 
   const supabase = await createServerClient();
-  let nominaQuery = supabase
-    .from('nomina_semanas')
-    .select('area, total_pagado, semana_inicio, semana_fin');
-
-  if (hasParams) {
-    nominaQuery = nominaQuery.gte('semana_fin', desde).lte('semana_fin', hasta);
-  }
 
   // RPCs + nóminas del período en paralelo
-  const [rent, prodDiaria, gastosCat, { data: nominaSemanas }] = await Promise.all([
+  const [rent, prodDiaria, gastosCat, nominaAgg] = await Promise.all([
     getRentabilidad(desde, hasta),
     getProduccionDiaria(desde, hasta),
     getGastosPorCategoria(desde, hasta),
-    nominaQuery,
+    getNominaAggregationForPeriod(supabase, { from: desde, to: hasta }),
   ]);
 
-  const sumNominaArea = (area: string) =>
-    (nominaSemanas ?? [])
-      .filter((s) => (s.area || 'planta') === area)
-      .reduce((acc, s) => acc + (Number(s.total_pagado) || 0), 0);
-
-  const nominaPlantaUsd = sumNominaArea('planta');
-  const nominaMinaUsd = sumNominaArea('mina');
-  const nominaAdminUsd = sumNominaArea('administracion');
-  const nominaTotalUsd = nominaPlantaUsd + nominaMinaUsd + nominaAdminUsd;
-  const semanasNomina = (nominaSemanas ?? []).length;
+  const nominaPlantaUsd = sumNominaByArea(nominaAgg, 'planta');
+  const nominaMinaUsd = sumNominaByArea(nominaAgg, 'mina');
+  const nominaAdminUsd = sumNominaByArea(nominaAgg, 'administracion');
+  const nominaTotalUsd = nominaAgg.totalUsd;
+  const semanasNomina = nominaAgg.rowCount;
   const valorOroPlantaUsd = rent.oro_planta_g * rent.precio_usd_gramo;
   const balanceTotalUsd = valorOroPlantaUsd - nominaTotalUsd;
   const coberturaTotalPct =

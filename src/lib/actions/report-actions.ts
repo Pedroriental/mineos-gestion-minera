@@ -25,6 +25,13 @@ import type {
   NominaCierre,
 } from '../types';
 import { normalizeString, getCanonicalList } from '../reports/report-engine';
+import {
+  applyNominaSemanasDateFilter,
+} from '@/lib/nomina/nomina-read-model.server';
+import {
+  buildNominaPeriodFilterFromRange,
+  dedupeNominaSemanasForAggregation,
+} from '@/lib/nomina/nomina-read-model';
 
 // ── 1. Fetch Dynamic Dropdown Options ──────────────────────
 
@@ -176,20 +183,25 @@ export async function fetchNominaReport(
   filters: NominaReportFilters
 ): Promise<NominaReportRow[]> {
   const supabase = await createServerClient();
+  const periodFilter = buildNominaPeriodFilterFromRange(
+    filters.dateRange.from,
+    filters.dateRange.to,
+  );
 
-  // 1. Fetch weeks in range
+  // 1. Fetch weeks in range (eje según periodo: semana_fin para mes/rango, semana_inicio para semana)
   let weekQuery = supabase
     .from('nomina_semanas')
-    .select('id, semana_inicio, semana_fin, area')
-    .gte('semana_inicio', filters.dateRange.from)
-    .lte('semana_inicio', filters.dateRange.to);
+    .select('id, semana_inicio, semana_fin, area, periodo_id');
 
   if (filters.areas && filters.areas.length > 0) {
     weekQuery = weekQuery.in('area', filters.areas);
   }
 
-  const { data: weeks, error: weekErr } = await weekQuery;
-  if (weekErr || !weeks || weeks.length === 0) {
+  weekQuery = applyNominaSemanasDateFilter(weekQuery, periodFilter);
+
+  const { data: weeksRaw, error: weekErr } = await weekQuery;
+  const weeks = dedupeNominaSemanasForAggregation(weeksRaw ?? []);
+  if (weekErr || weeks.length === 0) {
     return [];
   }
 

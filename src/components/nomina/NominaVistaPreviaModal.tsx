@@ -12,6 +12,8 @@ import { nominaPeriodoMatchesArea, dedupePreviewRegistros } from '@/lib/nomina-p
 import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
 import type { Personal } from '@/lib/types';
+import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
+import type { ManualPeriodPlantillaContext } from '@/lib/nomina/nomina-preview-plantilla';
 
 type Props = {
   open: boolean;
@@ -23,6 +25,9 @@ type Props = {
   /** Limita la planilla al área de nómina actual (mina, planta, etc.) */
   filterArea?: string;
   areaLabel?: string;
+  /** Plantilla del ciclo manual en curso (si aún no está en periodos archivados). */
+  activePlantilla?: RotacionPlantillaRecord | null;
+  activeManualPeriod?: ManualPeriodPlantillaContext;
 };
 
 function filterRegistrosByArea(
@@ -98,6 +103,8 @@ export function NominaVistaPreviaModal({
   activeRegistros,
   filterArea,
   areaLabel,
+  activePlantilla,
+  activeManualPeriod,
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +147,11 @@ export function NominaVistaPreviaModal({
       }
 
       let personalForArea = filterArea
-        ? previewRes.personal.filter((p) => p.area === filterArea)
+        ? previewRes.personal.filter(
+            (p) =>
+              p.area === filterArea ||
+              mergedRegistros.some((r) => r.personal_id === p.id && r.area === filterArea),
+          )
         : previewRes.personal;
       personalForArea = enrichPersonalFromRegistros(personalForArea, mergedRegistros);
 
@@ -289,6 +300,8 @@ export function NominaVistaPreviaModal({
             onClearPeriod={handleClearPeriod}
             filterArea={filterArea}
             areaLabel={areaLabel}
+            fallbackPlantilla={activePlantilla}
+            fallbackManualPeriod={activeManualPeriod}
           />
         </div>
       )}

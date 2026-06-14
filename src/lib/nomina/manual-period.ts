@@ -1,4 +1,5 @@
 import { endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
+import { aggregateNominaSemanas } from '@/lib/nomina/nomina-read-model';
 import { getWeekEnd, listWeekStartsInRange } from '@/lib/nomina/week-utils';
 import { nominaNovedadDraftKey } from '@/lib/nomina-novedad-turno';
 import { clearManualWeekRoster } from '@/lib/nomina/manual-period-roster';
@@ -10,9 +11,14 @@ export function createManualPeriodId(): string {
 
 /** Inferencia heurística de sección según el nombre del ciclo (mina vs molino/planta). */
 export function inferPayrollSectionFromLabel(label: string): 'mina' | 'planta' | null {
-  const l = label.toLowerCase();
-  if (/\bmolino?s?\b|\bplanta\b|\bl[\s.-]?f[eé]\b/.test(l) && !/\bmina\b/.test(l)) return 'planta';
-  if (/\bmina\b|\bbel[eé]n\b/.test(l)) return 'mina';
+  const l = label
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  // «Nómina» contiene «mina» como substring; no debe activar detección de área mina.
+  const lForMina = l.replace(/\bnomina\b/g, ' ');
+  if (/\bmolinos?\b|\bplanta\b|\bla[\s.-]?fe\b/.test(l) && !/\bmina\b/.test(lForMina)) return 'planta';
+  if (/\bmina\b|\bbelen\b/.test(lForMina)) return 'mina';
   return null;
 }
 
@@ -324,9 +330,21 @@ export function computeManualPeriodProgress(
   const openWeeks = weeks.filter((w) => !closedSet.has(w));
   const weekTotalsUsd: Record<string, number> = {};
   for (const s of closedInRange) {
-    weekTotalsUsd[s.semana_inicio] = parseFloat(Number(s.total_pagado ?? 0).toFixed(2));
+    const amt = Number(s.total_pagado ?? 0);
+    weekTotalsUsd[s.semana_inicio] = parseFloat(
+      ((weekTotalsUsd[s.semana_inicio] ?? 0) + amt).toFixed(2),
+    );
   }
-  const totalUsd = closedInRange.reduce((sum, s) => sum + Number(s.total_pagado ?? 0), 0);
+  const totalUsd = aggregateNominaSemanas(
+    closedInRange.map((s) => ({
+      id: s.id ?? `${s.semana_inicio}|${s.area ?? ''}`,
+      semana_inicio: s.semana_inicio,
+      semana_fin: s.semana_inicio,
+      area: s.area ?? null,
+      total_pagado: s.total_pagado ?? 0,
+      periodo_id: s.periodo_id,
+    })),
+  ).totalUsd;
 
   return {
     weeks,

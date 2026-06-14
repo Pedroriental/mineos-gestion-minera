@@ -3,6 +3,7 @@ import type { BalanceReportData } from '@/lib/actions/report-actions';
 import type { DateRange } from '@/lib/reports/report-types';
 import type { ProduccionDiariaRow, RentabilidadResult } from '@/lib/rpc/rentabilidad';
 import { getWeekRangeLabel } from '@/lib/reports/report-date-utils';
+import { nominaSemanaInReportRange } from '@/lib/nomina/nomina-read-model';
 import type { DrillDownRow, ReconciliationParams } from '@/lib/reconciliation/types';
 import { getRuleDef } from '@/lib/reconciliation/rules-registry';
 
@@ -202,7 +203,10 @@ function buildNominaSemanas(ctx: DrillDownContext): DrillDownRow[] {
     if (!sem && valueA === 0 && valueB === 0) continue;
 
     const inicio = sem?.semana_inicio ?? balance.nomina.find((n) => n.semana_id === semanaId)?.semana_inicio;
-    if (inicio && (inicio < dateRange.from || inicio > dateRange.to)) continue;
+    const fin = sem?.semana_fin;
+    if (inicio && fin && !nominaSemanaInReportRange({ semana_inicio: inicio, semana_fin: fin }, dateRange.from, dateRange.to)) {
+      continue;
+    }
 
     const label = sem
       ? `${format(parseISO(sem.semana_inicio), 'dd/MM')} – ${format(parseISO(sem.semana_fin), 'dd/MM/yyyy')}${sem.area ? ` (${sem.area})` : ''}`

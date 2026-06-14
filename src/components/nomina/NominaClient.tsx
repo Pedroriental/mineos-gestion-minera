@@ -30,6 +30,7 @@ import { NominaCiclosView } from '@/components/nomina/NominaCiclosView';
 import { NominaCierreMesView } from '@/components/nomina/NominaCierreMesView';
 import { NominaVistaPreviaModal } from '@/components/nomina/NominaVistaPreviaModal';
 import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
+import type { ManualPeriodPlantillaContext } from '@/lib/nomina/nomina-preview-plantilla';
 import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
 import type { NominaImportResult } from '@/components/nomina/NominaImportWizard';
 import { NominaArchivoModal } from '@/components/nomina/NominaArchivoModal';
@@ -1601,6 +1602,16 @@ export default function NominaClient({
     }));
   }, [preNominaRows, weekRange.inicio, area]);
 
+  const previewManualPeriod = useMemo((): ManualPeriodPlantillaContext | undefined => {
+    if (!manualPeriodForView) return undefined;
+    return {
+      rangeStart: manualPeriodForView.rangeStart,
+      rangeEnd: manualPeriodForView.rangeEnd,
+      weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
+      weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
+    };
+  }, [manualPeriodForView]);
+
   // ── CSV Export ──────────────────────────────────────────────────────────
   const handleExportCSV = useCallback(() => {
     downloadNominaSemanaCsv(nominaExportRows, nominaExportMeta);
@@ -2912,6 +2923,8 @@ export default function NominaClient({
           loading={loadingDrawer}
           canEdit={canEdit}
           locked={semanaActualProcesada}
+          weekStart={weekRange.inicio}
+          weekEnd={weekRange.fin}
           isPending={isPending}
           newValeMonto={newValeMonto}
           newValeMotivo={newValeMotivo}
@@ -2973,6 +2986,8 @@ export default function NominaClient({
             : undefined
         }
         activeRegistros={previewActiveRegistros}
+        activePlantilla={manualPlantillaActiva}
+        activeManualPeriod={previewManualPeriod}
       />
 
       <NominaArchivoModal

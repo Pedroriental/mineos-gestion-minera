@@ -23,6 +23,13 @@ import {
 } from '@/lib/nomina-novedad-turno';
 import { getWeekStart } from '@/lib/rotacion-personal';
 import { inferPayrollSectionFromLabel } from '@/lib/nomina/manual-period';
+import {
+  buildPlantillaPreviewSectionOrder,
+  plantillaSummaryLabel,
+  resolveWorkerPlantillaPreviewSection,
+  type ManualPeriodPlantillaContext,
+} from '@/lib/nomina/nomina-preview-plantilla';
+import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { PersonalSnapshot, ParsedNominaPeriod, NominaPeriodoSummary } from '@/lib/nomina/types';
 import type { Personal } from '@/lib/types';
 
@@ -390,7 +397,13 @@ function resolveWorkerPreviewSection(
   p: Personal,
   snapshot: PersonalSnapshot | null | undefined,
   importSectionOrder?: NominaPreviewImportSection[],
+  plantilla?: RotacionPlantillaRecord,
+  manualPeriodPlantilla?: ManualPeriodPlantillaContext,
 ): { id: string; title: string; subtitle: string } {
+  if (plantilla) {
+    return resolveWorkerPlantillaPreviewSection(p, plantilla, manualPeriodPlantilla, snapshot);
+  }
+
   const importSpec = findImportSectionSpec(snapshot, importSectionOrder);
   if (importSpec) {
     return { id: importSpec.id, title: importSpec.title, subtitle: '' };
@@ -657,23 +670,39 @@ export function buildNominaPreviewReport(input: {
   importSectionOrder?: NominaPreviewImportSection[];
   /** Snapshots del import histórico por personal_id (para reconstruir secciones). */
   personalSnapshots?: Record<string, PersonalSnapshot | null | undefined>;
+  /** Plantilla del periodo manual (cuadrillas = secciones de la planilla). */
+  plantilla?: RotacionPlantillaRecord;
+  manualPeriodPlantilla?: ManualPeriodPlantillaContext;
 }): NominaPreviewReport {
   const {
     personal,
     valesPorPersonal = {},
     allowProjection = false,
-    importSectionOrder,
+    importSectionOrder: importSectionOrderInput,
     personalSnapshots = {},
     filterArea,
+    plantilla,
+    manualPeriodPlantilla,
   } = input;
   const registrosCerrados = dedupePreviewRegistros(
     filterArea
       ? input.registrosCerrados.filter((r) => r.area === filterArea)
       : input.registrosCerrados,
   );
-  const personalFiltered = filterArea
-    ? personal.filter((p) => p.area === filterArea)
+  const personalForCatalog = filterArea
+    ? personal.filter((p) => {
+        if (p.area === filterArea) return true;
+        return registrosCerrados.some(
+          (r) => r.personal_id === p.id && r.area === filterArea,
+        );
+      })
     : personal;
+  const importSectionOrder =
+    importSectionOrderInput?.length
+      ? importSectionOrderInput
+      : plantilla
+        ? buildPlantillaPreviewSectionOrder(plantilla)
+        : undefined;
   const { start: rangeStart, end: rangeEnd } = normalizePreviewRange(
     input.rangeStart,
     input.rangeEnd,
@@ -729,13 +758,13 @@ export function buildNominaPreviewReport(input: {
   const peopleToProcess =
     importArchiveMode || hasRegistrosInRange
       ? collectImportPreviewPeople(
-          personalFiltered,
+          personalForCatalog,
           registrosCerrados,
           weekSet,
           personalSnapshots,
           filterArea,
         )
-      : personalFiltered;
+      : personalForCatalog;
 
   const closedWeeksByArea = new Set<string>();
   for (const r of registrosCerrados) {
@@ -754,7 +783,13 @@ export function buildNominaPreviewReport(input: {
     if (p.estatus && p.estatus !== 'ACTIVO' && !hasRegistroInRange) continue;
     if (p.fecha_ingreso && p.fecha_ingreso > rangeEnd) continue;
     const snap = personalSnapshots[p.id];
-    const meta = resolveWorkerPreviewSection(p, snap, importSectionOrder);
+    const meta = resolveWorkerPreviewSection(
+      p,
+      snap,
+      importSectionOrder,
+      plantilla,
+      manualPeriodPlantilla,
+    );
     if (!sectionMap.has(meta.id)) {
       sectionMap.set(meta.id, {
         id: meta.id,
@@ -779,7 +814,8 @@ export function buildNominaPreviewReport(input: {
 
       const effectiveArea = filterArea ?? p.area;
       const closed = filterArea
-        ? cerradoMap.get(`${p.id}|${w.weekStart}|${filterArea}`)
+        ? cerradoMap.get(`${p.id}|${w.weekStart}|${filterArea}`) ??
+          cerradoMap.get(`${p.id}|${w.weekStart}`)
         : cerradoMap.get(`${p.id}|${w.weekStart}|${p.area}`) ??
           cerradoMap.get(`${p.id}|${w.weekStart}`);
       if (closed) {
@@ -868,7 +904,7 @@ export function buildNominaPreviewReport(input: {
 
   const summary = sections.map((s) => ({
     id: s.id,
-    label: s.title.replace(/^Semanas Mina Belén — /, 'Nóminas ').replace(/^Semanas Molinos — /, 'Nómina '),
+    label: plantillaSummaryLabel(s.title, plantilla),
     total: s.sectionTotal,
   }));
 
@@ -884,7 +920,7 @@ export function buildNominaPreviewReport(input: {
     );
     if (closedExact > 0) grandTotal = closedExact;
   }
-  const personalById = new Map(personalFiltered.map((p) => [p.id, p]));
+  const personalById = new Map(personalForCatalog.map((p) => [p.id, p]));
   let novedades = buildNominaPreviewNovedadesDesdeRegistros(
     registrosCerrados,
     personalById,

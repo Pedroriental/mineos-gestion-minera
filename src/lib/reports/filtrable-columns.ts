@@ -99,7 +99,9 @@ export const FILTRABLE_COLUMNS = {
     ],
     defaultGroupBy: 'semana',
     groupByOptions: ['semana', 'mes', 'area'],
+    /** Filtro de rango por defecto; agrupación mensual usa `semana_fin` (read-model). */
     dateColumn: 'semana_inicio',
+    monthDateColumn: 'semana_fin',
   },
 } as const;
 
@@ -120,6 +122,8 @@ export type TableFilterConfig = {
   defaultGroupBy: string;
   groupByOptions: string[];
   dateColumn: string;
+  /** Eje mensual/rango largo para nómina (cierre de semana). */
+  monthDateColumn?: string;
   joinClause?: string;
 };
 

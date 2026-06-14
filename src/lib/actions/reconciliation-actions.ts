@@ -27,6 +27,10 @@ import type {
 } from '@/lib/reconciliation/types';
 import type { BalanceReportData } from '@/lib/actions/report-actions';
 import type { ReporteProduccion } from '@/lib/types';
+import {
+  fetchNominaSemanasForPeriod,
+  getNominaTotalUsdForPeriod,
+} from '@/lib/nomina/nomina-read-model.server';
 
 export type ReconciliationActionResult =
   | { ok: true; message?: string }
@@ -79,22 +83,18 @@ async function resolvePrecioOroAplicado(params: ReconciliationParams): Promise<P
 }
 
 async function fetchNominaSemanasTotal(from: string, to: string): Promise<number> {
-  const rows = await fetchNominaSemanasRows(from, to);
-  return rows.reduce((s, r) => s + Number(r.total_pagado ?? 0), 0);
+  const supabase = await createServerClient();
+  return getNominaTotalUsdForPeriod(supabase, { from, to });
 }
 
 async function fetchNominaSemanasRows(from: string, to: string) {
   const supabase = await createServerClient();
-  const { data } = await supabase
-    .from('nomina_semanas')
-    .select('id, semana_inicio, semana_fin, area, total_pagado')
-    .gte('semana_inicio', from)
-    .lte('semana_inicio', to);
-  return (data ?? []).map((r) => ({
-    id: r.id as string,
-    semana_inicio: r.semana_inicio as string,
-    semana_fin: r.semana_fin as string,
-    area: r.area as string | undefined,
+  const rows = await fetchNominaSemanasForPeriod(supabase, { from, to });
+  return rows.map((r) => ({
+    id: r.id,
+    semana_inicio: r.semana_inicio,
+    semana_fin: r.semana_fin,
+    area: r.area ?? undefined,
     total_pagado: Number(r.total_pagado ?? 0),
   }));
 }

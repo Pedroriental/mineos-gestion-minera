@@ -14,6 +14,7 @@ import {
   type NominaDivisionAmount,
   type NominaDivisionParam,
 } from '@/lib/reconciliation/nomina-divisiones';
+import { assignNominaSemanaToMonthKey } from '@/lib/nomina/nomina-read-model';
 import { safeFormatDate, getWeekRangeLabel } from '@/lib/reports/report-date-utils';
 
 export { safeFormatDate, getWeekRangeLabel } from '@/lib/reports/report-date-utils';
@@ -330,7 +331,7 @@ export function aggregateNomina(
     if (agruparPor === 'semana') {
       grupoOriginal = getWeekRangeLabel(r.semana_inicio);
     } else if (agruparPor === 'mes') {
-      grupoOriginal = safeFormatDate(r.semana_inicio, 'MMMM yyyy');
+      grupoOriginal = assignNominaSemanaToMonthKey(r.semana_fin);
     } else if (agruparPor === 'area') {
       grupoOriginal = r.area === 'mina' ? 'Mina' : r.area === 'planta' ? 'Molinos (Planta)' : r.area;
     } else if (agruparPor === 'cargo') {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { aggregateNominaSemanas } from '@/lib/nomina/nomina-read-model';
 import { inferPayrollSectionFromLabel } from '@/lib/nomina/manual-period';
 
 export type ManualPeriodoCierreRef = {
@@ -416,14 +417,24 @@ export async function refreshPeriodoTotalUsd(
     return;
   }
 
-  let semanasQuery = supabase.from('nomina_semanas').select('total_pagado').in('id', semanaIds);
+  let semanasQuery = supabase
+    .from('nomina_semanas')
+    .select('id, semana_inicio, semana_fin, area, total_pagado, periodo_id')
+    .in('id', semanaIds);
   if (periodoArea) semanasQuery = semanasQuery.eq('area', periodoArea);
 
   const { data: semanas } = await semanasQuery;
 
-  const totalUsd = parseFloat(
-    (semanas ?? []).reduce((s, row) => s + Number(row.total_pagado ?? 0), 0).toFixed(2),
-  );
+  const totalUsd = aggregateNominaSemanas(
+    (semanas ?? []).map((row) => ({
+      id: row.id as string,
+      semana_inicio: row.semana_inicio as string,
+      semana_fin: (row.semana_fin as string) ?? (row.semana_inicio as string),
+      area: row.area as string | null,
+      total_pagado: row.total_pagado,
+      periodo_id: row.periodo_id as string | null | undefined,
+    })),
+  ).totalUsd;
 
   await supabase.from('nomina_periodos').update({ total_usd: totalUsd }).eq('id', periodoId);
 }

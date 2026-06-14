@@ -7,6 +7,7 @@ import {
   type GastosResumenGastoRow,
   type GastosResumenNominaRow,
 } from '@/lib/gastos-resumen';
+import { applyNominaSemanasDateFilter } from '@/lib/nomina/nomina-read-model.server';
 import GastosResumenClient from './GastosResumenClient';
 
 type SearchParams = Promise<{ mes?: string; dia?: string }>;
@@ -34,21 +35,12 @@ export default async function GastosResumenPage({ searchParams }: { searchParams
           .order('fecha', { ascending: true })
       : Promise.resolve({ data: [] as GastosResumenGastoRow[], error: null });
 
-  const nominaFilter = buildNominaSemanasDateFilter(period);
+  const nominaFilter = buildNominaSemanasDateFilter( period);
   let nominaQuery = supabase
     .from('nomina_semanas')
-    .select('id, semana_inicio, semana_fin, area, total_pagado, total_trabajadores');
+    .select('id, semana_inicio, semana_fin, area, total_pagado, total_trabajadores, periodo_id');
 
-  if (nominaFilter.mode === 'semana_fin') {
-    nominaQuery = nominaQuery
-      .gte('semana_fin', nominaFilter.semanaFinGte)
-      .lte('semana_fin', nominaFilter.semanaFinLte);
-  } else {
-    nominaQuery = nominaQuery
-      .lte('semana_inicio', nominaFilter.semanaInicioLte)
-      .gte('semana_fin', nominaFilter.semanaFinGte);
-  }
-
+  nominaQuery = applyNominaSemanasDateFilter(nominaQuery, nominaFilter);
   nominaQuery = nominaQuery.order('semana_inicio', { ascending: true });
 
   const [gastosRes, nominaRes] = await Promise.all([gastosQuery, nominaQuery]);

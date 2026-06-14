@@ -24,10 +24,15 @@ import {
   resolveNominaTemporalContext,
   type NominaSemanaRef,
 } from '@/lib/nomina/temporal-context';
+import { manualPeriodFromPeriodoSummary } from '@/lib/nomina/manual-period';
+import { listRotacionPlantillasAction } from '@/lib/actions/rotacion-plantillas';
+import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import { getWeekEnd } from '@/lib/nomina/week-utils';
 import { isPersonalVisibleInNomina } from '@/lib/personal-master';
 import type { Personal } from '@/lib/types';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
+import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
+import type { ManualPeriodPlantillaContext } from '@/lib/nomina/nomina-preview-plantilla';
 
 const ZOOM_MIN = 60;
 const ZOOM_MAX = 130;
@@ -53,6 +58,8 @@ type Props = {
   /** Limita la planilla al área de nómina actual */
   filterArea?: string;
   areaLabel?: string;
+  fallbackPlantilla?: RotacionPlantillaRecord | null;
+  fallbackManualPeriod?: ManualPeriodPlantillaContext;
 };
 
 function isoDate(d: Date) {
@@ -82,6 +89,8 @@ export default function NominaVistaPreviaContent({
   onClearPeriod,
   filterArea,
   areaLabel,
+  fallbackPlantilla = null,
+  fallbackManualPeriod,
 }: Props) {
   const temporalCtx = useMemo(
     () => resolveNominaTemporalContext(semanasCerradas),
@@ -95,6 +104,7 @@ export default function NominaVistaPreviaContent({
   const [contentZoom, setContentZoom] = useState(100);
   const [includeProjection, setIncludeProjection] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [periodPlantilla, setPeriodPlantilla] = useState<RotacionPlantillaRecord | null>(null);
 
   const divisionesConfig = useNominaDivisionesConfig();
 
@@ -103,11 +113,17 @@ export default function NominaVistaPreviaContent({
   const lastAutoSelectedPeriodoRef = useRef<string | null>(null);
 
   const roster = useMemo(() => {
+    const registroIdsInArea = new Set(
+      registrosCerrados
+        .filter((r) => !filterArea || r.area === filterArea)
+        .map((r) => r.personal_id),
+    );
     const base = personal.filter(
       (p) =>
-        (!filterArea || p.area === filterArea) &&
+        (registroIdsInArea.has(p.id) || !filterArea || p.area === filterArea) &&
         ['mina', 'planta', 'administracion', 'seguridad', 'transporte'].includes(p.area) &&
-        ((p.estatus === 'ACTIVO' || !p.estatus) && isPersonalVisibleInNomina(p, p.area)),
+        (registroIdsInArea.has(p.id) ||
+          ((p.estatus === 'ACTIVO' || !p.estatus) && isPersonalVisibleInNomina(p, p.area))),
     );
     const ids = new Set(base.map((p) => p.id));
     for (const r of registrosCerrados) {
@@ -117,6 +133,24 @@ export default function NominaVistaPreviaContent({
       if (p) {
         base.push(p);
         ids.add(p.id);
+      } else if (r.personal_snapshot) {
+        const snap = r.personal_snapshot;
+        base.push({
+          id: r.personal_id,
+          cedula: snap.cedula,
+          nombre_completo: snap.nombre_completo,
+          cargo: snap.cargo,
+          area: (r.area as Personal['area']) || (snap.area as Personal['area']),
+          area_detalle: snap.area_detalle,
+          salario_base: snap.salario_base,
+          salario_libre: snap.salario_libre,
+          bono_transporte: snap.bono_transporte,
+          esquema_rotacion: snap.esquema_rotacion,
+          rotacion_inicio_fecha: snap.rotacion_inicio_fecha,
+          fecha_ingreso: null,
+          estatus: 'ACTIVO',
+        } as Personal);
+        ids.add(r.personal_id);
       }
     }
     return base;
@@ -194,12 +228,49 @@ export default function NominaVistaPreviaContent({
 
 
   const importSectionOrder = useMemo((): NominaPreviewImportSection[] | undefined => {
+    if (effectivePlantilla) return undefined;
     const totals = matchingArchivedPeriod?.metadata?.sectionTotals as
       | Array<{ id: string; title: string }>
       | undefined;
     if (!totals?.length) return undefined;
     return totals.map((s) => ({ id: s.id, title: s.title }));
-  }, [matchingArchivedPeriod]);
+  }, [matchingArchivedPeriod, effectivePlantilla]);
+
+  const manualPeriodPlantilla = useMemo(() => {
+    if (matchingArchivedPeriod) {
+      const manual = manualPeriodFromPeriodoSummary(matchingArchivedPeriod);
+      return {
+        rangeStart: manual.rangeStart,
+        rangeEnd: manual.rangeEnd,
+        weekColumnAssignment: manual.weekColumnAssignment,
+        weekColumnCuadrillas: manual.weekColumnCuadrillas,
+      };
+    }
+    return fallbackManualPeriod;
+  }, [matchingArchivedPeriod, fallbackManualPeriod]);
+
+  const effectivePlantilla = periodPlantilla ?? fallbackPlantilla ?? undefined;
+
+  useEffect(() => {
+    const plantillaId =
+      typeof matchingArchivedPeriod?.metadata?.plantilla_id === 'string'
+        ? matchingArchivedPeriod.metadata.plantilla_id
+        : typeof matchingArchivedPeriod?.metadata?.plantillaId === 'string'
+          ? matchingArchivedPeriod.metadata.plantillaId
+          : '';
+    if (!plantillaId || !filterArea) {
+      setPeriodPlantilla(null);
+      return;
+    }
+    let cancelled = false;
+    void listRotacionPlantillasAction(filterArea).then((plantillas) => {
+      if (cancelled) return;
+      setPeriodPlantilla(plantillas.find((p) => p.id === plantillaId) ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [matchingArchivedPeriod?.id, matchingArchivedPeriod?.metadata, filterArea]);
 
   const isConsolidatedImport = matchingArchivedPeriod?.origen === 'import_historico';
 
@@ -237,10 +308,12 @@ export default function NominaVistaPreviaContent({
         rangeEnd,
         registrosCerrados: registrosFiltrados,
         valesPorPersonal: valesMap,
-        allowProjection: includeProjection && !isConsolidatedImport,
+        allowProjection: includeProjection && !isConsolidatedImport && !effectivePlantilla,
         filterArea,
         importSectionOrder,
         personalSnapshots,
+        plantilla: effectivePlantilla,
+        manualPeriodPlantilla,
       }),
     [
       rosterForPreview,
@@ -254,6 +327,8 @@ export default function NominaVistaPreviaContent({
       importSectionOrder,
       personalSnapshots,
       filterArea,
+      effectivePlantilla,
+      manualPeriodPlantilla,
     ],
   );
 

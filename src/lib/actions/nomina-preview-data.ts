@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase-server';
 import { isPersonalVisibleInNomina } from '@/lib/personal-master';
 import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { Personal } from '@/lib/types';
+import { dedupeNominaSemanasForAggregation } from '@/lib/nomina/nomina-read-model';
 
 export async function loadNominaVistaPreviaDataAction(options?: {
   rangeStart?: string;
@@ -31,9 +32,6 @@ export async function loadNominaVistaPreviaDataAction(options?: {
     }
 
     if (options?.periodoId) {
-      // Filtrar semanas directamente por periodo_id (columna en nomina_semanas)
-      // Esto es más eficiente y evita la join intermedia con nomina_periodo_semanas.
-      // Fallback: si la semana tiene periodo_id NULL (datos antiguos), usamos la tabla join.
       const { data: links } = await supabase
         .from('nomina_periodo_semanas')
         .select('semana_id')
@@ -42,14 +40,9 @@ export async function loadNominaVistaPreviaDataAction(options?: {
       if (semanaIds.length > 0) {
         semanasQuery = semanasQuery.in('id', semanaIds);
       } else {
-        // Si no hay vínculos en la tabla join, buscamos por periodo_id directo
         semanasQuery = semanasQuery.eq('periodo_id', options.periodoId);
       }
     } else {
-      // Modo «Semana en curso»: cargamos ÚNICAMENTE semanas activas (no históricas).
-      // Las semanas de imports históricos se excluyen para evitar que se mezclen
-      // con los registros activos e inflen los totales cuando el usuario cambia
-      // el rango de fechas al de un periodo importado.
       semanasQuery = semanasQuery.neq('origen', 'import_historico');
       if (options?.rangeStart) {
         semanasQuery = semanasQuery.gte('semana_inicio', options.rangeStart);
@@ -70,19 +63,9 @@ export async function loadNominaVistaPreviaDataAction(options?: {
     };
     const semanasTyped = (semanasRows || []) as SemanaRow[];
 
-    // Deduplicar semanas por (semana_inicio, area): preferir la del periodo activo o con periodo_id.
-    const semanasCerradasMap = new Map<string, SemanaRow>();
-    const semanaScore = (s: SemanaRow) =>
-      (options?.periodoId && s.periodo_id === options.periodoId ? 8 : 0) + (s.periodo_id ? 4 : 0);
-
-    for (const s of semanasTyped) {
-      const key = `${s.semana_inicio}|${s.area}`;
-      const existing = semanasCerradasMap.get(key);
-      if (!existing || semanaScore(s) > semanaScore(existing)) {
-        semanasCerradasMap.set(key, s);
-      }
-    }
-    const preferredSemanas = [...semanasCerradasMap.values()];
+    const preferredSemanas = dedupeNominaSemanasForAggregation(semanasTyped, {
+      activePeriodoId: options?.periodoId,
+    });
     const semanasCerradas = preferredSemanas.map((s) => ({
       semana_inicio: s.semana_inicio,
       semana_fin: s.semana_fin,
@@ -97,11 +80,6 @@ export async function loadNominaVistaPreviaDataAction(options?: {
     const personalIdsFromRegistros = new Set<string>();
 
     if (semanaIds.length) {
-      // IMPORTANTE: Filtramos SOLO por semana_id.
-      // No filtramos por periodo_id en nomina_registros porque:
-      //   1. El RPC antiguo no propagaba periodo_id a los registros (quedaba NULL).
-      //   2. El filtro por semana_id ya garantiza que solo leemos registros del periodo correcto,
-      //      porque las semanas ya fueron filtradas por periodo_id arriba.
       const regQuery = supabase
         .from('nomina_registros')
         .select(
@@ -154,7 +132,6 @@ export async function loadNominaVistaPreviaDataAction(options?: {
         )
         .filter(Boolean) as NominaRegistroCerrado[];
 
-      // Preferir registro del periodo activo cuando hay duplicados por fecha.
       const dedupMap = new Map<string, NominaRegistroCerrado>();
       const registroScore = (reg: NominaRegistroCerrado) =>
         (options?.periodoId && reg.periodo_id === options.periodoId ? 8 : 0) +
@@ -224,3 +201,4 @@ export async function loadNominaVistaPreviaDataAction(options?: {
     };
   }
 }
+
