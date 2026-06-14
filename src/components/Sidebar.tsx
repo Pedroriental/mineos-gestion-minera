@@ -99,7 +99,7 @@ const navigation: NavSection[] = [
    Idle     → muted text, hover lifts text + faint surface
    Sections → quiet uppercase labels, no chrome                    */
 const itemBase =
-  'group relative flex w-full items-center gap-3 rounded-lg text-[13px] outline-none transition-all duration-200 ease-out';
+  'group relative flex w-full items-center gap-3 rounded-lg text-[13px] leading-none outline-none transition-all duration-200 ease-out';
 const activeClass =
   'font-medium text-[var(--dashboard-text)] bg-gradient-to-r from-amber-500/[0.14] via-amber-500/[0.05] to-transparent';
 const idleClass =
@@ -108,11 +108,14 @@ const iconActive = 'text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]';
 const iconIdle =
   'text-[var(--dashboard-text-muted)] transition-colors duration-200 group-hover:text-[var(--dashboard-text)]';
 
-function ActiveIndicator() {
+function ActiveIndicator({ className }: { className?: string }) {
   return (
     <span
       aria-hidden
-      className="absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.55)]"
+      className={cn(
+        'pointer-events-none absolute top-1/2 h-[1em] w-[2px] -translate-y-1/2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.55)]',
+        className ?? 'left-0',
+      )}
     />
   );
 }
@@ -311,19 +314,14 @@ function NavItemWithSubmenu({
                   href={getNavHref(sub.href)}
                   onClick={() => onNav(sub.href)}
                   className={cn(
-                    'relative block w-full rounded-md px-2 py-1.5 text-left text-[12.5px] transition-all duration-200 ease-out',
+                    'relative flex w-full items-center rounded-md px-2 py-1.5 text-left text-[12.5px] leading-none transition-all duration-200 ease-out',
                     subActive
                       ? 'font-medium text-amber-400'
                       : 'text-[var(--dashboard-text-muted)] hover:translate-x-px hover:text-[var(--dashboard-text)]',
                   )}
                 >
-                  {subActive && (
-                    <span
-                      aria-hidden
-                      className="absolute -left-4 top-1/2 h-3.5 w-px -translate-y-1/2 bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]"
-                    />
-                  )}
-                  {sub.label}
+                  {subActive && <ActiveIndicator className="-left-4" />}
+                  <span className="truncate">{sub.label}</span>
                 </Link>
               );
             })}
