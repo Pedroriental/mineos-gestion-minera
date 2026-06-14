@@ -1,5 +1,6 @@
 import {
   DEFAULT_COLUMNAS_VISTA,
+  normalizeColumnasVista,
   mergeSandboxColumnasVista,
   type PlantillaColumnaKey,
 } from '@/lib/rotacion-plantillas/columnas-vista';
@@ -64,6 +65,14 @@ function defaultSemanaName(orden: number): string {
 
 function defaultCuadrillaName(orden: number): string {
   return `Cuadrilla ${orden + 1}`;
+}
+
+export function cuadrillaPermiteSinSemanas(
+  cuadrilla: Pick<RotacionCuadrilla, 'columnasVista'>,
+  plantillaFallback?: PlantillaColumnaKey[],
+): boolean {
+  const columnas = cuadrilla.columnasVista?.length ? cuadrilla.columnasVista : plantillaFallback;
+  return normalizeColumnasVista(columnas).includes('bono_transporte');
 }
 
 function createDefaultSemana(): RotacionSemanaColumn {
@@ -261,7 +270,7 @@ export function sandboxReducer(
       return {
         ...state,
         cuadrillas: mapCuadrilla(state.cuadrillas, action.payload.cuadrillaId, (c) => {
-          if (c.semanas.length <= 1) return c;
+          if (c.semanas.length <= 1 && !cuadrillaPermiteSinSemanas(c, state.columnasVista)) return c;
           const semanas = reindexSemanas(c.semanas.filter((s) => s.id !== action.payload.id));
           const filas = c.filas.map((f) => {
             const celdas = { ...f.celdas };
@@ -376,7 +385,9 @@ export function validateSandbox(state: RotacionPlantillaSandbox): string | null 
   if (!state.cuadrillas.length) return 'Agregue al menos una cuadrilla.';
   for (const c of state.cuadrillas) {
     if (!c.nombre.trim()) return 'Todas las cuadrillas deben tener nombre.';
-    if (!c.semanas.length) return `La cuadrilla "${c.nombre}" necesita al menos una semana.`;
+    if (!c.semanas.length && !cuadrillaPermiteSinSemanas(c, state.columnasVista)) {
+      return `La cuadrilla "${c.nombre}" necesita al menos una semana o la columna Bono transporte.`;
+    }
     if (c.semanas.some((s) => !s.nombre.trim())) {
       return `Todas las semanas de "${c.nombre}" deben tener nombre.`;
     }

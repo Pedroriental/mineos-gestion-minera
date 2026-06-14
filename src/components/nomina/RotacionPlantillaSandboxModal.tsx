@@ -28,6 +28,7 @@ import {
   copyModelStructure,
   PRESET_PLANTILLA_OPCIONES,
   presetPlantilla,
+  cuadrillaPermiteSinSemanas,
 } from '@/lib/rotacion-plantillas/sandbox-state';
 import {
   saveRotacionPlantillaAction,
@@ -199,6 +200,9 @@ export function RotacionPlantillaSandboxModal({
     () => normalizeColumnasVista(cuadrillaActiva?.columnasVista ?? sandbox.columnasVista),
     [cuadrillaActiva?.columnasVista, sandbox.columnasVista],
   );
+  const puedeQuitarUltimaSemana = cuadrillaActiva
+    ? cuadrillaPermiteSinSemanas({ columnasVista: columnasActivas })
+    : false;
 
   function toggleColumna(key: PlantillaColumnaKey, checked: boolean) {
     if (!cuadrillaId) return;
@@ -458,7 +462,13 @@ export function RotacionPlantillaSandboxModal({
                                 onClick={() =>
                                   dispatch({ type: 'REMOVE_SEMANA', payload: { cuadrillaId, id: sem.id } })
                                 }
-                                className="rounded p-1 text-red-400/70 hover:text-red-400"
+                                disabled={cuadrillaActiva.semanas.length <= 1 && !puedeQuitarUltimaSemana}
+                                title={
+                                  cuadrillaActiva.semanas.length <= 1 && !puedeQuitarUltimaSemana
+                                    ? 'Active Bono transporte para crear una plantilla sin semanas'
+                                    : 'Quitar semana'
+                                }
+                                className="rounded p-1 text-red-400/70 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
