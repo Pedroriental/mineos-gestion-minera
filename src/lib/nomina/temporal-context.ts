@@ -41,6 +41,19 @@ export function resolveWorkingWeek(semanas: NominaSemanaRef[]): { inicio: string
   return { inicio: next, fin: getWeekEnd(next) };
 }
 
+/** Siguiente semana de trabajo tras cerrar una semana operativa (incluye la recién cerrada si aún no está en la lista). */
+export function resolveWeekRangeAfterOperationalCierre(
+  semanas: NominaSemanaRef[],
+  closedWeekStart: string,
+  closedWeekEnd?: string,
+): { inicio: string; fin: string } {
+  const alreadyListed = semanas.some((s) => s.semana_inicio === closedWeekStart);
+  const withClosed = alreadyListed
+    ? semanas
+    : [...semanas, { semana_inicio: closedWeekStart, semana_fin: closedWeekEnd }];
+  return resolveWorkingWeek(withClosed);
+}
+
 export function resolveNominaTemporalContext(semanas: NominaSemanaRef[]): NominaTemporalContext {
   const calendarWeekStart = getWeekStart();
   const calendarWeekEnd = getWeekEnd(calendarWeekStart);

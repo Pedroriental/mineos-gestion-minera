@@ -8,6 +8,8 @@ import {
   previousWeekInManualPeriod,
   resolveClosedOperationalSemana,
   resolveClosedSemanaForManualPeriod,
+  resolveClosedSemanaForWeekView,
+  isHistoricalManualPeriodWeek,
   resolveManualPeriodWeekColumn,
   weekInManualPeriod,
   stripPeriodoLabelPrefix,
@@ -114,6 +116,34 @@ describe('manual-period', () => {
     assert.equal(
       resolveClosedOperationalSemana(semanas, '2026-04-27', 'mina')?.id,
       'legacy',
+    );
+  });
+
+  it('semana de curso con ciclo vinculado usa cierre operativo, no manual histórico', () => {
+    const period = {
+      id: 'ciclo-jun',
+      label: 'Junio',
+      rangeStart: '2026-06-01',
+      rangeEnd: '2026-06-30',
+      plantillaId: 'pl-1',
+      plantillaNombre: '14x7',
+      semanaIds: ['sem-manual'],
+    };
+    const workingWeek = '2026-06-09';
+    const semanas = [
+      { id: 'sem-manual', semana_inicio: workingWeek, area: 'planta', periodo_id: 'p-1', total_pagado: 500 },
+      { id: 'sem-op', semana_inicio: workingWeek, area: 'planta', periodo_id: null, total_pagado: 950 },
+    ];
+    assert.equal(isHistoricalManualPeriodWeek(workingWeek, workingWeek, period), false);
+    assert.equal(
+      resolveClosedSemanaForWeekView(period, semanas, workingWeek, workingWeek, 'planta')?.id,
+      'sem-op',
+    );
+    const histWeek = '2026-06-02';
+    assert.equal(isHistoricalManualPeriodWeek(histWeek, workingWeek, period), true);
+    assert.equal(
+      resolveClosedSemanaForWeekView(period, semanas, histWeek, workingWeek, 'planta'),
+      undefined,
     );
   });
 

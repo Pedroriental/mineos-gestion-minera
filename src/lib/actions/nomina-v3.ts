@@ -517,7 +517,10 @@ async function procesarCierreHistoricoManualV3(
     return { ok: false, message: `Error semana: ${semanaRes.error}` };
   }
   const semanaId = semanaRes.semanaId;
-  await linkSemanaToPeriodo(supabase, periodoId, semanaId);
+  const linkRes = await linkSemanaToPeriodo(supabase, periodoId, semanaId);
+  if (linkRes.error) {
+    return { ok: false, message: linkRes.error };
+  }
   await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);
 
   const personalIds = rows.map((r) => r.personalId);

@@ -14,7 +14,13 @@ import type { NominaPeriodoSummary } from '@/lib/nomina/types';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
-export function NominaArchivoBrowser({ userId }: { userId?: string }) {
+export function NominaArchivoBrowser({
+  userId,
+  area = 'mina',
+}: {
+  userId?: string;
+  area?: 'mina' | 'planta';
+}) {
   const [periodos, setPeriodos] = useState<NominaPeriodoSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
@@ -45,6 +51,7 @@ export function NominaArchivoBrowser({ userId }: { userId?: string }) {
         rangeStart: consolidateStart,
         rangeEnd: consolidateEnd,
         userId,
+        area,
       });
       setMsg(res.ok ? res.message : res.message);
       if (res.ok) refresh();

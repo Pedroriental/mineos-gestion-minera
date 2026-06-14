@@ -67,7 +67,7 @@ import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instan
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { PerfilCompensacion, PoliticaReposo } from '@/lib/types';
 import { validarCierreRotacionSemanalAction } from '@/lib/actions/rotacion-instancias';
-import { resolveNominaTemporalContext, resolveWorkingWeek, formatTemporalContextHint } from '@/lib/nomina/temporal-context';
+import { resolveNominaTemporalContext, resolveWorkingWeek, resolveWeekRangeAfterOperationalCierre, formatTemporalContextHint } from '@/lib/nomina/temporal-context';
 import {
   attachSemanaToManualPeriod,
   detachSemanaFromManualPeriod,
@@ -75,8 +75,9 @@ import {
   weekInManualPeriod,
   clearLocalDraftsForPeriod,
   computeManualPeriodProgress,
-  resolveClosedOperationalSemana,
   resolveClosedSemanaForManualPeriod,
+  resolveClosedSemanaForWeekView,
+  isHistoricalManualPeriodWeek,
   type ManualNominaPeriod,
 } from '@/lib/nomina/manual-period';
 import {
@@ -105,7 +106,7 @@ import {
   seedManualWeekIfEmpty,
   type ManualWeekCarryoverRow,
 } from '@/lib/nomina/manual-period-carryover';
-import { previousWeekInManualPeriod } from '@/lib/nomina/manual-period';
+import { previousWeekInManualPeriod, nextWeekInManualPeriod } from '@/lib/nomina/manual-period';
 import {
   buildManualPlantillaNominaRows,
   manualPlantillaCuadrillaOrder,
@@ -660,6 +661,12 @@ export default function NominaClient({
   );
 
   const isManualPeriodWeek = Boolean(manualPeriodForView);
+  /** Ciclo manual en semana pasada (histórico). La semana de curso cierra como operativa V3. */
+  const isHistoricalManualWeek = isHistoricalManualPeriodWeek(
+    weekRange.inicio,
+    temporalCtx.workingWeekStart,
+    manualPeriodForView,
+  );
   const manualPeriodId = manualPeriodForView?.id ?? null;
 
   const novedadDraftKeyForWeek = useCallback(
@@ -911,16 +918,14 @@ export default function NominaClient({
       let weekRoster = rosterEntries.map((e) => e.id);
       const weekRosterSet = new Set(weekRoster);
 
-      // 1. Check if this is a closed week (solo la del ciclo manual activo, no otra con mismas fechas)
-      const closedWeek =
-        manualPeriodForView && weekInManualPeriod(currentWeekStart, manualPeriodForView)
-          ? resolveClosedSemanaForManualPeriod(
-              manualPeriodForView,
-              semanas,
-              currentWeekStart,
-              area,
-            )
-          : resolveClosedOperationalSemana(semanas, currentWeekStart, area);
+      // 1. Semana cerrada: operativa en curso; manual solo en semanas históricas del ciclo
+      const closedWeek = resolveClosedSemanaForWeekView(
+        manualPeriodForView,
+        semanas,
+        currentWeekStart,
+        temporalCtx.workingWeekStart,
+        area,
+      );
       if (closedWeek?.id) {
         setIsHistoricalLoading(true);
         try {
@@ -1253,25 +1258,28 @@ export default function NominaClient({
     manualPeriodId,
   ]);
 
-  const semanaActual = useMemo(() => {
-    if (isManualPeriodWeek && manualPeriodForView) {
-      return resolveClosedSemanaForManualPeriod(
+  const semanaActual = useMemo(
+    () =>
+      resolveClosedSemanaForWeekView(
         manualPeriodForView,
         semanas,
         weekRange.inicio,
+        temporalCtx.workingWeekStart,
         area,
-      );
-    }
-    return (
-      resolveClosedOperationalSemana(semanas, weekRange.inicio, area)
-    );
-  }, [isManualPeriodWeek, manualPeriodForView, semanas, weekRange.inicio, area]);
+      ),
+    [manualPeriodForView, semanas, weekRange.inicio, temporalCtx.workingWeekStart, area],
+  );
 
   const semanaActualCerrada = semanaActual?.id ? semanaActual : undefined;
   const semanaActualProcesada = Boolean(semanaActualCerrada);
 
   useEffect(() => {
-    if (!instanciaSnapshot || semanaActualProcesada || preNominaRows.length === 0 || isManualPeriodWeek) {
+    if (
+      !instanciaSnapshot ||
+      semanaActualProcesada ||
+      preNominaRows.length === 0 ||
+      isHistoricalManualWeek
+    ) {
       setRotacionCierreError(null);
       return;
     }
@@ -1294,7 +1302,15 @@ export default function NominaClient({
     return () => {
       cancelled = true;
     };
-  }, [instanciaSnapshot, semanaActualProcesada, preNominaRows, area, weekRange.inicio, weekRange.fin, isManualPeriodWeek]);
+  }, [
+    instanciaSnapshot,
+    semanaActualProcesada,
+    preNominaRows,
+    area,
+    weekRange.inicio,
+    weekRange.fin,
+    isHistoricalManualWeek,
+  ]);
 
   // ── Live Calculation Engine ──────────────────────────────────────────────
   const applyRowPatch = useCallback(
@@ -1655,11 +1671,11 @@ export default function NominaClient({
       toastError(distribucion.validation.message ?? 'Revisa la distribución de pagos.');
       return;
     }
-    if (rotacionCierreError && !isManualPeriodWeek) {
+    if (rotacionCierreError && !isHistoricalManualWeek) {
       toastError(rotacionCierreError);
       return;
     }
-    if (!isManualPeriodWeek) {
+    if (!isHistoricalManualWeek) {
     const rotacionRows = preNominaRows.map((r) => ({
       personalId: r.personal.id,
       total: r.total,
@@ -1682,6 +1698,11 @@ export default function NominaClient({
       message: 'La semana ya fue procesada. ¿Deseas sobreescribirla?',
       variant: 'warning'
     }))) return;
+    const closedWeekInicio = weekRange.inicio;
+    const closedWeekFin = weekRange.fin;
+    const closedWasWorkingWeek =
+      closedWeekInicio === temporalCtx.workingWeekStart && !isHistoricalManualWeek;
+    const closedWasHistoricalManual = isHistoricalManualWeek;
     setProcesadoOk(null);
     startTransition(async () => {
       try {
@@ -1712,9 +1733,9 @@ export default function NominaClient({
           fin: weekRange.fin,
           rows: formattedRows,
           distribucion: distribucion.partes,
-          modoCierre: isManualPeriodWeek ? 'historico_manual' : 'operativo',
+          modoCierre: isHistoricalManualWeek ? 'historico_manual' : 'operativo',
           periodoManual:
-            isManualPeriodWeek && manualPeriodForView
+            isHistoricalManualWeek && manualPeriodForView
               ? {
                   label: manualPeriodForView.label,
                   rangeStart: manualPeriodForView.rangeStart,
@@ -1772,6 +1793,16 @@ export default function NominaClient({
           await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
           setProcesadoOk(`✓ ${res.message}`);
           setShowProcesarModal(false);
+          if (closedWasWorkingWeek) {
+            setWeekRange(
+              resolveWeekRangeAfterOperationalCierre(semanas, closedWeekInicio, closedWeekFin),
+            );
+          } else if (closedWasHistoricalManual && manualPeriodForView) {
+            const nextWeek = nextWeekInManualPeriod(manualPeriodForView, closedWeekInicio);
+            if (nextWeek) {
+              setWeekRange({ inicio: nextWeek, fin: getWeekEnd(nextWeek) });
+            }
+          }
           router.refresh();
         } else {
           toastError(res.message);
@@ -2257,7 +2288,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                 </div>
               )}
             </div>
-            {rotacionCierreError && !semanaActualProcesada && !isManualPeriodWeek && (
+            {rotacionCierreError && !semanaActualProcesada && !isHistoricalManualWeek && (
               <div className="mx-3 mt-2 w-full min-w-0 shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
                 Rotación: {rotacionCierreError}
               </div>
@@ -2844,6 +2875,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         open={showArchivo}
         onClose={() => setShowArchivo(false)}
         userId={user?.id}
+        area={area}
         refreshKey={archivoRefreshKey}
         onImport={() => {
           setShowArchivo(false);

@@ -154,20 +154,68 @@ export async function ensureManualVistaPeriodoId(
   return { periodoId: created.id };
 }
 
+async function assertPeriodoSemanaSameArea(
+  supabase: SupabaseClient,
+  periodoId: string,
+  semanaId: string,
+): Promise<{ error?: string }> {
+  const [{ data: periodo, error: periodoError }, { data: semana, error: semanaError }] =
+    await Promise.all([
+      supabase.from('nomina_periodos').select('origen, metadata').eq('id', periodoId).maybeSingle(),
+      supabase.from('nomina_semanas').select('area').eq('id', semanaId).maybeSingle(),
+    ]);
+
+  if (periodoError) return { error: periodoError.message };
+  if (semanaError) return { error: semanaError.message };
+  if (!periodo?.origen) return { error: 'Periodo de nómina no encontrado.' };
+  if (!semana?.area) return { error: 'Semana de nómina no encontrada.' };
+
+  if (periodo.origen !== 'consolidacion_manual') return {};
+
+  const periodoArea =
+    periodo.metadata && typeof periodo.metadata === 'object'
+      ? String((periodo.metadata as Record<string, unknown>).area ?? '').trim()
+      : '';
+  if (!periodoArea) {
+    return { error: 'El periodo manual no tiene área definida (mina o planta).' };
+  }
+  if (semana.area !== periodoArea) {
+    return {
+      error: `No se puede vincular nómina ${semana.area} a un periodo de ${periodoArea}.`,
+    };
+  }
+  return {};
+}
+
 export async function linkSemanaToPeriodo(
   supabase: SupabaseClient,
   periodoId: string,
   semanaId: string,
-): Promise<void> {
-  await supabase
+): Promise<{ error?: string }> {
+  const areaCheck = await assertPeriodoSemanaSameArea(supabase, periodoId, semanaId);
+  if (areaCheck.error) return areaCheck;
+
+  const { error } = await supabase
     .from('nomina_periodo_semanas')
     .upsert({ periodo_id: periodoId, semana_id: semanaId }, { onConflict: 'periodo_id,semana_id' });
+  return error ? { error: error.message } : {};
 }
 
 export async function refreshPeriodoTotalUsd(
   supabase: SupabaseClient,
   periodoId: string,
 ): Promise<void> {
+  const { data: periodo } = await supabase
+    .from('nomina_periodos')
+    .select('metadata')
+    .eq('id', periodoId)
+    .maybeSingle();
+
+  const periodoArea =
+    periodo?.metadata && typeof periodo.metadata === 'object'
+      ? String((periodo.metadata as Record<string, unknown>).area ?? '').trim()
+      : '';
+
   const { data: links } = await supabase
     .from('nomina_periodo_semanas')
     .select('semana_id')
@@ -176,10 +224,10 @@ export async function refreshPeriodoTotalUsd(
   const semanaIds = (links ?? []).map((l) => l.semana_id).filter(Boolean);
   if (!semanaIds.length) return;
 
-  const { data: semanas } = await supabase
-    .from('nomina_semanas')
-    .select('total_pagado')
-    .in('id', semanaIds);
+  let semanasQuery = supabase.from('nomina_semanas').select('total_pagado').in('id', semanaIds);
+  if (periodoArea) semanasQuery = semanasQuery.eq('area', periodoArea);
+
+  const { data: semanas } = await semanasQuery;
 
   const totalUsd = parseFloat(
     (semanas ?? []).reduce((s, row) => s + Number(row.total_pagado ?? 0), 0).toFixed(2),

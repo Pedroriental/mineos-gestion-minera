@@ -1,6 +1,9 @@
 -- ============================================================
 -- MineOS: Backfill seguro de enlaces de periodos Molinos
 -- ============================================================
+-- NOTA: Para limpieza de cruces mina/planta + triggers de aislamiento,
+--       usar fix_nomina_area_isolation.sql (recomendado antes de este script).
+-- ============================================================
 -- Objetivo:
 --   Enlazar periodos/ciclos de Nómina Molinos (area = planta) con sus
 --   semanas cerradas reales en la lógica nueva:

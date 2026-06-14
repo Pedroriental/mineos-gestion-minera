@@ -15,11 +15,13 @@ import { AppDatePicker } from '@/components/ui/AppDatePicker';
 
 export function NominaArchivoPanel({
   userId,
+  area = 'mina',
   embedded = false,
   onImportHistorico,
   onVistaPrevia,
 }: {
   userId?: string;
+  area?: 'mina' | 'planta';
   embedded?: boolean;
   onImportHistorico?: () => void;
   onVistaPrevia?: () => void;
@@ -54,6 +56,7 @@ export function NominaArchivoPanel({
         rangeStart: consolidateStart,
         rangeEnd: consolidateEnd,
         userId,
+        area,
       });
       setMsg(res.ok ? res.message : res.message);
       if (res.ok) refresh();

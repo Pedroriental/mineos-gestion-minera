@@ -30,12 +30,13 @@ type Props = {
   open: boolean;
   onClose: () => void;
   userId?: string;
+  area: 'mina' | 'planta';
   onImport?: () => void;
   onPeriodDeleted?: () => void;
   refreshKey?: number;
 };
 
-export function NominaArchivoModal({ open, onClose, userId, onImport, onPeriodDeleted, refreshKey = 0 }: Props) {
+export function NominaArchivoModal({ open, onClose, userId, area, onImport, onPeriodDeleted, refreshKey = 0 }: Props) {
   const [periodos, setPeriodos] = useState<NominaPeriodoSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
@@ -78,6 +79,7 @@ export function NominaArchivoModal({ open, onClose, userId, onImport, onPeriodDe
         rangeStart: consolidateStart,
         rangeEnd: consolidateEnd,
         userId,
+        area,
       });
       setMsg(res.ok ? res.message : res.message);
       if (res.ok) refresh();

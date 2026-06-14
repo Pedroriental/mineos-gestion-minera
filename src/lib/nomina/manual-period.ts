@@ -56,9 +56,39 @@ export function resolveClosedOperationalSemana<T extends ManualPeriodSemanaRow>(
   weekStart: string,
   area: string,
 ): T | undefined {
-  const scoped = semanas.find((s) => s.semana_inicio === weekStart && s.area === area);
-  if (scoped) return scoped;
+  const scoped = semanas.filter((s) => s.semana_inicio === weekStart && s.area === area);
+  if (scoped.length) {
+    const operativa = scoped.find((s) => s.periodo_id == null);
+    return operativa ?? scoped[0];
+  }
   return semanas.find((s) => s.semana_inicio === weekStart && !s.area);
+}
+
+/**
+ * Semana histórica dentro de un ciclo manual (no la semana de curso operativa).
+ * La semana de curso sigue el cierre operativo V3 aunque tenga plantilla vinculada.
+ */
+export function isHistoricalManualPeriodWeek(
+  weekStart: string,
+  workingWeekStart: string,
+  manualPeriod: ManualNominaPeriod | null | undefined,
+): boolean {
+  if (!manualPeriod || !weekInManualPeriod(weekStart, manualPeriod)) return false;
+  return weekStart !== workingWeekStart;
+}
+
+/** Resuelve la semana cerrada visible: operativa (V3) en curso; manual solo en histórico. */
+export function resolveClosedSemanaForWeekView<T extends ManualPeriodSemanaRow>(
+  manualPeriod: ManualNominaPeriod | null | undefined,
+  semanas: T[],
+  weekStart: string,
+  workingWeekStart: string,
+  area: string,
+): T | undefined {
+  if (isHistoricalManualPeriodWeek(weekStart, workingWeekStart, manualPeriod)) {
+    return resolveClosedSemanaForManualPeriod(manualPeriod, semanas, weekStart, area);
+  }
+  return resolveClosedOperationalSemana(semanas, weekStart, area);
 }
 
 export function manualPeriodStorageKey(area: string): string {

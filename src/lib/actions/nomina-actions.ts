@@ -638,13 +638,21 @@ export async function consolidarNominaPeriodoAction(input: {
   rangeStart: string;
   rangeEnd: string;
   userId?: string;
-  area?: string;
+  area: 'mina' | 'planta';
   metadata?: Record<string, unknown>;
 }): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
-    const { rangeStart, rangeEnd, userId, area, metadata } = input;
+    const { rangeStart, rangeEnd, userId, metadata } = input;
     const label = stripPeriodoLabelPrefix(input.label.trim()) || `Periodo ${rangeStart}`;
+    const area = input.area?.trim();
+
+    if (!area || (area !== 'mina' && area !== 'planta')) {
+      return {
+        ok: false,
+        message: 'Debe indicar el área del periodo (mina o planta).',
+      };
+    }
 
     const scopedSemanaIds = Array.isArray(metadata?.semana_ids)
       ? metadata.semana_ids.filter((id): id is string => typeof id === 'string')
@@ -653,18 +661,26 @@ export async function consolidarNominaPeriodoAction(input: {
     let query = supabase
       .from('nomina_semanas')
       .select('id, total_pagado, semana_inicio, area')
+      .eq('area', area)
       .gte('semana_inicio', rangeStart)
       .lte('semana_inicio', rangeEnd);
-    if (area) query = query.eq('area', area);
     if (scopedSemanaIds.length) query = query.in('id', scopedSemanaIds);
 
     const { data: semanas } = await query;
 
     if (!semanas?.length) {
-      return { ok: false, message: 'No hay semanas cerradas en ese rango.' };
+      return { ok: false, message: 'No hay semanas cerradas en ese rango para el área indicada.' };
     }
 
-    const resolvedArea = area ?? semanas[0]?.area ?? null;
+    const foreignArea = semanas.find((row) => row.area !== area);
+    if (foreignArea) {
+      return {
+        ok: false,
+        message: `Hay semanas de otra área en el rango (${foreignArea.area}). Solo se permite ${area}.`,
+      };
+    }
+
+    const resolvedArea = area;
     const totalUsd = parseFloat(
       semanas.reduce((s, row) => s + Number(row.total_pagado), 0).toFixed(2),
     );

@@ -1,0 +1,2 @@
+-- DEPRECATED: usar fix_nomina_area_definitivo.sql (un solo script, sin bucle NULL)
+-- Este archivo se conserva solo como referencia histórica.
