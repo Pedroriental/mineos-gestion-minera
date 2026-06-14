@@ -12,7 +12,6 @@ import {
   Loader2,
   PlayCircle,
   Trash2,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppMonthPicker } from '@/components/ui/AppMonthPicker';
@@ -49,6 +48,27 @@ type Props = {
 
 function fmtUsd(n: number): string {
   return `$${n.toLocaleString('es', { minimumFractionDigits: 2 })}`;
+}
+
+const PERIODOS_MES_STORAGE_PREFIX = 'mineos-nomina-periodos-mes:';
+
+function currentMonthKey(): string {
+  return format(new Date(), 'yyyy-MM');
+}
+
+function periodosMesStorageKey(area: string): string {
+  return `${PERIODOS_MES_STORAGE_PREFIX}${area}`;
+}
+
+function readStoredMonthFilter(area: string): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const stored = localStorage.getItem(periodosMesStorageKey(area));
+    if (stored && /^\d{4}-\d{2}$/.test(stored)) return stored;
+  } catch {
+    // localStorage puede fallar en modo privado
+  }
+  return currentMonthKey();
 }
 
 export function NominaPeriodosRegistradosPanel({
@@ -111,11 +131,30 @@ export function NominaPeriodosRegistradosPanel({
   }, [enriched]);
 
   const [monthFilter, setMonthFilter] = useState('');
+  const [monthReady, setMonthReady] = useState(false);
+
+  useEffect(() => {
+    setMonthFilter(readStoredMonthFilter(area));
+    setMonthReady(true);
+  }, [area]);
+
+  useEffect(() => {
+    if (!monthReady || !monthFilter) return;
+    try {
+      localStorage.setItem(periodosMesStorageKey(area), monthFilter);
+    } catch {
+      // ignore
+    }
+  }, [area, monthFilter, monthReady]);
 
   const filteredEnriched = useMemo(() => {
-    if (!monthFilter) return enriched;
+    if (!monthFilter) return [];
     return enriched.filter((row) => row.monthKey === monthFilter);
   }, [enriched, monthFilter]);
+
+  const monthFilterLabel = monthFilter
+    ? format(parseISO(`${monthFilter}-01`), 'MMMM yyyy', { locale: es })
+    : null;
 
   async function handleDelete(periodoId: string, displayLabel: string) {
     if (
@@ -152,41 +191,33 @@ export function NominaPeriodosRegistradosPanel({
             </p>
           </div>
         </div>
-        {monthOptions.length > 0 ? (
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-              Mes
-            </span>
-            <div className="flex items-center gap-1.5">
-              <AppMonthPicker
-                id="periodos-registrados-mes"
-                value={monthFilter}
-                onChange={setMonthFilter}
-                placeholder="Todos los meses"
-                className="w-[10rem] [&>button]:rounded-lg [&>button]:py-1.5 [&>button]:text-[11px]"
-              />
-              {monthFilter ? (
-                <button
-                  type="button"
-                  onClick={() => setMonthFilter('')}
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]"
-                  aria-label="Quitar filtro de mes"
-                  title="Todos los meses"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+            Mes
+          </span>
+          <AppMonthPicker
+            id="periodos-registrados-mes"
+            value={monthFilter}
+            onChange={setMonthFilter}
+            placeholder="Seleccionar mes…"
+            className="w-[10rem] [&>button]:rounded-lg [&>button]:py-1.5 [&>button]:text-[11px]"
+          />
+        </div>
       </header>
 
-      {loading ? (
+      {loading || !monthReady ? (
         <div className="flex items-center gap-2 py-6 text-sm text-[var(--text-muted)]">
           <Loader2 className="h-4 w-4 animate-spin" /> Cargando periodos…
         </div>
       ) : error ? (
         <p className="text-sm text-[var(--mineos-expense)]">{error}</p>
+      ) : !monthFilter ? (
+        <div className="rounded-xl border border-dashed border-[var(--card-border)] py-8 text-center">
+          <Calendar className="mx-auto mb-2 h-7 w-7 text-[var(--text-muted)] opacity-50" />
+          <p className="text-sm text-[var(--text-muted)]">
+            Seleccione un mes para ver los periodos registrados.
+          </p>
+        </div>
       ) : enriched.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--card-border)] py-8 text-center">
           <Calendar className="mx-auto mb-2 h-7 w-7 text-[var(--text-muted)] opacity-50" />
@@ -195,7 +226,22 @@ export function NominaPeriodosRegistradosPanel({
       ) : filteredEnriched.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--card-border)] py-8 text-center">
           <Calendar className="mx-auto mb-2 h-7 w-7 text-[var(--text-muted)] opacity-50" />
-          <p className="text-sm text-[var(--text-muted)]">No hay periodos en el mes seleccionado.</p>
+          <p className="text-sm text-[var(--text-muted)]">
+            No hay periodos en{' '}
+            <span className="font-semibold capitalize text-[var(--text-primary)]">
+              {monthFilterLabel}
+            </span>
+            .
+          </p>
+          {monthOptions.length > 0 ? (
+            <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+              Meses con registros:{' '}
+              {monthOptions
+                .slice(0, 4)
+                .map((ym) => format(parseISO(`${ym}-01`), 'MMM yyyy', { locale: es }))
+                .join(' · ')}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="max-h-[min(28rem,55vh)] overflow-y-auto overflow-x-auto rounded-xl border border-[var(--card-border)]">
