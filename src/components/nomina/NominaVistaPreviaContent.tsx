@@ -11,6 +11,7 @@ import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config'
 import { getValesPendientesBulkAction } from '@/lib/actions/nomina-v3';
 import {
   buildNominaPreviewReport,
+  dedupePreviewRegistros,
   isNominaPreviewEmpty,
   listWeekStartsInRange,
   nominaPeriodoMatchesArea,
@@ -134,8 +135,10 @@ export default function NominaVistaPreviaContent({
   }, [registrosCerrados, rangeStart, rangeEnd]);
 
   const registrosFiltrados = useMemo(() => {
-    if (!filterArea) return registrosEnRango;
-    return registrosEnRango.filter((r) => r.area === filterArea);
+    const inRange = !filterArea
+      ? registrosEnRango
+      : registrosEnRango.filter((r) => r.area === filterArea);
+    return dedupePreviewRegistros(inRange);
   }, [registrosEnRango, filterArea]);
 
   const archivedPeriodsForArea = useMemo(() => {

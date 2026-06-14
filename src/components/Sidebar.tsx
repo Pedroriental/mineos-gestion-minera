@@ -99,7 +99,7 @@ const navigation: NavSection[] = [
    Idle     → muted text, hover lifts text + faint surface
    Sections → quiet uppercase labels, no chrome                    */
 const itemBase =
-  'group relative flex w-full items-center gap-3 rounded-lg text-[13px] leading-none outline-none transition-all duration-200 ease-out';
+  'group relative flex w-full items-center gap-3 rounded-lg text-[13px] leading-snug outline-none transition-all duration-200 ease-out';
 const activeClass =
   'font-medium text-[var(--dashboard-text)] bg-gradient-to-r from-amber-500/[0.14] via-amber-500/[0.05] to-transparent';
 const idleClass =
@@ -301,7 +301,7 @@ function NavItemWithSubmenu({
           open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
         )}
       >
-        <div className="overflow-hidden">
+        <div className={cn(open ? 'overflow-visible' : 'overflow-hidden')}>
           <div className="ml-[19px] mt-1 space-y-0.5 border-l border-[var(--dashboard-border)] pb-1 pl-[15px]">
             {subItems.map((sub) => {
               const subActive =
@@ -314,7 +314,7 @@ function NavItemWithSubmenu({
                   href={getNavHref(sub.href)}
                   onClick={() => onNav(sub.href)}
                   className={cn(
-                    'relative flex w-full items-center rounded-md px-2 py-1.5 text-left text-[12.5px] leading-none transition-all duration-200 ease-out',
+                    'relative flex w-full items-center rounded-md px-2 py-1.5 text-left text-[12.5px] leading-snug transition-all duration-200 ease-out',
                     subActive
                       ? 'font-medium text-amber-400'
                       : 'text-[var(--dashboard-text-muted)] hover:translate-x-px hover:text-[var(--dashboard-text)]',
@@ -523,7 +523,7 @@ export default function Sidebar({
         />
         {isExpanded && (
           <>
-            <div className="flex min-w-0 flex-1 flex-col gap-px leading-none">
+            <div className="flex min-w-0 flex-1 flex-col gap-px leading-snug">
               <span className="text-[14px] font-extrabold tracking-tight text-[var(--dashboard-text)]">
                 La Fe
               </span>

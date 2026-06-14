@@ -20,8 +20,12 @@ export function formatNominaDivisionLabel(porcentaje: number): string {
 export function isAutoNominaDivisionNombre(nombre: string, porcentaje?: number): boolean {
   const trimmed = nombre.trim();
   if (!trimmed) return true;
-  if (porcentaje != null && trimmed === formatNominaDivisionLabel(porcentaje)) return true;
-  return /^\d{1,3}([.,]\d{1,2})?%$/.test(trimmed);
+  const normalized = trimmed.replace(/\s+/g, '');
+  if (porcentaje != null) {
+    const pctLabel = formatNominaDivisionLabel(porcentaje).replace(/\s+/g, '');
+    if (normalized === pctLabel || normalized === String(porcentaje)) return true;
+  }
+  return /^\d{1,3}([.,]\d{1,2})?%$/.test(normalized);
 }
 
 export function resolveNominaDivisionNombre(

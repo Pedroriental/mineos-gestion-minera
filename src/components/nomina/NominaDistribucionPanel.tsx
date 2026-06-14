@@ -41,38 +41,30 @@ function formatLineaResumen(
   color: (typeof COLORS)[number],
   muted: string,
 ) {
-  const showNombre = l.nombre.trim() && !isAutoNominaDivisionNombre(l.nombre, l.porcentaje);
+  const customName = l.nombre.trim() && !isAutoNominaDivisionNombre(l.nombre, l.porcentaje);
   const hasDirectos = l.pagoDirecto > 0;
   const brutoNetoDistintos = Math.abs(l.bruto - l.neto) > 0.005;
 
   return (
     <>
-      <span className="font-bold tabular-nums">{l.porcentaje}%</span>
-      {showNombre ? (
+      {customName ? (
         <>
-          <span className={muted}> · </span>
           <span className="font-medium">{l.nombre.trim()}</span>
-        </>
-      ) : null}
-      <span className={muted}> · </span>
-      {hasDirectos || brutoNetoDistintos ? (
-        <>
-          <span className={`font-bold tabular-nums ${amountColor(color, isLight)}`}>
-            {fmtMoney(l.bruto)}
-          </span>
-          <span className={muted}> → neto </span>
-          <span className={`font-bold tabular-nums ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>
-            {fmtMoney(l.neto)}
-          </span>
-          {hasDirectos ? (
-            <span className={muted}> (directos {fmtMoney(l.pagoDirecto)})</span>
-          ) : null}
+          <span className={muted}> ({l.porcentaje}%)</span>
         </>
       ) : (
-        <span className={`font-bold tabular-nums ${amountColor(color, isLight)}`}>
-          {fmtMoney(l.neto)}
-        </span>
+        <span className="font-bold tabular-nums">{l.porcentaje}%</span>
       )}
+      <span className={muted}> · </span>
+      <span className={`font-bold tabular-nums ${amountColor(color, isLight)}`}>
+        {fmtMoney(l.neto)}
+      </span>
+      {hasDirectos ? (
+        <span className={muted}> · directos {fmtMoney(l.pagoDirecto)}</span>
+      ) : null}
+      {brutoNetoDistintos && hasDirectos ? (
+        <span className={muted}> · bruto {fmtMoney(l.bruto)}</span>
+      ) : null}
     </>
   );
 }
@@ -139,7 +131,7 @@ export default function NominaDistribucionPanel({
         {lineas.map((l, i) => {
           const color = COLORS[i % COLORS.length];
           return (
-            <li key={l.id} className={`text-[11px] leading-snug ${text}`}>
+            <li key={l.id} className={`text-[11px] leading-normal ${text}`}>
               {formatLineaResumen(l, isLight, color, muted)}
             </li>
           );

@@ -8,7 +8,7 @@ import NominaVistaPreviaContent, {
 } from '@/components/nomina/NominaVistaPreviaContent';
 import { loadNominaVistaPreviaDataAction } from '@/lib/actions/nomina-preview-data';
 import { listNominaPeriodosAction } from '@/lib/actions/nomina-actions';
-import { nominaPeriodoMatchesArea } from '@/lib/nomina-preview';
+import { nominaPeriodoMatchesArea, dedupePreviewRegistros } from '@/lib/nomina-preview';
 import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
 import type { Personal } from '@/lib/types';
@@ -33,24 +33,32 @@ function filterRegistrosByArea(
   return registros.filter((r) => r.area === filterArea);
 }
 
-/** Datos en vivo de la semana actual tienen prioridad sobre registros históricos del servidor. */
+/** Datos en vivo de la semana actual solo si esa semana aún no está cerrada en el servidor. */
 function mergeActiveRegistros(
   registros: NominaRegistroCerrado[],
   activeWeek: { semana_inicio: string; semana_fin?: string } | undefined,
   activeRegistros: NominaRegistroCerrado[] | undefined,
   filterArea?: string,
 ): NominaRegistroCerrado[] {
+  const deduped = dedupePreviewRegistros(registros);
   const activeForArea = filterRegistrosByArea(activeRegistros ?? [], filterArea);
-  if (!activeWeek || activeForArea.length === 0) return registros;
+  if (!activeWeek || activeForArea.length === 0) return deduped;
 
-  const withoutActiveWeek = registros.filter(
+  const weekClosedOnServer = deduped.some(
+    (r) =>
+      r.semana_inicio === activeWeek.semana_inicio &&
+      (!filterArea || r.area === filterArea),
+  );
+  if (weekClosedOnServer) return deduped;
+
+  const withoutActiveWeek = deduped.filter(
     (r) =>
       !(
         r.semana_inicio === activeWeek.semana_inicio &&
         (!filterArea || r.area === filterArea)
       ),
   );
-  return [...activeForArea, ...withoutActiveWeek];
+  return dedupePreviewRegistros([...activeForArea, ...withoutActiveWeek]);
 }
 
 function enrichPersonalFromRegistros(
@@ -172,7 +180,7 @@ export function NominaVistaPreviaModal({
         filterArea,
       });
       if (!res.ok) return;
-      setRegistrosCerrados(res.registrosCerrados);
+      setRegistrosCerrados(dedupePreviewRegistros(res.registrosCerrados));
       setSemanasCerradas(res.semanasCerradas);
       setSelectedPeriodoId(period.id);
     });
