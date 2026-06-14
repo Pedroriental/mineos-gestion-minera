@@ -447,7 +447,8 @@ export function manualPeriodFromPeriodoSummary(p: NominaPeriodoSummary): ManualN
     weekColumnCuadrillaNombres,
     periodoArchivoId: p.id,
     semanaIds,
-    periodoTotalUsd: p.totalUsd > 0 ? p.totalUsd : undefined,
+    periodoTotalUsd:
+      p.totalUsd > 0 && p.semanaCount > 0 ? p.totalUsd : undefined,
   })!;
 }
 

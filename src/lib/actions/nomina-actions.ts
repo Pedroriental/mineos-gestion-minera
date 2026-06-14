@@ -25,6 +25,7 @@ import { applyImportAliases, buildAliasUpsertRows, type ImportAliasRecord } from
 import { normalizeWorkerName } from '@/lib/nomina/worker-match';
 import type { Personal } from '@/lib/types';
 import { registrarAuditAction } from '@/lib/actions/nomina-v3';
+import { refreshPeriodoTotalUsd } from '@/lib/nomina/cierre-semana-db';
 import { loadBibliotecaCompleta, upsertBibliotecaVariableAction } from '@/lib/actions/biblioteca-variables';
 import {
   serializeNominaDivisionesJson,
@@ -493,6 +494,20 @@ async function dedupeConsolidacionManualPeriodosInDb(
   }
 }
 
+/** Recalcula total_usd desde semanas enlazadas (0 si no quedan links válidos). */
+async function reconcileConsolidacionManualPeriodTotalsInDb(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+): Promise<void> {
+  const { data } = await supabase
+    .from('nomina_periodos')
+    .select('id')
+    .eq('origen', 'consolidacion_manual');
+
+  for (const row of data ?? []) {
+    if (row.id) await refreshPeriodoTotalUsd(supabase, row.id);
+  }
+}
+
 export async function listNominaPeriodosAction(): Promise<{
   ok: boolean;
   periodos: NominaPeriodoSummary[];
@@ -501,6 +516,7 @@ export async function listNominaPeriodosAction(): Promise<{
   try {
     const supabase = await createServerClient();
     await dedupeConsolidacionManualPeriodosInDb(supabase);
+    await reconcileConsolidacionManualPeriodTotalsInDb(supabase);
 
     const { data, error } = await supabase
       .from('nomina_periodos')

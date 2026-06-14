@@ -259,6 +259,26 @@ describe('manual-period', () => {
     assert.equal(progress.totalUsd, 1658.57);
   });
 
+  it('manualPeriodFromPeriodoSummary ignora total_usd huérfano sin semanas', () => {
+    const periodo = mapPeriodoRow({
+      id: 'periodo-molinos-huerfano',
+      label: 'Nómina Molino La Fé 4ta semana Mayo 2026',
+      range_start: '2026-05-11',
+      range_end: '2026-05-24',
+      total_usd: 485,
+      origen: 'consolidacion_manual',
+      metadata: { area: 'planta', semana_ids: [] },
+      created_at: '2026-06-14T00:52:00.000Z',
+      semana_count: 0,
+      semana_ids: [],
+    });
+    const manual = manualPeriodFromPeriodoSummary(periodo);
+    const progress = computeManualPeriodProgress(manual, [], 'planta');
+    assert.equal(manual.periodoTotalUsd, undefined);
+    assert.equal(progress.closedCount, 0);
+    assert.equal(progress.totalUsd, 0);
+  });
+
   it('formatManualWeekLabel cruza de mes correctamente', () => {
     assert.equal(formatManualWeekLabel('2026-06-29'), '29/06/2026 – 05/07/2026');
     assert.equal(formatManualWeekLabel('2026-06-08'), '08/06 – 14/06/2026');

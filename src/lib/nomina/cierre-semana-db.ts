@@ -282,7 +282,10 @@ export async function refreshPeriodoTotalUsd(
     .eq('periodo_id', periodoId);
 
   const semanaIds = (links ?? []).map((l) => l.semana_id).filter(Boolean);
-  if (!semanaIds.length) return;
+  if (!semanaIds.length) {
+    await supabase.from('nomina_periodos').update({ total_usd: 0 }).eq('id', periodoId);
+    return;
+  }
 
   let semanasQuery = supabase.from('nomina_semanas').select('total_pagado').in('id', semanaIds);
   if (periodoArea) semanasQuery = semanasQuery.eq('area', periodoArea);

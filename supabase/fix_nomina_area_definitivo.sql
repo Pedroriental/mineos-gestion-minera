@@ -217,6 +217,29 @@ WHERE nps.semana_id = ns.id
     OR p.label ILIKE '%molino%'
   );
 
+-- ── 4b) Periodos sin semanas enlazadas → total_usd = 0 ───────
+UPDATE nomina_periodos p
+SET total_usd = 0,
+    metadata = jsonb_set(
+      COALESCE(p.metadata, '{}'::jsonb),
+      '{semana_ids}',
+      '[]'::jsonb,
+      true
+    )
+WHERE p.origen = 'consolidacion_manual'
+  AND p.total_usd <> 0
+  AND NOT EXISTS (
+    SELECT 1
+    FROM nomina_periodo_semanas nps
+    JOIN nomina_semanas ns ON ns.id = nps.semana_id
+    WHERE nps.periodo_id = p.id
+      AND (
+        p.metadata->>'area' IS NULL
+        OR TRIM(p.metadata->>'area') = ''
+        OR ns.area = p.metadata->>'area'
+      )
+  );
+
 -- ── 5) metadata.area en periodos legacy ─────────────────────
 UPDATE nomina_periodos p
 SET metadata = jsonb_set(COALESCE(p.metadata, '{}'::jsonb), '{area}', '"mina"'::jsonb, true)

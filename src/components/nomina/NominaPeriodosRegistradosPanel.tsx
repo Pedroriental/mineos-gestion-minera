@@ -177,7 +177,7 @@ export function NominaPeriodosRegistradosPanel({
                   activePeriod?.rangeStart === periodo.rangeStart &&
                   activePeriod?.rangeEnd === periodo.rangeEnd;
                 const complete = progress.allClosed;
-                const totalDisplay = periodo.totalUsd > 0 ? periodo.totalUsd : progress.totalUsd;
+                const totalDisplay = progress.totalUsd;
                 const isDeleting = deletingId === periodo.id;
 
                 return (
