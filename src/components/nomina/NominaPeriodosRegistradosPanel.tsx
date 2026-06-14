@@ -12,8 +12,10 @@ import {
   Loader2,
   PlayCircle,
   Trash2,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { AppMonthPicker } from '@/components/ui/AppMonthPicker';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import {
   eliminarPeriodoConsolidadoAction,
@@ -152,25 +154,29 @@ export function NominaPeriodosRegistradosPanel({
         </div>
         {monthOptions.length > 0 ? (
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <label
-              htmlFor="periodos-registrados-mes"
-              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]"
-            >
+            <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
               Mes
-            </label>
-            <select
-              id="periodos-registrados-mes"
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="rounded-lg border border-[var(--card-border)] bg-[var(--surface-elevated)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-primary)] outline-none focus:border-[var(--mineos-general-border)]"
-            >
-              <option value="">Todos los meses</option>
-              {monthOptions.map((ym) => (
-                <option key={ym} value={ym}>
-                  {format(parseISO(`${ym}-01`), 'MMMM yyyy', { locale: es })}
-                </option>
-              ))}
-            </select>
+            </span>
+            <div className="flex items-center gap-1.5">
+              <AppMonthPicker
+                id="periodos-registrados-mes"
+                value={monthFilter}
+                onChange={setMonthFilter}
+                placeholder="Todos los meses"
+                className="w-[10rem] [&>button]:rounded-lg [&>button]:py-1.5 [&>button]:text-[11px]"
+              />
+              {monthFilter ? (
+                <button
+                  type="button"
+                  onClick={() => setMonthFilter('')}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]"
+                  aria-label="Quitar filtro de mes"
+                  title="Todos los meses"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </header>
