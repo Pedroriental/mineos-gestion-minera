@@ -4662,8 +4662,13 @@ input, textarea, select {
 
 .resumen-ejecutivo-page__scale-inner .resumen-ejecutivo-page__kpis {
   height: 100%;
-  grid-template-rows: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
   align-self: stretch;
+}
+
+.resumen-ejecutivo-page__scale-inner .resumen-ejecutivo-page__kpi-section-head {
+  flex: 0 0 auto;
+  min-height: auto;
 }
 
 .resumen-ejecutivo-page__scale-inner .resumen-ejecutivo-page__kpi,
@@ -4707,13 +4712,16 @@ input, textarea, select {
   }
 }
 
-/* Bordes en degradado — hero ganancia / pérdida */
-.resumen-ejecutivo-page__hero-bar {
+/* Hero — sala de control (resultado + cadena mina→molino + referencia) */
+.resumen-ejecutivo-page__hero {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
-.resumen-ejecutivo-page__hero-bar--profit::before,
-.resumen-ejecutivo-page__hero-bar--loss::before {
+.resumen-ejecutivo-page__hero--profit::before,
+.resumen-ejecutivo-page__hero--loss::before {
   content: '';
   position: absolute;
   left: 0;
@@ -4725,12 +4733,300 @@ input, textarea, select {
   z-index: 1;
 }
 
-.resumen-ejecutivo-page__hero-bar--profit::before {
+.resumen-ejecutivo-page__hero--profit::before {
   background: var(--mineos-gradient-hero-benefit, linear-gradient(180deg, #6ee7b7, #10b981, #047857));
 }
 
-.resumen-ejecutivo-page__hero-bar--loss::before {
+.resumen-ejecutivo-page__hero--loss::before {
   background: var(--mineos-gradient-hero-expense, linear-gradient(180deg, #fca5a5, #ef4444, #b91c1c));
+}
+
+.resumen-ejecutivo-page__hero-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  padding: 0.65rem 0.85rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--card-border) 80%, transparent);
+}
+
+.resumen-ejecutivo-page__hero-eyebrow {
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mineos-general-bright);
+}
+
+.resumen-ejecutivo-page__hero-period {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__hero-period-sep {
+  opacity: 0.45;
+}
+
+.resumen-ejecutivo-page__hero-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+@media (min-width: 768px) {
+  .resumen-ejecutivo-page__hero-main {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.35fr) minmax(0, 0.75fr);
+  }
+}
+
+.resumen-ejecutivo-page__hero-result,
+.resumen-ejecutivo-page__hero-chain,
+.resumen-ejecutivo-page__hero-ref {
+  padding: 0.75rem 0.85rem;
+  min-width: 0;
+}
+
+.resumen-ejecutivo-page__hero-result {
+  border-bottom: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent);
+}
+
+.resumen-ejecutivo-page__hero-chain {
+  border-bottom: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent);
+}
+
+@media (min-width: 768px) {
+  .resumen-ejecutivo-page__hero-result {
+    border-bottom: none;
+    border-right: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent);
+  }
+
+  .resumen-ejecutivo-page__hero-chain {
+    border-bottom: none;
+    border-right: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent);
+  }
+}
+
+.resumen-ejecutivo-page__hero-result-label,
+.resumen-ejecutivo-page__hero-chain-label,
+.resumen-ejecutivo-page__hero-ref-label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.resumen-ejecutivo-page__hero-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
+.resumen-ejecutivo-page__hero-result-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.65rem;
+  flex-shrink: 0;
+}
+
+.resumen-ejecutivo-page__hero-result-icon--profit {
+  border: 1px solid color-mix(in srgb, var(--mineos-benefit) 35%, transparent);
+  background: color-mix(in srgb, var(--mineos-benefit) 14%, transparent);
+  color: var(--mineos-benefit);
+}
+
+.resumen-ejecutivo-page__hero-result-icon--loss {
+  border: 1px solid color-mix(in srgb, var(--mineos-expense) 35%, transparent);
+  background: color-mix(in srgb, var(--mineos-expense) 14%, transparent);
+  color: var(--mineos-expense);
+}
+
+.resumen-ejecutivo-page__hero-result-value {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.2vw, 1.75rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.resumen-ejecutivo-page__hero-result-value--profit {
+  color: var(--mineos-benefit);
+}
+
+.resumen-ejecutivo-page__hero-result-value--loss {
+  color: var(--mineos-expense);
+}
+
+.resumen-ejecutivo-page__hero-badge {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.resumen-ejecutivo-page__hero-badge--profit {
+  border: 1px solid color-mix(in srgb, var(--mineos-benefit) 30%, transparent);
+  background: color-mix(in srgb, var(--mineos-benefit) 10%, transparent);
+  color: var(--mineos-benefit);
+}
+
+.resumen-ejecutivo-page__hero-badge--loss {
+  border: 1px solid color-mix(in srgb, var(--mineos-expense) 30%, transparent);
+  background: color-mix(in srgb, var(--mineos-expense) 10%, transparent);
+  color: var(--mineos-expense);
+}
+
+.resumen-ejecutivo-page__hero-result-meta {
+  margin: 0;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.resumen-ejecutivo-page__hero-flow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.resumen-ejecutivo-page__hero-flow-node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--card-border) 90%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated) 60%, transparent);
+  color: var(--text-secondary);
+}
+
+.resumen-ejecutivo-page__hero-flow-node--highlight {
+  border-color: color-mix(in srgb, var(--mineos-general-bright) 35%, transparent);
+  background: color-mix(in srgb, var(--mineos-general) 12%, transparent);
+  color: var(--mineos-general-bright);
+}
+
+.resumen-ejecutivo-page__hero-flow-title {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.resumen-ejecutivo-page__hero-flow-value {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.resumen-ejecutivo-page__hero-flow-node--highlight .resumen-ejecutivo-page__hero-flow-value {
+  color: var(--mineos-general-bright);
+}
+
+.resumen-ejecutivo-page__hero-flow-arrow {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.resumen-ejecutivo-page__balance-bridge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.resumen-ejecutivo-page__balance-bar {
+  display: flex;
+  height: 0.45rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+
+.resumen-ejecutivo-page__balance-segment {
+  height: 100%;
+  min-width: 2px;
+  transition: width 0.4s ease;
+}
+
+.resumen-ejecutivo-page__balance-segment--oro {
+  background: var(--mineos-gradient-bar-general);
+}
+
+.resumen-ejecutivo-page__balance-segment--nomina {
+  background: var(--mineos-gradient-bar-expense);
+}
+
+.resumen-ejecutivo-page__balance-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+}
+
+.resumen-ejecutivo-page__balance-dot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-right: 0.25rem;
+  border-radius: 9999px;
+  vertical-align: middle;
+}
+
+.resumen-ejecutivo-page__balance-dot--oro {
+  background: var(--mineos-general-bright);
+}
+
+.resumen-ejecutivo-page__balance-dot--nomina {
+  background: var(--mineos-expense);
+}
+
+.resumen-ejecutivo-page__balance-coverage {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--mineos-general-bright);
+}
+
+.resumen-ejecutivo-page__hero-ref-oz {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--mineos-general-bright);
+}
+
+.resumen-ejecutivo-page__hero-ref-unit {
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.resumen-ejecutivo-page__hero-ref-g {
+  margin: 0.2rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
 }
 
 /* Precio oro — acento ámbar en degradado */
@@ -4865,14 +5161,302 @@ input, textarea, select {
   overflow: hidden;
 }
 
-/* 8 indicadores en 2×4 — celdas y tarjetas de igual tamaño */
+/* KPIs: 2 secciones × 2×2 + cabeceras de grupo */
 .resumen-ejecutivo-page__kpis {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(4, minmax(5.25rem, 1fr));
+  grid-auto-rows: minmax(5rem, 1fr);
   align-items: stretch;
   align-content: stretch;
   min-height: 0;
   min-width: 0;
+}
+
+.resumen-ejecutivo-page__kpi-section-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-end;
+  min-height: 0;
+  padding-top: 0.15rem;
+}
+
+.resumen-ejecutivo-page__kpi-section-head:first-child {
+  padding-top: 0;
+}
+
+.resumen-ejecutivo-page__kpi-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  width: 100%;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--card-border) 75%, transparent);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__kpi-label {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 640px) {
+  .resumen-ejecutivo-page__kpi-label {
+    font-size: 0.625rem;
+  }
+}
+
+.resumen-ejecutivo-page__kpi-sub {
+  font-size: 0.625rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.65rem;
+  flex-shrink: 0;
+}
+
+.resumen-ejecutivo-page__panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.resumen-ejecutivo-page__panel-meta {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__empty {
+  padding: 1rem 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__chart-gridline {
+  stroke: color-mix(in srgb, var(--text-muted) 22%, transparent);
+}
+
+.resumen-ejecutivo-page__chart-line {
+  stroke: var(--mineos-general-bright);
+}
+
+.resumen-ejecutivo-page__chart-dot {
+  fill: var(--mineos-general-bright);
+  stroke: var(--card-bg);
+}
+
+.resumen-ejecutivo-page__chart-label-value {
+  fill: color-mix(in srgb, var(--mineos-general-bright) 88%, transparent);
+}
+
+.resumen-ejecutivo-page__chart-label-date {
+  fill: color-mix(in srgb, var(--text-muted) 90%, transparent);
+}
+
+.resumen-ejecutivo-page__gasto-name {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.resumen-ejecutivo-page__gasto-amount {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.resumen-ejecutivo-page__gasto-pct {
+  width: 2rem;
+  text-align: right;
+  font-size: 0.625rem;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__gasto-track {
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+}
+
+.resumen-ejecutivo-page__gasto-fill {
+  height: 100%;
+  border-radius: 9999px;
+}
+
+.resumen-ejecutivo-page__gasto-fill--benefit {
+  background: var(--mineos-gradient-bar-benefit);
+}
+
+.resumen-ejecutivo-page__gasto-fill--general {
+  background: var(--mineos-gradient-bar-general);
+}
+
+.resumen-ejecutivo-page__gasto-fill--neutral {
+  background: var(--mineos-gradient-kpi-neutral);
+}
+
+.resumen-ejecutivo-page__gasto-fill--expense {
+  background: var(--mineos-gradient-bar-expense);
+}
+
+.resumen-ejecutivo-page__gastos-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--card-border) 80%, transparent);
+  flex-shrink: 0;
+}
+
+.resumen-ejecutivo-page__gastos-total span:first-child {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__gastos-total span:last-child {
+  font-size: 0.9375rem;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.resumen-ejecutivo-page__summary-link {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  min-height: 0;
+  padding: 0.75rem 0.85rem;
+  transition: background-color 0.15s ease;
+}
+
+.resumen-ejecutivo-page__summary-link:hover {
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+}
+
+.resumen-ejecutivo-page__summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  flex-shrink: 0;
+}
+
+.resumen-ejecutivo-page__summary-title {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  transition: color 0.15s ease;
+}
+
+.resumen-ejecutivo-page__summary-link:hover .resumen-ejecutivo-page__summary-title {
+  color: var(--text-primary);
+}
+
+.resumen-ejecutivo-page__summary-arrow {
+  color: var(--text-muted);
+  opacity: 0.45;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.resumen-ejecutivo-page__summary-link:hover .resumen-ejecutivo-page__summary-arrow {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.resumen-ejecutivo-page__summary-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+@media (min-width: 480px) {
+  .resumen-ejecutivo-page__summary-body {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: center;
+  }
+}
+
+.resumen-ejecutivo-page__summary-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  padding-right: 0.5rem;
+  border-right: none;
+}
+
+@media (min-width: 480px) {
+  .resumen-ejecutivo-page__summary-feature {
+    border-right: 1px solid color-mix(in srgb, var(--card-border) 75%, transparent);
+  }
+}
+
+.resumen-ejecutivo-page__summary-feature-value {
+  font-size: 1.125rem;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.resumen-ejecutivo-page__summary-feature-label {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem 0.5rem;
+  min-width: 0;
+}
+
+.resumen-ejecutivo-page__summary-metric-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.5625rem;
+  color: var(--text-muted);
+}
+
+.resumen-ejecutivo-page__summary-metric-value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 
 .resumen-ejecutivo-page__kpi-item {
@@ -4885,7 +5469,7 @@ input, textarea, select {
 @media (min-width: 1024px) {
   .resumen-ejecutivo-page__kpis {
     height: 100%;
-    grid-template-rows: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
     align-self: stretch;
   }
 
@@ -8931,13 +9515,13 @@ input, textarea, select {
   max-width: 100%;
 }
 
-.mobile-shell .resumen-ejecutivo-page__kpi-head span {
+.mobile-shell .resumen-ejecutivo-page__kpi-head span,
+.mobile-shell .resumen-ejecutivo-page__kpi-label {
   font-size: 0.5625rem !important;
   color: rgba(255, 255, 255, 0.95) !important;
 }
 
-.mobile-shell .resumen-ejecutivo-page__chart h3,
-.mobile-shell .resumen-ejecutivo-page__gastos h3,
+.mobile-shell .resumen-ejecutivo-page__panel-title,
 .mobile-shell .resumen-ejecutivo-page__precio-oro > span:first-child,
 .mobile-shell .resumen-ejecutivo-page__summary-title {
   color: rgba(255, 255, 255, 0.95) !important;
