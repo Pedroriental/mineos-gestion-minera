@@ -17,6 +17,8 @@ import {
   manualPeriodFromPeriodoSummary,
   dedupeNominaPeriodoSummaries,
   manualPeriodoDedupKey,
+  inferPayrollSectionFromLabel,
+  isManualPeriodCompatibleWithArea,
 } from '@/lib/nomina/manual-period';
 import { mapPeriodoRow } from '@/lib/nomina/archive';
 import {
@@ -172,7 +174,7 @@ describe('manual-period', () => {
       editorPeriodId: 'arch-db-1',
       workingWeekPeriodId: 'arch-db-1',
       historicalPeriodId: 'arch-db-1',
-    });
+    }, 'mina');
     assert.equal(periodsEnCurso(session).length, 1);
     assert.equal(session.editorPeriodId, 'mp-2');
   });
@@ -359,5 +361,62 @@ describe('manual-period', () => {
       }),
       'consolidacion_manual|mina|2026-05-11|2026-05-31',
     );
+  });
+
+  it('inferPayrollSectionFromLabel distingue molino vs mina', () => {
+    assert.equal(
+      inferPayrollSectionFromLabel('Nómina Molino La Fé 4ta semana Mayo 2026'),
+      'planta',
+    );
+    assert.equal(inferPayrollSectionFromLabel('Nómina Mina Belén 5ta Semana'), 'mina');
+    assert.equal(inferPayrollSectionFromLabel('4ta Semana Mayo'), null);
+    assert.equal(
+      isManualPeriodCompatibleWithArea(
+        { label: 'Nómina Molino La Fé 4ta semana Mayo 2026' },
+        'planta',
+      ),
+      true,
+    );
+    assert.equal(
+      isManualPeriodCompatibleWithArea(
+        { label: 'Nómina Molino La Fé 4ta semana Mayo 2026' },
+        'mina',
+      ),
+      false,
+    );
+  });
+
+  it('sanitizeManualPeriodsSession quita ciclos de molino en sesión mina', () => {
+    const molino = {
+      id: 'mp-molino',
+      label: 'Nómina Molino La Fé 4ta semana Mayo 2026',
+      rangeStart: '2026-05-18',
+      rangeEnd: '2026-06-07',
+      plantillaId: 'pl',
+      plantillaNombre: 'P',
+      semanaIds: [],
+      periodoVistaId: 'a4bd60ae-c4e2-424f-964a-4ea1fcf1be5a',
+    };
+    const mina = {
+      id: 'mp-mina',
+      label: '5ta Semana Mayo',
+      rangeStart: '2026-05-11',
+      rangeEnd: '2026-05-31',
+      plantillaId: 'pl',
+      plantillaNombre: 'P',
+      semanaIds: [],
+    };
+    const session = sanitizeManualPeriodsSession(
+      {
+        periods: [molino, mina],
+        editorPeriodId: 'mp-molino',
+        workingWeekPeriodId: 'mp-molino',
+        historicalPeriodId: 'mp-molino',
+      },
+      'mina',
+    );
+    assert.equal(session.periods.length, 1);
+    assert.equal(session.periods[0]?.id, 'mp-mina');
+    assert.equal(session.editorPeriodId, 'mp-mina');
   });
 });

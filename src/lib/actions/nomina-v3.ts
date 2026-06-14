@@ -21,6 +21,7 @@ import {
   upsertNominaCierreForSemana,
   type ManualPeriodoCierreRef,
 } from '@/lib/nomina/cierre-semana-db';
+import { isManualPeriodCompatibleWithArea } from '@/lib/nomina/manual-period';
 import type { NominaVale, Personal, HistorialPagoRow, TendenciaSemanalRow } from '@/lib/types';
 import { z } from 'zod';
 import {
@@ -492,6 +493,17 @@ async function procesarCierreHistoricoManualV3(
   const { area, inicio, fin, rows, distribucion } = data;
   const origenRegistro = 'ajuste_manual';
   const totalNomina = rows.reduce((s, r) => s + r.total, 0);
+
+  if (!isManualPeriodCompatibleWithArea({ label: periodoManual.label }, area)) {
+    const implied =
+      area === 'mina'
+        ? 'Molino (Planta → Nómina)'
+        : 'Mina (Mina → Nómina)';
+    return {
+      ok: false,
+      message: `El ciclo «${periodoManual.label}» no corresponde a esta sección. Ábrelo desde ${implied}.`,
+    };
+  }
 
   const periodoRes = await ensureManualVistaPeriodoId(supabase, {
     periodo: periodoManual,

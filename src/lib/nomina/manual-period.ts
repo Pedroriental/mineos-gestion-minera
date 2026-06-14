@@ -8,6 +8,34 @@ export function createManualPeriodId(): string {
   return `mp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** Inferencia heurística de sección según el nombre del ciclo (mina vs molino/planta). */
+export function inferPayrollSectionFromLabel(label: string): 'mina' | 'planta' | null {
+  const l = label.toLowerCase();
+  if (/\bmolino?s?\b|\bplanta\b|\bl[\s.-]?f[eé]\b/.test(l) && !/\bmina\b/.test(l)) return 'planta';
+  if (/\bmina\b|\bbel[eé]n\b/.test(l)) return 'mina';
+  return null;
+}
+
+export function isManualPeriodCompatibleWithArea(
+  period: Pick<ManualNominaPeriod, 'label'>,
+  area: string,
+): boolean {
+  const implied = inferPayrollSectionFromLabel(period.label);
+  return implied == null || implied === area;
+}
+
+export function stripCrossAreaPeriodoDbIds(
+  period: ManualNominaPeriod,
+  area: string,
+): ManualNominaPeriod {
+  if (isManualPeriodCompatibleWithArea(period, area)) return period;
+  return {
+    ...period,
+    periodoArchivoId: undefined,
+    periodoVistaId: undefined,
+  };
+}
+
 export type ManualNominaPeriod = {
   id: string;
   label: string;
@@ -218,6 +246,10 @@ export function resolveClosedSemanaForManualPeriod<T extends ManualPeriodSemanaR
   if (period.semanaIds !== undefined) {
     const allowed = new Set(period.semanaIds);
     return candidates.find((s) => s.id && allowed.has(s.id));
+  }
+
+  if (area && !isManualPeriodCompatibleWithArea(period, area)) {
+    return undefined;
   }
 
   const periodoDbId = period.periodoVistaId ?? period.periodoArchivoId;

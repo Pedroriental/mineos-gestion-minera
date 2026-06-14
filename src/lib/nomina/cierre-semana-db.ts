@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { inferPayrollSectionFromLabel } from '@/lib/nomina/manual-period';
 
 export type ManualPeriodoCierreRef = {
   label: string;
@@ -18,11 +19,52 @@ type SemanaCierreInput = {
   periodoId?: string | null;
 };
 
+function crossAreaNominaMessage(area: string, periodoArea: string, label?: string): string {
+  if (area === 'mina' && periodoArea === 'planta') {
+    return `Este ciclo (${label ?? 'Molino'}) es de Nómina Molino. Ábrelo y ciérralo desde Planta → Nómina, no desde Mina.`;
+  }
+  if (area === 'planta' && periodoArea === 'mina') {
+    return `Este ciclo (${label ?? 'Mina'}) es de Nómina Mina. Ábrelo y ciérralo desde Mina → Nómina, no desde Molino.`;
+  }
+  return `No se puede vincular nómina ${area} a un periodo de ${periodoArea}.`;
+}
+
+async function verifyPeriodoMatchesNominaArea(
+  supabase: SupabaseClient,
+  periodoId: string,
+  area: string,
+): Promise<{ error?: string }> {
+  const { data: periodo, error } = await supabase
+    .from('nomina_periodos')
+    .select('label, metadata, origen')
+    .eq('id', periodoId)
+    .maybeSingle();
+
+  if (error) return { error: error.message };
+  if (!periodo) return { error: 'Periodo de nómina no encontrado.' };
+
+  const metaArea =
+    periodo.metadata && typeof periodo.metadata === 'object'
+      ? String((periodo.metadata as Record<string, unknown>).area ?? '').trim()
+      : '';
+  const implied = inferPayrollSectionFromLabel(String(periodo.label ?? ''));
+  const periodoArea = metaArea || implied;
+
+  if (periodoArea && periodoArea !== area) {
+    return { error: crossAreaNominaMessage(area, periodoArea, periodo.label) };
+  }
+  return {};
+}
+
 /** Busca o crea nomina_semanas sin depender de ON CONFLICT (índices parciales post-V6). */
 export async function findOrCreateNominaSemanaForCierre(
   supabase: SupabaseClient,
   input: SemanaCierreInput,
 ): Promise<{ semanaId: string } | { error: string }> {
+  if (input.periodoId) {
+    const areaCheck = await verifyPeriodoMatchesNominaArea(supabase, input.periodoId, input.area);
+    if (areaCheck.error) return { error: areaCheck.error };
+  }
   let lookup = supabase
     .from('nomina_semanas')
     .select('id')
@@ -108,6 +150,20 @@ export async function ensureManualVistaPeriodoId(
   },
 ): Promise<{ periodoId: string } | { error: string }> {
   const label = input.periodo.label.trim() || `Periodo manual ${input.periodo.rangeStart}`;
+
+  if (inferPayrollSectionFromLabel(label) === 'planta' && input.area === 'mina') {
+    return {
+      error:
+        'Este ciclo es de Molino. Guárdalo desde Planta → Nómina (/planta/nomina), no desde Mina.',
+    };
+  }
+  if (inferPayrollSectionFromLabel(label) === 'mina' && input.area === 'planta') {
+    return {
+      error:
+        'Este ciclo es de Mina. Guárdalo desde Mina → Nómina (/mina/nomina), no desde Molino.',
+    };
+  }
+
   const metaFilter = { area: input.area, source: 'vista_manual' };
 
   const { data: candidates, error: listError } = await supabase
@@ -129,7 +185,11 @@ export async function ensureManualVistaPeriodoId(
     );
   });
 
-  if (existing?.id) return { periodoId: existing.id };
+  if (existing?.id) {
+    const check = await verifyPeriodoMatchesNominaArea(supabase, existing.id, input.area);
+    if (check.error) return { error: check.error };
+    return { periodoId: existing.id };
+  }
 
   const { data: created, error: createError } = await supabase
     .from('nomina_periodos')
@@ -181,7 +241,7 @@ async function assertPeriodoSemanaSameArea(
   }
   if (semana.area !== periodoArea) {
     return {
-      error: `No se puede vincular nómina ${semana.area} a un periodo de ${periodoArea}.`,
+      error: crossAreaNominaMessage(semana.area, periodoArea, undefined),
     };
   }
   return {};

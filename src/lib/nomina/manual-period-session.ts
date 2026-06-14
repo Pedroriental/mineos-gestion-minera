@@ -5,6 +5,8 @@ import {
   normalizeManualPeriod,
   weekInManualPeriod,
   createManualPeriodId,
+  isManualPeriodCompatibleWithArea,
+  stripCrossAreaPeriodoDbIds,
   type ManualNominaPeriod,
 } from '@/lib/nomina/manual-period';
 import { referenceRotationSemanas } from '@/lib/rotacion-plantillas/manual-plantilla-projection';
@@ -70,8 +72,16 @@ export function periodsEnCurso(session: ManualPeriodsSession): ManualNominaPerio
 }
 
 /** Quita archivos importados y duplicados; reajusta ids de sesión. */
-export function sanitizeManualPeriodsSession(session: ManualPeriodsSession): ManualPeriodsSession {
-  const periods = filterManualPeriodsEnCurso(session.periods);
+export function sanitizeManualPeriodsSession(
+  session: ManualPeriodsSession,
+  area?: string,
+): ManualPeriodsSession {
+  let periods = filterManualPeriodsEnCurso(session.periods);
+  if (area) {
+    periods = periods
+      .filter((p) => isManualPeriodCompatibleWithArea(p, area))
+      .map((p) => stripCrossAreaPeriodoDbIds(p, area));
+  }
   const valid = new Set(periods.map((p) => p.id));
   const pick = (id: string | null | undefined) => (id && valid.has(id) ? id : null);
   return {
@@ -191,12 +201,15 @@ export function loadManualPeriodsSession(area: string): ManualPeriodsSession {
       const periods = (parsed.periods ?? [])
         .map((p) => normalizeManualPeriod(p as Partial<ManualNominaPeriod>))
         .filter(Boolean) as ManualNominaPeriod[];
-      return sanitizeManualPeriodsSession({
-        periods,
-        editorPeriodId: parsed.editorPeriodId ?? periods[0]?.id ?? null,
-        workingWeekPeriodId: parsed.workingWeekPeriodId ?? null,
-        historicalPeriodId: parsed.historicalPeriodId ?? null,
-      });
+      return sanitizeManualPeriodsSession(
+        {
+          periods,
+          editorPeriodId: parsed.editorPeriodId ?? periods[0]?.id ?? null,
+          workingWeekPeriodId: parsed.workingWeekPeriodId ?? null,
+          historicalPeriodId: parsed.historicalPeriodId ?? null,
+        },
+        area,
+      );
     }
 
     const v2 = localStorage.getItem(manualPeriodStorageKey(area));
@@ -205,12 +218,15 @@ export function loadManualPeriodsSession(area: string): ManualPeriodsSession {
     if (raw) {
       const single = normalizeManualPeriod(JSON.parse(raw) as Partial<ManualNominaPeriod>);
       if (single) {
-        return sanitizeManualPeriodsSession({
-          periods: [single],
-          editorPeriodId: single.id,
-          workingWeekPeriodId: null,
-          historicalPeriodId: single.id,
-        });
+        return sanitizeManualPeriodsSession(
+          {
+            periods: [single],
+            editorPeriodId: single.id,
+            workingWeekPeriodId: null,
+            historicalPeriodId: single.id,
+          },
+          area,
+        );
       }
     }
   } catch {
@@ -222,7 +238,7 @@ export function loadManualPeriodsSession(area: string): ManualPeriodsSession {
 export function saveManualPeriodsSession(area: string, session: ManualPeriodsSession): void {
   if (typeof window === 'undefined') return;
   try {
-    const clean = sanitizeManualPeriodsSession(session);
+    const clean = sanitizeManualPeriodsSession(session, area);
     if (!clean.periods.length) {
       localStorage.removeItem(manualPeriodsSessionKey(area));
       return;
