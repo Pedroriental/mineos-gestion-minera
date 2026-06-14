@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Save, Trash2, Scale } from 'lucide-react';
 import type { DistribucionLinea, DistribucionParte } from '@/lib/nomina-distribucion';
+import { isAutoNominaDivisionNombre } from '@/lib/reconciliation/nomina-divisiones';
 
 function fmtMoney(n: number) {
   return n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -32,6 +33,48 @@ function amountColor(color: (typeof COLORS)[number], isLight: boolean) {
   if (color === 'emerald') return isLight ? 'text-emerald-700' : 'text-emerald-400';
   if (color === 'amber') return isLight ? 'text-amber-700' : 'text-amber-400';
   return 'text-violet-400';
+}
+
+function formatLineaResumen(
+  l: DistribucionLinea,
+  isLight: boolean,
+  color: (typeof COLORS)[number],
+  muted: string,
+) {
+  const showNombre = l.nombre.trim() && !isAutoNominaDivisionNombre(l.nombre, l.porcentaje);
+  const hasDirectos = l.pagoDirecto > 0;
+  const brutoNetoDistintos = Math.abs(l.bruto - l.neto) > 0.005;
+
+  return (
+    <>
+      <span className="font-bold tabular-nums">{l.porcentaje}%</span>
+      {showNombre ? (
+        <>
+          <span className={muted}> · </span>
+          <span className="font-medium">{l.nombre.trim()}</span>
+        </>
+      ) : null}
+      <span className={muted}> · </span>
+      {hasDirectos || brutoNetoDistintos ? (
+        <>
+          <span className={`font-bold tabular-nums ${amountColor(color, isLight)}`}>
+            {fmtMoney(l.bruto)}
+          </span>
+          <span className={muted}> → neto </span>
+          <span className={`font-bold tabular-nums ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>
+            {fmtMoney(l.neto)}
+          </span>
+          {hasDirectos ? (
+            <span className={muted}> (directos {fmtMoney(l.pagoDirecto)})</span>
+          ) : null}
+        </>
+      ) : (
+        <span className={`font-bold tabular-nums ${amountColor(color, isLight)}`}>
+          {fmtMoney(l.neto)}
+        </span>
+      )}
+    </>
+  );
 }
 
 export default function NominaDistribucionPanel({
@@ -97,20 +140,7 @@ export default function NominaDistribucionPanel({
           const color = COLORS[i % COLORS.length];
           return (
             <li key={l.id} className={`text-[11px] leading-snug ${text}`}>
-              <span className="font-bold tabular-nums">{l.porcentaje}%</span>
-              <span className={muted}> · </span>
-              <span className="font-medium">{l.nombre || 'Sin nombre'}</span>
-              <span className={muted}> · </span>
-              <span className={`font-bold tabular-nums ${amountColor(color, isLight)}`}>
-                {fmtMoney(l.bruto)}
-              </span>
-              <span className={muted}> · neto </span>
-              <span className={`font-bold tabular-nums ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>
-                {fmtMoney(l.neto)}
-              </span>
-              {l.pagoDirecto > 0 ? (
-                <span className={muted}> · directos {fmtMoney(l.pagoDirecto)}</span>
-              ) : null}
+              {formatLineaResumen(l, isLight, color, muted)}
             </li>
           );
         })}

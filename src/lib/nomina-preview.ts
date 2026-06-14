@@ -422,9 +422,12 @@ function collectImportPreviewPeople(
   return [...ids]
     .map((id) => {
       const existing = personalById.get(id);
+      const registroRef = registrosCerrados.find(
+        (r) => r.personal_id === id && weekSet.has(r.semana_inicio),
+      );
       const snap =
         personalSnapshots[id] ??
-        registrosCerrados.find((r) => r.personal_id === id && r.personal_snapshot)?.personal_snapshot ??
+        registroRef?.personal_snapshot ??
         null;
 
       if (snap && existing) {
@@ -433,7 +436,7 @@ function collectImportPreviewPeople(
           cedula: snap.cedula || existing.cedula,
           nombre_completo: snap.nombre_completo || existing.nombre_completo,
           cargo: snap.cargo || existing.cargo,
-          area: (snap.area as Personal['area']) || existing.area,
+          area: (registroRef?.area as Personal['area']) || (snap.area as Personal['area']) || existing.area,
           area_detalle: snap.area_detalle || existing.area_detalle,
         };
       }
@@ -443,7 +446,7 @@ function collectImportPreviewPeople(
           cedula: snap.cedula,
           nombre_completo: snap.nombre_completo,
           cargo: snap.cargo,
-          area: snap.area as Personal['area'],
+          area: (registroRef?.area as Personal['area']) || (snap.area as Personal['area']),
           area_detalle: snap.area_detalle,
           salario_base: snap.salario_base,
           salario_libre: snap.salario_libre,
@@ -458,8 +461,6 @@ function collectImportPreviewPeople(
     })
     .filter((p): p is Personal => p != null);
 }
-
-/** Reconstruye la sección como en la planilla importada (Molinos, Mina, vertical, etc.). */
 export function resolvePreviewSectionFromPersonal(p: Personal): {
   id: string;
   title: string;
@@ -560,33 +561,6 @@ export function nominaPeriodoMatchesArea(
   }
 
   return false;
-}
-
-function inferAreaFromSectionId(id: string): string | null {
-  if (id.startsWith('planta')) return 'planta';
-  if (id.startsWith('mina')) return 'mina';
-  if (id.startsWith('admin')) return 'administracion';
-  return null;
-}
-
-function sumClosedRegistrosInRange(
-  registros: NominaRegistroCerrado[],
-  rangeStart: string,
-  rangeEnd: string,
-  filterArea?: string,
-): number {
-  const weekSet = new Set(listWeekStartsInRange(rangeStart, rangeEnd));
-  const seen = new Set<string>();
-  let total = 0;
-  for (const r of registros) {
-    if (!weekSet.has(r.semana_inicio)) continue;
-    if (filterArea && r.area !== filterArea) continue;
-    const key = `${r.personal_id}|${r.semana_inicio}|${r.area}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    total += Number(r.monto_pagado) || 0;
-  }
-  return parseFloat(total.toFixed(2));
 }
 
 function applyImportSectionOrder(
@@ -690,9 +664,16 @@ export function buildNominaPreviewReport(input: {
   const archive = buildArchiveMap(registrosCerrados);
   const lastOpenWeekStart = weekStarts[weekStarts.length - 1];
   const importArchiveMode = Boolean(importSectionOrder?.length);
-  const peopleToProcess = importArchiveMode
-    ? collectImportPreviewPeople(personalFiltered, registrosCerrados, weekSet, personalSnapshots)
-    : personalFiltered;
+  const hasRegistrosInRange = registrosCerrados.some((r) => weekSet.has(r.semana_inicio));
+  const peopleToProcess =
+    importArchiveMode || hasRegistrosInRange
+      ? collectImportPreviewPeople(
+          personalFiltered,
+          registrosCerrados,
+          weekSet,
+          personalSnapshots,
+        )
+      : personalFiltered;
 
   const closedWeeksByArea = new Set<string>();
   for (const r of registrosCerrados) {
@@ -813,18 +794,7 @@ export function buildNominaPreviewReport(input: {
     .filter((s) => s.rows.length > 0)
     .filter((s) => {
       if (!filterArea) return true;
-      const fromId = inferAreaFromSectionId(s.id);
-      if (fromId) return fromId === filterArea;
-      if (filterArea === 'planta') {
-        return s.id.startsWith('planta') || s.title.toLowerCase().includes('molino');
-      }
-      if (filterArea === 'mina') {
-        return s.id.startsWith('mina') || s.title.toLowerCase().includes('mina');
-      }
-      if (filterArea === 'administracion') {
-        return s.id.startsWith('admin') || s.title.toLowerCase().includes('administr');
-      }
-      return true;
+      return s.rows.some((r) => r.personal.area === filterArea);
     })
     .map((s) => {
       s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
@@ -843,16 +813,7 @@ export function buildNominaPreviewReport(input: {
     total: s.sectionTotal,
   }));
 
-  let grandTotal = summary.reduce((n, s) => n + s.total, 0);
-  const closedExact = sumClosedRegistrosInRange(
-    registrosCerrados,
-    rangeStart,
-    rangeEnd,
-    filterArea,
-  );
-  if (!allowProjection || calculatedCells === 0) {
-    grandTotal = closedExact;
-  }
+  const grandTotal = parseFloat(summary.reduce((n, s) => n + s.total, 0).toFixed(2));
   const personalById = new Map(personalFiltered.map((p) => [p.id, p]));
   let novedades = buildNominaPreviewNovedadesDesdeRegistros(
     registrosCerrados,

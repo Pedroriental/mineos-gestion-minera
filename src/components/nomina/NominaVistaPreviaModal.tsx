@@ -33,6 +33,54 @@ function filterRegistrosByArea(
   return registros.filter((r) => r.area === filterArea);
 }
 
+/** Datos en vivo de la semana actual tienen prioridad sobre registros históricos del servidor. */
+function mergeActiveRegistros(
+  registros: NominaRegistroCerrado[],
+  activeWeek: { semana_inicio: string; semana_fin?: string } | undefined,
+  activeRegistros: NominaRegistroCerrado[] | undefined,
+  filterArea?: string,
+): NominaRegistroCerrado[] {
+  const activeForArea = filterRegistrosByArea(activeRegistros ?? [], filterArea);
+  if (!activeWeek || activeForArea.length === 0) return registros;
+
+  const withoutActiveWeek = registros.filter(
+    (r) =>
+      !(
+        r.semana_inicio === activeWeek.semana_inicio &&
+        (!filterArea || r.area === filterArea)
+      ),
+  );
+  return [...activeForArea, ...withoutActiveWeek];
+}
+
+function enrichPersonalFromRegistros(
+  personal: Personal[],
+  registros: NominaRegistroCerrado[],
+): Personal[] {
+  const byId = new Map(personal.map((p) => [p.id, p]));
+  for (const r of registros) {
+    if (byId.has(r.personal_id)) continue;
+    const snap = r.personal_snapshot;
+    if (!snap) continue;
+    byId.set(r.personal_id, {
+      id: r.personal_id,
+      cedula: snap.cedula,
+      nombre_completo: snap.nombre_completo,
+      cargo: snap.cargo,
+      area: (r.area as Personal['area']) || (snap.area as Personal['area']),
+      area_detalle: snap.area_detalle,
+      salario_base: snap.salario_base,
+      salario_libre: snap.salario_libre,
+      bono_transporte: snap.bono_transporte,
+      esquema_rotacion: snap.esquema_rotacion,
+      rotacion_inicio_fecha: snap.rotacion_inicio_fecha,
+      fecha_ingreso: null,
+      estatus: 'ACTIVO',
+    } as Personal);
+  }
+  return [...byId.values()];
+}
+
 export function NominaVistaPreviaModal({
   open,
   onClose,
@@ -74,23 +122,28 @@ export function NominaVistaPreviaModal({
           return;
         }
 
-        let mergedRegistros = [...previewRes.registrosCerrados];
+        let mergedRegistros = mergeActiveRegistros(
+          previewRes.registrosCerrados,
+          activeWeek,
+          activeRegistros,
+          filterArea,
+        );
         let mergedSemanas = [...previewRes.semanasCerradas];
 
         const activeForArea = filterRegistrosByArea(activeRegistros ?? [], filterArea);
         if (activeWeek && activeForArea.length > 0) {
-          const isAlreadyClosed = previewRes.semanasCerradas.some(
+          const weekListed = mergedSemanas.some(
             (s) => s.semana_inicio === activeWeek.semana_inicio,
           );
-          if (!isAlreadyClosed) {
+          if (!weekListed) {
             mergedSemanas = [activeWeek, ...mergedSemanas];
-            mergedRegistros = [...activeForArea, ...mergedRegistros];
           }
         }
 
-        const personalForArea = filterArea
+        let personalForArea = filterArea
           ? previewRes.personal.filter((p) => p.area === filterArea)
           : previewRes.personal;
+        personalForArea = enrichPersonalFromRegistros(personalForArea, mergedRegistros);
 
         setPersonal(personalForArea);
         setRegistrosCerrados(mergedRegistros);
@@ -130,17 +183,21 @@ export function NominaVistaPreviaModal({
       const res = await loadNominaVistaPreviaDataAction(loadOptions);
       if (!res.ok) return;
 
-      let mergedRegistros = [...res.registrosCerrados];
+      let mergedRegistros = mergeActiveRegistros(
+        res.registrosCerrados,
+        activeWeek,
+        activeRegistros,
+        filterArea,
+      );
       let mergedSemanas = [...res.semanasCerradas];
 
       const activeForArea = filterRegistrosByArea(activeRegistros ?? [], filterArea);
       if (activeWeek && activeForArea.length > 0) {
-        const isAlreadyClosed = res.semanasCerradas.some(
+        const weekListed = mergedSemanas.some(
           (s) => s.semana_inicio === activeWeek.semana_inicio,
         );
-        if (!isAlreadyClosed) {
+        if (!weekListed) {
           mergedSemanas = [activeWeek, ...mergedSemanas];
-          mergedRegistros = [...activeForArea, ...mergedRegistros];
         }
       }
 
