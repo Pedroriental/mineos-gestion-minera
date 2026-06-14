@@ -35,6 +35,7 @@ import {
 import {
   buildDefaultWeekColumnCuadrillas,
   buildManualPeriodPreviewRows,
+  buildWeekColumnEstatusForPeriod,
   cuadrillaNombresForColumns,
   referenceRotationSemanas,
   remapWeekColumnCuadrillasForPlantilla,
@@ -216,16 +217,21 @@ export function NominaManualPeriodPanel({
     if (!needsWeeks && !needsCuadrillas && !staleCuadrillas) return;
 
     const nextCuadrillas = needsCuadrillas || staleCuadrillas ? remapped : period.weekColumnCuadrillas;
-    onPeriodChange({
+    const nextAssignment = needsWeeks
+      ? buildDefaultWeekColumnAssignment(calendarWeeks, columnCount)
+      : period.weekColumnAssignment;
+    const nextPeriod = {
       ...period,
-      weekColumnAssignment: needsWeeks
-        ? buildDefaultWeekColumnAssignment(calendarWeeks, columnCount)
-        : period.weekColumnAssignment,
+      weekColumnAssignment: nextAssignment,
       weekColumnCuadrillas: nextCuadrillas,
       weekColumnCuadrillaNombres:
         needsCuadrillas || staleCuadrillas
           ? cuadrillaNombresForColumns(remapped, plantillaActiva)
           : period.weekColumnCuadrillaNombres,
+    };
+    onPeriodChange({
+      ...nextPeriod,
+      weekColumnEstatus: buildWeekColumnEstatusForPeriod(nextPeriod, plantillaActiva),
     });
   }, [period, plantillaActiva, calendarWeeks, columnCount, onPeriodChange]);
 
@@ -244,7 +250,13 @@ export function NominaManualPeriodPanel({
       if (i !== colIdx && weekStartIso && next[i] === weekStartIso) next[i] = '';
     }
     next[colIdx] = weekStartIso;
-    onPeriodChange({ ...period, weekColumnAssignment: next });
+    const nextPeriod = { ...period, weekColumnAssignment: next };
+    onPeriodChange({
+      ...nextPeriod,
+      weekColumnEstatus: plantillaActiva
+        ? buildWeekColumnEstatusForPeriod(nextPeriod, plantillaActiva)
+        : nextPeriod.weekColumnEstatus,
+    });
   }
 
   function toggleColumnCuadrilla(colIdx: number, cuadrillaId: string) {
@@ -346,6 +358,9 @@ export function NominaManualPeriodPanel({
     const pl =
       plantillaActiva ?? plantillas.find((p) => p.id === period.plantillaId) ?? null;
     startTransition(async () => {
+      const weekEstatus = pl
+        ? buildWeekColumnEstatusForPeriod(period, pl)
+        : period.weekColumnEstatus;
       const res = await consolidarNominaPeriodoAction({
         label: manualPeriodConsolidateLabel(period),
         rangeStart: period.rangeStart,
@@ -360,6 +375,7 @@ export function NominaManualPeriodPanel({
           week_column_cuadrilla_nombres: pl
             ? cuadrillaNombresForColumns(weekColumnCuadrillas, pl)
             : [],
+          week_column_estatus: weekEstatus,
           semana_ids: period.semanaIds ?? [],
         },
       });

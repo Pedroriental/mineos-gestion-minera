@@ -49,6 +49,8 @@ export type ManualNominaPeriod = {
   weekColumnCuadrillas?: string[][];
   /** Nombres de cuadrilla por columna (persistencia estable si cambian los UUID) */
   weekColumnCuadrillaNombres?: string[][];
+  /** Estatus de plantilla por semana calendario (Transp. / Trab. / Lib.Pag.) */
+  weekColumnEstatus?: (import('@/lib/rotacion-plantillas/types').EstatusRotacionPlantilla | null)[];
   /** Registro archivado en nomina_periodos (vista manual o consolidado). */
   periodoArchivoId?: string;
   /** Periodo DB creado al activar el ciclo (aisla cierres por ciclo). */
@@ -76,6 +78,8 @@ export type ManualPeriodProgress = {
   totalUsd: number;
   /** Total USD por semana_inicio (solo semanas cerradas en el periodo). */
   weekTotalsUsd: Record<string, number>;
+  /** Estatus de plantilla por semana calendario (alineado con `weeks`). */
+  weekEstatus: (import('@/lib/rotacion-plantillas/types').EstatusRotacionPlantilla | null)[];
   allClosed: boolean;
 };
 
@@ -332,6 +336,9 @@ export function computeManualPeriodProgress(
     totalWeeks: weeks.length,
     totalUsd: parseFloat(totalUsd.toFixed(2)),
     weekTotalsUsd,
+    weekEstatus: period.weekColumnEstatus?.length === weeks.length
+      ? period.weekColumnEstatus
+      : weeks.map(() => null),
     allClosed: weeks.length > 0 && openWeeks.length === 0,
   };
 }
@@ -430,6 +437,11 @@ export function manualPeriodFromPeriodoSummary(p: NominaPeriodoSummary): ManualN
         Array.isArray(col) ? col.filter((n): n is string => typeof n === 'string' && n.trim().length > 0) : [],
       )
     : undefined;
+  const weekColumnEstatus = Array.isArray(meta.week_column_estatus)
+    ? meta.week_column_estatus.map((e) =>
+        typeof e === 'string' ? (e as import('@/lib/rotacion-plantillas/types').EstatusRotacionPlantilla) : null,
+      )
+    : undefined;
 
   const semanaIds = Array.isArray(meta.semana_ids)
     ? meta.semana_ids.filter((id): id is string => typeof id === 'string')
@@ -445,6 +457,7 @@ export function manualPeriodFromPeriodoSummary(p: NominaPeriodoSummary): ManualN
     weekColumnAssignment,
     weekColumnCuadrillas,
     weekColumnCuadrillaNombres,
+    weekColumnEstatus,
     periodoArchivoId: p.id,
     semanaIds,
     periodoTotalUsd:
@@ -482,6 +495,9 @@ export function normalizeManualPeriod(
             ? col.filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
             : [],
         )
+      : undefined,
+    weekColumnEstatus: Array.isArray(raw.weekColumnEstatus)
+      ? raw.weekColumnEstatus.map((e) => (typeof e === 'string' ? e : null))
       : undefined,
     periodoArchivoId:
       typeof raw.periodoArchivoId === 'string' && raw.periodoArchivoId.trim()

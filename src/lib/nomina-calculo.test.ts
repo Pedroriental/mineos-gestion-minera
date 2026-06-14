@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   calculateExplicitAsistenciaPay,
+  calculatePayFromPlantillaEstatus,
   calculateNominaRowPay,
   defaultDiasTrabajados,
   resolveEstadoYDias,
@@ -271,5 +272,38 @@ describe('calculateExplicitAsistenciaPay plantilla', () => {
       totalVales: 0,
     });
     assert.equal(pay.salarioBaseCalculado, 125);
+  });
+});
+
+describe('calculatePayFromPlantillaEstatus', () => {
+  const molino = {
+    salario_base: 140,
+    salario_libre: 100,
+    bono_transporte: 30,
+    area: 'planta' as const,
+    area_detalle: 'Molinos- Grupo (mixto)',
+  };
+
+  it('semana trabajada paga sueldo sin bono', () => {
+    const pay = calculatePayFromPlantillaEstatus({
+      estatus: 'trabajada_paga',
+      personal: molino,
+      diasTrabajados: 7,
+    });
+    assert.equal(pay.salarioBaseCalculado, 140);
+    assert.equal(pay.bonoTransporte, 0);
+    assert.equal(pay.total, 140);
+  });
+
+  it('semana bono transporte paga solo bono', () => {
+    const pay = calculatePayFromPlantillaEstatus({
+      estatus: 'bono_transporte_paga',
+      personal: molino,
+      diasTrabajados: 0,
+    });
+    assert.equal(pay.salarioBaseCalculado, 0);
+    assert.equal(pay.bonoTransporte, 30);
+    assert.equal(pay.total, 30);
+    assert.equal(pay.estadoAsistencia, 'no_laborado');
   });
 });

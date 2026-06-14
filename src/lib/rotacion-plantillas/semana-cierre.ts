@@ -5,7 +5,7 @@ import type {
   SemanaEjecucionEstado,
 } from '@/lib/rotacion-plantillas/types';
 import type { EstadoAsistenciaNomina } from '@/lib/nomina-calculo';
-import { NOMINA_DIAS_POR_SEMANA } from '@/lib/nomina-calculo';
+import { NOMINA_DIAS_POR_SEMANA, applyProportionalWeeklyPay } from '@/lib/nomina-calculo';
 
 /** Mapeo estatus plantilla → asistencia nómina semanal */
 export function estatusPlantillaToAsistencia(estatus: EstatusRotacionPlantilla): EstadoAsistenciaNomina {
@@ -21,6 +21,8 @@ export function estatusPlantillaToAsistencia(estatus: EstatusRotacionPlantilla):
       return 'no_laborado';
     case 'vacaciones':
       return 'libre';
+    case 'bono_transporte_paga':
+      return 'no_laborado';
     default:
       return 'trabajada';
   }
@@ -28,7 +30,7 @@ export function estatusPlantillaToAsistencia(estatus: EstatusRotacionPlantilla):
 
 /** Días bloqueados en UI semanal según estatus de plantilla */
 export function diasInputBloqueadosPorPlantilla(estatus: EstatusRotacionPlantilla): boolean {
-  return estatus !== 'trabajada_paga' && estatus !== 'reposo';
+  return estatus !== 'trabajada_paga' && estatus !== 'reposo' && estatus !== 'bono_transporte_paga';
 }
 
 /** La plantilla sugiere asistencia; nunca bloquea la UI semanal. */
@@ -78,7 +80,7 @@ export function previewPagoSemanal(
     case 'trabajada_paga':
       return {
         sueldo: (salarioBase / NOMINA_DIAS_POR_SEMANA) * diasTrabajados,
-        bono: (bonoTransporte / NOMINA_DIAS_POR_SEMANA) * diasTrabajados,
+        bono: 0,
         dias: diasTrabajados,
       };
     case 'libre_paga':
@@ -90,6 +92,12 @@ export function previewPagoSemanal(
       return { sueldo: (salarioBase / NOMINA_DIAS_POR_SEMANA) * Math.min(3, diasTrabajados), bono: 0, dias: diasTrabajados };
     case 'vacaciones':
       return { sueldo: salarioLibre || salarioBase, bono: 0, dias: 0 };
+    case 'bono_transporte_paga':
+      return {
+        sueldo: 0,
+        bono: applyProportionalWeeklyPay(bonoTransporte, diasTrabajados || NOMINA_DIAS_POR_SEMANA),
+        dias: 0,
+      };
     default:
       return { sueldo: 0, bono: 0, dias: 0 };
   }

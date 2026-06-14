@@ -8,13 +8,13 @@ import {
   resolveDiasInputBloqueadoPlantilla,
 } from '@/lib/rotacion-plantillas/semana-cierre';
 import {
-  calculateNominaRowPay,
   calculateExplicitAsistenciaPay,
+  calculatePayFromPlantillaEstatus,
   defaultDiasTrabajados,
   NOMINA_DIAS_POR_SEMANA,
 } from '@/lib/nomina-calculo';
 import type { ManualNominaPeriod } from '@/lib/nomina/manual-period';
-import { resolveManualPeriodWeekColumn } from '@/lib/nomina/manual-period';
+import { manualPeriodWeekStarts, resolveManualPeriodWeekColumn } from '@/lib/nomina/manual-period';
 import { getGrupoNominaKey } from '@/lib/personal-master';
 import {
   asignacionMatchesCuadrilla,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/rotacion-plantillas/sandbox-state';
 import type { Personal } from '@/lib/types';
 import type { NominaVale } from '@/lib/types';
+import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-transporte-semana';
 import type {
   RotacionCuadrilla,
   EstatusRotacionPlantilla,
@@ -179,6 +180,31 @@ export function weekColumnCuadrillasEqual(
       sortCuadrillaIds(col, plantilla).join('|') ===
       sortCuadrillaIds(b[i] ?? [], plantilla).join('|'),
   );
+}
+
+/** Estatus de plantilla por semana calendario del periodo (para archivo y UI). */
+export function buildWeekColumnEstatusForPeriod(
+  period: Pick<
+    ManualNominaPeriod,
+    'rangeStart' | 'rangeEnd' | 'weekColumnAssignment' | 'weekColumnEstatus'
+  >,
+  plantilla: RotacionPlantillaRecord | null,
+): (EstatusRotacionPlantilla | null)[] {
+  const weeks = manualPeriodWeekStarts(period.rangeStart, period.rangeEnd);
+  if (period.weekColumnEstatus?.length === weeks.length) {
+    return period.weekColumnEstatus;
+  }
+  if (!plantilla) return weeks.map(() => null);
+  const refSemanas = referenceRotationSemanas(plantilla);
+  return weeks.map((w) => {
+    const colIdx = resolveManualPeriodWeekColumn(
+      w,
+      period.rangeStart,
+      period.rangeEnd,
+      period.weekColumnAssignment,
+    );
+    return refSemanas[colIdx]?.estatusDefault ?? null;
+  });
 }
 
 export function resolveActiveCuadrillaIdsForWeek(
@@ -493,13 +519,14 @@ export function buildManualPlantillaNominaRows(input: {
           : defaultDiasTrabajados(predicted)
       : defaultDiasTrabajados(predicted);
 
-    const pay = calculateExplicitAsistenciaPay({
+    const esSemanaBono = esEstatusSemanaBonoTransporte(rotacion.estatus);
+    const pay = calculatePayFromPlantillaEstatus({
+      estatus: rotacion.estatus,
       personal: p,
-      estadoAsistencia: predicted,
       diasTrabajados,
+      bonoTransporte: esSemanaBono ? undefined : 0,
       bonificaciones: 0,
       totalVales,
-      bonoTransporte: diasBloqueados ? 0 : undefined,
     });
 
     rows.push({
@@ -509,7 +536,7 @@ export function buildManualPlantillaNominaRows(input: {
       bonificaciones: 0,
       deducciones: totalVales,
       total: pay.total,
-      estadoAsistencia: predicted,
+      estadoAsistencia: pay.estadoAsistencia,
       diasTrabajados,
       salarioBaseCalculado: pay.salarioBaseCalculado,
       valesPendientes: workerVales,

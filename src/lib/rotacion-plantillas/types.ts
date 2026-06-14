@@ -7,7 +7,8 @@ export type EstatusRotacionPlantilla =
   | 'libre_sin_pago'
   | 'no_laborada'
   | 'reposo'
-  | 'vacaciones';
+  | 'vacaciones'
+  | 'bono_transporte_paga';
 
 export type RotacionSemanaColumn = {
   id: string;
@@ -92,6 +93,12 @@ export const ESTATUS_ROTACION_OPCIONES: {
   { value: 'no_laborada', label: 'No laborada', short: 'N/Lab', previewClass: 'bg-red-50 text-red-700' },
   { value: 'reposo', label: 'Reposo', short: 'Rep.', previewClass: 'bg-blue-50 text-blue-700' },
   { value: 'vacaciones', label: 'Vacaciones', short: 'Vac.', previewClass: 'bg-violet-50 text-violet-700' },
+  {
+    value: 'bono_transporte_paga',
+    label: 'Bono transporte',
+    short: 'Transp.',
+    previewClass: 'bg-sky-100 text-sky-800',
+  },
 ];
 
 export function estatusRotacionLabel(v: EstatusRotacionPlantilla): string {

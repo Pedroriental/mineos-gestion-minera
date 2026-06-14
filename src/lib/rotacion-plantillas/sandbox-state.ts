@@ -185,6 +185,14 @@ function semanasMolino2x2(): RotacionSemanaColumn[] {
   ];
 }
 
+/** Estilo Excel: bono transporte en semana propia, sueldo en otra. */
+function semanasMolinoBonoSueldo(): RotacionSemanaColumn[] {
+  return [
+    { id: newId(), nombre: 'Bono transporte', orden: 0, estatusDefault: 'bono_transporte_paga' },
+    { id: newId(), nombre: 'Semana trabajada', orden: 1, estatusDefault: 'trabajada_paga' },
+  ];
+}
+
 function semanasFijoContinuo(): RotacionSemanaColumn[] {
   return [{ id: newId(), nombre: 'Semana continua', orden: 0, estatusDefault: 'trabajada_paga' }];
 }
@@ -451,12 +459,13 @@ export function allPersonalIdsInSandbox(state: RotacionPlantillaSandbox): Set<st
   return ids;
 }
 
-export type PresetPlantillaTipo = 'mina_14x14' | 'mina_2x1' | 'molino_2x2' | 'admin_fijo';
+export type PresetPlantillaTipo = 'mina_14x14' | 'mina_2x1' | 'molino_2x2' | 'molino_mixto' | 'admin_fijo';
 
 export const PRESET_PLANTILLA_OPCIONES: ReadonlyArray<{ key: PresetPlantillaTipo; label: string }> = [
   { key: 'mina_14x14', label: 'Mina 14×14 — Completo' },
   { key: 'mina_2x1', label: 'Mina 2×1 — Completo' },
   { key: 'molino_2x2', label: 'Molino 2×2 — Completo' },
+  { key: 'molino_mixto', label: 'Molino mixto — Bono + Sueldo' },
   { key: 'admin_fijo', label: 'Administrativo semanal' },
 ];
 
@@ -513,6 +522,15 @@ export function presetPlantilla(tipo: PresetPlantillaTipo, area: string): Rotaci
     base.nombre = 'Molino 2×2 — Completo';
     base.cuadrillas = [
       cuadrilla('Grupo Molino', 'Molino', semanasMolino2x2(), 0),
+      cuadrilla('Cocina', 'Cocina', semanasFijoContinuo(), 1),
+      cuadrilla('Administración', 'Administración', semanasFijoContinuo(), 2),
+    ];
+  } else if (tipo === 'molino_mixto') {
+    base.nombre = 'Molino mixto — Bono + Sueldo';
+    base.descripcion =
+      'Como Excel: semana de bono transporte y semana trabajada en columnas separadas (totales se suman al cerrar el periodo).';
+    base.cuadrillas = [
+      cuadrilla('Grupo Molino', 'Molino', semanasMolinoBonoSueldo(), 0),
       cuadrilla('Cocina', 'Cocina', semanasFijoContinuo(), 1),
       cuadrilla('Administración', 'Administración', semanasFijoContinuo(), 2),
     ];

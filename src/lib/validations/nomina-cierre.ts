@@ -11,7 +11,8 @@
  * Módulo puro (sin 'use server'): testeable con `tsx --test`.
  */
 import { z } from 'zod';
-import { calculateNominaRowPay } from '@/lib/nomina-calculo';
+import { calculateNominaRowPay, calculatePayFromPlantillaEstatus } from '@/lib/nomina-calculo';
+import type { EstatusRotacionPlantilla } from '@/lib/rotacion-plantillas/types';
 import {
   asistenciaEsperadaPorPosicion,
   inputsDiasBloqueados,
@@ -64,6 +65,18 @@ export const RegistroCierreSchema = z
      * servidor. Obliga a dejar un motivo auditable (mín. 5 caracteres).
      */
     ajusteMotivo: z.string().trim().min(5, 'El motivo del ajuste requiere al menos 5 caracteres').max(300).optional(),
+    /** Semana de plantilla manual (p. ej. bono_transporte_paga separado del sueldo). */
+    estatusPlantilla: z
+      .enum([
+        'trabajada_paga',
+        'libre_paga',
+        'libre_sin_pago',
+        'no_laborada',
+        'reposo',
+        'vacaciones',
+        'bono_transporte_paga',
+      ])
+      .optional(),
   })
   .superRefine((r, ctx) => {
     if (r.estadoAsistencia === 'no_laborado' && r.diasTrabajados !== 0) {
@@ -226,27 +239,39 @@ export function verificarTotalesCierre(
       };
     }
 
-    const pay = calculateNominaRowPay({
-      personal,
-      estadoAsistencia: row.estadoAsistencia,
-      diasTrabajados: row.diasTrabajados,
-      weekStart,
-      bonificaciones: row.bonificaciones,
-      totalVales: row.totalVales,
-    });
+    const pay = row.estatusPlantilla
+      ? calculatePayFromPlantillaEstatus({
+          estatus: row.estatusPlantilla as EstatusRotacionPlantilla,
+          personal,
+          diasTrabajados: row.diasTrabajados,
+          bonoTransporte: row.bonoTransporte,
+          bonificaciones: row.bonificaciones,
+          totalVales: row.totalVales,
+        })
+      : calculateNominaRowPay({
+          personal,
+          estadoAsistencia: row.estadoAsistencia,
+          diasTrabajados: row.diasTrabajados,
+          weekStart,
+          bonoTransporte: row.bonoTransporte,
+          bonificaciones: row.bonificaciones,
+          totalVales: row.totalVales,
+        });
 
     const desviaciones: string[] = [];
-    const posicion = posicionEsquemaPersonal(personal, weekStart);
-    const totalSemanas = totalSemanasEsquema(personal.esquema_rotacion);
-    if (posicion !== null && totalSemanas > 1) {
-      const asistenciaEsperada = asistenciaEsperadaPorPosicion(personal.esquema_rotacion, posicion);
-      if (row.estadoAsistencia !== asistenciaEsperada) {
-        desviaciones.push(
-          `asistencia esperada ${asistenciaEsperada}, recibida ${row.estadoAsistencia}`,
-        );
-      }
-      if (inputsDiasBloqueados(personal.esquema_rotacion, posicion) && row.diasTrabajados !== 0) {
-        desviaciones.push('días trabajados modificados en una posición bloqueada por ciclo');
+    if (!row.estatusPlantilla) {
+      const posicion = posicionEsquemaPersonal(personal, weekStart);
+      const totalSemanas = totalSemanasEsquema(personal.esquema_rotacion);
+      if (posicion !== null && totalSemanas > 1) {
+        const asistenciaEsperada = asistenciaEsperadaPorPosicion(personal.esquema_rotacion, posicion);
+        if (row.estadoAsistencia !== asistenciaEsperada) {
+          desviaciones.push(
+            `asistencia esperada ${asistenciaEsperada}, recibida ${row.estadoAsistencia}`,
+          );
+        }
+        if (inputsDiasBloqueados(personal.esquema_rotacion, posicion) && row.diasTrabajados !== 0) {
+          desviaciones.push('días trabajados modificados en una posición bloqueada por ciclo');
+        }
       }
     }
 

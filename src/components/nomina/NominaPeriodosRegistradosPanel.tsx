@@ -28,6 +28,7 @@ import {
   stripPeriodoLabelPrefix,
   type ManualNominaPeriod,
 } from '@/lib/nomina/manual-period';
+import { estatusRotacionShort } from '@/lib/rotacion-plantillas/types';
 import type { NominaSemana } from '@/lib/types';
 import { mineosKpiValue, mineosPanel } from '@/lib/mineos-visual';
 import { cn } from '@/lib/utils';
@@ -289,18 +290,29 @@ export function NominaPeriodosRegistradosPanel({
                               {progress.weeks.map((w, idx) => {
                                 const closed = progress.closedWeeks.includes(w);
                                 const amount = progress.weekTotalsUsd[w];
+                                const estatus = progress.weekEstatus[idx];
+                                const tipoLabel = estatus ? estatusRotacionShort(estatus) : null;
                                 return (
                                   <span
                                     key={w}
                                     className={cn(
                                       'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] tabular-nums',
                                       closed
-                                        ? 'border-[var(--mineos-benefit-border)]/50 text-[var(--mineos-benefit)]'
+                                        ? estatus === 'bono_transporte_paga'
+                                          ? 'border-sky-500/40 text-sky-400'
+                                          : 'border-[var(--mineos-benefit-border)]/50 text-[var(--mineos-benefit)]'
                                         : 'border-[var(--card-border)] text-[var(--text-muted)]',
                                     )}
-                                    title={formatManualWeekLabel(w)}
+                                    title={
+                                      tipoLabel
+                                        ? `${formatManualWeekLabel(w)} · ${tipoLabel}`
+                                        : formatManualWeekLabel(w)
+                                    }
                                   >
-                                    <span className="font-bold opacity-70">S{idx + 1}</span>
+                                    <span className="font-bold opacity-70">
+                                      S{idx + 1}
+                                      {tipoLabel ? ` ${tipoLabel}` : ''}
+                                    </span>
                                     {closed ? fmtUsd(amount ?? 0) : 'Pend.'}
                                   </span>
                                 );
@@ -319,6 +331,8 @@ export function NominaPeriodosRegistradosPanel({
                                 {progress.weeks.map((w, idx) => {
                                   const closed = progress.closedWeeks.includes(w);
                                   const amount = progress.weekTotalsUsd[w] ?? 0;
+                                  const estatus = progress.weekEstatus[idx];
+                                  const tipoLabel = estatus ? estatusRotacionShort(estatus) : null;
                                   return (
                                     <tr
                                       key={w}
@@ -332,6 +346,18 @@ export function NominaPeriodosRegistradosPanel({
                                         {closed ? fmtUsd(amount) : '—'}
                                       </td>
                                       <td className="px-1.5 py-1">
+                                        {tipoLabel ? (
+                                          <span
+                                            className={cn(
+                                              'mr-1 text-[9px] font-bold uppercase',
+                                              estatus === 'bono_transporte_paga'
+                                                ? 'text-sky-400'
+                                                : 'text-[var(--text-muted)]',
+                                            )}
+                                          >
+                                            {tipoLabel}
+                                          </span>
+                                        ) : null}
                                         <span
                                           className={cn(
                                             'text-[9px] font-bold uppercase',

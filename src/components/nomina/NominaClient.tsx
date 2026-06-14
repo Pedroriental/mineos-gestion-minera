@@ -120,7 +120,7 @@ import { distribucionFromCierreLegacy } from '@/lib/nomina-distribucion';
 import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
 import {
   calculateNominaRowPay,
-  calculateExplicitAsistenciaPay,
+  calculatePayFromPlantillaEstatus,
   calculateWeeklyBaseRate,
   explicitWeeklyBaseRate,
   defaultDiasTrabajados,
@@ -130,6 +130,7 @@ import {
   aplicarPoliticaReposoSemanal,
   type EstadoAsistenciaNomina,
 } from '@/lib/nomina-calculo';
+import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-transporte-semana';
 import {
   diasTrabajadosPorDefectoCiclo,
   etiquetaEstadoRotacion,
@@ -316,18 +317,23 @@ function recomputePreNominaRow(
   }
 
   const resolved = resolveEstadoYDias(estadoAsistencia, diasTrabajados);
-  const bonoManual = diasBloqueados ? 0 : merged.bonoTransporte;
-  const bonificaciones = diasBloqueados ? 0 : merged.bonificaciones;
-  const pay = fromPlantilla
-    ? calculateExplicitAsistenciaPay({
-        personal: p,
-        estadoAsistencia: resolved.estadoAsistencia,
-        diasTrabajados: resolved.diasTrabajados,
-        bonoTransporte: bonoManual,
-        bonificaciones,
-        totalVales: merged.totalVales,
-      })
-    : calculateNominaRowPay({
+  const esSemanaBono =
+    fromPlantilla &&
+    merged.estatusPlantilla != null &&
+    esEstatusSemanaBonoTransporte(merged.estatusPlantilla);
+  const bonoManual = esSemanaBono ? merged.bonoTransporte : diasBloqueados ? 0 : merged.bonoTransporte;
+  const bonificaciones = diasBloqueados && !esSemanaBono ? 0 : merged.bonificaciones;
+  const pay =
+    fromPlantilla && merged.estatusPlantilla
+      ? calculatePayFromPlantillaEstatus({
+          estatus: merged.estatusPlantilla,
+          personal: p,
+          diasTrabajados: resolved.diasTrabajados,
+          bonoTransporte: esSemanaBono ? bonoManual || undefined : 0,
+          bonificaciones,
+          totalVales: merged.totalVales,
+        })
+      : calculateNominaRowPay({
         personal: p,
         estadoAsistencia: resolved.estadoAsistencia,
         diasTrabajados: resolved.diasTrabajados,
@@ -372,7 +378,10 @@ function recomputePreNominaRow(
 
   return {
     ...merged,
-    estadoAsistencia: resolved.estadoAsistencia,
+    estadoAsistencia:
+      fromPlantilla && merged.estatusPlantilla && 'estadoAsistencia' in pay
+        ? pay.estadoAsistencia
+        : resolved.estadoAsistencia,
     diasTrabajados: resolved.diasTrabajados,
     salarioBaseCalculado,
     bonoTransporte: pay.bonoTransporte,
@@ -1725,6 +1734,7 @@ export default function NominaClient({
             reposoDiasPagados: r.reposoDiasPagados ?? 0,
             reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
             ajusteMotivo: r.ajusteMotivo?.trim() || undefined,
+            estatusPlantilla: r.estatusPlantilla,
           };
         });
         const res = await procesarCierreNominaV3Action({
@@ -2583,7 +2593,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                 </td>
                                 {/* Bono */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5 border-l border-amber-500/10' : ''}`}>
-                                  <input type="number" value={row.bonoTransporte || ''} onChange={e => handleUpdateRow(p.id, { bonoTransporte: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada || row.diasInputBloqueado} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
+                                  <input type="number" value={row.bonoTransporte || ''} onChange={e => handleUpdateRow(p.id, { bonoTransporte: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada || (row.rotacionFuente === 'plantilla' ? row.estatusPlantilla !== 'bono_transporte_paga' : row.diasInputBloqueado)} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
                                 </td>
                                 {/* Bonificaciones */}
                                 <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5' : ''}`}>
