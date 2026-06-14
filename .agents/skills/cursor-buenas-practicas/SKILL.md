@@ -30,12 +30,16 @@ description: Buenas prácticas de trabajo con Cursor para proyectos Manano (Mine
 | Bug con síntomas confusos | `debug-methodical` o `systematic-debugging` |
 | React/Next performance | `vercel-react-best-practices` |
 | Supabase / SQL / RLS | `supabase`, `supabase-postgres-best-practices` |
-| Uniformidad visual / tokens | `mineos-visual-tokens`, `baseline-ui`, `design-tokens` |
+| Dirección estética / pantallas nuevas con brief creativo | `frontend-design` |
+| UI MineOS (colores, tokens, modales, tablas) | `mineos-visual-tokens`, `baseline-ui` |
+| Generación / auditoría de tokens | `design-tokens`, `design-consistency-auditor` |
 | Tests nuevos o regresiones | `tdd` |
 | Cierre de sesión | `vibe-session-end` |
 | **Antes de PR/commit grande** | `thermo-nuclear-code-quality-review`, `deslop`, `make-pr-easy-to-review` |
 
 `thermo-nuclear-code-quality-review` es **estricta** — úsala con scope acotado (ej. "solo `src/app/(app)/mina/`"), no en cada cambio pequeño.
+
+En MineOS, `frontend-design` define intención visual; `mineos-visual-tokens` **manda** en colores, tokens y helpers (`globals.css`, `mineos-visual.ts`).
 
 ## MineOS — recordatorios
 
