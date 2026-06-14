@@ -35,9 +35,10 @@ export default function AppError({
   useEffect(() => {
     console.error('[App] Error boundary caught:', error);
     if (!chunkError) return;
-    const key = 'mineos-chunk-reload-v1';
-    if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, '1');
+    const key = 'mineos-chunk-reload';
+    const attempts = Number(sessionStorage.getItem(key) || '0');
+    if (attempts >= 3) return;
+    sessionStorage.setItem(key, String(attempts + 1));
     void clearAppCachesAndReload();
   }, [error, chunkError]);
 
