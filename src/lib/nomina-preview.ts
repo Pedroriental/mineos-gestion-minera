@@ -714,14 +714,6 @@ export function buildNominaPreviewReport(input: {
         );
       })
     : personal;
-  const importSectionOrder =
-    importSectionOrderInput?.length
-      ? importSectionOrderInput
-      : plantilla
-        ? manualPeriodPlantilla
-          ? buildPlantillaPreviewSectionOrderForPeriod(plantilla, manualPeriodPlantilla)
-          : buildPlantillaPreviewSectionOrder(plantilla)
-        : undefined;
   const { start: rangeStart, end: rangeEnd } = normalizePreviewRange(
     input.rangeStart,
     input.rangeEnd,
@@ -729,6 +721,23 @@ export function buildNominaPreviewReport(input: {
 
   const weekStarts = listWeekStartsInRange(rangeStart, rangeEnd);
   const weekSet = new Set(weekStarts);
+  const personalByIdForPlantilla = new Map(personalForCatalog.map((p) => [p.id, p]));
+  const importSectionOrder =
+    importSectionOrderInput?.length
+      ? importSectionOrderInput
+      : plantilla
+        ? manualPeriodPlantilla
+          ? buildPlantillaPreviewSectionOrderForPeriod(plantilla, manualPeriodPlantilla, {
+              registros: registrosCerrados,
+              personalById: personalByIdForPlantilla,
+              weekSet,
+            })
+          : buildPlantillaPreviewSectionOrder(plantilla)
+        : undefined;
+  const plantillaPeriodSectionIds =
+    plantilla && manualPeriodPlantilla && importSectionOrder?.length
+      ? new Set(importSectionOrder.map((s) => s.id))
+      : null;
   const periodMeta = formatPreviewPeriodLabel(rangeStart, rangeEnd);
 
   const weekColumns: NominaPreviewWeekCol[] = weekStarts.map((weekStart, i) => {
@@ -931,7 +940,7 @@ export function buildNominaPreviewReport(input: {
       : null;
 
   let sections = [...sectionMap.values()]
-    .filter((s) => s.rows.length > 0)
+    .filter((s) => s.rows.length > 0 || plantillaPeriodSectionIds?.has(s.id))
     .map((s) => {
       s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
       s.sectionTotal = s.rows.reduce((n, r) => n + r.total, 0);
@@ -951,7 +960,12 @@ export function buildNominaPreviewReport(input: {
       }
     }
     sections = [...sectionMap.values()]
-      .filter((s) => s.rows.length > 0 || (plantillaSectionTotals.get(s.id) ?? 0) > 0)
+      .filter(
+        (s) =>
+          s.rows.length > 0 ||
+          (plantillaSectionTotals.get(s.id) ?? 0) > 0 ||
+          plantillaPeriodSectionIds?.has(s.id),
+      )
       .map((s) => {
         s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
         s.sectionTotal = plantillaSectionTotals.get(s.id) ?? s.rows.reduce((n, r) => n + r.total, 0);

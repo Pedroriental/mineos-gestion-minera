@@ -1714,6 +1714,7 @@ export default function NominaClient({
       rangeEnd: manualPeriodForView.rangeEnd,
       weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
       weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
+      weekColumnCuadrillaNombres: manualPeriodForView.weekColumnCuadrillaNombres,
     };
   }, [manualPeriodForView]);
 

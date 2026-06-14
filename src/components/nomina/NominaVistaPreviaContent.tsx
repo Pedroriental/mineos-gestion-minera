@@ -259,6 +259,7 @@ export default function NominaVistaPreviaContent({
         rangeEnd: manual.rangeEnd,
         weekColumnAssignment: manual.weekColumnAssignment,
         weekColumnCuadrillas: manual.weekColumnCuadrillas,
+        weekColumnCuadrillaNombres: manual.weekColumnCuadrillaNombres,
       };
     }
     if (periodoId) return undefined;

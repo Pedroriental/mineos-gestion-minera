@@ -19,6 +19,8 @@ export type ManualPeriodPlantillaContext = {
   rangeEnd: string;
   weekColumnAssignment?: string[];
   weekColumnCuadrillas?: string[][];
+  /** Nombres por columna (persistencia si cambian UUIDs de cuadrilla). */
+  weekColumnCuadrillaNombres?: string[][];
 };
 
 function previewTitlePrefix(plantilla: RotacionPlantillaRecord): string {
@@ -36,17 +38,49 @@ function manualPeriodWeekStartsForContext(manualPeriod: ManualPeriodPlantillaCon
   return manualPeriodWeekStarts(manualPeriod.rangeStart, manualPeriod.rangeEnd);
 }
 
-/** Cuadrillas activas en al menos una semana del periodo manual (unión del ciclo). */
-export function manualPeriodCuadrillaUnionOrder(
+function collectCuadrillaIdsFromPeriodMetadata(
   manualPeriod: ManualPeriodPlantillaContext,
   plantilla: RotacionPlantillaRecord,
-): string[] {
+): Set<string> {
   const activeIdSet = new Set<string>();
+  const validIds = new Set(plantilla.cuadrillas.map((c) => c.id));
+
   for (const weekStart of manualPeriodWeekStartsForContext(manualPeriod)) {
     for (const id of resolveActiveCuadrillaIdsForWeek(manualPeriod, weekStart, plantilla)) {
       activeIdSet.add(id);
     }
   }
+
+  // Unión explícita de todas las columnas guardadas (incluye cuadrillas solo activas en semanas tempranas).
+  if (manualPeriod.weekColumnCuadrillas?.length) {
+    for (const col of manualPeriod.weekColumnCuadrillas) {
+      for (const id of col ?? []) {
+        if (validIds.has(id)) activeIdSet.add(id);
+      }
+    }
+  }
+
+  if (manualPeriod.weekColumnCuadrillaNombres?.length) {
+    const byName = new Map(
+      plantilla.cuadrillas.map((c) => [c.nombre.trim().toLowerCase(), c.id]),
+    );
+    for (const col of manualPeriod.weekColumnCuadrillaNombres) {
+      for (const nombre of col ?? []) {
+        const id = byName.get(nombre.trim().toLowerCase());
+        if (id) activeIdSet.add(id);
+      }
+    }
+  }
+
+  return activeIdSet;
+}
+
+/** Cuadrillas activas en al menos una semana del periodo manual (unión del ciclo). */
+export function manualPeriodCuadrillaUnionOrder(
+  manualPeriod: ManualPeriodPlantillaContext,
+  plantilla: RotacionPlantillaRecord,
+): string[] {
+  const activeIdSet = collectCuadrillaIdsFromPeriodMetadata(manualPeriod, plantilla);
   return manualPlantillaCuadrillaOrder(plantilla).filter((nombre) => {
     const cuadrilla = plantilla.cuadrillas.find((c) => c.nombre === nombre);
     return cuadrilla && activeIdSet.has(cuadrilla.id);
@@ -72,16 +106,41 @@ export function buildPlantillaPreviewSectionOrder(
   });
 }
 
-/** Secciones del periodo manual: solo cuadrillas activas en alguna semana del ciclo. */
+/** Secciones del periodo manual: cuadrillas del ciclo + las que aparecen en registros cerrados. */
 export function buildPlantillaPreviewSectionOrderForPeriod(
   plantilla: RotacionPlantillaRecord,
   manualPeriod: ManualPeriodPlantillaContext,
+  options?: {
+    registros?: NominaRegistroCerrado[];
+    personalById?: Map<string, Personal>;
+    weekSet?: Set<string>;
+  },
 ): NominaPreviewImportSection[] {
   const prefix = previewTitlePrefix(plantilla);
-  return manualPeriodCuadrillaUnionOrder(manualPeriod, plantilla).map((nombre) => ({
-    id: plantillaSectionIdForCuadrillaNombre(plantilla, nombre),
-    title: `${prefix}${nombre}`,
-  }));
+  const idSet = collectCuadrillaIdsFromPeriodMetadata(manualPeriod, plantilla);
+
+  if (options?.registros && options.personalById && options.weekSet) {
+    for (const r of options.registros) {
+      if (!options.weekSet.has(r.semana_inicio)) continue;
+      const p = options.personalById.get(r.personal_id);
+      if (!p) continue;
+      const section = resolveRegistroPlantillaSection(r, p, plantilla, manualPeriod);
+      const cuadrillaId = plantilla.cuadrillas.find(
+        (c) => plantillaSectionIdForCuadrillaNombre(plantilla, c.nombre) === section.id,
+      )?.id;
+      if (cuadrillaId) idSet.add(cuadrillaId);
+    }
+  }
+
+  return manualPlantillaCuadrillaOrder(plantilla)
+    .filter((nombre) => {
+      const cuadrilla = plantilla.cuadrillas.find((c) => c.nombre === nombre);
+      return cuadrilla && idSet.has(cuadrilla.id);
+    })
+    .map((nombre) => ({
+      id: plantillaSectionIdForCuadrillaNombre(plantilla, nombre),
+      title: `${prefix}${nombre}`,
+    }));
 }
 
 /** Misma regla que Vista Semanal: primera cuadrilla activa en la semana que coincide. */

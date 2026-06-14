@@ -549,4 +549,72 @@ describe('plantilla cuadrillas en vista previa', () => {
     assert.equal(report.sections[0]?.id, 'plantilla__cq-comp');
     assert.match(report.sections[0]?.title ?? '', /COMPRESOR/);
   });
+
+  it('incluye cuadrilla solo marcada en semana temprana aunque esté desmarcada en la última', () => {
+    const admin = {
+      id: 'cq-admin',
+      nombre: 'Mina Belén - Administración Mina',
+      asignacionKey: 'Administración Mina',
+      orden: 0,
+      semanas: [{ id: 's1', nombre: 'Semana 1', orden: 0, estatusDefault: 'trabajada_paga' as const }],
+      filas: [{ id: 'f1', personalId: 'p-admin', orden: 0, celdas: {} }],
+    };
+    const barrenador = {
+      id: 'cq-bar',
+      nombre: 'Mina Bélen - Técnico Ayudante Barrenador',
+      asignacionKey: 'Mina Belén - Técnico Ayudante Barrenador',
+      orden: 1,
+      semanas: [{ id: 's2', nombre: 'Semana 1', orden: 0, estatusDefault: 'trabajada_paga' as const }],
+      filas: [{ id: 'f2', personalId: 'p-bar', orden: 0, celdas: {} }],
+    };
+    const plantilla = {
+      id: 'pl-1',
+      nombre: '14x7',
+      descripcion: '',
+      area: 'mina' as const,
+      activo: true,
+      created_at: '',
+      updated_at: '',
+      columnasVista: [],
+      cuadrillas: [admin, barrenador],
+    };
+    const adminWorker: Personal = {
+      ...trabajadorMock,
+      id: 'p-admin',
+      area: 'mina',
+      area_detalle: 'Administración Mina',
+      cargo: 'Admin',
+    } as Personal;
+
+    const manualPeriodPlantilla = {
+      rangeStart: '2026-05-04',
+      rangeEnd: '2026-05-24',
+      weekColumnAssignment: ['2026-05-04', '2026-05-11', '2026-05-18'],
+      // Barrenador solo semana 1; semanas 2-3 solo admin (como si se desmarcara al final).
+      weekColumnCuadrillas: [[admin.id, barrenador.id], [admin.id], [admin.id]],
+    };
+
+    const report = buildNominaPreviewReport({
+      personal: [adminWorker],
+      registrosCerrados: [
+        {
+          personal_id: adminWorker.id,
+          semana_inicio: '2026-05-04',
+          area: 'mina',
+          monto_pagado: 200,
+          es_semana_libre: false,
+        },
+      ],
+      allowProjection: false,
+      rangeStart: '2026-05-04',
+      rangeEnd: '2026-05-24',
+      plantilla,
+      manualPeriodPlantilla,
+    });
+
+    const barSection = report.sections.find((s) => s.id === 'plantilla__cq-bar');
+    assert.ok(barSection, 'debe listar la cuadrilla barrenador aunque no esté en la última semana');
+    assert.equal(barSection?.sectionTotal, 0);
+    assert.equal(barSection?.rows.length, 0);
+  });
 });
