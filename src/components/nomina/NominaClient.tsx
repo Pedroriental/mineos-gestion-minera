@@ -2291,92 +2291,96 @@ export default function NominaClient({
               </div>
             </div>
 
-            {viewMode === 'cierre_mes' ? (
-              <NominaCierreMesView
-                area={area}
-                canEdit={canEdit}
-                semanas={semanas}
-                activePeriod={getEditorPeriod(manualPeriodSession)}
-                refreshKey={archivoRefreshKey}
-                userId={user?.id}
-                onConsolidated={() => {
-                  setManualPeriodSession((prev) => {
-                    const editorId = prev.editorPeriodId;
-                    return editorId ? removePeriodFromSession(prev, editorId) : prev;
-                  });
-                  setConsolidatedLockedIds(new Set());
-                  router.refresh();
-                  setArchivoRefreshKey((k) => k + 1);
-                }}
-                onViewPeriod={(p) => {
-                  handleEditorPeriodChange(p, { fromConsolidated: true });
-                  setViewMode('ciclos');
-                }}
-                onWorkWeek={(p, ws) => {
-                  handleEditorPeriodChange(p, { fromConsolidated: true, resetReconsolidation: false });
-                  setManualPeriodSession((prev) => ({
-                    ...prev,
-                    editorPeriodId: p.id,
-                    historicalPeriodId: p.id,
-                  }));
-                  setWeekRange({ inicio: ws, fin: getWeekEnd(ws) });
-                  setViewMode('semanal');
-                }}
-              />
-            ) : viewMode === 'ciclos' ? (
-              <NominaCiclosView
-                area={area}
-                canEdit={canEdit}
-                semanas={semanas}
-                weekStart={weekRange.inicio}
-                workingWeekStart={temporalCtx.workingWeekStart}
-                periodsSession={manualPeriodSession}
-                onSessionChange={setManualPeriodSession}
-                onEditorPeriodChange={handleEditorPeriodChange}
-                onWorkingWeekPeriodChange={handleWorkingWeekPeriodChange}
-                onStartNewPeriod={handleStartNewPeriod}
-                onDeleteDraftPeriod={handleDeleteDraftPeriod}
-                plantillas={rotacionPlantillas}
-                onGoToWeek={(inicio, fin) => setWeekRange({ inicio, fin })}
-                onOpenSemanal={() => setViewMode('semanal')}
-                onGoPlantillas={() => setViewMode('plantillas')}
-                onGoCierreMes={() => setViewMode('cierre_mes')}
-                instanciaActiva={instanciaActivaProp}
-                userId={user?.id}
-                personal={personalCatalogMerged}
-                consolidatedLockedPeriodIds={consolidatedLockedIds}
-                onConsolidated={() => {
-                  setManualPeriodSession((prev) => {
-                    const editorId = prev.editorPeriodId;
-                    return editorId ? removePeriodFromSession(prev, editorId) : prev;
-                  });
-                  setConsolidatedLockedIds(new Set());
-                  router.refresh();
-                  setArchivoRefreshKey((k) => k + 1);
-                }}
-                periodosRefreshKey={archivoRefreshKey}
-              />
-            ) : viewMode === 'plantillas' ? (
-              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:p-3 lg:pb-3">
-                <RotacionInstanciaPanel
-                  area={area}
-                  plantillas={rotacionPlantillas}
-                  instanciaActiva={instanciaActivaProp}
-                  canEdit={canEdit}
-                  migrationRequired={rotacionMigrationRequired}
-                  onOpenSandbox={() => {
-                    setSandboxPlantillaId(undefined);
-                    setShowRotacionSandbox(true);
-                  }}
-                  onEditPlantilla={(id) => {
-                    setSandboxPlantillaId(id);
-                    setShowRotacionSandbox(true);
-                  }}
-                  onInstanciaChange={() => {
-                    void refreshPlantillas();
-                    router.refresh();
-                  }}
-                />
+            {viewMode !== 'semanal' ? (
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                <div className="nomina-page__table-scroll scroll-y-fade flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto p-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:gap-4 lg:p-3 lg:pb-3">
+                  {viewMode === 'cierre_mes' ? (
+                    <NominaCierreMesView
+                      area={area}
+                      canEdit={canEdit}
+                      semanas={semanas}
+                      activePeriod={getEditorPeriod(manualPeriodSession)}
+                      refreshKey={archivoRefreshKey}
+                      userId={user?.id}
+                      onConsolidated={() => {
+                        setManualPeriodSession((prev) => {
+                          const editorId = prev.editorPeriodId;
+                          return editorId ? removePeriodFromSession(prev, editorId) : prev;
+                        });
+                        setConsolidatedLockedIds(new Set());
+                        router.refresh();
+                        setArchivoRefreshKey((k) => k + 1);
+                      }}
+                      onViewPeriod={(p) => {
+                        handleEditorPeriodChange(p, { fromConsolidated: true });
+                        setViewMode('ciclos');
+                      }}
+                      onWorkWeek={(p, ws) => {
+                        handleEditorPeriodChange(p, { fromConsolidated: true, resetReconsolidation: false });
+                        setManualPeriodSession((prev) => ({
+                          ...prev,
+                          editorPeriodId: p.id,
+                          historicalPeriodId: p.id,
+                        }));
+                        setWeekRange({ inicio: ws, fin: getWeekEnd(ws) });
+                        setViewMode('semanal');
+                      }}
+                    />
+                  ) : viewMode === 'ciclos' ? (
+                    <NominaCiclosView
+                      area={area}
+                      canEdit={canEdit}
+                      semanas={semanas}
+                      weekStart={weekRange.inicio}
+                      workingWeekStart={temporalCtx.workingWeekStart}
+                      periodsSession={manualPeriodSession}
+                      onSessionChange={setManualPeriodSession}
+                      onEditorPeriodChange={handleEditorPeriodChange}
+                      onWorkingWeekPeriodChange={handleWorkingWeekPeriodChange}
+                      onStartNewPeriod={handleStartNewPeriod}
+                      onDeleteDraftPeriod={handleDeleteDraftPeriod}
+                      plantillas={rotacionPlantillas}
+                      onGoToWeek={(inicio, fin) => setWeekRange({ inicio, fin })}
+                      onOpenSemanal={() => setViewMode('semanal')}
+                      onGoPlantillas={() => setViewMode('plantillas')}
+                      onGoCierreMes={() => setViewMode('cierre_mes')}
+                      instanciaActiva={instanciaActivaProp}
+                      userId={user?.id}
+                      personal={personalCatalogMerged}
+                      consolidatedLockedPeriodIds={consolidatedLockedIds}
+                      onConsolidated={() => {
+                        setManualPeriodSession((prev) => {
+                          const editorId = prev.editorPeriodId;
+                          return editorId ? removePeriodFromSession(prev, editorId) : prev;
+                        });
+                        setConsolidatedLockedIds(new Set());
+                        router.refresh();
+                        setArchivoRefreshKey((k) => k + 1);
+                      }}
+                      periodosRefreshKey={archivoRefreshKey}
+                    />
+                  ) : (
+                    <RotacionInstanciaPanel
+                      area={area}
+                      plantillas={rotacionPlantillas}
+                      instanciaActiva={instanciaActivaProp}
+                      canEdit={canEdit}
+                      migrationRequired={rotacionMigrationRequired}
+                      onOpenSandbox={() => {
+                        setSandboxPlantillaId(undefined);
+                        setShowRotacionSandbox(true);
+                      }}
+                      onEditPlantilla={(id) => {
+                        setSandboxPlantillaId(id);
+                        setShowRotacionSandbox(true);
+                      }}
+                      onInstanciaChange={() => {
+                        void refreshPlantillas();
+                        router.refresh();
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             ) : (
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

@@ -71,7 +71,7 @@ export function NominaCiclosView({
     editorPeriod != null && consolidatedLockedPeriodIds.has(editorPeriod.id);
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto p-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] lg:gap-4 lg:p-3 lg:pb-3">
+    <div className="flex w-full min-w-0 flex-col gap-3 lg:gap-4">
       <ManualPeriodsSessionBar
         session={periodsSession}
         workingWeekStart={workingWeekStart}

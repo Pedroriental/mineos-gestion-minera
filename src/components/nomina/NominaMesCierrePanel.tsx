@@ -234,7 +234,7 @@ export function NominaMesCierrePanel({
   }
 
   return (
-    <section className={cn(mineosPanel('general'), 'w-full min-w-0 overflow-hidden !p-0')}>
+    <section className={cn(mineosPanel('general'), 'w-full min-w-0 !p-0')}>
       <header className="border-b border-[var(--card-border)] bg-[var(--surface-elevated)]/20 px-3 py-3 lg:px-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2.5">
