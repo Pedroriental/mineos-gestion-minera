@@ -105,6 +105,7 @@ export default function NominaVistaPreviaContent({
   const [includeProjection, setIncludeProjection] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [periodPlantilla, setPeriodPlantilla] = useState<RotacionPlantillaRecord | null>(null);
+  const effectivePlantilla = periodPlantilla ?? fallbackPlantilla ?? undefined;
 
   const divisionesConfig = useNominaDivisionesConfig();
 
@@ -248,8 +249,6 @@ export default function NominaVistaPreviaContent({
     }
     return fallbackManualPeriod;
   }, [matchingArchivedPeriod, fallbackManualPeriod]);
-
-  const effectivePlantilla = periodPlantilla ?? fallbackPlantilla ?? undefined;
 
   useEffect(() => {
     const plantillaId =
