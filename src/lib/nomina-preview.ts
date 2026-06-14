@@ -6,7 +6,7 @@ import {
   parseISO,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getGrupoNominaKey, normalizeAreaDetalle } from '@/lib/personal-master';
+import { getGrupoNominaKey, normalizeAreaDetalle, formatNombrePropio } from '@/lib/personal-master';
 import {
   cleanSectionName,
   inferAreaFromSection,
@@ -309,7 +309,7 @@ export function buildNominaPreviewNovedadesDesdeRegistros(
     if (!hasNovedadTurno(novedad, obs)) continue;
 
     const p = personalById.get(r.personal_id);
-    const nombre = p?.nombre_completo || 'Trabajador';
+    const nombre = formatNombrePropio(p?.nombre_completo || 'Trabajador');
     const cedula = p?.cedula || '—';
     const area = p?.area || r.area;
     const tipo = NOVEDAD_TURNO_PREVIEW_LABEL[novedad] || novedad;
@@ -495,7 +495,11 @@ function collectImportPreviewPeople(
       }
       return existing ?? null;
     })
-    .filter((p): p is Personal => p != null);
+    .filter((p): p is Personal => p != null)
+    .map((p) => ({
+      ...p,
+      nombre_completo: formatNombrePropio(p.nombre_completo || ''),
+    }));
 }
 
 /** Elimina duplicados por trabajador+semana+área; prefiere registros del periodo activo y cierre guardado. */
@@ -792,7 +796,10 @@ export function buildNominaPreviewReport(input: {
           personalSnapshots,
           filterArea,
         )
-      : personalForCatalog;
+      : personalForCatalog.map((p) => ({
+          ...p,
+          nombre_completo: formatNombrePropio(p.nombre_completo || ''),
+        }));
 
   const closedWeeksByArea = new Set<string>();
   for (const r of registrosCerrados) {

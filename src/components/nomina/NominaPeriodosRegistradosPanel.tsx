@@ -97,10 +97,23 @@ export function NominaPeriodosRegistradosPanel({
             : manual.plantillaNombre || '—';
         const firstOpen = firstOpenWeekInPeriod(manual, semanas, area);
         const displayLabel = stripPeriodoLabelPrefix(periodo.label);
-        return { periodo, manual, progress, plantillaNombre, firstOpen, displayLabel };
+        const monthKey = format(parseISO(periodo.rangeStart), 'yyyy-MM');
+        return { periodo, manual, progress, plantillaNombre, firstOpen, displayLabel, monthKey };
       }),
     [periodos, semanas, area],
   );
+
+  const monthOptions = useMemo(() => {
+    const keys = [...new Set(enriched.map((row) => row.monthKey))];
+    return keys.sort((a, b) => b.localeCompare(a));
+  }, [enriched]);
+
+  const [monthFilter, setMonthFilter] = useState('');
+
+  const filteredEnriched = useMemo(() => {
+    if (!monthFilter) return enriched;
+    return enriched.filter((row) => row.monthKey === monthFilter);
+  }, [enriched, monthFilter]);
 
   async function handleDelete(periodoId: string, displayLabel: string) {
     if (
@@ -127,7 +140,7 @@ export function NominaPeriodosRegistradosPanel({
 
   return (
     <section className={cn(mineosPanel('neutral'), 'w-full min-w-0')}>
-      <header className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[var(--card-border)] pb-3">
+      <header className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-[var(--card-border)] pb-3">
         <div className="flex min-w-0 items-start gap-2">
           <Archive className="mt-0.5 h-4 w-4 shrink-0 text-[var(--mineos-general-bright)]" />
           <div>
@@ -137,6 +150,29 @@ export function NominaPeriodosRegistradosPanel({
             </p>
           </div>
         </div>
+        {monthOptions.length > 0 ? (
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <label
+              htmlFor="periodos-registrados-mes"
+              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]"
+            >
+              Mes
+            </label>
+            <select
+              id="periodos-registrados-mes"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="rounded-lg border border-[var(--card-border)] bg-[var(--surface-elevated)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-primary)] outline-none focus:border-[var(--mineos-general-border)]"
+            >
+              <option value="">Todos los meses</option>
+              {monthOptions.map((ym) => (
+                <option key={ym} value={ym}>
+                  {format(parseISO(`${ym}-01`), 'MMMM yyyy', { locale: es })}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </header>
 
       {loading ? (
@@ -150,10 +186,15 @@ export function NominaPeriodosRegistradosPanel({
           <Calendar className="mx-auto mb-2 h-7 w-7 text-[var(--text-muted)] opacity-50" />
           <p className="text-sm text-[var(--text-muted)]">Aún no hay periodos archivados.</p>
         </div>
+      ) : filteredEnriched.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[var(--card-border)] py-8 text-center">
+          <Calendar className="mx-auto mb-2 h-7 w-7 text-[var(--text-muted)] opacity-50" />
+          <p className="text-sm text-[var(--text-muted)]">No hay periodos en el mes seleccionado.</p>
+        </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[var(--card-border)]">
+        <div className="max-h-[min(28rem,55vh)] overflow-y-auto overflow-x-auto rounded-xl border border-[var(--card-border)]">
           <table className="w-full min-w-[520px] border-collapse text-xs">
-            <thead>
+            <thead className="sticky top-0 z-[1] bg-[var(--surface-elevated)] shadow-[0_1px_0_var(--card-border)]">
               <tr className="border-b border-[var(--card-border)] bg-[var(--surface-elevated)]/50 text-left">
                 <th className="w-7 px-1 py-1.5" aria-label="Expandir" />
                 <th className="min-w-[200px] px-2 py-1.5 font-bold uppercase tracking-wide text-[var(--text-muted)]">
@@ -174,7 +215,7 @@ export function NominaPeriodosRegistradosPanel({
               </tr>
             </thead>
             <tbody>
-              {enriched.map(({ periodo, manual, progress, plantillaNombre, firstOpen, displayLabel }) => {
+              {filteredEnriched.map(({ periodo, manual, progress, plantillaNombre, firstOpen, displayLabel }) => {
                 const isExpanded = expandedId === periodo.id;
                 const isActive =
                   activePeriod?.rangeStart === periodo.rangeStart &&

@@ -1,6 +1,7 @@
 'use client';
 
 import type { NominaPreviewReport } from '@/lib/nomina-preview';
+import { displayNombrePersonal } from '@/lib/personal-master';
 import {
   splitNominaByDivisiones,
   formatNominaDivisionLabel,
@@ -188,7 +189,7 @@ export default function NominaPreviewReport({
                   {section.rows.map((row) => (
                     <tr key={row.personal.id} className="bg-white hover:bg-slate-50">
                       <td className="border border-slate-300 px-2 py-1.5 font-medium text-slate-900">
-                        {row.personal.nombre_completo}
+                        {displayNombrePersonal(row.personal)}
                       </td>
                       <td className="border border-slate-300 px-2 py-1.5 tabular-nums text-slate-700">
                         {row.personal.cedula || '—'}
