@@ -12,7 +12,6 @@ import {
   Users,
   Receipt,
   Package,
-  ShoppingCart,
   Zap,
   Wrench,
   HardHat,
@@ -21,12 +20,10 @@ import {
   Truck,
   BookOpen,
   ChevronDown,
-  Database,
   LogOut,
   X,
   PanelLeftClose,
   PanelLeft,
-  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MineosLogo, sidebarIconSurface } from '@/components/brand/MineosLogo';
@@ -67,8 +64,6 @@ const navigation: NavSection[] = [
         ],
       },
       { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
-      { label: 'Compras',    href: '/admin/compras',    icon: <ShoppingCart className="w-4 h-4" /> },
-      { label: 'Integridad Financiera', href: '/operaciones/integridad', icon: <ShieldCheck className="w-4 h-4" /> },
       {
         label: 'Nómina de Personal', href: '#', icon: <Users className="w-4 h-4" />,
         subItems: [
@@ -76,13 +71,6 @@ const navigation: NavSection[] = [
           { label: 'Nómina Mina', href: '/mina/nomina' },
           { label: 'Nómina Molinos', href: '/planta/nomina' },
           { label: 'Nómina Administración', href: '/admin/nomina' },
-        ],
-      },
-      {
-        label: 'Datos de Plataforma', href: '#', icon: <Database className="w-4 h-4" />,
-        subItems: [
-          { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales' },
-          { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables' },
         ],
       },
     ],
@@ -102,7 +90,6 @@ const navigation: NavSection[] = [
     items: [
       { label: 'Producción', href: '/planta/produccion', icon: <FlaskConical className="w-4 h-4" /> },
       { label: 'Acarreo', href: '/planta/acarreo', icon: <Truck className="w-4 h-4" /> },
-      { label: 'Arenas', href: '/planta/arenas', icon: <Package className="w-4 h-4" /> },
       { label: 'Quemado', href: '/mina/quemado', icon: <Flame className="w-4 h-4" /> },
     ],
   },

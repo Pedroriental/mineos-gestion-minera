@@ -1,7 +1,58 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { resolveSemanaPeriodoDetachAction } from '@/lib/nomina/cierre-semana-db';
 
 describe('cierre semana db (contrato)', () => {
+  it('resolveSemanaPeriodoDetachAction nullifica si no hay conflicto', () => {
+    assert.deepEqual(
+      resolveSemanaPeriodoDetachAction({
+        semanaTotalPagado: 100,
+        semanaRegistrosCount: 5,
+        hasNullPeriodConflict: false,
+        conflictTotalPagado: 0,
+        conflictRegistrosCount: 0,
+      }),
+      { action: 'nullify' },
+    );
+  });
+
+  it('resolveSemanaPeriodoDetachAction borra semana vacía con conflicto', () => {
+    assert.deepEqual(
+      resolveSemanaPeriodoDetachAction({
+        semanaTotalPagado: 0,
+        semanaRegistrosCount: 0,
+        hasNullPeriodConflict: true,
+        conflictTotalPagado: 500,
+        conflictRegistrosCount: 10,
+      }),
+      { action: 'delete_semana' },
+    );
+  });
+
+  it('resolveSemanaPeriodoDetachAction borra conflicto vacío y conserva semana con datos', () => {
+    assert.deepEqual(
+      resolveSemanaPeriodoDetachAction({
+        semanaTotalPagado: 500,
+        semanaRegistrosCount: 10,
+        hasNullPeriodConflict: true,
+        conflictTotalPagado: 0,
+        conflictRegistrosCount: 0,
+      }),
+      { action: 'delete_conflict' },
+    );
+  });
+
+  it('resolveSemanaPeriodoDetachAction bloquea si ambas semanas tienen datos', () => {
+    const result = resolveSemanaPeriodoDetachAction({
+      semanaTotalPagado: 100,
+      semanaRegistrosCount: 2,
+      hasNullPeriodConflict: true,
+      conflictTotalPagado: 50,
+      conflictRegistrosCount: 1,
+    });
+    assert.equal(result.action, 'blocked');
+  });
+
   it('documenta que el upsert usa búsqueda explícita por periodo_id', () => {
     // Tras fix_historico_import_v2 la unicidad es parcial:
     // - (semana_inicio, area) WHERE periodo_id IS NULL

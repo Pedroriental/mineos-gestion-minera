@@ -10,14 +10,10 @@ import {
   Zap,
   Receipt,
   Package,
-  ShoppingCart,
   Users,
   Flame,
-  FlaskConical,
   BarChart2,
   CircleDollarSign,
-  Database,
-  Library,
 } from 'lucide-react';
 
 const ALL_ROUTES = [
@@ -27,24 +23,14 @@ const ALL_ROUTES = [
   { label: 'Base de Trabajadores', href: '/admin/trabajadores', section: 'Administración', icon: Users },
   { label: 'Nómina Molino', href: '/planta/nomina', section: 'Administración', icon: Users },
   { label: 'Nómina Mina', href: '/mina/nomina', section: 'Administración', icon: Users },
-  { label: 'Nómina Administración', href: '/admin/nomina', section: 'Administración', icon: Users },
   { label: 'Gastos', href: '/admin/gastos', section: 'Administración', icon: Receipt },
   { label: 'Inventario', href: '/admin/inventario', section: 'Administración', icon: Package },
-  { label: 'Compras', href: '/admin/compras', section: 'Administración', icon: ShoppingCart },
   { label: 'Voladuras', href: '/mina/voladuras', section: 'Mina', icon: Zap },
   { label: 'Extracción', href: '/mina/extraccion', section: 'Mina', icon: Wrench },
   { label: 'Quemado de Planchas', href: '/mina/quemado', section: 'Molino', icon: Flame },
   { label: 'Equipos', href: '/mina/equipos', section: 'Mina', icon: Wrench },
   { label: 'Producción', href: '/planta/produccion', section: 'Molino', icon: BarChart2 },
   { label: 'Acarreo', href: '/planta/acarreo', section: 'Molino', icon: Package },
-  { label: 'Arenas', href: '/planta/arenas', section: 'Molino', icon: FlaskConical },
-  { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales', section: 'Administración', icon: Database },
-  {
-    label: 'Biblioteca de Variables',
-    href: '/plataforma/biblioteca-variables',
-    section: 'Administración',
-    icon: Library,
-  },
 ] as const;
 
 export function AppSearchModal({

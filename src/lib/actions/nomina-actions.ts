@@ -39,6 +39,7 @@ import {
 } from '@/lib/actions/nomina';
 import { getSemanaRegistrosAction, updatePersonalEstatusAction } from '@/lib/actions/nomina-v2';
 import { loadNominaVistaPreviaDataAction } from '@/lib/actions/nomina-preview-data';
+import { prepareNominaSemanasForPeriodoDelete } from '@/lib/nomina/cierre-semana-db';
 import {
   crearValeAction,
   eliminarValeAction,
@@ -835,25 +836,18 @@ export async function eliminarPeriodoConsolidadoAction(input: {
       };
     }
 
-    const { data: links, error: linkErr } = await supabase
+    const prepare = await prepareNominaSemanasForPeriodoDelete(supabase, periodoId);
+    if (prepare.error) {
+      return { ok: false, message: prepare.error };
+    }
+
+    const { error: unlinkError } = await supabase
       .from('nomina_periodo_semanas')
-      .select('semana_id')
+      .delete()
       .eq('periodo_id', periodoId);
-
-    if (linkErr) {
-      return { ok: false, message: linkErr.message };
+    if (unlinkError) {
+      return { ok: false, message: unlinkError.message };
     }
-
-    const semanaIds = (links ?? []).map((l: { semana_id: string }) => l.semana_id);
-
-    if (semanaIds.length) {
-      await supabase
-        .from('nomina_semanas')
-        .update({ periodo_id: null })
-        .in('id', semanaIds);
-    }
-
-    await supabase.from('nomina_periodo_semanas').delete().eq('periodo_id', periodoId);
 
     const { error: delErr } = await supabase.from('nomina_periodos').delete().eq('id', periodoId);
 

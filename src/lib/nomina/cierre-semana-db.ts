@@ -262,6 +262,126 @@ export async function linkSemanaToPeriodo(
   return error ? { error: error.message } : {};
 }
 
+export type SemanaPeriodoDetachAction =
+  | { action: 'nullify' }
+  | { action: 'delete_semana' }
+  | { action: 'delete_conflict' }
+  | { action: 'blocked'; reason: string };
+
+/** Decide cómo desvincular una semana antes de borrar su periodo (índice parcial sin periodo_id). */
+export function resolveSemanaPeriodoDetachAction(input: {
+  semanaTotalPagado: number;
+  semanaRegistrosCount: number;
+  hasNullPeriodConflict: boolean;
+  conflictTotalPagado: number;
+  conflictRegistrosCount: number;
+}): SemanaPeriodoDetachAction {
+  if (!input.hasNullPeriodConflict) {
+    return { action: 'nullify' };
+  }
+
+  const semanaEmpty =
+    input.semanaTotalPagado === 0 && input.semanaRegistrosCount === 0;
+  const conflictEmpty =
+    input.conflictTotalPagado === 0 && input.conflictRegistrosCount === 0;
+
+  if (semanaEmpty) {
+    return { action: 'delete_semana' };
+  }
+  if (conflictEmpty) {
+    return { action: 'delete_conflict' };
+  }
+
+  return {
+    action: 'blocked',
+    reason:
+      'Hay dos semanas con la misma fecha y área (una operativa y otra del periodo). Resuelva el conflicto antes de eliminar el periodo.',
+  };
+}
+
+/**
+ * Desvincula semanas de un periodo antes de borrarlo, respetando
+ * idx_nomina_semanas_sin_periodo_area_inicio (semana_inicio, area) WHERE periodo_id IS NULL.
+ */
+export async function prepareNominaSemanasForPeriodoDelete(
+  supabase: SupabaseClient,
+  periodoId: string,
+): Promise<{ error?: string }> {
+  const { data: semanas, error: listError } = await supabase
+    .from('nomina_semanas')
+    .select('id, semana_inicio, area, total_pagado')
+    .eq('periodo_id', periodoId);
+
+  if (listError) return { error: listError.message };
+
+  for (const semana of semanas ?? []) {
+    const { data: conflict, error: conflictError } = await supabase
+      .from('nomina_semanas')
+      .select('id, total_pagado')
+      .eq('semana_inicio', semana.semana_inicio)
+      .eq('area', semana.area)
+      .is('periodo_id', null)
+      .neq('id', semana.id)
+      .maybeSingle();
+
+    if (conflictError) return { error: conflictError.message };
+
+    const { count: semanaRegistrosCount, error: regCountError } = await supabase
+      .from('nomina_registros')
+      .select('id', { count: 'exact', head: true })
+      .eq('semana_id', semana.id);
+
+    if (regCountError) return { error: regCountError.message };
+
+    let conflictRegistrosCount = 0;
+    if (conflict?.id) {
+      const { count, error: conflictRegError } = await supabase
+        .from('nomina_registros')
+        .select('id', { count: 'exact', head: true })
+        .eq('semana_id', conflict.id);
+      if (conflictRegError) return { error: conflictRegError.message };
+      conflictRegistrosCount = count ?? 0;
+    }
+
+    const decision = resolveSemanaPeriodoDetachAction({
+      semanaTotalPagado: Number(semana.total_pagado ?? 0),
+      semanaRegistrosCount: semanaRegistrosCount ?? 0,
+      hasNullPeriodConflict: Boolean(conflict?.id),
+      conflictTotalPagado: Number(conflict?.total_pagado ?? 0),
+      conflictRegistrosCount,
+    });
+
+    if (decision.action === 'blocked') {
+      return { error: decision.reason };
+    }
+
+    if (decision.action === 'delete_conflict' && conflict?.id) {
+      const { error: delConflictError } = await supabase
+        .from('nomina_semanas')
+        .delete()
+        .eq('id', conflict.id);
+      if (delConflictError) return { error: delConflictError.message };
+    }
+
+    if (decision.action === 'delete_semana') {
+      const { error: delSemanaError } = await supabase
+        .from('nomina_semanas')
+        .delete()
+        .eq('id', semana.id);
+      if (delSemanaError) return { error: delSemanaError.message };
+      continue;
+    }
+
+    const { error: nullifyError } = await supabase
+      .from('nomina_semanas')
+      .update({ periodo_id: null })
+      .eq('id', semana.id);
+    if (nullifyError) return { error: nullifyError.message };
+  }
+
+  return {};
+}
+
 export async function refreshPeriodoTotalUsd(
   supabase: SupabaseClient,
   periodoId: string,
