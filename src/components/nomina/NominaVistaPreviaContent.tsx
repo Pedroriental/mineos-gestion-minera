@@ -105,11 +105,8 @@ export default function NominaVistaPreviaContent({
   const [includeProjection, setIncludeProjection] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [periodPlantilla, setPeriodPlantilla] = useState<RotacionPlantillaRecord | null>(null);
-  const effectivePlantilla = periodPlantilla ?? fallbackPlantilla ?? undefined;
 
   const divisionesConfig = useNominaDivisionesConfig();
-
-  // Ref para evitar llamar onPeriodSelect/onClearPeriod cuando el cambio
   // ya viene del propio padre (no del usuario cambiando las fechas).
   const lastAutoSelectedPeriodoRef = useRef<string | null>(null);
 
@@ -176,7 +173,7 @@ export default function NominaVistaPreviaContent({
     if (periodoId) {
       inRange = inRange.filter((r) => !r.periodo_id || r.periodo_id === periodoId);
     }
-    return dedupePreviewRegistros(inRange);
+    return dedupePreviewRegistros(inRange, { activePeriodoId: periodoId });
   }, [registrosEnRango, filterArea, periodoId]);
 
   const archivedPeriodsForArea = useMemo(() => {
@@ -197,6 +194,9 @@ export default function NominaVistaPreviaContent({
       (p) => p.rangeStart <= start && p.rangeEnd >= end,
     );
   }, [archivedPeriodsForArea, rangeStart, rangeEnd, periodoId]);
+
+  const effectivePlantilla =
+    periodPlantilla ?? (periodoId || matchingArchivedPeriod ? undefined : fallbackPlantilla ?? undefined);
 
   // Para auto-detección: SOLO mira las fechas, nunca el periodoId activo.
   const autoDetectedPeriod = useMemo(() => {
@@ -247,8 +247,9 @@ export default function NominaVistaPreviaContent({
         weekColumnCuadrillas: manual.weekColumnCuadrillas,
       };
     }
+    if (periodoId) return undefined;
     return fallbackManualPeriod;
-  }, [matchingArchivedPeriod, fallbackManualPeriod]);
+  }, [matchingArchivedPeriod, fallbackManualPeriod, periodoId]);
 
   useEffect(() => {
     const plantillaId =

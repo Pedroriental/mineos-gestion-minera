@@ -6,6 +6,41 @@ import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { Personal } from '@/lib/types';
 import { dedupeNominaSemanasForAggregation } from '@/lib/nomina/nomina-read-model';
 
+async function resolvePeriodoIdForPreview(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  options?: {
+    rangeStart?: string;
+    rangeEnd?: string;
+    filterArea?: string;
+    periodoId?: string;
+  },
+): Promise<string | undefined> {
+  if (options?.periodoId) return options.periodoId;
+  if (!options?.rangeStart || !options?.rangeEnd) return undefined;
+
+  const { data: periodos } = await supabase
+    .from('nomina_periodos')
+    .select('id, range_start, range_end, metadata, total_usd, semana_count')
+    .eq('range_start', options.rangeStart)
+    .eq('range_end', options.rangeEnd);
+
+  if (!periodos?.length) return undefined;
+
+  const scoped = periodos.filter((p) => {
+    const metaArea = (p.metadata as { area?: string } | null)?.area;
+    if (options.filterArea && typeof metaArea === 'string') {
+      return metaArea === options.filterArea;
+    }
+    return true;
+  });
+
+  const withData = scoped.filter(
+    (p) => Number(p.total_usd) > 0 || Number(p.semana_count) > 0,
+  );
+  const pick = (withData.length ? withData : scoped)[0];
+  return pick?.id as string | undefined;
+}
+
 export async function loadNominaVistaPreviaDataAction(options?: {
   rangeStart?: string;
   rangeEnd?: string;
@@ -21,6 +56,7 @@ export async function loadNominaVistaPreviaDataAction(options?: {
 }> {
   try {
     const supabase = await createServerClient();
+    const periodoId = await resolvePeriodoIdForPreview(supabase, options);
 
     let semanasQuery = supabase
       .from('nomina_semanas')
@@ -31,16 +67,16 @@ export async function loadNominaVistaPreviaDataAction(options?: {
       semanasQuery = semanasQuery.eq('area', options.filterArea);
     }
 
-    if (options?.periodoId) {
+    if (periodoId) {
       const { data: links } = await supabase
         .from('nomina_periodo_semanas')
         .select('semana_id')
-        .eq('periodo_id', options.periodoId);
+        .eq('periodo_id', periodoId);
       const semanaIds = (links || []).map((l: { semana_id: string }) => l.semana_id);
       if (semanaIds.length > 0) {
         semanasQuery = semanasQuery.in('id', semanaIds);
       } else {
-        semanasQuery = semanasQuery.eq('periodo_id', options.periodoId);
+        semanasQuery = semanasQuery.eq('periodo_id', periodoId);
       }
     } else {
       semanasQuery = semanasQuery.neq('origen', 'import_historico');
@@ -64,7 +100,7 @@ export async function loadNominaVistaPreviaDataAction(options?: {
     const semanasTyped = (semanasRows || []) as SemanaRow[];
 
     const preferredSemanas = dedupeNominaSemanasForAggregation(semanasTyped, {
-      activePeriodoId: options?.periodoId,
+      activePeriodoId: periodoId,
     });
     const semanasCerradas = preferredSemanas.map((s) => ({
       semana_inicio: s.semana_inicio,
@@ -134,7 +170,7 @@ export async function loadNominaVistaPreviaDataAction(options?: {
 
       const dedupMap = new Map<string, NominaRegistroCerrado>();
       const registroScore = (reg: NominaRegistroCerrado) =>
-        (options?.periodoId && reg.periodo_id === options.periodoId ? 8 : 0) +
+        (periodoId && reg.periodo_id === periodoId ? 8 : 0) +
         (reg.periodo_id ? 4 : 0) +
         (reg.personal_snapshot ? 2 : 0) +
         (Number(reg.monto_pagado) > 0 ? 1 : 0);

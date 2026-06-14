@@ -182,8 +182,22 @@ export function dedupeNominaSemanasForAggregation<T extends NominaSemanaRow>(
   for (const row of rows) {
     const key = nominaSemanaDedupKey(row.semana_inicio, row.area);
     const existing = map.get(key);
-    if (!existing || semanaScore(row, options) > semanaScore(existing, options)) {
+    if (!existing) {
       map.set(key, row);
+      continue;
+    }
+    const rowScore = semanaScore(row, options);
+    const existingScore = semanaScore(existing, options);
+    if (rowScore > existingScore) {
+      map.set(key, row);
+      continue;
+    }
+    if (rowScore === existingScore) {
+      const rowTotal = Number(row.total_pagado) || 0;
+      const existingTotal = Number(existing.total_pagado) || 0;
+      if (rowTotal > existingTotal) {
+        map.set(key, row);
+      }
     }
   }
   return [...map.values()];

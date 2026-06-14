@@ -495,18 +495,32 @@ function collectImportPreviewPeople(
     .filter((p): p is Personal => p != null);
 }
 
-/** Elimina duplicados por trabajador+semana+área; prefiere registros con periodo_id (cierre guardado). */
+/** Elimina duplicados por trabajador+semana+área; prefiere registros del periodo activo y cierre guardado. */
 export function dedupePreviewRegistros(
   registros: NominaRegistroCerrado[],
+  options?: { activePeriodoId?: string },
 ): NominaRegistroCerrado[] {
   const map = new Map<string, NominaRegistroCerrado>();
   const score = (r: NominaRegistroCerrado) =>
-    (r.periodo_id ? 4 : 0) + (r.personal_snapshot ? 2 : 0) + (Number(r.monto_pagado) > 0 ? 1 : 0);
+    (options?.activePeriodoId && r.periodo_id === options.activePeriodoId ? 8 : 0) +
+    (r.periodo_id ? 4 : 0) +
+    (r.personal_snapshot ? 2 : 0) +
+    (Number(r.monto_pagado) > 0 ? 1 : 0);
 
   for (const r of registros) {
     const key = `${r.personal_id}|${r.semana_inicio}|${r.area}`;
     const existing = map.get(key);
-    if (!existing || score(r) > score(existing)) {
+    if (!existing) {
+      map.set(key, r);
+      continue;
+    }
+    const rowScore = score(r);
+    const existingScore = score(existing);
+    if (rowScore > existingScore) {
+      map.set(key, r);
+      continue;
+    }
+    if (rowScore === existingScore && Number(r.monto_pagado) > Number(existing.monto_pagado)) {
       map.set(key, r);
     }
   }
@@ -908,17 +922,19 @@ export function buildNominaPreviewReport(input: {
     total: s.sectionTotal,
   }));
 
+  const closedRegistrosTotal = sumClosedRegistrosInRange(
+    registrosCerrados,
+    rangeStart,
+    rangeEnd,
+    filterArea,
+  );
   let grandTotal = parseFloat(summary.reduce((n, s) => n + s.total, 0).toFixed(2));
-  if (!allowProjection && sections.length === 0) {
-    grandTotal = sumClosedRegistrosInRange(registrosCerrados, rangeStart, rangeEnd, filterArea);
+  if (!allowProjection && closedRegistrosTotal > 0) {
+    grandTotal = closedRegistrosTotal;
+  } else if (!allowProjection && sections.length === 0) {
+    grandTotal = closedRegistrosTotal;
   } else if (allowProjection && calculatedCells === 0) {
-    const closedExact = sumClosedRegistrosInRange(
-      registrosCerrados,
-      rangeStart,
-      rangeEnd,
-      filterArea,
-    );
-    if (closedExact > 0) grandTotal = closedExact;
+    if (closedRegistrosTotal > 0) grandTotal = closedRegistrosTotal;
   }
   const personalById = new Map(personalForCatalog.map((p) => [p.id, p]));
   let novedades = buildNominaPreviewNovedadesDesdeRegistros(

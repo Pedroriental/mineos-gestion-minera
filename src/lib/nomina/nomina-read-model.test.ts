@@ -110,6 +110,31 @@ describe('dedupeNominaSemanasForAggregation', () => {
     assert.equal(deduped[0]!.id, '2');
     assert.equal(aggregateNominaSemanas(rows).totalUsd, 120);
   });
+
+  it('ties on periodo_id prefer higher total_pagado when no activePeriodoId', () => {
+    const rows = [
+      row({
+        id: 'a',
+        semana_inicio: '2026-05-18',
+        semana_fin: '2026-05-24',
+        area: 'mina',
+        total_pagado: 1989.29,
+        periodo_id: 'p-other',
+      }),
+      row({
+        id: 'b',
+        semana_inicio: '2026-05-18',
+        semana_fin: '2026-05-24',
+        area: 'mina',
+        total_pagado: 2550,
+        periodo_id: 'p-4ta',
+      }),
+    ];
+    const deduped = dedupeNominaSemanasForAggregation(rows);
+    assert.equal(deduped.length, 1);
+    assert.equal(deduped[0]!.id, 'b');
+    assert.equal(deduped[0]!.total_pagado, 2550);
+  });
 });
 
 describe('assignNominaSemanaToMonthKey', () => {

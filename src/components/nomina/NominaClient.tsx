@@ -1634,6 +1634,25 @@ export default function NominaClient({
     };
   }, [manualPeriodForView]);
 
+  const previewDefaultRange = useMemo((): NominaPreviewRange => {
+    if (previewInitialRange) return previewInitialRange;
+    const editor = getEditorPeriod(manualPeriodSession);
+    if (
+      editor?.periodoArchivoId &&
+      editor.rangeStart &&
+      editor.rangeEnd &&
+      weekInManualPeriod(weekRange.inicio, editor)
+    ) {
+      return { start: editor.rangeStart, end: editor.rangeEnd };
+    }
+    return { start: weekRange.inicio, end: weekRange.fin };
+  }, [
+    previewInitialRange,
+    manualPeriodSession,
+    weekRange.inicio,
+    weekRange.fin,
+  ]);
+
   // ── CSV Export ──────────────────────────────────────────────────────────
   const handleExportCSV = useCallback(() => {
     downloadNominaSemanaCsv(nominaExportRows, nominaExportMeta);
@@ -2999,7 +3018,7 @@ export default function NominaClient({
           setShowExcelPreview(false);
           setPreviewInitialRange(null);
         }}
-        initialRange={previewInitialRange ?? { start: weekRange.inicio, end: weekRange.fin }}
+        initialRange={previewDefaultRange}
         refreshKey={previewRefreshKey}
         filterArea={area}
         areaLabel={pageTitle}

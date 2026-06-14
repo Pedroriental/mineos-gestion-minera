@@ -15,9 +15,17 @@ type Props = {
   label?: string;
   refreshKey?: number;
   periodoId?: string;
+  filterArea?: string;
 };
 
-export function NominaPeriodPreviewPane({ rangeStart, rangeEnd, label, refreshKey = 0, periodoId }: Props) {
+export function NominaPeriodPreviewPane({
+  rangeStart,
+  rangeEnd,
+  label,
+  refreshKey = 0,
+  periodoId,
+  filterArea,
+}: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [personal, setPersonal] = useState<Personal[]>([]);
@@ -31,7 +39,7 @@ export function NominaPeriodPreviewPane({ rangeStart, rangeEnd, label, refreshKe
     setLoading(true);
     setError(null);
     Promise.all([
-      loadNominaVistaPreviaDataAction({ rangeStart, rangeEnd, periodoId }),
+      loadNominaVistaPreviaDataAction({ rangeStart, rangeEnd, periodoId, filterArea }),
       listNominaPeriodosAction(),
     ]).then(([previewRes, periodosRes]) => {
       if (cancelled) return;
@@ -51,7 +59,7 @@ export function NominaPeriodPreviewPane({ rangeStart, rangeEnd, label, refreshKe
     return () => {
       cancelled = true;
     };
-  }, [rangeStart, rangeEnd, refreshKey, periodoId]);
+  }, [rangeStart, rangeEnd, refreshKey, periodoId, filterArea]);
 
   if (loading) {
     return (
@@ -81,6 +89,7 @@ export function NominaPeriodPreviewPane({ rangeStart, rangeEnd, label, refreshKe
       variant="embed"
       embedTitle={label}
       periodoId={periodoId}
+      filterArea={filterArea}
     />
   );
 }

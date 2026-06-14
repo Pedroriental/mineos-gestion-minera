@@ -286,6 +286,9 @@ export function NominaArchivoModal({ open, onClose, userId, area, onImport, onPe
               label={selected.label}
               refreshKey={refreshKey}
               periodoId={selected.id}
+              filterArea={
+                typeof selected.metadata?.area === 'string' ? selected.metadata.area : undefined
+              }
             />
           ) : selected ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">

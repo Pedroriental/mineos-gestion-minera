@@ -132,12 +132,14 @@ export function NominaVistaPreviaModal({
     ) => {
       if (!previewRes.ok) return false;
 
-      const mergedRegistros = mergeActiveRegistros(
-        previewRes.registrosCerrados,
-        activeWeekRef.current,
-        activeRegistrosRef.current,
-        filterArea,
-      );
+      const mergedRegistros = periodoId
+        ? previewRes.registrosCerrados
+        : mergeActiveRegistros(
+            previewRes.registrosCerrados,
+            activeWeekRef.current,
+            activeRegistrosRef.current,
+            filterArea,
+          );
       let mergedSemanas = [...previewRes.semanasCerradas];
 
       const activeForArea = filterRegistrosByArea(activeRegistrosRef.current ?? [], filterArea);
