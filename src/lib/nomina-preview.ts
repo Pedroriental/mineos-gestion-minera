@@ -24,7 +24,9 @@ import {
 import { getWeekStart } from '@/lib/rotacion-personal';
 import { inferPayrollSectionFromLabel } from '@/lib/nomina/manual-period';
 import {
+  aggregatePlantillaSectionTotalsFromRegistros,
   buildPlantillaPreviewSectionOrder,
+  buildPlantillaPreviewSectionOrderForPeriod,
   plantillaSummaryLabel,
   resolveWorkerPlantillaPreviewSection,
   type ManualPeriodPlantillaContext,
@@ -715,7 +717,9 @@ export function buildNominaPreviewReport(input: {
     importSectionOrderInput?.length
       ? importSectionOrderInput
       : plantilla
-        ? buildPlantillaPreviewSectionOrder(plantilla)
+        ? manualPeriodPlantilla
+          ? buildPlantillaPreviewSectionOrderForPeriod(plantilla, manualPeriodPlantilla)
+          : buildPlantillaPreviewSectionOrder(plantilla)
         : undefined;
   const { start: rangeStart, end: rangeEnd } = normalizePreviewRange(
     input.rangeStart,
@@ -903,18 +907,52 @@ export function buildNominaPreviewReport(input: {
   applyImportSectionOrder(sectionMap, importSectionOrder);
   const importOrderIndex = buildImportSectionOrderIndex(importSectionOrder);
 
-  const sections = [...sectionMap.values()]
+  const plantillaSectionTotals =
+    plantilla && manualPeriodPlantilla && !allowProjection
+      ? aggregatePlantillaSectionTotalsFromRegistros({
+          plantilla,
+          manualPeriod: manualPeriodPlantilla,
+          registros: registrosCerrados,
+          personalById: new Map(personalForCatalog.map((p) => [p.id, p])),
+          weekSet,
+          filterArea,
+        })
+      : null;
+
+  let sections = [...sectionMap.values()]
     .filter((s) => s.rows.length > 0)
     .map((s) => {
       s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
       s.sectionTotal = s.rows.reduce((n, r) => n + r.total, 0);
       return s;
-    })
-    .sort(
-      (a, b) =>
-        sectionSortKey(a.id, importOrderIndex) - sectionSortKey(b.id, importOrderIndex) ||
-        a.title.localeCompare(b.title, 'es'),
-    );
+    });
+
+  if (plantillaSectionTotals?.size) {
+    for (const spec of importSectionOrder ?? []) {
+      if (!sectionMap.has(spec.id) && (plantillaSectionTotals.get(spec.id) ?? 0) > 0) {
+        sectionMap.set(spec.id, {
+          id: spec.id,
+          title: spec.title,
+          subtitle: '',
+          rows: [],
+          sectionTotal: 0,
+        });
+      }
+    }
+    sections = [...sectionMap.values()]
+      .filter((s) => s.rows.length > 0 || (plantillaSectionTotals.get(s.id) ?? 0) > 0)
+      .map((s) => {
+        s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
+        s.sectionTotal = plantillaSectionTotals.get(s.id) ?? s.rows.reduce((n, r) => n + r.total, 0);
+        return s;
+      });
+  }
+
+  sections = sections.sort(
+    (a, b) =>
+      sectionSortKey(a.id, importOrderIndex) - sectionSortKey(b.id, importOrderIndex) ||
+      a.title.localeCompare(b.title, 'es'),
+  );
 
   const summary = sections.map((s) => ({
     id: s.id,

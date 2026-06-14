@@ -387,12 +387,13 @@ export function nominaRowBelongsToCuadrilla(
   const cuadrilla = plantilla.cuadrillas.find((c) => c.nombre === cuadrillaNombre);
   if (!cuadrilla) return false;
 
+  if (cuadrilla.filas.some((f) => f.personalId === row.personal.id)) return true;
+
   const asignacion = getGrupoNominaKey(row.personal);
   if (asignacion) {
     return asignacionMatchesCuadrilla(asignacion, cuadrilla);
   }
 
-  if (cuadrilla.filas.some((f) => f.personalId === row.personal.id)) return true;
   return personalMatchesCuadrilla(row.personal, cuadrilla);
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
-import { Calendar, FileSpreadsheet, Printer, RefreshCw, X, Archive } from 'lucide-react';
+import { Calendar, FileSpreadsheet, Loader2, Printer, RefreshCw, X, Archive } from 'lucide-react';
 import NominaPreviewReport from '@/components/nomina/NominaPreviewReport';
 import NominaPreviewOptionsMenu from '@/components/nomina/NominaPreviewOptionsMenu';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
@@ -198,6 +198,20 @@ export default function NominaVistaPreviaContent({
   const effectivePlantilla =
     periodPlantilla ?? (periodoId || matchingArchivedPeriod ? undefined : fallbackPlantilla ?? undefined);
 
+  const archivedPlantillaId = useMemo(() => {
+    const meta = matchingArchivedPeriod?.metadata;
+    if (!meta || typeof meta !== 'object') return null;
+    if (typeof meta.plantilla_id === 'string' && meta.plantilla_id.trim()) {
+      return meta.plantilla_id.trim();
+    }
+    if (typeof meta.plantillaId === 'string' && meta.plantillaId.trim()) {
+      return meta.plantillaId.trim();
+    }
+    return null;
+  }, [matchingArchivedPeriod?.metadata]);
+
+  const awaitingArchivedPlantilla = Boolean(archivedPlantillaId && !periodPlantilla);
+
   // Para auto-detección: SOLO mira las fechas, nunca el periodoId activo.
   const autoDetectedPeriod = useMemo(() => {
     const { start, end } = normalizePreviewRange(rangeStart, rangeEnd);
@@ -300,39 +314,39 @@ export default function NominaVistaPreviaContent({
     });
   }, [roster, personalSnapshots, filterArea]);
 
-  const report = useMemo(
-    () =>
-      buildNominaPreviewReport({
-        personal: rosterForPreview,
-        rangeStart,
-        rangeEnd,
-        registrosCerrados: registrosFiltrados,
-        valesPorPersonal: valesMap,
-        allowProjection: includeProjection && !isConsolidatedImport && !effectivePlantilla,
-        filterArea,
-        importSectionOrder,
-        personalSnapshots,
-        plantilla: effectivePlantilla,
-        manualPeriodPlantilla,
-      }),
-    [
-      rosterForPreview,
+  const report = useMemo(() => {
+    if (awaitingArchivedPlantilla) return null;
+    return buildNominaPreviewReport({
+      personal: rosterForPreview,
       rangeStart,
       rangeEnd,
-      registrosFiltrados,
-      valesMap,
-      lastRefresh,
-      includeProjection,
-      isConsolidatedImport,
+      registrosCerrados: registrosFiltrados,
+      valesPorPersonal: valesMap,
+      allowProjection: includeProjection && !isConsolidatedImport && !effectivePlantilla,
+      filterArea,
       importSectionOrder,
       personalSnapshots,
-      filterArea,
-      effectivePlantilla,
+      plantilla: effectivePlantilla,
       manualPeriodPlantilla,
-    ],
-  );
+    });
+  }, [
+    awaitingArchivedPlantilla,
+    rosterForPreview,
+    rangeStart,
+    rangeEnd,
+    registrosFiltrados,
+    valesMap,
+    lastRefresh,
+    includeProjection,
+    isConsolidatedImport,
+    importSectionOrder,
+    personalSnapshots,
+    filterArea,
+    effectivePlantilla,
+    manualPeriodPlantilla,
+  ]);
 
-  const previewEmpty = isNominaPreviewEmpty({ report, includeProjection });
+  const previewEmpty = !report || isNominaPreviewEmpty({ report, includeProjection });
 
 
   const isEmbed = variant === 'embed';
@@ -578,7 +592,12 @@ export default function NominaVistaPreviaContent({
       </header>
 
       <div className="nomina-vista-previa-content__body min-h-0 flex-1 overflow-auto bg-[#eef2f6]">
-        {previewEmpty ? (
+        {awaitingArchivedPlantilla ? (
+          <div className="flex min-h-[280px] flex-col items-center justify-center gap-2 text-slate-500">
+            <Loader2 className="h-7 w-7 animate-spin text-amber-600" />
+            <p className="text-xs">Cargando plantilla del periodo…</p>
+          </div>
+        ) : previewEmpty ? (
           <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-8 text-center">
             <p className="text-sm font-semibold text-slate-700">Sin planilla para mostrar</p>
             <p className="max-w-md text-xs leading-relaxed text-slate-500">
@@ -601,14 +620,14 @@ export default function NominaVistaPreviaContent({
               </div>
             ) : null}
           </div>
-        ) : (
+        ) : report ? (
           <div
             className="nomina-vista-previa-content__zoom-root p-3 sm:p-4"
             style={{ zoom: isEmbed ? 1 : contentZoom / 100 }}
           >
             <NominaPreviewReport report={report} divisiones={divisionesConfig.divisiones} />
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
