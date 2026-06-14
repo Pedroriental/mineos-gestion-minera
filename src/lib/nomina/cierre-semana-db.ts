@@ -275,9 +275,15 @@ export function resolveSemanaPeriodoDetachAction(input: {
   hasNullPeriodConflict: boolean;
   conflictTotalPagado: number;
   conflictRegistrosCount: number;
+  periodoTotalUsd?: number;
 }): SemanaPeriodoDetachAction {
   if (!input.hasNullPeriodConflict) {
     return { action: 'nullify' };
+  }
+
+  // Periodo pendiente ($0): descartar la semana del ciclo y conservar la operativa.
+  if (input.periodoTotalUsd !== undefined && input.periodoTotalUsd === 0) {
+    return { action: 'delete_semana' };
   }
 
   const semanaEmpty =
@@ -306,6 +312,7 @@ export function resolveSemanaPeriodoDetachAction(input: {
 export async function prepareNominaSemanasForPeriodoDelete(
   supabase: SupabaseClient,
   periodoId: string,
+  options?: { periodoTotalUsd?: number },
 ): Promise<{ error?: string }> {
   const { data: semanas, error: listError } = await supabase
     .from('nomina_semanas')
@@ -349,6 +356,7 @@ export async function prepareNominaSemanasForPeriodoDelete(
       hasNullPeriodConflict: Boolean(conflict?.id),
       conflictTotalPagado: Number(conflict?.total_pagado ?? 0),
       conflictRegistrosCount,
+      periodoTotalUsd: options?.periodoTotalUsd,
     });
 
     if (decision.action === 'blocked') {

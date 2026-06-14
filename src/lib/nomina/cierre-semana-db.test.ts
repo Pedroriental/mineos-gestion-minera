@@ -42,6 +42,20 @@ describe('cierre semana db (contrato)', () => {
     );
   });
 
+  it('resolveSemanaPeriodoDetachAction descarta semana del periodo pendiente con conflicto', () => {
+    assert.deepEqual(
+      resolveSemanaPeriodoDetachAction({
+        semanaTotalPagado: 100,
+        semanaRegistrosCount: 2,
+        hasNullPeriodConflict: true,
+        conflictTotalPagado: 50,
+        conflictRegistrosCount: 1,
+        periodoTotalUsd: 0,
+      }),
+      { action: 'delete_semana' },
+    );
+  });
+
   it('resolveSemanaPeriodoDetachAction bloquea si ambas semanas tienen datos', () => {
     const result = resolveSemanaPeriodoDetachAction({
       semanaTotalPagado: 100,
@@ -49,6 +63,7 @@ describe('cierre semana db (contrato)', () => {
       hasNullPeriodConflict: true,
       conflictTotalPagado: 50,
       conflictRegistrosCount: 1,
+      periodoTotalUsd: 500,
     });
     assert.equal(result.action, 'blocked');
   });

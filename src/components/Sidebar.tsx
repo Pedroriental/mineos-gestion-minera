@@ -70,7 +70,6 @@ const navigation: NavSection[] = [
           { label: 'Base de Trabajadores', href: '/admin/trabajadores' },
           { label: 'Nómina Mina', href: '/mina/nomina' },
           { label: 'Nómina Molinos', href: '/planta/nomina' },
-          { label: 'Nómina Administración', href: '/admin/nomina' },
         ],
       },
     ],

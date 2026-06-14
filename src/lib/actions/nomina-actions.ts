@@ -836,7 +836,9 @@ export async function eliminarPeriodoConsolidadoAction(input: {
       };
     }
 
-    const prepare = await prepareNominaSemanasForPeriodoDelete(supabase, periodoId);
+    const prepare = await prepareNominaSemanasForPeriodoDelete(supabase, periodoId, {
+      periodoTotalUsd: Number(periodo.total_usd ?? 0),
+    });
     if (prepare.error) {
       return { ok: false, message: prepare.error };
     }
