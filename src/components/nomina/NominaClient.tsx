@@ -1582,6 +1582,23 @@ export default function NominaClient({
     [area, pageTitle, weekRange.inicio, weekRange.fin, semanaActualProcesada, preNominaRows.length, totalSemana],
   );
 
+  const previewActiveRegistros = useMemo((): NominaRegistroCerrado[] => {
+    return preNominaRows.map((row) => ({
+      personal_id: row.personal.id,
+      semana_inicio: weekRange.inicio,
+      area: area,
+      monto_pagado: row.total,
+      es_semana_libre: row.esSemanaLibre,
+      estado_asistencia: row.estadoAsistencia,
+      dias_trabajados: row.diasTrabajados,
+      salario_base_calculado: row.salarioBaseCalculado,
+      novedad_turno: row.novedadTurno ?? null,
+      novedad_turno_obs: row.novedadTurnoObs,
+      personal_snapshot: buildPersonalSnapshot(row.personal),
+      periodo_id: null,
+    }));
+  }, [preNominaRows, weekRange.inicio, area]);
+
   // ── CSV Export ──────────────────────────────────────────────────────────
   const handleExportCSV = useCallback(() => {
     downloadNominaSemanaCsv(nominaExportRows, nominaExportMeta);
@@ -2889,23 +2906,6 @@ export default function NominaClient({
           setManualRosterTick((t) => t + 1);
         }}
       />
-
-  const previewActiveRegistros = useMemo((): NominaRegistroCerrado[] => {
-    return preNominaRows.map((row) => ({
-      personal_id: row.personal.id,
-      semana_inicio: weekRange.inicio,
-      area: area,
-      monto_pagado: row.total,
-      es_semana_libre: row.esSemanaLibre,
-      estado_asistencia: row.estadoAsistencia,
-      dias_trabajados: row.diasTrabajados,
-      salario_base_calculado: row.salarioBaseCalculado,
-      novedad_turno: row.novedadTurno ?? null,
-      novedad_turno_obs: row.novedadTurnoObs,
-      personal_snapshot: buildPersonalSnapshot(row.personal),
-      periodo_id: null,
-    }));
-  }, [preNominaRows, weekRange.inicio, area]);
 
       <NominaVistaPreviaModal
         open={showExcelPreview}
