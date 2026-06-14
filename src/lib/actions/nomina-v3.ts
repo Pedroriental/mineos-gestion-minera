@@ -70,9 +70,14 @@ export async function upsertPersonalV3Action(raw: {
   bono_transporte: number;
   telefono: string;
   notas: string;
+  fecha_nacimiento?: string | null;
   fecha_ingreso: string;
+  ajuste_antiguedad_dias?: number;
+  ubicacion_laboral?: string;
   esquema_rotacion?: string;
   rotacion_inicio_fecha?: string | null;
+  rotacion_estado_referencia_semana?: string | null;
+  rotacion_estado_referencia_posicion?: number | null;
 }): Promise<ActionResult> {
   const schema = raw.id ? PersonalV3UpdateSchema : PersonalV3Schema;
   const parsed = schema.safeParse(raw);
@@ -142,7 +147,10 @@ export async function upsertPersonalV3Action(raw: {
       bono_transporte: data.bono_transporte,
       telefono: data.telefono,
       notas: data.notas,
+      fecha_nacimiento: data.fecha_nacimiento || null,
       fecha_ingreso: data.fecha_ingreso,
+      ajuste_antiguedad_dias: data.ajuste_antiguedad_dias ?? 0,
+      ubicacion_laboral: data.ubicacion_laboral || null,
       esquema_rotacion: esquemaRotacion,
       rotacion_inicio_fecha: rotacionInicio,
     };
@@ -340,7 +348,11 @@ export async function createAndAssignPersonalNominaAction(
       estado_laboral: 'ACTIVO',
       activo: true,
       estatus: 'ACTIVO',
-      fecha_ingreso: hoy,
+      fecha_nacimiento: data.fecha_nacimiento || null,
+      fecha_ingreso: data.fecha_ingreso || hoy,
+      ajuste_antiguedad_dias: data.ajuste_antiguedad_dias ?? 0,
+      ubicacion_laboral: data.ubicacion_laboral?.trim() || null,
+      notas: data.notas?.trim() || null,
     };
     if (tieneEsquemaConRotacion(esquemaDefault)) {
       const rotacionInicioDeducida =

@@ -17,11 +17,13 @@ type AppMonthPickerProps = {
   id?: string;
 };
 
-const MENU_MAX_H = 300;
+type MonthPickerView = 'months' | 'years';
+
+const MENU_MAX_H = 320;
 
 const MONTHS = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
 ];
 
 export function AppMonthPicker({
@@ -36,8 +38,8 @@ export function AppMonthPicker({
   const id = idProp ?? autoId;
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  
-  // Parse initial value for internal state
+  const [pickerView, setPickerView] = useState<MonthPickerView>('months');
+
   const [viewYear, setViewYear] = useState(() => {
     if (value && value.length >= 4) return parseInt(value.substring(0, 4), 10);
     return new Date().getFullYear();
@@ -58,6 +60,7 @@ export function AppMonthPicker({
   const close = useCallback(() => {
     setOpen(false);
     setMenuPos(null);
+    setPickerView('months');
   }, []);
 
   const updateMenuPos = useCallback(() => {
@@ -67,11 +70,11 @@ export function AppMonthPicker({
     const pos = computeFixedMenuPosition({
       anchorRect: rect,
       menuWidth: 280,
-      estimatedHeight: 240,
+      estimatedHeight: pickerView === 'years' ? 220 : 260,
       maxHeightCap: MENU_MAX_H,
     });
     setMenuPos(pos);
-  }, []);
+  }, [pickerView]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -83,7 +86,7 @@ export function AppMonthPicker({
       window.removeEventListener('resize', onReflow);
       window.removeEventListener('scroll', onReflow, true);
     };
-  }, [open, updateMenuPos]);
+  }, [open, updateMenuPos, pickerView]);
 
   useEffect(() => {
     if (!open) return;
@@ -124,6 +127,12 @@ export function AppMonthPicker({
   const selectedYear = value ? parseInt(value.substring(0, 4), 10) : null;
   const selectedMonthIndex = value ? parseInt(value.substring(5, 7), 10) - 1 : null;
 
+  const navBtn = 'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100';
+  const navBtnJump = 'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-200';
+
+  const decadeStart = Math.floor(viewYear / 10) * 10;
+  const yearOptions = Array.from({ length: 12 }, (_, i) => decadeStart + i);
+
   const menu =
     open && menuPos && mounted ? createPortal(
       <div
@@ -141,57 +150,163 @@ export function AppMonthPicker({
           bottom: menuPos.bottom,
         }}
       >
-        <div className="flex items-center justify-between mb-3 px-1">
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); setViewYear(y => y - 1); }}
-            className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/10 text-zinc-400 hover:text-zinc-100 transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-sm font-semibold text-zinc-200">{viewYear}</span>
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); setViewYear(y => y + 1); }}
-            className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/10 text-zinc-400 hover:text-zinc-100 transition-colors"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-3 gap-2">
-          {MONTHS.map((mon, idx) => {
-            const isSelected = viewYear === selectedYear && idx === selectedMonthIndex;
-            return (
+        {pickerView === 'years' ? (
+          <>
+            <div className="mb-3 flex items-center justify-between px-1">
               <button
-                key={mon}
                 type="button"
-                onClick={(e) => { e.preventDefault(); pick(idx); }}
-                className={cn(
-                  'flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-all',
-                  isSelected 
-                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                    : 'text-zinc-300 hover:bg-white/10 hover:text-white'
-                )}
+                onClick={(e) => { e.preventDefault(); setViewYear((y) => y - 10); }}
+                className={navBtnJump}
+                title="10 años atrás"
+                aria-label="10 años atrás"
               >
-                {mon}
+                «
               </button>
-            );
-          })}
-        </div>
-        <div className="mt-3 pt-3 border-t border-white/10 flex justify-end">
-             <button
+              <span className="text-sm font-semibold tabular-nums text-zinc-200">
+                {decadeStart} – {decadeStart + 11}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setViewYear((y) => y + 10); }}
+                className={navBtnJump}
+                title="10 años adelante"
+                aria-label="10 años adelante"
+              >
+                »
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {yearOptions.map((year) => {
+                const isSelected = year === selectedYear;
+                const isCurrent = year === new Date().getFullYear();
+                return (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setViewYear(year);
+                      setPickerView('months');
+                    }}
+                    className={cn(
+                      'flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-all',
+                      isSelected
+                        ? 'border border-amber-500/30 bg-amber-500/20 text-amber-400'
+                        : 'text-zinc-300 hover:bg-white/10 hover:text-white',
+                      isCurrent && !isSelected && 'ring-1 ring-amber-500/25',
+                    )}
+                  >
+                    {year}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center justify-between gap-1 px-1">
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setViewYear((y) => y - 10); }}
+                className={navBtnJump}
+                title="10 años atrás"
+                aria-label="10 años atrás"
+              >
+                «
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setViewYear((y) => y - 1); }}
+                className={navBtn}
+                title="Año anterior"
+                aria-label="Año anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
-                  const today = new Date();
-                  onChange(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
-                  close();
+                  setPickerView('years');
                 }}
-                className="text-xs font-medium text-amber-500 hover:text-amber-400"
-             >
-                Este mes
-             </button>
+                className="min-w-[4.5rem] rounded-md px-2 py-1 text-sm font-semibold tabular-nums text-zinc-200 transition-colors hover:bg-white/10"
+                title="Elegir año"
+              >
+                {viewYear}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setViewYear((y) => y + 1); }}
+                className={navBtn}
+                title="Año siguiente"
+                aria-label="Año siguiente"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setViewYear((y) => y + 10); }}
+                className={navBtnJump}
+                title="10 años adelante"
+                aria-label="10 años adelante"
+              >
+                »
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {MONTHS.map((mon, idx) => {
+                const isSelected = viewYear === selectedYear && idx === selectedMonthIndex;
+                const isCurrent =
+                  viewYear === new Date().getFullYear() && idx === new Date().getMonth();
+                return (
+                  <button
+                    key={mon}
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); pick(idx); }}
+                    className={cn(
+                      'flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-all',
+                      isSelected
+                        ? 'border border-amber-500/30 bg-amber-500/20 text-amber-400'
+                        : 'text-zinc-300 hover:bg-white/10 hover:text-white',
+                      isCurrent && !isSelected && 'ring-1 ring-amber-500/25',
+                    )}
+                  >
+                    {mon}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3">
+          {pickerView === 'years' ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setPickerView('months');
+              }}
+              className="text-xs font-medium text-zinc-500 hover:text-zinc-300"
+            >
+              Ver meses
+            </button>
+          ) : (
+            <span />
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              const today = new Date();
+              onChange(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+              close();
+            }}
+            className="text-xs font-medium text-amber-500 hover:text-amber-400"
+          >
+            Este mes
+          </button>
         </div>
       </div>,
       document.body
@@ -216,6 +331,7 @@ export function AppMonthPicker({
             } else {
               setViewYear(new Date().getFullYear());
             }
+            setPickerView('months');
           }
           setOpen((o) => !o);
         }}

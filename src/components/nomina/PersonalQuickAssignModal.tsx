@@ -47,6 +47,11 @@ const EMPTY_CREATE = {
   salario_base: '',
   salario_libre: '',
   bono_transporte: '',
+  fecha_nacimiento: '',
+  fecha_ingreso: new Date().toISOString().slice(0, 10),
+  ajuste_antiguedad_dias: '0',
+  ubicacion_laboral: '',
+  notas: '',
   rotacion_inicio_fecha: '',
   rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
   rotacion_estado_referencia_posicion: '',
@@ -335,6 +340,11 @@ export function PersonalQuickAssignModal({
           createForm.rotacion_estado_referencia_posicion === ''
             ? null
             : Number(createForm.rotacion_estado_referencia_posicion),
+        fecha_nacimiento: createForm.fecha_nacimiento || null,
+        fecha_ingreso: createForm.fecha_ingreso || null,
+        ajuste_antiguedad_dias: Number(createForm.ajuste_antiguedad_dias || 0),
+        ubicacion_laboral: createForm.ubicacion_laboral.trim(),
+        notas: createForm.notas.trim(),
       });
       if (!res.ok || !res.personalId) {
         setError(res.message);
@@ -378,7 +388,7 @@ export function PersonalQuickAssignModal({
     <PageFormModal
       open={open}
       onClose={onClose}
-      panelClassName="!flex !h-auto !max-h-[min(92dvh,calc(100dvh-2rem))] !w-full !max-w-xl !flex-col !overflow-hidden !p-0"
+      panelClassName="!flex !h-auto !max-h-[min(92dvh,calc(100dvh-2rem))] !w-full !max-w-3xl !flex-col !overflow-hidden !p-0"
     >
       <div className="flex min-h-0 w-full flex-1 flex-col">
         <div className="shrink-0 border-b border-zinc-800/80 p-5 pb-4">
@@ -560,6 +570,45 @@ export function PersonalQuickAssignModal({
                   />
                 </div>
               </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="input-label">Fecha de nacimiento</label>
+                  <AppDatePicker
+                    value={createForm.fecha_nacimiento}
+                    onChange={(v) => setCreateForm((f) => ({ ...f, fecha_nacimiento: v }))}
+                  />
+                </div>
+                <div>
+                  <label className="input-label">Fecha de ingreso</label>
+                  <AppDatePicker
+                    value={createForm.fecha_ingreso}
+                    onChange={(v) => setCreateForm((f) => ({ ...f, fecha_ingreso: v }))}
+                  />
+                </div>
+                <div>
+                  <label className="input-label">Ajuste antigüedad (días)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input-field"
+                    value={createForm.ajuste_antiguedad_dias}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({ ...f, ajuste_antiguedad_dias: e.target.value }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="input-label">Área / sitio laboral</label>
+                  <input
+                    className="input-field"
+                    value={createForm.ubicacion_laboral}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({ ...f, ubicacion_laboral: e.target.value }))
+                    }
+                    placeholder={biblioteca.ubicacionDefaultPorArea[area] || 'Opcional'}
+                  />
+                </div>
+              </div>
               <div>
                 <label className="input-label">Perfil de compensación *</label>
                 {perfilOptions.length ? (
@@ -652,6 +701,15 @@ export function PersonalQuickAssignModal({
                     </div>
                   </div>
                 ) : null}
+              </div>
+              <div>
+                <label className="input-label">Observación general</label>
+                <textarea
+                  className="input-field h-20 resize-none text-xs"
+                  value={createForm.notas}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, notas: e.target.value }))}
+                  placeholder="Notas internas sobre el trabajador"
+                />
               </div>
             </div>
           ) : (

@@ -19,6 +19,9 @@ type Props = {
   refreshKey?: number;
   activeWeek?: { semana_inicio: string; semana_fin?: string };
   activeRegistros?: NominaRegistroCerrado[];
+  /** Limita la planilla al área de nómina actual (mina, planta, etc.) */
+  filterArea?: string;
+  areaLabel?: string;
 };
 
 export function NominaVistaPreviaModal({
@@ -28,6 +31,8 @@ export function NominaVistaPreviaModal({
   refreshKey = 0,
   activeWeek,
   activeRegistros,
+  filterArea,
+  areaLabel,
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,6 +170,8 @@ export function NominaVistaPreviaModal({
             onClose={onClose}
             onPeriodSelect={handlePeriodSelect}
             onClearPeriod={handleClearPeriod}
+            filterArea={filterArea}
+            areaLabel={areaLabel}
           />
         </div>
       )}

@@ -72,21 +72,15 @@ type CargoTheme = { bg: string; text: string; border: string };
 export function NominaMobileKpiStrip({
   totalSemana,
   activos,
-  promedio,
-  valesPend,
   fmtMoney,
 }: {
   totalSemana: number;
   activos: number;
-  promedio: number;
-  valesPend: number;
   fmtMoney: (n: number) => string;
 }) {
   const items = [
     { label: 'Semana', value: fmtMoney(totalSemana), accent: 'text-amber-400' },
     { label: 'Activos', value: String(activos), accent: 'text-white/90' },
-    { label: 'Promedio', value: fmtMoney(promedio), accent: 'text-white/80' },
-    { label: 'Vales', value: fmtMoney(valesPend), accent: 'text-red-400' },
   ];
 
   return (
@@ -320,7 +314,6 @@ export function NominaMobileHistorial({
 
 export function NominaMobileWorkerCard({
   row,
-  activeStep,
   locked,
   canEdit,
   theme,
@@ -335,7 +328,6 @@ export function NominaMobileWorkerCard({
   fmtMoney,
 }: {
   row: PreNominaRowState;
-  activeStep: NominaMobileStep;
   locked: boolean;
   canEdit: boolean;
   onNovedadTurnoChange: (
@@ -427,8 +419,7 @@ export function NominaMobileWorkerCard({
         </div>
       </div>
 
-      {activeStep === 1 && (
-        <div className="nomina-mobile-worker__step mt-2 space-y-1.5">
+      <div className="nomina-mobile-worker__step mt-2 space-y-1.5">
           <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2 py-1.5">
             <span className="text-[8px] font-bold uppercase tracking-wide text-white/35">Novedad</span>
             <NominaNovedadTurnoCell
@@ -508,10 +499,8 @@ export function NominaMobileWorkerCard({
             )}
           </div>
         </div>
-      )}
 
-      {activeStep === 2 && (
-        <div className="nomina-mobile-worker__step mt-2 space-y-1.5">
+      <div className="nomina-mobile-worker__step mt-2 space-y-1.5 border-t border-zinc-800/60 pt-2">
           <div className="grid grid-cols-3 gap-1 text-[10px]">
             <div className="rounded-md border border-zinc-800/70 bg-zinc-950/35 px-2 py-1.5">
               <span className="text-[8px] font-bold uppercase text-white/35">Sueldo</span>
@@ -574,7 +563,6 @@ export function NominaMobileWorkerCard({
             <span className="text-[11px] font-bold tabular-nums">{fmtMoney(row.totalVales)}</span>
           </button>
         </div>
-      )}
 
     </article>
   );
@@ -654,8 +642,6 @@ export function NominaMobileMoreSheet({
   onClose,
   canEdit,
   hasData,
-  onImport,
-  onArchivo,
   onPdf,
   onCsv,
   onExcel,
@@ -666,8 +652,6 @@ export function NominaMobileMoreSheet({
   onClose: () => void;
   canEdit: boolean;
   hasData: boolean;
-  onImport: () => void;
-  onArchivo?: () => void;
   onPdf: () => void;
   onCsv: () => void;
   onExcel?: () => void;
@@ -677,10 +661,6 @@ export function NominaMobileMoreSheet({
   const items = [
     ...(onInicio
       ? [{ label: 'Ir al inicio', icon: Home, onClick: onInicio, needsEdit: false }]
-      : []),
-    { label: 'Importar planilla / roster', icon: Upload, onClick: onImport, needsEdit: true },
-    ...(onArchivo
-      ? [{ label: 'Archivo de periodos', icon: Archive, onClick: onArchivo, needsEdit: false }]
       : []),
     ...(onExcel
       ? [{ label: 'Vista Excel (propuesta)', icon: FileSpreadsheet, onClick: onExcel, needsEdit: false }]
@@ -740,15 +720,13 @@ export function NominaMobileSearch({
   );
 }
 
-/** Cabecera fija: estado, semana, total y pasos de la nómina guiada. */
+/** Cabecera fija: estado, semana, total y búsqueda. */
 export function NominaMobileStickyChrome({
   pageTitle,
   cerrada,
   weekLabel,
   totalSemana,
   preNominaCount,
-  activeStep,
-  onStep,
   onOpenSemana,
   search,
   onSearchChange,
@@ -759,8 +737,6 @@ export function NominaMobileStickyChrome({
   weekLabel: string;
   totalSemana: number;
   preNominaCount: number;
-  activeStep: NominaMobileStep;
-  onStep: (s: NominaMobileStep) => void;
   onOpenSemana: () => void;
   search: string;
   onSearchChange: (v: string) => void;
@@ -800,8 +776,6 @@ export function NominaMobileStickyChrome({
         </div>
       </div>
 
-      <NominaMobileStepTabs activeStep={activeStep} onStep={onStep} />
-
       <NominaMobileSearch value={search} onChange={onSearchChange} />
     </div>
   );
@@ -818,8 +792,6 @@ export function NominaMobileSemanaSheet({
   preNominaCount,
   totalSemana,
   activos,
-  promedio,
-  valesPend,
   procesadoOk,
   semanas,
   showHistorial,
@@ -843,8 +815,6 @@ export function NominaMobileSemanaSheet({
   preNominaCount: number;
   totalSemana: number;
   activos: number;
-  promedio: number;
-  valesPend: number;
   procesadoOk: string | null;
   semanas: NominaSemana[];
   showHistorial: boolean;
@@ -886,8 +856,6 @@ export function NominaMobileSemanaSheet({
           <NominaMobileKpiStrip
             totalSemana={totalSemana}
             activos={activos}
-            promedio={promedio}
-            valesPend={valesPend}
             fmtMoney={fmtMoney}
           />
         </div>

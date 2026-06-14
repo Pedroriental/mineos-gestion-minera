@@ -48,6 +48,9 @@ type Props = {
   onPeriodSelect?: (period: NominaPeriodoSummary) => void;
   /** Callback para volver a la vista sin filtro (semana activa) */
   onClearPeriod?: () => void;
+  /** Limita la planilla al área de nómina actual */
+  filterArea?: string;
+  areaLabel?: string;
 };
 
 function isoDate(d: Date) {
@@ -75,6 +78,8 @@ export default function NominaVistaPreviaContent({
   periodoId,
   onPeriodSelect,
   onClearPeriod,
+  filterArea,
+  areaLabel,
 }: Props) {
   const temporalCtx = useMemo(
     () => resolveNominaTemporalContext(semanasCerradas),
@@ -98,11 +103,13 @@ export default function NominaVistaPreviaContent({
   const roster = useMemo(() => {
     const base = personal.filter(
       (p) =>
-        ['mina', 'planta', 'administracion'].includes(p.area) &&
+        (!filterArea || p.area === filterArea) &&
+        ['mina', 'planta', 'administracion', 'seguridad', 'transporte'].includes(p.area) &&
         ((p.estatus === 'ACTIVO' || !p.estatus) && isPersonalVisibleInNomina(p, p.area)),
     );
     const ids = new Set(base.map((p) => p.id));
     for (const r of registrosCerrados) {
+      if (filterArea && r.area !== filterArea) continue;
       if (ids.has(r.personal_id)) continue;
       const p = personal.find((x) => x.id === r.personal_id);
       if (p) {
@@ -111,7 +118,7 @@ export default function NominaVistaPreviaContent({
       }
     }
     return base;
-  }, [personal, registrosCerrados]);
+  }, [personal, registrosCerrados, filterArea]);
 
   useEffect(() => {
     if (initialRange?.start && initialRange?.end) {
@@ -124,6 +131,11 @@ export default function NominaVistaPreviaContent({
     const weeks = new Set(listWeekStartsInRange(rangeStart, rangeEnd));
     return registrosCerrados.filter((r) => weeks.has(r.semana_inicio));
   }, [registrosCerrados, rangeStart, rangeEnd]);
+
+  const registrosFiltrados = useMemo(() => {
+    if (!filterArea) return registrosEnRango;
+    return registrosEnRango.filter((r) => r.area === filterArea);
+  }, [registrosEnRango, filterArea]);
 
   // Para UI: usa periodoId como shortcut (etiquetas, estilos, orden de secciones)
   const matchingArchivedPeriod = useMemo(() => {
@@ -183,13 +195,13 @@ export default function NominaVistaPreviaContent({
 
   const personalSnapshots = useMemo(() => {
     const map: Record<string, NonNullable<NominaRegistroCerrado['personal_snapshot']>> = {};
-    for (const r of registrosEnRango) {
+    for (const r of registrosFiltrados) {
       if (r.personal_snapshot && !map[r.personal_id]) {
         map[r.personal_id] = r.personal_snapshot;
       }
     }
     return map;
-  }, [registrosEnRango]);
+  }, [registrosFiltrados]);
 
   const rosterForPreview = useMemo(() => {
     if (Object.keys(personalSnapshots).length === 0) return roster;
@@ -211,7 +223,7 @@ export default function NominaVistaPreviaContent({
         personal: rosterForPreview,
         rangeStart,
         rangeEnd,
-        registrosCerrados: registrosEnRango,
+        registrosCerrados: registrosFiltrados,
         valesPorPersonal: valesMap,
         allowProjection: includeProjection && !isConsolidatedImport,
         importSectionOrder,
@@ -221,7 +233,7 @@ export default function NominaVistaPreviaContent({
       rosterForPreview,
       rangeStart,
       rangeEnd,
-      registrosEnRango,
+      registrosFiltrados,
       valesMap,
       lastRefresh,
       includeProjection,
@@ -326,7 +338,9 @@ export default function NominaVistaPreviaContent({
           <div className="min-w-0 flex-1 space-y-2">
             <div>
               {!isEmbed ? (
-                <h2 className="text-base font-semibold text-slate-900">Vista Previa</h2>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Vista previa{areaLabel ? ` · ${areaLabel}` : ''}
+                </h2>
               ) : embedTitle ? (
                 <p className="text-sm font-semibold text-slate-800">{embedTitle}</p>
               ) : null}
@@ -479,10 +493,9 @@ export default function NominaVistaPreviaContent({
           <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-8 text-center">
             <p className="text-sm font-semibold text-slate-700">Sin planilla para mostrar</p>
             <p className="max-w-md text-xs leading-relaxed text-slate-500">
-              No hay nóminas cerradas ni importadas en este rango. Use{' '}
-              <strong>Importar</strong> para cargar planillas (detecta histórico o semana actual) o cierre la
-              semana en Mina/Molinos. Para estimados por rotación, use{' '}
-              <strong>Ajustes</strong>.
+              No hay datos de nómina en este rango para {areaLabel ? areaLabel.toLowerCase() : 'el área seleccionada'}.
+              Agregue trabajadores y complete asistencia/vales en la vista semanal, o cierre la semana para consolidar.
+              Para estimados por rotación, active <strong>Ajustes → Con estimados</strong>.
             </p>
             {archivedPeriods.length > 0 ? (
               <div className="mt-2 flex flex-wrap justify-center gap-2">

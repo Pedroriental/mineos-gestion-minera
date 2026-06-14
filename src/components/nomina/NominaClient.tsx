@@ -5,12 +5,12 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
 import { 
-  Pickaxe, Upload, RefreshCw, Plus, Trash2, Loader2, Calendar, 
+  Pickaxe, RefreshCw, Plus, Trash2, Loader2, Calendar, 
   Clock, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, 
   Search, Factory, Shield, Truck, Briefcase, Edit2, Receipt, 
   Printer, X, Users, Wallet, ChevronRight, FileText, Download,
-  TrendingUp, TrendingDown, RotateCcw, Clipboard,
-  Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet, Archive, LayoutGrid
+  TrendingUp, TrendingDown, Clipboard,
+  Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/app-toast';
@@ -134,12 +134,19 @@ import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-tr
 import {
   diasTrabajadosPorDefectoCiclo,
   etiquetaEstadoRotacion,
+  estadoObservadoOpcionesPorEsquema,
+  fechaInicioRotacionDesdeEstadoObservado,
   inputsDiasBloqueados,
   posicionEsquemaPersonal,
   rolSemanaPorPosicion,
 } from '@/lib/nomina/perfil-ciclo-reglas';
 import { useBiblioteca } from '@/contexts/biblioteca-context';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
+import {
+  downloadNominaSemanaCsv,
+  printNominaSemanaPdf,
+  type NominaSemanaExportRow,
+} from '@/lib/nomina/nomina-semana-export';
 import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, RolSemana, TendenciaSemanalRow } from '@/lib/types';
 
 import { 
@@ -457,7 +464,6 @@ export default function NominaClient({
   const { user } = useAuth();
   const canEdit = useCanEdit();
   const biblioteca = useBiblioteca();
-  const esquemaOpciones = biblioteca.esquemasPorArea[area] || ['FIJO_SEMANAL'];
 
   const personalCatalog = useMemo(
     () =>
@@ -497,7 +503,6 @@ export default function NominaClient({
 
   // State
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'primario' | 'esquema'>('primario');
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showExcelPreview, setShowExcelPreview] = useState(false);
@@ -529,9 +534,6 @@ export default function NominaClient({
   const [isHistoricalLoading, setIsHistoricalLoading] = useState(false);
   const [newValeMonto, setNewValeMonto] = useState('');
   const [newValeMotivo, setNewValeMotivo] = useState('');
-  // Paso activo del flujo guiado (Nómina 2.0)
-  const [activeStep, setActiveStep] = useState<1 | 2>(1);
-
   // Vista activa: Semanal (tradicional), Ciclos (21 días) o Plantillas rotación
   const [viewMode, setViewMode] = useState<'semanal' | 'ciclos' | 'plantillas'>('semanal');
 
@@ -546,10 +548,61 @@ export default function NominaClient({
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState({
     cedula: '', nombre_completo: '', cargo: '', area, area_detalle: '',
+    perfil_compensacion_id: '',
     salario_base: '', salario_libre: '', bono_transporte: '', telefono: '', notas: '',
+    fecha_nacimiento: '',
     fecha_ingreso: new Date().toISOString().split('T')[0],
-    esquema_rotacion: 'FIJO_SEMANAL', rotacion_inicio_fecha: '',
+    ajuste_antiguedad_dias: '0',
+    ubicacion_laboral: '',
+    rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
+    rotacion_estado_referencia_posicion: '',
+    rotacion_inicio_fecha: '',
   });
+
+  const editSelectedPerfil = useMemo(
+    () => perfilesCompensacion.find((p) => p.id === form.perfil_compensacion_id) ?? null,
+    [perfilesCompensacion, form.perfil_compensacion_id],
+  );
+  const editPerfilTieneRotacion =
+    !!editSelectedPerfil &&
+    editSelectedPerfil.esquema_rotacion_default !== 'FIJO_SEMANAL' &&
+    editSelectedPerfil.esquema_rotacion_default !== 'MOLINO_FIJO';
+  const editRotacionEstadoOptions = useMemo(
+    () =>
+      editSelectedPerfil
+        ? estadoObservadoOpcionesPorEsquema(editSelectedPerfil.esquema_rotacion_default).map((o) => ({
+            value: String(o.posicion),
+            label: o.label,
+          }))
+        : [],
+    [editSelectedPerfil],
+  );
+  const editRotacionInicioDeducido = useMemo(() => {
+    if (
+      !editPerfilTieneRotacion ||
+      !editSelectedPerfil ||
+      !form.rotacion_estado_referencia_semana ||
+      form.rotacion_estado_referencia_posicion === ''
+    ) {
+      return '';
+    }
+    return (
+      fechaInicioRotacionDesdeEstadoObservado(
+        form.rotacion_estado_referencia_semana,
+        editSelectedPerfil.esquema_rotacion_default,
+        Number(form.rotacion_estado_referencia_posicion),
+      ) ?? ''
+    );
+  }, [
+    editPerfilTieneRotacion,
+    editSelectedPerfil,
+    form.rotacion_estado_referencia_semana,
+    form.rotacion_estado_referencia_posicion,
+  ]);
+  const editUbicacionSugerencias = useMemo(
+    () => biblioteca.ubicacionSugerenciasPorArea[area] || [],
+    [biblioteca.ubicacionSugerenciasPorArea, area],
+  );
 
   const temporalCtx = useMemo(() => resolveNominaTemporalContext(semanas), [semanas]);
 
@@ -1486,31 +1539,47 @@ export default function NominaClient({
     groupRowsByPlantillaCuadrillas,
   ]);
 
+  const nominaExportRows = useMemo((): NominaSemanaExportRow[] => {
+    return preNominaRows.map((row) => ({
+      personal: {
+        nombre_completo: row.personal.nombre_completo,
+        cedula: row.personal.cedula,
+        cargo: row.personal.cargo,
+        area_detalle: row.personal.area_detalle,
+      },
+      estadoAsistencia: row.estadoAsistencia,
+      diasTrabajados: row.diasTrabajados,
+      novedadTurno: row.novedadTurno,
+      novedadTurnoObs: row.novedadTurnoObs,
+      reposoCondicion: row.reposoCondicion,
+      reposoDiasPagados: row.reposoDiasPagados,
+      salarioBaseCalculado: row.salarioBaseCalculado,
+      bonoTransporte: row.bonoTransporte,
+      bonificaciones: row.bonificaciones,
+      deducciones: row.deducciones,
+      totalVales: row.totalVales,
+      total: row.total,
+    }));
+  }, [preNominaRows]);
+
+  const nominaExportMeta = useMemo(
+    () => ({
+      area,
+      areaLabel: pageTitle,
+      weekStart: weekRange.inicio,
+      weekEnd: weekRange.fin,
+      cerrada: semanaActualProcesada,
+      workerCount: preNominaRows.length,
+      totalSemana,
+    }),
+    [area, pageTitle, weekRange.inicio, weekRange.fin, semanaActualProcesada, preNominaRows.length, totalSemana],
+  );
+
   // ── CSV Export ──────────────────────────────────────────────────────────
   const handleExportCSV = useCallback(() => {
-    const headers = ['Nombre','Cédula','Cargo','Estado','Días','Sueldo Base','Bono Trans.','Bonos','Vales','Total Neto'];
-    const csvRows = [headers.join(',')];
-    preNominaRows.forEach(row => {
-      const p = row.personal;
-      csvRows.push([
-        `"${p.nombre_completo}"`,
-        p.cedula,
-        `"${p.cargo}"`,
-        row.estadoAsistencia,
-        String(row.diasTrabajados),
-        row.salarioBaseCalculado.toFixed(2),
-        row.bonoTransporte.toFixed(2),
-        row.bonificaciones.toFixed(2),
-        row.totalVales.toFixed(2),
-        row.total.toFixed(2),
-      ].join(','));
-    });
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `nomina_${area}_${weekRange.inicio}.csv`; a.click();
-    URL.revokeObjectURL(url);
-  }, [preNominaRows, area, weekRange.inicio]);
+    downloadNominaSemanaCsv(nominaExportRows, nominaExportMeta);
+  }, [nominaExportRows, nominaExportMeta]);
+
 
   // ── WhatsApp receipt copy ──────────────────────────────────────────────
   const copyReceiptToClipboard = useCallback((row: PreNominaRowState) => {
@@ -1614,36 +1683,84 @@ export default function NominaClient({
     setEditItem(item);
     const asignacion = item.area_detalle || '';
     setForm({
-      cedula: item.cedula, nombre_completo: item.nombre_completo, cargo: item.cargo,
+      cedula: item.cedula,
+      nombre_completo: item.nombre_completo,
+      cargo: item.cargo,
       area: item.area as typeof area,
       area_detalle: isAsignacionNominaValid(asignacion) ? asignacion : '',
-      salario_base: String(item.salario_base), salario_libre: String(item.salario_libre || ''),
-      bono_transporte: String(item.bono_transporte || ''), telefono: item.telefono || '',
-      notas: item.notas || '', fecha_ingreso: item.fecha_ingreso || new Date().toISOString().split('T')[0],
-      esquema_rotacion: item.esquema_rotacion || 'FIJO_SEMANAL',
+      perfil_compensacion_id: item.perfil_compensacion_id || '',
+      salario_base: String(item.salario_base),
+      salario_libre: String(item.salario_libre || ''),
+      bono_transporte: String(item.bono_transporte || ''),
+      telefono: item.telefono || '',
+      notas: item.notas || '',
+      fecha_nacimiento: item.fecha_nacimiento || '',
+      fecha_ingreso: item.fecha_ingreso || new Date().toISOString().split('T')[0],
+      ajuste_antiguedad_dias: String(item.ajuste_antiguedad_dias ?? 0),
+      ubicacion_laboral: item.ubicacion_laboral || '',
+      rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
+      rotacion_estado_referencia_posicion: '',
       rotacion_inicio_fecha: item.rotacion_inicio_fecha || '',
     });
-    setActiveTab('primario'); setShowModal(true);
+    setFormError(null);
+    setShowModal(true);
   }
 
   function resetForm() {
     setEditItem(null);
-    setForm({ cedula: '', nombre_completo: '', cargo: '', area, area_detalle: '', salario_base: '', salario_libre: '', bono_transporte: '', telefono: '', notas: '', fecha_ingreso: new Date().toISOString().split('T')[0], esquema_rotacion: 'FIJO_SEMANAL', rotacion_inicio_fecha: '' });
-    setActiveTab('primario'); setFormError(null);
+    setForm({
+      cedula: '',
+      nombre_completo: '',
+      cargo: '',
+      area,
+      area_detalle: '',
+      perfil_compensacion_id: '',
+      salario_base: '',
+      salario_libre: '',
+      bono_transporte: '',
+      telefono: '',
+      notas: '',
+      fecha_nacimiento: '',
+      fecha_ingreso: new Date().toISOString().split('T')[0],
+      ajuste_antiguedad_dias: '0',
+      ubicacion_laboral: biblioteca.ubicacionDefaultPorArea[area] || '',
+      rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
+      rotacion_estado_referencia_posicion: '',
+      rotacion_inicio_fecha: '',
+    });
+    setFormError(null);
   }
 
   function handleSave() {
     setFormError(null);
+    if (!form.perfil_compensacion_id) {
+      setFormError('Selecciona un perfil de compensación.');
+      return;
+    }
     startTransition(async () => {
       const res = await upsertPersonalV3Action({
-        id: editItem?.id, cedula: form.cedula, nombre_completo: form.nombre_completo,
-        cargo: form.cargo, area, area_detalle: form.area_detalle,
-        perfil_compensacion_id: editItem?.perfil_compensacion_id || '',
+        id: editItem?.id,
+        cedula: form.cedula,
+        nombre_completo: form.nombre_completo,
+        cargo: form.cargo,
+        area,
+        area_detalle: form.area_detalle,
+        perfil_compensacion_id: form.perfil_compensacion_id,
         salario_base: Number(form.salario_base) || 0,
         salario_libre: Number(form.salario_libre) || 0,
-        bono_transporte: Number(form.bono_transporte) || 0, telefono: form.telefono, notas: form.notas,
+        bono_transporte: Number(form.bono_transporte) || 0,
+        telefono: form.telefono,
+        notas: form.notas,
+        fecha_nacimiento: form.fecha_nacimiento || null,
         fecha_ingreso: form.fecha_ingreso,
-        rotacion_inicio_fecha: form.rotacion_inicio_fecha || null,
+        ajuste_antiguedad_dias: Number(form.ajuste_antiguedad_dias || 0),
+        ubicacion_laboral: form.ubicacion_laboral,
+        rotacion_inicio_fecha: editRotacionInicioDeducido || form.rotacion_inicio_fecha || null,
+        rotacion_estado_referencia_semana: form.rotacion_estado_referencia_semana || null,
+        rotacion_estado_referencia_posicion:
+          form.rotacion_estado_referencia_posicion === ''
+            ? null
+            : Number(form.rotacion_estado_referencia_posicion),
       });
       if (res.ok) {
         await registrarAuditAction(editItem ? 'EDITAR_PERSONAL' : 'CREAR_PERSONAL', 'personal', editItem?.id || form.cedula, `${form.nombre_completo} - ${form.cargo}`, user?.id, user?.email);
@@ -1871,45 +1988,8 @@ export default function NominaClient({
 
   // ── PDF Consolidated Report ─────────────────────────────────────────────
   const handlePrintReport = useCallback(() => {
-    const rows = preNominaRows;
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Reporte Nómina ${area.toUpperCase()}</title>
-<style>
-  body{font-family:system-ui,sans-serif;padding:40px;color:#111;font-size:12px}
-  h1{font-size:18px;margin-bottom:4px}
-  h2{font-size:14px;color:#666;margin-top:0}
-  table{width:100%;border-collapse:collapse;margin-top:16px}
-  th{background:#f5f5f5;border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase}
-  td{border:1px solid #eee;padding:5px 8px}
-  .total-row{font-weight:bold;background:#fffde7}
-  .text-right{text-align:right}
-  .signatures{display:flex;justify-content:space-between;margin-top:60px;padding-top:40px}
-  .sig-box{text-align:center;width:200px;border-top:1px solid #333;padding-top:8px;font-size:10px}
-  .footer{margin-top:30px;font-size:9px;color:#999;text-align:center}
-</style></head><body>
-<h1>MOLINOS LA FÉ - MINA BELÉN</h1>
-<h2>Reporte Consolidado de Nómina Semanal — ${area.toUpperCase()}</h2>
-<p>Periodo: ${fmtDate(weekRange.inicio)} al ${fmtDate(weekRange.fin)} · ${rows.length} trabajadores · Generado: ${new Date().toLocaleString('es-VE')}</p>
-<table>
-<thead><tr><th>#</th><th>Nombre</th><th>C.I.</th><th>Cargo</th><th>Estado</th><th>Días</th><th class="text-right">Sueldo</th><th class="text-right">Bono Trans.</th><th class="text-right">Bonos</th><th class="text-right">Vales</th><th class="text-right">TOTAL</th></tr></thead>
-<tbody>
-${rows.map((r, i) => {
-  const baseSal = r.salarioBaseCalculado;
-  return `<tr><td>${i+1}</td><td><strong>${r.personal.nombre_completo}</strong></td><td>${r.personal.cedula}</td><td>${r.personal.cargo}</td><td>${r.estadoAsistencia}</td><td class="text-center">${r.diasTrabajados}</td><td class="text-right">$${baseSal.toFixed(2)}</td><td class="text-right">$${r.bonoTransporte.toFixed(2)}</td><td class="text-right">$${r.bonificaciones.toFixed(2)}</td><td class="text-right">$${r.totalVales.toFixed(2)}</td><td class="text-right"><strong>$${r.total.toFixed(2)}</strong></td></tr>`;
-}).join('')}
-<tr class="total-row"><td colspan="9">TOTAL GENERAL</td><td class="text-right"><strong>$${totalSemana.toFixed(2)}</strong></td></tr>
-</tbody></table>
-<h2 style="margin-top:24px">Distribución de pagos</h2>
-<table style="width:auto"><thead><tr><th>Beneficiario</th><th>%</th><th class="text-right">Bruto</th><th class="text-right">Pagos Directos</th><th class="text-right">Neto</th></tr></thead>
-<tbody>
-${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</td><td class="text-right">$${l.bruto.toFixed(2)}</td><td class="text-right">$${l.pagoDirecto.toFixed(2)}</td><td class="text-right"><strong>$${l.neto.toFixed(2)}</strong></td></tr>`).join('')}
-</tbody></table>
-<div class="signatures">${distribucion.lineas.map((l) => `<div class="sig-box">${l.nombre.toUpperCase()}<br>Beneficiario</div>`).join('')}</div>
-<p class="footer">Generado automáticamente por MineOS — Sistema de Gestión Minera · ${new Date().toISOString()}</p>
-</body></html>`;
-    const win = window.open('', '_blank');
-    if (win) { win.document.write(html); win.document.close(); win.print(); }
-  }, [preNominaRows, totalSemana, area, weekRange, distribucion.lineas]);
+    printNominaSemanaPdf(nominaExportRows, nominaExportMeta, distribucion.lineas);
+  }, [nominaExportRows, nominaExportMeta, distribucion.lineas]);
 
   const toolbarPrimaryActions = (
     <>
@@ -1930,23 +2010,12 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
 
   const toolbarSecondaryActions = (
     <>
-      <button onClick={() => setShowImport(true)} disabled={!canEdit} title="Importar planilla o roster" className="nomina-page__toolbar-btn btn-secondary border border-emerald-500/25 text-emerald-200/90 hover:bg-emerald-500/10">
-        <Upload className="shrink-0" /> Importar
-      </button>
       <button
         type="button"
-        onClick={() => setShowRotacionSandbox(true)}
-        title="Plantillas de rotación"
-        className="nomina-page__toolbar-btn btn-secondary border border-violet-500/30 text-violet-200/90 hover:bg-violet-500/10"
-      >
-        <LayoutGrid className="shrink-0" /> Rotación
-      </button>
-      <button type="button" onClick={() => setShowArchivo(true)} title="Periodos archivados" className="nomina-page__toolbar-btn btn-secondary">
-        <Archive className="shrink-0 text-zinc-400" /> Archivo
-      </button>
-      <button
-        type="button"
-        onClick={() => setShowExcelPreview(true)}
+        onClick={() => {
+          setPreviewInitialRange({ start: weekRange.inicio, end: weekRange.fin });
+          setShowExcelPreview(true);
+        }}
         title="Vista previa Excel"
         className="nomina-page__toolbar-btn btn-secondary border border-amber-500/40 text-amber-200/95 hover:bg-amber-500/10"
       >
@@ -1988,17 +2057,9 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
               <p className="nomina-page__kpi-label">Personal Activo</p>
               <p className="nomina-page__kpi-value text-white/90">{data.length}</p>
             </div>
-            <div className="nomina-page__kpi-card bg-zinc-900 border border-zinc-800 rounded-lg">
-              <p className="nomina-page__kpi-label">Promedio</p>
-              <p className="nomina-page__kpi-value text-white/90">{data.length > 0 ? fmtMoney(totalSemana / data.length) : '$0.00'}</p>
-            </div>
-            <div className="nomina-page__kpi-card bg-zinc-900 border border-zinc-800 rounded-lg">
-              <p className="nomina-page__kpi-label">Vales Pend.</p>
-              <p className="nomina-page__kpi-value text-red-400">{fmtMoney(preNominaRows.reduce((s, r) => s + r.totalVales, 0))}</p>
-            </div>
           </div>
 
-          {(activeStep >= 2 || semanaActualProcesada) && (
+          {(preNominaRows.length > 0 || semanaActualProcesada) && (
             <div className="nomina-page__distribucion-aside shrink-0 max-h-[min(22rem,40vh)] overflow-y-auto">
               <NominaDistribucionPanel
                 totalNomina={totalSemana}
@@ -2022,38 +2083,6 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
           <div className="nomina-page__aside-tools shrink-0 flex flex-col gap-1.5">
             <div className="nomina-page__toolbar-actions nomina-page__toolbar-actions--grid">
               {toolbarSecondaryActions}
-            </div>
-          </div>
-
-          <div className="nomina-page__console shrink-0 flex flex-col gap-3">
-            <div className="flex flex-col text-left">
-              <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">Consola de Control</span>
-              <h2 className="text-sm font-black text-white/90 uppercase tracking-wide mt-0.5">Nómina Guiada 2.0</h2>
-            </div>
-            <div className="flex flex-col gap-2">
-              {[
-                { step: 1, title: 'Asistencia', desc: 'Turno y días trabajados' },
-                { step: 2, title: 'Vales & Ajustes', desc: 'Bono Trans./Adelantos' },
-              ].map((s) => {
-                const isActive = activeStep === s.step;
-                return (
-                  <button
-                    key={s.step}
-                    type="button"
-                    onClick={() => setActiveStep(s.step as 1 | 2)}
-                    className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-1.5 text-left transition-all group ${
-                      isActive
-                        ? 'border-amber-500/40 bg-amber-600/10 text-amber-400 shadow-md shadow-amber-500/5'
-                        : 'border-zinc-800/80 bg-zinc-950/30 text-white/40 hover:border-zinc-700 hover:text-white/60'
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold leading-tight">{s.title}</p>
-                      <p className="mt-0.5 text-[8px] leading-none text-white/30 group-hover:text-white/40">{s.desc}</p>
-                    </div>
-                  </button>
-                );
-              })}
             </div>
           </div>
 
@@ -2172,8 +2201,6 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
             weekLabel={`${fmtDate(weekRange.inicio)} – ${fmtDate(weekRange.fin)}`}
             totalSemana={totalSemana}
             preNominaCount={preNominaRows.length}
-            activeStep={activeStep}
-            onStep={setActiveStep}
             onOpenSemana={() => setSemanaSheetOpen(true)}
             search={search}
             onSearchChange={setSearch}
@@ -2403,7 +2430,6 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                           <NominaMobileWorkerCard
                             key={p.id}
                             row={row}
-                            activeStep={activeStep}
                             locked={semanaActualProcesada}
                             canEdit={canEdit}
                             theme={theme}
@@ -2436,12 +2462,12 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                           <tr className="bg-zinc-950/40 border-b border-zinc-800 text-[10px] font-bold text-white/50 uppercase tracking-wider">
                             <th className="px-5 py-3">Trabajador</th>
                             <th className="px-2 py-3 text-center text-[10px]">Novedad turno</th>
-                            <th className={`px-5 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/10 text-amber-400 font-black border-x border-amber-500/20 shadow-sm' : ''}`}>Asistencia</th>
-                            <th className={`px-3 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/10 text-amber-400 font-black shadow-sm' : ''}`}>Días</th>
+                            <th className="px-5 py-3 text-center">Asistencia</th>
+                            <th className="px-3 py-3 text-center">Días</th>
                             <th className="px-5 py-3 text-right">Sueldo</th>
-                            <th className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/10 text-amber-400 font-black border-l border-amber-500/20 shadow-sm' : ''}`}>Bono T.</th>
-                            <th className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/10 text-amber-400 font-black shadow-sm' : ''}`}>Bonos</th>
-                            <th className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/10 text-amber-400 font-black border-r border-amber-500/20 shadow-sm' : ''}`}>Vales</th>
+                            <th className="px-5 py-3 text-right">Bono T.</th>
+                            <th className="px-5 py-3 text-right">Bonos</th>
+                            <th className="px-5 py-3 text-right">Vales</th>
                             <th className="px-5 py-3 text-right text-amber-500">Total</th>
                             <th className="px-5 py-3 text-center">Acciones</th>
                           </tr>
@@ -2517,7 +2543,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                   />
                                 </td>
                                 {/* Attendance Toggles - Turno/Libre/Falta */}
-                                <td className={`px-3 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/5 border-x border-amber-500/10' : ''}`}>
+                                <td className="px-3 py-3 text-center">
                                   <div className="inline-flex p-1 rounded-xl bg-zinc-950/60 border border-zinc-800/50">
                                     <button onClick={() => handleUpdateRow(p.id, { estadoAsistencia: 'trabajada' })} title="Semana Turno Laboral" disabled={semanaActualProcesada}
                                       className={`px-2.5 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all flex items-center gap-1 disabled:opacity-45 disabled:cursor-not-allowed ${row.estadoAsistencia === 'trabajada' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 shadow-md shadow-amber-500/5' : 'border-transparent text-white/40 hover:text-white/70'}`}>
@@ -2533,7 +2559,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                     </button>
                                   </div>
                                 </td>
-                                <td className={`px-3 py-3 text-center transition-all duration-300 ${activeStep === 1 ? 'bg-amber-500/5' : ''}`}>
+                                <td className="px-3 py-3 text-center">
                                   {!row.diasInputBloqueado && row.estadoAsistencia === 'trabajada' ? (
                                     <div className="inline-flex flex-col items-center gap-1">
                                       <input
@@ -2592,15 +2618,15 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
                                   </div>
                                 </td>
                                 {/* Bono */}
-                                <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5 border-l border-amber-500/10' : ''}`}>
+                                <td className="px-5 py-3 text-right">
                                   <input type="number" value={row.bonoTransporte || ''} onChange={e => handleUpdateRow(p.id, { bonoTransporte: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada || (row.rotacionFuente === 'plantilla' ? row.estatusPlantilla !== 'bono_transporte_paga' : row.diasInputBloqueado)} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
                                 </td>
                                 {/* Bonificaciones */}
-                                <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5' : ''}`}>
+                                <td className="px-5 py-3 text-right">
                                   <input type="number" value={row.bonificaciones || ''} onChange={e => handleUpdateRow(p.id, { bonificaciones: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada || row.diasInputBloqueado} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
                                 </td>
                                 {/* Vales Badge */}
-                                <td className={`px-5 py-3 text-right transition-all duration-300 ${activeStep === 2 ? 'bg-amber-500/5 border-r border-amber-500/10' : ''}`}>
+                                <td className="px-5 py-3 text-right">
                                   <button onClick={() => openDrawer(p.id)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${row.totalVales > 0 ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' : 'bg-zinc-950/40 border-zinc-800 text-white/50 hover:border-zinc-700 hover:text-white/70'}`}>
                                     <FileText className="w-3.5 h-3.5" />
                                     {row.totalVales > 0 ? (
@@ -2737,8 +2763,6 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         preNominaCount={preNominaRows.length}
         totalSemana={totalSemana}
         activos={data.length}
-        promedio={data.length > 0 ? totalSemana / data.length : 0}
-        valesPend={preNominaRows.reduce((s, r) => s + r.totalVales, 0)}
         procesadoOk={procesadoOk}
         semanas={semanas}
         showHistorial={showHistorial}
@@ -2759,7 +2783,7 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
           })
         }
         distribucionPanel={
-          activeStep >= 2 || semanaActualProcesada ? (
+          preNominaRows.length > 0 || semanaActualProcesada ? (
             <NominaDistribucionPanel
               totalNomina={totalSemana}
               partes={distribucion.partes}
@@ -2786,12 +2810,11 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         onClose={() => setMobileMoreOpen(false)}
         canEdit={canEdit}
         hasData={data.length > 0}
-        onImport={() => setShowImport(true)}
-        onArchivo={() => setShowArchivo(true)}
         onPdf={handlePrintReport}
         onCsv={handleExportCSV}
         onExcel={() => {
           setMobileMoreOpen(false);
+          setPreviewInitialRange({ start: weekRange.inicio, end: weekRange.fin });
           setShowExcelPreview(true);
         }}
         onBorrar={() => setShowBorrarModal(true)}
@@ -2858,8 +2881,10 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
           setShowExcelPreview(false);
           setPreviewInitialRange(null);
         }}
-        initialRange={previewInitialRange}
+        initialRange={previewInitialRange ?? { start: weekRange.inicio, end: weekRange.fin }}
         refreshKey={previewRefreshKey}
+        filterArea={area}
+        areaLabel={pageTitle}
         activeWeek={
           weekRange.inicio
             ? { semana_inicio: weekRange.inicio, semana_fin: weekRange.fin }
@@ -2902,61 +2927,126 @@ ${distribucion.lineas.map((l) => `<tr><td>${l.nombre}</td><td>${l.porcentaje}%</
         onClose={() => setShowModal(false)}
         sheetTitle={editItem ? 'Editar Trabajador' : 'Registrar Nuevo Trabajador'}
         sheetIcon={<SheetIconBadge icon={Users} tone="success" />}
-        panelClassName="sm:max-w-xl"
+        panelClassName="sm:max-w-3xl"
       >
             <button type="button" onClick={() => setShowModal(false)} className="absolute right-5 top-5 hidden rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white lg:flex sm:right-6 sm:top-6" aria-label="Cerrar"><X className="w-5 h-5" /></button>
             <h3 className="page-form-modal-title hidden pr-10 text-xl font-bold tracking-wide text-white/90 lg:block">{editItem ? 'Editar Trabajador' : 'Registrar Nuevo Trabajador'}</h3>
             {formError && <p className="text-red-400 text-xs mb-4 bg-red-500/10 p-2.5 rounded-xl border border-red-500/20">{formError}</p>}
-            <div className="flex border-b border-zinc-800 mb-5">
-              <button onClick={() => setActiveTab('primario')} className={`pb-2.5 px-4 text-xs font-bold tracking-wider uppercase border-b-2 transition-all ${activeTab === 'primario' ? 'border-amber-500 text-amber-500' : 'border-transparent text-white/45'}`}>Datos</button>
-              <button onClick={() => setActiveTab('esquema')} className={`pb-2.5 px-4 text-xs font-bold tracking-wider uppercase border-b-2 transition-all ${activeTab === 'esquema' ? 'border-amber-500 text-amber-500' : 'border-transparent text-white/45'}`}>Esquema & Rotación</button>
-            </div>
-            <div className="space-y-4">
-              {activeTab === 'primario' ? (
-                <>
-                  <div className="space-y-1"><label className="input-label">Nombre Completo</label><input type="text" placeholder="Ej: Márquez Pedro" value={form.nombre_completo} onChange={e => setForm({...form, nombre_completo: e.target.value})} className="input-field" /></div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1"><label className="input-label">Cédula</label><input type="text" placeholder="9933498" value={form.cedula} onChange={e => setForm({...form, cedula: e.target.value})} className="input-field" /></div>
-                    <div className="space-y-1"><label className="input-label">Cargo</label><input type="text" placeholder="Vertical 1PD" value={form.cargo} onChange={e => setForm({...form, cargo: e.target.value})} className="input-field" /></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="input-label">Nombre y apellido *</label>
+                <input type="text" placeholder="Ej: Alexander Villasmil" value={form.nombre_completo} onChange={e => setForm({...form, nombre_completo: e.target.value})} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Cédula *</label>
+                <input type="text" placeholder="9933498" value={form.cedula} onChange={e => setForm({...form, cedula: e.target.value})} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Cargo</label>
+                <input type="text" placeholder="Opcional" value={form.cargo} onChange={e => setForm({...form, cargo: e.target.value})} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Fecha de nacimiento</label>
+                <AppDatePicker value={form.fecha_nacimiento} onChange={(v) => setForm({ ...form, fecha_nacimiento: v })} />
+              </div>
+              <div>
+                <label className="input-label">Fecha de ingreso</label>
+                <AppDatePicker value={form.fecha_ingreso} onChange={(v) => setForm({ ...form, fecha_ingreso: v })} />
+              </div>
+              <div>
+                <label className="input-label">Ajuste antigüedad (días)</label>
+                <input type="number" min="0" className="input-field" value={form.ajuste_antiguedad_dias} onChange={e => setForm({...form, ajuste_antiguedad_dias: e.target.value})} />
+              </div>
+              <div>
+                <label className="input-label">Teléfono</label>
+                <input type="text" placeholder="0414-1234567" value={form.telefono} onChange={e => setForm({...form, telefono: e.target.value})} className="input-field" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="input-label">Asignación (vertical / sector) *</label>
+                <AppSelect
+                  value={form.area_detalle}
+                  onChange={(val) => setForm({ ...form, area_detalle: val })}
+                  options={ASIGNACION_NOMINA_OPCIONES.map((value) => ({ value, label: value }))}
+                  placeholder="Seleccionar vertical/sector"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="input-label">Perfil de compensación *</label>
+                <AppSelect
+                  value={form.perfil_compensacion_id}
+                  onChange={(val) => setForm({ ...form, perfil_compensacion_id: val })}
+                  options={perfilesCompensacion.map((p) => ({ value: p.id, label: p.nombre }))}
+                  placeholder="Seleccionar perfil"
+                />
+                {editSelectedPerfil ? (
+                  <p className="mt-1 text-[10px] text-white/35">
+                    Esquema: {editSelectedPerfil.esquema_rotacion_default} · {editSelectedPerfil.semanas_trabajadas_por_ciclo} trab. / {editSelectedPerfil.semanas_libres_por_ciclo} libre
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <label className="input-label">Sueldo base semanal (USD) *</label>
+                <input type="number" step="0.01" min="0" placeholder="150.00" value={form.salario_base} onChange={e => setForm({...form, salario_base: e.target.value})} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Sueldo libre / tarifa plana</label>
+                <input type="number" step="0.01" min="0" placeholder="Vacío = sueldo base" value={form.salario_libre} onChange={e => setForm({...form, salario_libre: e.target.value})} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Bono transporte</label>
+                <input type="number" step="0.01" min="0" placeholder="30" value={form.bono_transporte} onChange={e => setForm({...form, bono_transporte: e.target.value})} className="input-field" />
+              </div>
+              <div>
+                <label className="input-label">Área / sitio laboral</label>
+                <input
+                  list="nomina-edit-ubicacion-options"
+                  className="input-field"
+                  value={form.ubicacion_laboral}
+                  onChange={e => setForm({...form, ubicacion_laboral: e.target.value})}
+                  placeholder={biblioteca.ubicacionDefaultPorArea[area] || 'Opcional'}
+                />
+                <datalist id="nomina-edit-ubicacion-options">
+                  {editUbicacionSugerencias.map((u) => (
+                    <option key={u} value={u} />
+                  ))}
+                </datalist>
+              </div>
+              {editPerfilTieneRotacion ? (
+                <div className="sm:col-span-2 rounded-lg border border-[var(--card-border)] bg-[var(--surface-elevated)] p-3">
+                  <p className="text-xs font-semibold text-[var(--text-primary)]">Asistente de rotación</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                    Indica una semana conocida y el estado observado; MineOS deduce el inicio del ciclo.
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="input-label">Semana de referencia</label>
+                      <AppDatePicker
+                        value={form.rotacion_estado_referencia_semana}
+                        onChange={(v) => setForm({ ...form, rotacion_estado_referencia_semana: v, rotacion_inicio_fecha: '' })}
+                      />
+                    </div>
+                    <div>
+                      <label className="input-label">Estado observado</label>
+                      <AppSelect
+                        value={form.rotacion_estado_referencia_posicion}
+                        onChange={(v) => setForm({ ...form, rotacion_estado_referencia_posicion: v, rotacion_inicio_fecha: '' })}
+                        options={editRotacionEstadoOptions}
+                        placeholder="Seleccionar estado"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="input-label">Asignación (Vertical / Sector)</label>
-                    <AppSelect
-                      value={form.area_detalle}
-                      onChange={(val) => setForm({ ...form, area_detalle: val })}
-                      options={ASIGNACION_NOMINA_OPCIONES.map((value) => ({ value, label: value }))}
-                      placeholder="Seleccionar vertical/sector"
-                    />
+                  <div className="mt-3 rounded-md border border-[var(--card-border)] bg-black/10 px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+                    Inicio deducido:{' '}
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      {editRotacionInicioDeducido || form.rotacion_inicio_fecha || 'pendiente'}
+                    </span>
                   </div>
-                  <div className="space-y-1"><label className="input-label">Salario Labor Semanal ($)</label><input type="number" placeholder="150.00" value={form.salario_base} onChange={e => setForm({...form, salario_base: e.target.value})} className="input-field" /></div>
-                </>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1"><label className="input-label">Sueldo Libre ($)</label><input type="number" placeholder="100" value={form.salario_libre} onChange={e => setForm({...form, salario_libre: e.target.value})} className="input-field" /></div>
-                    <div className="space-y-1"><label className="input-label">Bono Transporte ($)</label><input type="number" placeholder="30" value={form.bono_transporte} onChange={e => setForm({...form, bono_transporte: e.target.value})} className="input-field" /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1"><label className="input-label">Teléfono</label><input type="text" placeholder="0414-1234567" value={form.telefono} onChange={e => setForm({...form, telefono: e.target.value})} className="input-field" /></div>
-                    <div className="space-y-1"><label className="input-label">Fecha Ingreso</label><AppDatePicker value={form.fecha_ingreso} onChange={(v) => setForm({ ...form, fecha_ingreso: v })} /></div>
-                  </div>
-                  <div className="pt-3 border-t border-zinc-800 space-y-3">
-                    <div className="flex items-center gap-2"><RotateCcw className="w-3.5 h-3.5 text-cyan-400" /><label className="input-label !mb-0">Esquema de Rotación</label></div>
-                    <AppSelect
-                      value={form.esquema_rotacion}
-                      onChange={(val) => setForm({ ...form, esquema_rotacion: val as Personal['esquema_rotacion'] })}
-                      options={esquemaOpciones.map((code) => ({
-                        value: code,
-                        label: biblioteca.esquemaLabels[code] || code,
-                      }))}
-                    />
-                    {(form.esquema_rotacion === 'MINA_2X1' || form.esquema_rotacion === 'MOLINO_ROTATIVO' || form.esquema_rotacion === 'MINA_ROTATIVA_3G' || form.esquema_rotacion === 'MOLINO_15X15') && (
-                      <div className="space-y-1"><label className="input-label">Fecha Inicio Ciclo</label><AppDatePicker value={form.rotacion_inicio_fecha} onChange={(v) => setForm({ ...form, rotacion_inicio_fecha: v })} /><p className="text-[10px] text-white/30">Primera semana laboral del trabajador.</p></div>
-                    )}
-                  </div>
-                  <div className="space-y-1"><label className="input-label">Notas</label><textarea placeholder="Observaciones..." value={form.notas} onChange={e => setForm({...form, notas: e.target.value})} className="input-field h-20 resize-none text-xs" /></div>
-                </>
-              )}
+                </div>
+              ) : null}
+              <div className="sm:col-span-2">
+                <label className="input-label">Observación general</label>
+                <textarea placeholder="Notas internas sobre el trabajador" value={form.notas} onChange={e => setForm({...form, notas: e.target.value})} className="input-field h-20 resize-none text-xs" />
+              </div>
             </div>
             <PageFormModalFooter className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>

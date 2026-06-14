@@ -17,10 +17,19 @@ export const PersonalV3Schema = z.object({
   bono_transporte: z.coerce.number().min(0, 'Bono de transporte no puede ser negativo'),
   telefono: z.string().max(50).optional().default(''),
   notas: z.string().max(1000).optional().default(''),
+  fecha_nacimiento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD requerido')
+    .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida')
+    .optional()
+    .nullable()
+    .default(null),
   fecha_ingreso: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD requerido')
     .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida'),
+  ajuste_antiguedad_dias: z.coerce.number().int().min(0).optional().default(0),
+  ubicacion_laboral: z.string().max(200).optional().default(''),
   esquema_rotacion: z.string().max(50).optional(),
   rotacion_inicio_fecha: z
     .string()
@@ -59,6 +68,23 @@ export const CreateAndAssignPersonalNominaSchema = z.object({
   salario_base: z.coerce.number().positive('El sueldo base debe ser mayor a 0'),
   salario_libre: z.coerce.number().min(0).optional().default(0),
   bono_transporte: z.coerce.number().min(0).optional().default(0),
+  fecha_nacimiento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD requerido')
+    .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida')
+    .optional()
+    .nullable()
+    .default(null),
+  fecha_ingreso: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD requerido')
+    .refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida')
+    .optional()
+    .nullable()
+    .default(null),
+  ajuste_antiguedad_dias: z.coerce.number().int().min(0).optional().default(0),
+  ubicacion_laboral: z.string().max(200).optional().default(''),
+  notas: z.string().max(1000).optional().default(''),
   rotacion_inicio_fecha: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD requerido')
