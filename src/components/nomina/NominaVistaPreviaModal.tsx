@@ -81,15 +81,18 @@ function enrichPersonalFromRegistros(
       nombre_completo: snap.nombre_completo,
       cargo: snap.cargo,
       area: (r.area as Personal['area']) || (snap.area as Personal['area']),
-      area_detalle: snap.area_detalle,
+      area_detalle: snap.area_detalle || '',
       salario_base: snap.salario_base,
       salario_libre: snap.salario_libre,
       bono_transporte: snap.bono_transporte,
-      esquema_rotacion: snap.esquema_rotacion,
-      rotacion_inicio_fecha: snap.rotacion_inicio_fecha,
-      fecha_ingreso: null,
+      esquema_rotacion: (snap.esquema_rotacion as Personal['esquema_rotacion']) || 'FIJO_SEMANAL',
+      rotacion_inicio_fecha: snap.rotacion_inicio_fecha || undefined,
+      fecha_ingreso: '',
       estatus: 'ACTIVO',
-    } as Personal);
+      activo: true,
+      created_at: '',
+      updated_at: '',
+    });
   }
   return [...byId.values()];
 }
@@ -129,7 +132,7 @@ export function NominaVistaPreviaModal({
     ) => {
       if (!previewRes.ok) return false;
 
-      let mergedRegistros = mergeActiveRegistros(
+      const mergedRegistros = mergeActiveRegistros(
         previewRes.registrosCerrados,
         activeWeekRef.current,
         activeRegistrosRef.current,

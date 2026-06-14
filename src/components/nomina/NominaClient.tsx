@@ -153,7 +153,7 @@ import {
   printNominaSemanaPdf,
   type NominaSemanaExportRow,
 } from '@/lib/nomina/nomina-semana-export';
-import type { Personal, NominaSemana, NominaVale, HistorialPagoRow, RolSemana, TendenciaSemanalRow } from '@/lib/types';
+import type { Personal, NominaRegistro, NominaSemana, NominaVale, HistorialPagoRow, RolSemana, TendenciaSemanalRow } from '@/lib/types';
 
 import { 
   revertirSemanaAction,
@@ -186,6 +186,11 @@ import {
 } from '@/components/nomina/nomina-mobile';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+type SemanaRegistroDetalle = NominaRegistro & {
+  personal?: Personal | null;
+  personal_snapshot?: Partial<Personal> | null;
+};
+
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const [y, m, day] = iso.split('-');
@@ -288,7 +293,7 @@ function recomputePreNominaRow(
   const esquemaDiasBloqueados = inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
   const fromPlantilla = merged.rotacionFuente === 'plantilla';
 
-  let estadoAsistencia = merged.estadoAsistencia;
+  const estadoAsistencia = merged.estadoAsistencia;
   let diasTrabajados = merged.diasTrabajados;
 
   // La rotación (esquema o plantilla) solo SUGIERE asistencia; la elección
@@ -354,6 +359,10 @@ function recomputePreNominaRow(
         bonificaciones,
         totalVales: merged.totalVales,
       });
+  const payEstadoAsistencia =
+    fromPlantilla && merged.estatusPlantilla && 'estadoAsistencia' in pay
+      ? (pay.estadoAsistencia as EstadoAsistenciaNomina)
+      : resolved.estadoAsistencia;
 
   let salarioBaseCalculado = pay.salarioBaseCalculado;
   let total = pay.total;
@@ -390,10 +399,7 @@ function recomputePreNominaRow(
 
   return {
     ...merged,
-    estadoAsistencia:
-      fromPlantilla && merged.estatusPlantilla && 'estadoAsistencia' in pay
-        ? pay.estadoAsistencia
-        : resolved.estadoAsistencia,
+    estadoAsistencia: payEstadoAsistencia,
     diasTrabajados: resolved.diasTrabajados,
     salarioBaseCalculado,
     bonoTransporte: pay.bonoTransporte,
@@ -544,6 +550,18 @@ export default function NominaClient({
 
   // Pre-Nómina
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
+  const proximosPagosValesPorPersonal = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const row of preNominaRows) {
+      const totalVales =
+        Number(row.totalVales) ||
+        row.valesPendientes.reduce((sum, vale) => sum + Number(vale.monto), 0);
+      if (totalVales > 0) {
+        map[row.personal.id] = totalVales;
+      }
+    }
+    return map;
+  }, [preNominaRows]);
 
   // Sparkline trend data
   const [trendData, setTrendData] = useState<TendenciaSemanalRow[]>([]);
@@ -998,7 +1016,7 @@ export default function NominaClient({
         try {
           const res = await getSemanaRegistrosAction(closedWeek.id);
           if (res.ok && res.data) {
-            const rows = res.data.map((reg: any) => {
+            const rows = (res.data as SemanaRegistroDetalle[]).map((reg) => {
               const snap = reg.personal_snapshot || null;
               const pRaw = reg.personal || {
                 id: reg.personal_id,
@@ -1012,12 +1030,16 @@ export default function NominaClient({
                 bono_transporte: Number(snap?.bono_transporte) || 0,
                 esquema_rotacion: snap?.esquema_rotacion || 'FIJO_SEMANAL',
                 rotacion_inicio_fecha: snap?.rotacion_inicio_fecha || undefined,
+                estatus: 'ACTIVO',
+                fecha_ingreso: snap?.fecha_ingreso || '',
                 activo: false,
+                created_at: '',
+                updated_at: '',
               };
               const p = {
                 ...pRaw,
                 nombre_completo: formatNombrePropio(pRaw.nombre_completo || ''),
-              };
+              } as Personal;
               const estadoAsistencia = (reg.estado_asistencia ||
                 (reg.es_semana_libre ? 'libre' : 'trabajada')) as EstadoAsistenciaNomina;
               const diasTrabajados =
@@ -1118,7 +1140,7 @@ export default function NominaClient({
                     area,
                   )
                 : personalCatalogMerged;
-            let valesMap: Record<string, NominaVale[]> = {};
+            const valesMap: Record<string, NominaVale[]> = {};
             if (personalIds.length) {
               try {
                 const res = await getValesPendientesBulkAction(personalIds);
@@ -1207,7 +1229,7 @@ export default function NominaClient({
           return;
         }
 
-        let valesMapFallback: Record<string, NominaVale[]> = {};
+        const valesMapFallback: Record<string, NominaVale[]> = {};
         const fallbackPersonalIds = manualActiveWorkers.map((p) => p.id);
         try {
           const res = await getValesPendientesBulkAction(fallbackPersonalIds);
@@ -1272,7 +1294,7 @@ export default function NominaClient({
       }
 
       const personalIds = activeWorkers.map(p => p.id);
-      let valesMap: Record<string, NominaVale[]> = {};
+      const valesMap: Record<string, NominaVale[]> = {};
       try {
         const res = await getValesPendientesBulkAction(personalIds);
         if (res.ok && res.data) {
@@ -2358,6 +2380,7 @@ export default function NominaClient({
                       instanciaActiva={instanciaActivaProp}
                       userId={user?.id}
                       personal={personalCatalogMerged}
+                      valesPorPersonal={proximosPagosValesPorPersonal}
                       consolidatedLockedPeriodIds={consolidatedLockedIds}
                       onConsolidated={() => {
                         setManualPeriodSession((prev) => {
@@ -2994,7 +3017,7 @@ export default function NominaClient({
         open={showArchivo}
         onClose={() => setShowArchivo(false)}
         userId={user?.id}
-        area={area}
+        area={area as 'mina' | 'planta'}
         refreshKey={archivoRefreshKey}
         onImport={() => {
           setShowArchivo(false);

@@ -6,7 +6,7 @@ import {
   totalSemanasEsquema,
 } from '@/lib/nomina/perfil-ciclo-reglas';
 import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
-import type { Personal } from '@/lib/types';
+import type { Personal, PoliticaReposo } from '@/lib/types';
 import type { EstatusRotacionPlantilla } from '@/lib/rotacion-plantillas/types';
 import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-transporte-semana';
 

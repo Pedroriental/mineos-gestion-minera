@@ -58,7 +58,7 @@ function escapeHtml(s: string): string {
 }
 
 function rowNovedad(row: NominaSemanaExportRow): string {
-  if (row.novedadTurno === 'NINGUNA') return '—';
+  if (row.novedadTurno === 'ACTIVO' && !row.novedadTurnoObs?.trim()) return '—';
   return describeNovedadTurnoSemana(row);
 }
 

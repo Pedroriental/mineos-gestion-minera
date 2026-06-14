@@ -41,6 +41,8 @@ type Props = {
   onConsolidated?: () => void;
   consolidatedLockedPeriodIds?: Set<string>;
   personal?: Personal[];
+  valesPorPersonal?: Record<string, number>;
+  periodosRefreshKey?: number;
 };
 
 export function NominaCiclosView({
@@ -65,6 +67,7 @@ export function NominaCiclosView({
   onConsolidated,
   consolidatedLockedPeriodIds = new Set(),
   personal = [],
+  valesPorPersonal = {},
 }: Props) {
   const editorPeriod = getEditorPeriod(periodsSession);
   const editorLocked =
@@ -108,6 +111,8 @@ export function NominaCiclosView({
           personal={personal}
           area={area}
           workingWeekStart={workingWeekStart}
+          instanciaActiva={instanciaActiva}
+          valesPorPersonal={valesPorPersonal}
         />
       )}
 

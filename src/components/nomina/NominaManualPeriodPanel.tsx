@@ -366,7 +366,7 @@ export function NominaManualPeriodPanel({
         rangeStart: period.rangeStart,
         rangeEnd: period.rangeEnd,
         userId,
-        area,
+        area: area as 'mina' | 'planta',
         metadata: {
           plantilla_id: period.plantillaId,
           plantilla_nombre: period.plantillaNombre,
