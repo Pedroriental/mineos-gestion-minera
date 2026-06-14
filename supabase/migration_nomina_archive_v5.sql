@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS nomina_periodos (
   range_end    DATE NOT NULL,
   total_usd    NUMERIC(14,2) NOT NULL DEFAULT 0,
   origen       TEXT NOT NULL DEFAULT 'import_historico'
-    CHECK (origen IN ('import_historico', 'consolidacion_manual', 'cierre_operativo')),
+    CHECK (origen IN ('import_historico', 'consolidacion_manual', 'cierre_operativo', 'cierre_mes')),
   metadata     JSONB NOT NULL DEFAULT '{}',
   created_by   UUID REFERENCES auth.users(id),
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()

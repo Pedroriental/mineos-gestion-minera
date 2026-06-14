@@ -31,6 +31,16 @@ function revalidateNomina() {
 
 function mapSemanaSaveError(message: string): string {
   if (
+    message.includes('rotacion_plantilla_semanas_estatus_default_check') ||
+    message.includes('rotacion_plantilla_asignaciones_estatus_override_check')
+  ) {
+    return (
+      'La base de datos aún no admite el estatus «Bono transporte». ' +
+      'Ejecute en Supabase el SQL supabase/migration_rotacion_bono_transporte_estatus.sql ' +
+      '(o npm run supabase:migrate:rotacion).'
+    );
+  }
+  if (
     message.includes('rotacion_plantilla_semanas_plantilla_id_orden_key') ||
     (message.includes('duplicate key') && message.includes('orden'))
   ) {

@@ -4,6 +4,7 @@ import { ManualPeriodsSessionBar } from '@/components/nomina/ManualPeriodsSessio
 import { NominaManualPeriodPanel } from '@/components/nomina/NominaManualPeriodPanel';
 import { NominaProximosPagos } from '@/components/nomina/NominaProximosPagos';
 import { NominaPeriodosRegistradosPanel } from '@/components/nomina/NominaPeriodosRegistradosPanel';
+import { NominaMesCierrePanel } from '@/components/nomina/NominaMesCierrePanel';
 import { RotacionInstanciaBanner } from '@/components/nomina/RotacionInstanciaPanel';
 import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
@@ -161,6 +162,14 @@ export function NominaCiclosView({
           onOpenSemanal();
         }}
         onPeriodDeleted={onConsolidated}
+      />
+
+      <NominaMesCierrePanel
+        area={area === 'planta' || area === 'mina' ? area : 'mina'}
+        canEdit={canEdit}
+        userId={userId}
+        refreshKey={periodosRefreshKey}
+        onMesClosed={onConsolidated}
       />
     </div>
   );

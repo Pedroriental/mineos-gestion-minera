@@ -10,4 +10,11 @@ if (-not (Test-Path $sql)) {
 
 Write-Host "Aplicando migration_nomina_archive_v5.sql..."
 Get-Content $sql -Raw | supabase db query --linked
+
+$cierreMes = Join-Path $Root "supabase\migration_nomina_cierre_mes.sql"
+if (Test-Path $cierreMes) {
+  Write-Host "Aplicando migration_nomina_cierre_mes.sql..."
+  Get-Content $cierreMes -Raw | supabase db query --linked
+}
+
 Write-Host "Listo."

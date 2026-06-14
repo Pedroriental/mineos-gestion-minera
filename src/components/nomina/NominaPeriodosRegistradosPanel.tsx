@@ -28,6 +28,7 @@ import {
   stripPeriodoLabelPrefix,
   type ManualNominaPeriod,
 } from '@/lib/nomina/manual-period';
+import { periodoEsCierreMes } from '@/lib/nomina/cierre-mes';
 import { estatusRotacionShort } from '@/lib/rotacion-plantillas/types';
 import type { NominaSemana } from '@/lib/types';
 import { mineosKpiValue, mineosPanel } from '@/lib/mineos-visual';
@@ -72,6 +73,7 @@ export function NominaPeriodosRegistradosPanel({
       if (res.ok) {
         const areaSemanaIds = new Set(semanas.filter((s) => s.area === area).map((s) => s.id));
         const filtered = res.periodos.filter((p) => {
+          if (periodoEsCierreMes(p)) return false;
           const metaArea = p.metadata?.area;
           if (typeof metaArea === 'string' && metaArea !== area) return false;
           if (p.semanaCount === 0) return true;

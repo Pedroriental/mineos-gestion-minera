@@ -41,6 +41,17 @@ import { getSemanaRegistrosAction, updatePersonalEstatusAction } from '@/lib/act
 import { loadNominaVistaPreviaDataAction } from '@/lib/actions/nomina-preview-data';
 import { prepareNominaSemanasForPeriodoDelete } from '@/lib/nomina/cierre-semana-db';
 import {
+  ORIGEN_CIERRE_MES,
+  ORIGENES_CICLO_CONSOLIDABLE,
+  periodoArea,
+  periodoEsCicloConsolidado,
+  periodoEsCierreMes,
+  rangoDesdeCiclos,
+  semanaCountDesdeCiclos,
+  totalUsdDesdeCiclos,
+  type NominaMesResumen,
+} from '@/lib/nomina/cierre-mes';
+import {
   crearValeAction,
   eliminarValeAction,
   getHistorialPagosAction,
@@ -877,6 +888,324 @@ export async function eliminarPeriodoConsolidadoAction(input: {
     return {
       ok: false,
       message: e instanceof Error ? e.message : 'Error al eliminar periodo',
+    };
+  }
+}
+
+function filterPeriodosPorArea(
+  periodos: NominaPeriodoSummary[],
+  area: string,
+): NominaPeriodoSummary[] {
+  return periodos.filter((p) => {
+    const metaArea = periodoArea(p);
+    if (metaArea && metaArea !== area) return false;
+    return true;
+  });
+}
+
+function mapMesMigrationError(message: string): string {
+  if (
+    message.includes('nomina_mes_periodos') ||
+    message.includes('cierre_mes') ||
+    message.includes('nomina_periodos_origen_check')
+  ) {
+    return (
+      'La base de datos aún no admite cierre de mes. ' +
+      'Ejecute supabase/migration_nomina_cierre_mes.sql en Supabase.'
+    );
+  }
+  return message;
+}
+
+export type NominaMesPanelData = {
+  meses: Array<NominaMesResumen & { ciclos: NominaPeriodoSummary[] }>;
+  ciclosDisponibles: NominaPeriodoSummary[];
+};
+
+export async function listNominaMesesPanelAction(area: 'mina' | 'planta'): Promise<{
+  ok: boolean;
+  data: NominaMesPanelData;
+  message?: string;
+}> {
+  const empty: NominaMesPanelData = { meses: [], ciclosDisponibles: [] };
+  try {
+    const listed = await listNominaPeriodosAction();
+    if (!listed.ok) {
+      return { ok: false, data: empty, message: listed.message };
+    }
+
+    const scoped = filterPeriodosPorArea(listed.periodos, area);
+    const byId = new Map(scoped.map((p) => [p.id, p]));
+
+    const supabase = await createServerClient();
+    const { data: links, error: linkErr } = await supabase
+      .from('nomina_mes_periodos')
+      .select('mes_periodo_id, ciclo_periodo_id');
+
+    if (linkErr) {
+      if (linkErr.message.includes('nomina_mes_periodos')) {
+        const ciclosDisponibles = scoped.filter(periodoEsCicloConsolidado);
+        return { ok: true, data: { meses: [], ciclosDisponibles } };
+      }
+      return { ok: false, data: empty, message: linkErr.message };
+    }
+
+    const cicloIdsEnMes = new Set((links ?? []).map((l) => l.ciclo_periodo_id as string));
+    const mesIds = new Set(
+      scoped.filter(periodoEsCierreMes).map((p) => p.id),
+    );
+
+    const ciclosPorMes = new Map<string, NominaPeriodoSummary[]>();
+    for (const link of links ?? []) {
+      const mesId = link.mes_periodo_id as string;
+      const cicloId = link.ciclo_periodo_id as string;
+      if (!mesIds.has(mesId)) continue;
+      const ciclo = byId.get(cicloId);
+      if (!ciclo) continue;
+      const list = ciclosPorMes.get(mesId) ?? [];
+      list.push(ciclo);
+      ciclosPorMes.set(mesId, list);
+    }
+
+    const meses = scoped
+      .filter(periodoEsCierreMes)
+      .map((p) => {
+        const ciclos = (ciclosPorMes.get(p.id) ?? []).sort((a, b) =>
+          a.rangeStart.localeCompare(b.rangeStart),
+        );
+        const cicloPeriodoIds = ciclos.map((c) => c.id);
+        return {
+          id: p.id,
+          label: stripPeriodoLabelPrefix(p.label),
+          rangeStart: p.rangeStart,
+          rangeEnd: p.rangeEnd,
+          totalUsd: Number(p.totalUsd),
+          createdAt: p.createdAt,
+          cicloCount: ciclos.length,
+          semanaCount:
+            typeof p.metadata?.semana_count === 'number'
+              ? Number(p.metadata.semana_count)
+              : semanaCountDesdeCiclos(ciclos),
+          cicloPeriodoIds,
+          ciclos,
+        };
+      })
+      .sort((a, b) => b.rangeStart.localeCompare(a.rangeStart));
+
+    const ciclosDisponibles = scoped
+      .filter((p) => periodoEsCicloConsolidado(p) && !cicloIdsEnMes.has(p.id))
+      .sort((a, b) => b.rangeStart.localeCompare(a.rangeStart));
+
+    return { ok: true, data: { meses, ciclosDisponibles } };
+  } catch (e) {
+    return {
+      ok: false,
+      data: empty,
+      message: e instanceof Error ? e.message : 'Error al listar meses',
+    };
+  }
+}
+
+export async function cerrarNominaMesAction(input: {
+  label: string;
+  area: 'mina' | 'planta';
+  periodoIds: string[];
+  rangeStart?: string;
+  rangeEnd?: string;
+  userId?: string;
+}): Promise<ActionResult> {
+  try {
+    const area = input.area?.trim();
+    if (area !== 'mina' && area !== 'planta') {
+      return { ok: false, message: 'Debe indicar el área (mina o planta).' };
+    }
+
+    const periodoIds = [...new Set(input.periodoIds.filter(Boolean))];
+    if (!periodoIds.length) {
+      return { ok: false, message: 'Seleccione al menos un ciclo consolidado para cerrar el mes.' };
+    }
+
+    const label = stripPeriodoLabelPrefix(input.label.trim());
+    if (!label) {
+      return { ok: false, message: 'Indique un nombre para el mes (ej. Nómina Mayo 2026).' };
+    }
+
+    const supabase = await createServerClient();
+    const { data: ciclos, error: cErr } = await supabase
+      .from('nomina_periodos')
+      .select('id, label, range_start, range_end, total_usd, origen, metadata')
+      .in('id', periodoIds);
+
+    if (cErr) return { ok: false, message: cErr.message };
+    if (!ciclos?.length || ciclos.length !== periodoIds.length) {
+      return { ok: false, message: 'Uno o más ciclos seleccionados no existen.' };
+    }
+
+    for (const c of ciclos) {
+      if (!periodoEsCicloConsolidado({ origen: c.origen })) {
+        return {
+          ok: false,
+          message: `«${c.label}» no es un ciclo consolidado válido para cierre de mes.`,
+        };
+      }
+      const metaArea =
+        c.metadata && typeof c.metadata === 'object'
+          ? (c.metadata as Record<string, unknown>).area
+          : null;
+      if (typeof metaArea === 'string' && metaArea !== area) {
+        return {
+          ok: false,
+          message: `El ciclo «${c.label}» pertenece a ${metaArea}, no a ${area}.`,
+        };
+      }
+    }
+
+    const { data: yaEnMes } = await supabase
+      .from('nomina_mes_periodos')
+      .select('ciclo_periodo_id')
+      .in('ciclo_periodo_id', periodoIds);
+
+    if (yaEnMes?.length) {
+      return {
+        ok: false,
+        message: 'Uno o más ciclos ya están incluidos en un mes cerrado.',
+      };
+    }
+
+    const summaries: NominaPeriodoSummary[] = ciclos.map((c) =>
+      mapPeriodoRow({
+        id: c.id,
+        label: c.label,
+        range_start: c.range_start,
+        range_end: c.range_end,
+        total_usd: Number(c.total_usd),
+        origen: c.origen,
+        metadata: (c.metadata as Record<string, unknown>) ?? {},
+        created_at: new Date().toISOString(),
+        semana_count: Array.isArray((c.metadata as Record<string, unknown>)?.semana_ids)
+          ? ((c.metadata as Record<string, unknown>).semana_ids as string[]).length
+          : 0,
+      }),
+    );
+
+    const rangoAuto = rangoDesdeCiclos(summaries);
+    const rangeStart = input.rangeStart ?? rangoAuto?.rangeStart;
+    const rangeEnd = input.rangeEnd ?? rangoAuto?.rangeEnd;
+    if (!rangeStart || !rangeEnd) {
+      return { ok: false, message: 'No se pudo determinar el rango del mes.' };
+    }
+
+    const totalUsd = totalUsdDesdeCiclos(summaries);
+    const semanaCount = semanaCountDesdeCiclos(summaries);
+
+    const { data: mesRow, error: insErr } = await supabase
+      .from('nomina_periodos')
+      .insert({
+        label,
+        range_start: rangeStart,
+        range_end: rangeEnd,
+        total_usd: totalUsd,
+        origen: ORIGEN_CIERRE_MES,
+        metadata: {
+          area,
+          ciclo_count: summaries.length,
+          ciclo_periodo_ids: periodoIds,
+          semana_count: semanaCount,
+        },
+        created_by: input.userId ?? null,
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (insErr || !mesRow?.id) {
+      return { ok: false, message: mapMesMigrationError(insErr?.message ?? 'No se pudo crear el mes') };
+    }
+
+    const { error: linkErr } = await supabase.from('nomina_mes_periodos').insert(
+      periodoIds.map((ciclo_periodo_id) => ({
+        mes_periodo_id: mesRow.id,
+        ciclo_periodo_id,
+      })),
+    );
+
+    if (linkErr) {
+      await supabase.from('nomina_periodos').delete().eq('id', mesRow.id);
+      return { ok: false, message: mapMesMigrationError(linkErr.message) };
+    }
+
+    await registrarAuditAction(
+      'CERRAR_MES_NOMINA',
+      'nomina_periodos',
+      mesRow.id,
+      `Mes ${label} (${area}): ${summaries.length} ciclo(s), $${totalUsd.toFixed(2)}`,
+      input.userId,
+    );
+
+    revalidateNominaPaths();
+    return {
+      ok: true,
+      message: `Mes cerrado: ${label} · ${fmtUsdAction(totalUsd)}`,
+      data: { periodoId: mesRow.id, totalUsd },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Error al cerrar mes',
+    };
+  }
+}
+
+function fmtUsdAction(n: number): string {
+  return `$${n.toLocaleString('es', { minimumFractionDigits: 2 })}`;
+}
+
+export async function eliminarCierreMesAction(input: {
+  mesPeriodoId: string;
+  userId?: string;
+}): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    const { data: periodo, error: pErr } = await supabase
+      .from('nomina_periodos')
+      .select('id, label, range_start, range_end, total_usd, origen')
+      .eq('id', input.mesPeriodoId)
+      .maybeSingle();
+
+    if (pErr || !periodo) {
+      return { ok: false, message: pErr?.message ?? 'Mes no encontrado' };
+    }
+    if (periodo.origen !== ORIGEN_CIERRE_MES) {
+      return { ok: false, message: 'Este registro no es un cierre de mes.' };
+    }
+
+    await supabase.from('nomina_mes_periodos').delete().eq('mes_periodo_id', input.mesPeriodoId);
+
+    const { error: delErr } = await supabase
+      .from('nomina_periodos')
+      .delete()
+      .eq('id', input.mesPeriodoId);
+
+    if (delErr) {
+      return { ok: false, message: delErr.message };
+    }
+
+    await registrarAuditAction(
+      'DELETE_CIERRE_MES',
+      'nomina_periodos',
+      input.mesPeriodoId,
+      `Eliminado cierre de mes ${periodo.label}`,
+      input.userId,
+    );
+
+    revalidateNominaPaths();
+    return {
+      ok: true,
+      message: `Cierre de mes eliminado: ${stripPeriodoLabelPrefix(periodo.label)}`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Error al eliminar cierre de mes',
     };
   }
 }

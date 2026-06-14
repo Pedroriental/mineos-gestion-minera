@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS rotacion_plantilla_semanas (
   estatus_default TEXT NOT NULL DEFAULT 'trabajada_paga'
     CHECK (estatus_default IN (
       'trabajada_paga', 'libre_paga', 'libre_sin_pago',
-      'no_laborada', 'reposo', 'vacaciones'
+      'no_laborada', 'reposo', 'vacaciones', 'bono_transporte_paga'
     )),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (plantilla_id, orden)
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS rotacion_plantilla_asignaciones (
   estatus_override TEXT
     CHECK (estatus_override IS NULL OR estatus_override IN (
       'trabajada_paga', 'libre_paga', 'libre_sin_pago',
-      'no_laborada', 'reposo', 'vacaciones'
+      'no_laborada', 'reposo', 'vacaciones', 'bono_transporte_paga'
     )),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (plantilla_id, personal_id, semana_id)

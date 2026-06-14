@@ -10,7 +10,8 @@ $files = @(
   "supabase/migration_rotacion_periodos.sql",
   "supabase/migration_rotacion_semanas_unique_cuadrilla.sql",
   "supabase/migration_rotacion_plantilla_columnas_vista.sql",
-  "supabase/migration_rotacion_cuadrilla_columnas_vista.sql"
+  "supabase/migration_rotacion_cuadrilla_columnas_vista.sql",
+  "supabase/migration_rotacion_bono_transporte_estatus.sql"
 )
 
 foreach ($f in $files) {
