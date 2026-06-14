@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useMemo, useEffect, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
@@ -9,7 +10,6 @@ import {
   Clock, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, 
   Search, Factory, Shield, Truck, Briefcase, Edit2, Receipt, 
   Printer, X, Users, Wallet, ChevronRight, FileText, Download,
-  TrendingUp, TrendingDown, Clipboard,
   Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,17 +23,10 @@ import {
   getGrupoNominaKey,
   isAsignacionNominaValid,
 } from '@/lib/personal-master';
-import { PersonalQuickAssignModal } from '@/components/nomina/PersonalQuickAssignModal';
 import NominaNovedadTurnoCell from '@/components/nomina/NominaNovedadTurnoCell';
-import NominaTrabajadorModal from '@/components/nomina/NominaTrabajadorModal';
-import { NominaCiclosView } from '@/components/nomina/NominaCiclosView';
-import { NominaCierreMesView } from '@/components/nomina/NominaCierreMesView';
-import { NominaVistaPreviaModal } from '@/components/nomina/NominaVistaPreviaModal';
 import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { ManualPeriodPlantillaContext } from '@/lib/nomina/nomina-preview-plantilla';
 import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
-import type { NominaImportResult } from '@/components/nomina/NominaImportWizard';
-import { NominaArchivoModal } from '@/components/nomina/NominaArchivoModal';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { MINEOS_BTN_NOMINA_PRIMARY } from '@/lib/mineos-visual';
@@ -46,7 +39,6 @@ import {
   patchAlCambiarAsistencia,
   preNominaRowToWeekDraft,
   parseReposoCondicionFromObs,
-  formatNovedadTurnoObsForSave,
   readNominaNovedadDraft,
   reposoPagoUnicoMontoFromRow,
   weekDraftToRowOverrides,
@@ -56,9 +48,8 @@ import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModa
 import { SheetIconBadge } from '@/components/mobile';
 import NominaDistribucionPanel from '@/components/nomina/NominaDistribucionPanel';
 import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config';
-import { NominaImportModal } from '@/components/nomina/NominaImportModal';
-import { RotacionPlantillaSandboxModal } from '@/components/nomina/RotacionPlantillaSandboxModal';
 import { listRotacionPlantillasAction } from '@/lib/actions/rotacion-plantillas';
+import { syncRotacionEstadosLaboralesAction } from '@/lib/actions/rotacion-sync';
 import {
   RotacionInstanciaPanel,
   RotacionInstanciaBanner,
@@ -74,7 +65,6 @@ import { resolveNominaTemporalContext, resolveWorkingWeek, resolveWeekRangeAfter
 import {
   attachSemanaToManualPeriod,
   detachSemanaFromManualPeriod,
-  normalizeManualPeriod,
   weekInManualPeriod,
   clearLocalDraftsForPeriod,
   computeManualPeriodProgress,
@@ -121,9 +111,9 @@ import {
   resolveActiveCuadrillaIdsForWeek,
 } from '@/lib/rotacion-plantillas/manual-plantilla-projection';
 import { mineosPanel } from '@/lib/mineos-visual';
-import { getWeekEnd, getWeekStart } from '@/lib/nomina/week-utils';
+import { getWeekEnd } from '@/lib/nomina/week-utils';
 import { distribucionFromCierreLegacy } from '@/lib/nomina-distribucion';
-import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
+import { calculateExpectedAttendance, getWeekStart } from '@/lib/rotacion-personal';
 import {
   calculateNominaRowPay,
   calculatePayFromPlantillaEstatus,
@@ -159,13 +149,14 @@ import {
   printNominaSemanaPdf,
   type NominaSemanaExportRow,
 } from '@/lib/nomina/nomina-semana-export';
-import type { Personal, NominaRegistro, NominaSemana, NominaVale, HistorialPagoRow, RolSemana, TendenciaSemanalRow } from '@/lib/types';
+import type { Personal, NominaRegistro, NominaSemana, NominaVale, HistorialPagoRow, RolSemana } from '@/lib/types';
 
 import { 
   revertirSemanaAction,
 } from '@/lib/actions/nomina';
 
 import {
+  getGrupoMixtoHistoryWeeksAction,
   updatePersonalEstatusAction,
   getSemanaRegistrosAction
 } from '@/lib/actions/nomina-v2';
@@ -177,7 +168,6 @@ import {
   crearValeAction,
   eliminarValeAction,
   getHistorialPagosAction,
-  getTendenciaSemanalAction,
   getSemanaCierreAction,
   registrarAuditAction,
 } from '@/lib/actions/nomina-v3';
@@ -197,6 +187,29 @@ type SemanaRegistroDetalle = NominaRegistro & {
   personal_snapshot?: Partial<Personal> | null;
 };
 
+const PersonalQuickAssignModal = dynamic(() =>
+  import('@/components/nomina/PersonalQuickAssignModal').then((mod) => mod.PersonalQuickAssignModal),
+);
+const NominaTrabajadorModal = dynamic(() => import('@/components/nomina/NominaTrabajadorModal'));
+const NominaCiclosView = dynamic(() =>
+  import('@/components/nomina/NominaCiclosView').then((mod) => mod.NominaCiclosView),
+);
+const NominaCierreMesView = dynamic(() =>
+  import('@/components/nomina/NominaCierreMesView').then((mod) => mod.NominaCierreMesView),
+);
+const NominaVistaPreviaModal = dynamic(() =>
+  import('@/components/nomina/NominaVistaPreviaModal').then((mod) => mod.NominaVistaPreviaModal),
+);
+const NominaArchivoModal = dynamic(() =>
+  import('@/components/nomina/NominaArchivoModal').then((mod) => mod.NominaArchivoModal),
+);
+const NominaImportModal = dynamic(() =>
+  import('@/components/nomina/NominaImportModal').then((mod) => mod.NominaImportModal),
+);
+const RotacionPlantillaSandboxModal = dynamic(() =>
+  import('@/components/nomina/RotacionPlantillaSandboxModal').then((mod) => mod.RotacionPlantillaSandboxModal),
+);
+
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const [y, m, day] = iso.split('-');
@@ -208,12 +221,6 @@ function fmtMoney(n: number): string {
 }
 
 // ── Avatar Color Generator ─────────────────────────────────────────────────
-const AVATAR_COLORS = [
-  'bg-cyan-600', 'bg-amber-600', 'bg-emerald-600', 'bg-violet-600',
-  'bg-pink-600', 'bg-blue-600', 'bg-yellow-600', 'bg-red-600',
-  'bg-teal-600', 'bg-indigo-600', 'bg-orange-600', 'bg-lime-600',
-];
-
 function getAvatarColor(cargo: string): string {
   const c = (cargo || '').toUpperCase();
   if (c.includes('ADMIN')) return 'bg-rose-600 border border-rose-500/30';
@@ -530,6 +537,7 @@ export default function NominaClient({
   const [manualPeriodSession, setManualPeriodSession] = useState<ManualPeriodsSession>(
     emptyManualPeriodsSession,
   );
+  const [manualSessionHydrated, setManualSessionHydrated] = useState(false);
   const [consolidatedLockedIds, setConsolidatedLockedIds] = useState<Set<string>>(new Set());
   /** Fuerza relectura del roster manual en localStorage tras asignar trabajador. */
   const [manualRosterTick, setManualRosterTick] = useState(0);
@@ -570,9 +578,6 @@ export default function NominaClient({
     }
     return map;
   }, [preNominaRows]);
-
-  // Sparkline trend data
-  const [trendData, setTrendData] = useState<TendenciaSemanalRow[]>([]);
 
   // Forms
   const [editItem, setEditItem] = useState<Personal | null>(null);
@@ -644,11 +649,31 @@ export default function NominaClient({
 
   useEffect(() => {
     setManualPeriodSession(loadManualPeriodsSession(area));
+    setManualSessionHydrated(true);
   }, [area]);
 
   useEffect(() => {
+    if (!manualSessionHydrated) return;
     saveManualPeriodsSession(area, manualPeriodSession);
-  }, [manualPeriodSession, area]);
+  }, [manualPeriodSession, area, manualSessionHydrated]);
+
+  useEffect(() => {
+    if (area !== 'planta' && area !== 'mina') return;
+    const syncWeekStart = getWeekStart();
+    const key = `nomina-rotacion-sync:${area}:${syncWeekStart}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    void syncRotacionEstadosLaboralesAction(syncWeekStart).then((res) => {
+      if (!res.ok) {
+        sessionStorage.removeItem(key);
+        console.error('[nomina] Error sincronizando rotación:', res.message);
+        return;
+      }
+      if (res.vacaciones > 0 || res.reactivados > 0) {
+        router.refresh();
+      }
+    });
+  }, [area, router]);
 
   const handleEditorPeriodChange = useCallback(
     (
@@ -784,7 +809,7 @@ export default function NominaClient({
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [semanaSheetOpen, setSemanaSheetOpen] = useState(false);
 
-  function handleNominaImported(result?: NominaImportResult) {
+  function handleNominaImported() {
     router.refresh();
     setPreviewRefreshKey((k) => k + 1);
     setArchivoRefreshKey((k) => k + 1);
@@ -805,13 +830,6 @@ export default function NominaClient({
     else if (tool === 'vista') setShowExcelPreview(true);
     router.replace(pathname, { scroll: false });
   }, [searchParams, pathname, router]);
-
-  // ── Load trend data for sparklines ──────────────────────────────────────
-  useEffect(() => {
-    getTendenciaSemanalAction(area, 8).then(res => {
-      if (res.ok && res.data) setTrendData(res.data.reverse());
-    });
-  }, [area]);
 
   const politicaReposoFor = useCallback(
     (personal: Personal): PoliticaReposo =>
@@ -998,9 +1016,10 @@ export default function NominaClient({
 
   // ── Initialize rows with rotation predictions and vales ─────────────────
   useEffect(() => {
-    if (!data) return;
+    if (!data || !manualSessionHydrated) return;
     const runGen = ++initRowsGenRef.current;
     const initRows = async () => {
+      try {
       const currentWeekStart = weekRange.inicio;
       const currentWeekEnd = weekRange.fin;
       let rosterEntries = readManualWeekRosterEntries(
@@ -1306,46 +1325,28 @@ export default function NominaClient({
         !operationalEmptied &&
         activeWorkers.some(isGrupoMixtoPersonal)
       ) {
-        const historyWeeksMeta = semanas
-          .filter((sem) => sem.area === area && sem.semana_inicio < currentWeekStart)
-          .slice(0, 12);
-        const historyWeeks = (
-          await Promise.all(
-            historyWeeksMeta.map(async (sem): Promise<GrupoMixtoHistoryWeek | null> => {
-              try {
-                const res = await getSemanaRegistrosAction(sem.id);
-                if (!res.ok || !res.data?.length) return null;
-                return {
-                  id: sem.id,
-                  semana_inicio: sem.semana_inicio,
-                  registros: (res.data as SemanaRegistroDetalle[]).map((reg) => ({
-                    personal_id: reg.personal_id,
-                    monto_pagado: reg.monto_pagado,
-                    estado_asistencia: reg.estado_asistencia,
-                    personal: reg.personal
-                      ? {
-                          id: reg.personal.id,
-                          area_detalle: reg.personal.area_detalle,
-                          area: reg.personal.area,
-                          cargo: reg.personal.cargo,
-                        }
-                      : null,
-                  })),
-                };
-              } catch {
-                return null;
-              }
-            }),
-          )
-        ).filter((week): week is GrupoMixtoHistoryWeek => Boolean(week));
+        let historyWeeks: GrupoMixtoHistoryWeek[] = [];
+        try {
+          const historyRes = await getGrupoMixtoHistoryWeeksAction(area, currentWeekStart, 12);
+          historyWeeks = historyRes.ok
+            ? (historyRes.data ?? []).filter((week) => week.registros.length > 0)
+            : [];
+        } catch {
+          historyWeeks = [];
+        }
 
-        grupoMixtoProjection = buildGrupoMixtoRosterProjection({
-          activePersonal: activeWorkers,
-          targetWeekStart: currentWeekStart,
-          historyWeeks,
-        });
+        try {
+          grupoMixtoProjection = buildGrupoMixtoRosterProjection({
+            activePersonal: activeWorkers,
+            targetWeekStart: currentWeekStart,
+            historyWeeks,
+          });
+        } catch (err) {
+          console.error('[initRows] Grupo mixto roster projection failed:', err);
+          grupoMixtoProjection = null;
+        }
 
-        if (grupoMixtoProjection.shouldApply) {
+        if (grupoMixtoProjection?.shouldApply) {
           const expectedIds = new Set([...grupoMixtoProjection.expectedIds, ...weekRoster]);
           activeWorkers = activeWorkers.filter(
             (p) => !isGrupoMixtoPersonal(p) || expectedIds.has(p.id),
@@ -1386,10 +1387,20 @@ export default function NominaClient({
       if (runGen !== initRowsGenRef.current) return;
       setGrupoMixtoRosterProjection(grupoMixtoProjection?.shouldApply ? grupoMixtoProjection : null);
       setPreNominaRows(rows);
+      } catch (err) {
+        console.error('[initRows] Failed to initialize weekly roster:', err);
+        if (runGen !== initRowsGenRef.current) return;
+        setGrupoMixtoRosterProjection(null);
+        setPreNominaRows([]);
+        setIsHistoricalLoading(false);
+      }
     };
-    initRows();
+    void initRows().catch((err) => {
+      console.error('[initRows] Unhandled initialization error:', err);
+    });
   }, [
     personalCatalogMerged,
+    personalCatalog,
     data,
     weekRange.inicio,
     weekRange.fin,
@@ -1400,6 +1411,7 @@ export default function NominaClient({
     rotacionPlantillas,
     temporalCtx.workingWeekStart,
     manualRosterTick,
+    manualSessionHydrated,
     buildOperationalNominaRow,
     applyWeekDraft,
   ]);
@@ -1512,6 +1524,8 @@ export default function NominaClient({
 
   const totalSemana = useMemo(() => preNominaRows.reduce((s, r) => s + r.total, 0), [preNominaRows]);
   const distribucion = useNominaDivisionesConfig(totalSemana);
+  const semanaActualCerradaId = semanaActualCerrada?.id;
+  const applyDistribucionPlantilla = distribucion.applyPlantilla;
 
   const novedadesTurnoSemana = useMemo(
     () =>
@@ -1525,13 +1539,13 @@ export default function NominaClient({
   );
 
   useEffect(() => {
-    if (!semanaActualCerrada) return;
-    getSemanaCierreAction(semanaActualCerrada.id).then((res) => {
+    if (!semanaActualCerradaId) return;
+    getSemanaCierreAction(semanaActualCerradaId).then((res) => {
       if (res.ok && res.data) {
-        distribucion.applyPlantilla(distribucionFromCierreLegacy(res.data));
+        applyDistribucionPlantilla(distribucionFromCierreLegacy(res.data));
       }
     });
-  }, [semanaActualCerrada?.id, distribucion.applyPlantilla]);
+  }, [semanaActualCerradaId, applyDistribucionPlantilla]);
 
   // Week-over-week comparison
   const prevSemana = semanas.length >= 2 ? semanas.find(s => s.semana_inicio < weekRange.inicio) : null;
@@ -3092,64 +3106,70 @@ export default function NominaClient({
         />
       ) : null}
 
-      <PersonalQuickAssignModal
-        open={showAssignModal}
-        onClose={() => setShowAssignModal(false)}
-        area={area}
-        masterCatalog={baseTrabajadores}
-        perfilesCompensacion={perfilesCompensacion}
-        assignedIds={assignedIds}
-        onAssigned={(personalId, areaDetalle) => {
-          markOperationalWeekEmptied(area, weekRange.inicio, false);
-          if (manualPeriodId) {
-            addToManualWeekRoster(
-              area,
-              weekRange.inicio,
-              personalId,
-              areaDetalle,
-              manualPeriodId,
-            );
+      {showAssignModal ? (
+        <PersonalQuickAssignModal
+          open={showAssignModal}
+          onClose={() => setShowAssignModal(false)}
+          area={area}
+          masterCatalog={baseTrabajadores}
+          perfilesCompensacion={perfilesCompensacion}
+          assignedIds={assignedIds}
+          onAssigned={(personalId, areaDetalle) => {
+            markOperationalWeekEmptied(area, weekRange.inicio, false);
+            if (manualPeriodId) {
+              addToManualWeekRoster(
+                area,
+                weekRange.inicio,
+                personalId,
+                areaDetalle,
+                manualPeriodId,
+              );
+            }
+            appendAssignedWorker(personalId, areaDetalle);
+            setManualRosterTick((t) => t + 1);
+          }}
+        />
+      ) : null}
+
+      {showExcelPreview ? (
+        <NominaVistaPreviaModal
+          open={showExcelPreview}
+          onClose={() => {
+            setShowExcelPreview(false);
+            setPreviewInitialRange(null);
+          }}
+          initialRange={previewDefaultRange}
+          refreshKey={previewRefreshKey}
+          filterArea={area}
+          areaLabel={pageTitle}
+          activeWeek={
+            weekRange.inicio
+              ? { semana_inicio: weekRange.inicio, semana_fin: weekRange.fin }
+              : undefined
           }
-          appendAssignedWorker(personalId, areaDetalle);
-          setManualRosterTick((t) => t + 1);
-        }}
-      />
+          activeRegistros={previewActiveRegistros}
+          activePlantilla={manualPlantillaActiva}
+          activeManualPeriod={previewManualPeriod}
+        />
+      ) : null}
 
-      <NominaVistaPreviaModal
-        open={showExcelPreview}
-        onClose={() => {
-          setShowExcelPreview(false);
-          setPreviewInitialRange(null);
-        }}
-        initialRange={previewDefaultRange}
-        refreshKey={previewRefreshKey}
-        filterArea={area}
-        areaLabel={pageTitle}
-        activeWeek={
-          weekRange.inicio
-            ? { semana_inicio: weekRange.inicio, semana_fin: weekRange.fin }
-            : undefined
-        }
-        activeRegistros={previewActiveRegistros}
-        activePlantilla={manualPlantillaActiva}
-        activeManualPeriod={previewManualPeriod}
-      />
-
-      <NominaArchivoModal
-        open={showArchivo}
-        onClose={() => setShowArchivo(false)}
-        userId={user?.id}
-        area={area as 'mina' | 'planta'}
-        refreshKey={archivoRefreshKey}
-        onImport={() => {
-          setShowArchivo(false);
-          setShowImport(true);
-        }}
-        onPeriodDeleted={() => {
-          setArchivoRefreshKey((k) => k + 1);
-          setPreviewRefreshKey((k) => k + 1);
-        }}
-      />
+      {showArchivo ? (
+        <NominaArchivoModal
+          open={showArchivo}
+          onClose={() => setShowArchivo(false)}
+          userId={user?.id}
+          area={area as 'mina' | 'planta'}
+          refreshKey={archivoRefreshKey}
+          onImport={() => {
+            setShowArchivo(false);
+            setShowImport(true);
+          }}
+          onPeriodDeleted={() => {
+            setArchivoRefreshKey((k) => k + 1);
+            setPreviewRefreshKey((k) => k + 1);
+          }}
+        />
+      ) : null}
 
       <PageFormModal
         open={showModal}
@@ -3321,31 +3341,35 @@ export default function NominaClient({
             </PageFormModalFooter>
       </PageFormModal>
 
-      <NominaImportModal
-        open={showImport}
-        onClose={() => setShowImport(false)}
-        area={area}
-        data={data}
-        weekStart={weekRange.inicio}
-        canEdit={canEdit}
-        onWeekDetected={(inicio, fin) => setWeekRange({ inicio, fin })}
-        onImported={handleNominaImported}
-      />
+      {showImport ? (
+        <NominaImportModal
+          open={showImport}
+          onClose={() => setShowImport(false)}
+          area={area}
+          data={data}
+          weekStart={weekRange.inicio}
+          canEdit={canEdit}
+          onWeekDetected={(inicio, fin) => setWeekRange({ inicio, fin })}
+          onImported={handleNominaImported}
+        />
+      ) : null}
 
-      <RotacionPlantillaSandboxModal
-        open={showRotacionSandbox}
-        onClose={() => {
-          setShowRotacionSandbox(false);
-          setSandboxPlantillaId(undefined);
-        }}
-        area={area}
-        canEdit={canEdit}
-        initialPlantillaId={sandboxPlantillaId}
-        onSaved={async () => {
-          await refreshPlantillas();
-          router.refresh();
-        }}
-      />
+      {showRotacionSandbox ? (
+        <RotacionPlantillaSandboxModal
+          open={showRotacionSandbox}
+          onClose={() => {
+            setShowRotacionSandbox(false);
+            setSandboxPlantillaId(undefined);
+          }}
+          area={area}
+          canEdit={canEdit}
+          initialPlantillaId={sandboxPlantillaId}
+          onSaved={async () => {
+            await refreshPlantillas();
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       <PageFormModal
         open={showBorrarModal}

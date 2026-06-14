@@ -6,16 +6,15 @@ import { PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import {
   findOrCreateNominaSemanaForCierre,
 } from '@/lib/nomina/cierre-semana-db';
-import type { PreNominaRow } from '@/lib/types';
+import type { NominaRegistro, Personal, PreNominaRow } from '@/lib/types';
 import { registrarAuditAction } from './nomina-v3';
-import { z } from 'zod';
 import {
   CierreNominaV2Schema,
   PersonalEstatusUpdateSchema,
 } from '@/lib/validations/nomina-v2';
 
 export type ActionResult =
-  | { ok: true; message: string; data?: any }
+  | { ok: true; message: string; data?: unknown }
   | { ok: false; message: string };
 
 function revalidateAll() {
@@ -52,7 +51,7 @@ export async function updatePersonalEstatusAction(
     if (error) return { ok: false, message: error.message };
     revalidateAll();
     return { ok: true, message: `Trabajador marcado como ${validEstatus}.` };
-  } catch (e) {
+  } catch {
     return { ok: false, message: 'Error interno del servidor.' };
   }
 }
@@ -194,7 +193,7 @@ export async function procesarCierreNominaV2Action(payload: {
 // ── Obtener registros detallados de una semana ───────────────
 export async function getSemanaRegistrosAction(semanaId: string): Promise<{
   ok: boolean;
-  data?: any[];
+  data?: NominaRegistro[];
   message?: string;
 }> {
   try {
@@ -206,8 +205,90 @@ export async function getSemanaRegistrosAction(semanaId: string): Promise<{
       .order('created_at');
 
     if (error) return { ok: false, message: error.message };
-    return { ok: true, data: data ?? [] };
-  } catch (e) {
+    return { ok: true, data: (data ?? []) as NominaRegistro[] };
+  } catch {
+    return { ok: false, message: 'Error interno.' };
+  }
+}
+
+export type GrupoMixtoHistoryWeekActionRow = {
+  id: string;
+  semana_inicio: string;
+  registros: Array<{
+    personal_id: string;
+    monto_pagado: number;
+    estado_asistencia: NominaRegistro['estado_asistencia'];
+    personal?: Pick<Personal, 'id' | 'area_detalle' | 'area' | 'cargo'> | null;
+  }>;
+};
+
+type GrupoMixtoRegistroDb = {
+  semana_id: string;
+  personal_id: string;
+  monto_pagado: number | string | null;
+  estado_asistencia: NominaRegistro['estado_asistencia'];
+  personal:
+    | Pick<Personal, 'id' | 'area_detalle' | 'area' | 'cargo'>
+    | Array<Pick<Personal, 'id' | 'area_detalle' | 'area' | 'cargo'>>
+    | null;
+};
+
+// Historial reducido para proyectar cuadrillas de Grupo Mixto sin disparar N Server Actions.
+export async function getGrupoMixtoHistoryWeeksAction(
+  area: string,
+  beforeWeekStart: string,
+  limit = 12,
+): Promise<{
+  ok: boolean;
+  data?: GrupoMixtoHistoryWeekActionRow[];
+  message?: string;
+}> {
+  try {
+    const supabase = await createServerClient();
+    const { data: semanas, error: semanasError } = await supabase
+      .from('nomina_semanas')
+      .select('id, semana_inicio')
+      .eq('area', area)
+      .lt('semana_inicio', beforeWeekStart)
+      .order('semana_inicio', { ascending: false })
+      .limit(limit);
+
+    if (semanasError) return { ok: false, message: semanasError.message };
+    if (!semanas?.length) return { ok: true, data: [] };
+
+    const semanaIds = semanas.map((sem) => sem.id);
+    const { data: registros, error: registrosError } = await supabase
+      .from('nomina_registros')
+      .select(
+        'semana_id, personal_id, monto_pagado, estado_asistencia, personal(id, area_detalle, area, cargo)',
+      )
+      .in('semana_id', semanaIds)
+      .order('created_at');
+
+    if (registrosError) return { ok: false, message: registrosError.message };
+
+    const registrosBySemana = new Map<string, GrupoMixtoHistoryWeekActionRow['registros']>();
+    for (const reg of ((registros ?? []) as GrupoMixtoRegistroDb[])) {
+      const semanaId = String(reg.semana_id);
+      const bucket = registrosBySemana.get(semanaId) ?? [];
+      bucket.push({
+        personal_id: String(reg.personal_id),
+        monto_pagado: Number(reg.monto_pagado) || 0,
+        estado_asistencia: reg.estado_asistencia,
+        personal: Array.isArray(reg.personal) ? (reg.personal[0] ?? null) : (reg.personal ?? null),
+      });
+      registrosBySemana.set(semanaId, bucket);
+    }
+
+    return {
+      ok: true,
+      data: semanas.map((sem) => ({
+        id: sem.id,
+        semana_inicio: sem.semana_inicio,
+        registros: registrosBySemana.get(sem.id) ?? [],
+      })),
+    };
+  } catch {
     return { ok: false, message: 'Error interno.' };
   }
 }

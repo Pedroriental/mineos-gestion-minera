@@ -18,8 +18,11 @@ export function deserializeInstanciaSnapshot(
   serialized: InstanciaActivaSerialized | null,
 ): InstanciaActivaSnapshot | null {
   if (!serialized) return null;
+  const mapEntries = serialized.personalCuadrillaMap
+    ? Object.entries(serialized.personalCuadrillaMap)
+    : [];
   return {
     ...serialized,
-    personalCuadrillaMap: new Map(Object.entries(serialized.personalCuadrillaMap)),
+    personalCuadrillaMap: new Map(mapEntries),
   };
 }

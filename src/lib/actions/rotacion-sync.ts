@@ -24,7 +24,11 @@ export async function syncRotacionEstadosLaboralesAction(
 ): Promise<RotacionSyncResult> {
   try {
     const supabase = await createServerClient();
-    const { data: rows, error } = await supabase.from('personal').select('*');
+    const { data: rows, error } = await supabase
+      .from('personal')
+      .select(
+        'id, area, estado_laboral, activo, esquema_rotacion, rotacion_inicio_fecha, observacion_estado, estatus',
+      );
 
     if (error) return { ok: false, message: error.message };
     const personal = (rows || []) as Personal[];
@@ -61,7 +65,9 @@ export async function syncRotacionEstadosLaboralesAction(
       }
     }
 
-    revalidateAll();
+    if (vacaciones > 0 || reactivados > 0) {
+      revalidateAll();
+    }
     return {
       ok: true,
       message: `Rotación aplicada: ${vacaciones} en vacaciones automáticas, ${reactivados} reactivados.`,
