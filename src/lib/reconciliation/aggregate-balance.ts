@@ -3,6 +3,7 @@ import type { ModuleReportData, ReportRow } from '@/lib/reports/report-types';
 import { computeOperationalInputs } from '@/lib/reconciliation/operational-inputs';
 import { assignNominaSemanaToMonthKey } from '@/lib/nomina/nomina-read-model';
 import { getWeekRangeLabel, safeFormatDate } from '@/lib/reports/report-date-utils';
+import { splitGastoMonto } from '@/lib/reconciliation/gastos-classify';
 
 export type BalanceGroupBy = 'dia' | 'semana' | 'mes' | 'ano';
 
@@ -26,6 +27,7 @@ export interface BalanceSummary {
     ingresosArenas: number;
     ingresosTotal: number;
     gastosNomina: number;
+    gastosInsumos: number;
     gastosOperativos: number;
     gastosTotal: number;
     rentabilidad: number;
@@ -37,11 +39,12 @@ type GroupStats = {
   oroGramos: number;
   arenasUsd: number;
   gastoNomina: number;
+  gastoInsumos: number;
   gastoOperativo: number;
 };
 
 function emptyStats(): GroupStats {
-  return { oroGramos: 0, arenasUsd: 0, gastoNomina: 0, gastoOperativo: 0 };
+  return { oroGramos: 0, arenasUsd: 0, gastoNomina: 0, gastoInsumos: 0, gastoOperativo: 0 };
 }
 
 function resolveBalanceGroup(
@@ -103,6 +106,7 @@ function bumpGroup(
   if (patch.oroGramos) current.oroGramos += patch.oroGramos;
   if (patch.arenasUsd) current.arenasUsd += patch.arenasUsd;
   if (patch.gastoNomina) current.gastoNomina += patch.gastoNomina;
+  if (patch.gastoInsumos) current.gastoInsumos += patch.gastoInsumos;
   if (patch.gastoOperativo) current.gastoOperativo += patch.gastoOperativo;
   map.set(group.key, current);
 }
@@ -158,13 +162,19 @@ export function aggregateBalance(
 
   data.gastos.forEach((g) => {
     const group = resolveBalanceGroup(agruparPor, 'fecha', { fecha: g.fecha });
-    bumpGroup(gruposMap, group, { gastoOperativo: Number(g.monto ?? 0) });
+    const split = splitGastoMonto(g);
+    bumpGroup(gruposMap, group, {
+      gastoInsumos: split.insumos,
+      gastoOperativo: split.operativo,
+    });
   });
 
   const rows = Array.from(gruposMap.entries()).map(([periodoKey, stats]) => {
     const ingOro = stats.oroGramos * precioOroUsd;
     const ingTotal = ingOro + stats.arenasUsd;
-    const gstTotal = stats.gastoNomina + stats.gastoOperativo;
+    const gstInsumos = stats.gastoInsumos;
+    const gstOperativos = stats.gastoOperativo;
+    const gstTotal = stats.gastoNomina + gstInsumos + gstOperativos;
     const rent = ingTotal - gstTotal;
     const marg = ingTotal > 0 ? (rent / ingTotal) * 100 : 0;
 
@@ -176,7 +186,8 @@ export function aggregateBalance(
       ingresosArenas: Number(stats.arenasUsd.toFixed(2)),
       ingresosTotal: Number(ingTotal.toFixed(2)),
       gastosNomina: Number(stats.gastoNomina.toFixed(2)),
-      gastosOperativos: Number(stats.gastoOperativo.toFixed(2)),
+      gastosInsumos: Number(gstInsumos.toFixed(2)),
+      gastosOperativos: Number(gstOperativos.toFixed(2)),
       gastosTotal: Number(gstTotal.toFixed(2)),
       rentabilidad: Number(rent.toFixed(2)),
       margenPct: Number(marg.toFixed(2)),
@@ -226,7 +237,7 @@ export function buildBalanceModuleReportData(
     ingreso_arenas_usd: r.ingresosArenas,
     ingreso_total_usd: r.ingresosTotal,
     gasto_nomina_usd: r.gastosNomina,
-    gasto_insumos_usd: 0,
+    gasto_insumos_usd: r.gastosInsumos,
     gasto_operativo_usd: r.gastosOperativos,
     gasto_total_usd: r.gastosTotal,
     rentabilidad_usd: r.rentabilidad,
@@ -243,7 +254,12 @@ export function buildBalanceModuleReportData(
       ingreso_arenas_usd: summary.kpis.ingresoArenasUsd,
       ingreso_total_usd: summary.kpis.ingresoTotalUsd,
       gasto_nomina_usd: summary.kpis.gastoNominaUsd,
-      gasto_operativo_usd: summary.kpis.gastoOperativoUsd,
+      gasto_insumos_usd: Number(
+        summary.rows.reduce((s, r) => s + r.gastosInsumos, 0).toFixed(2),
+      ),
+      gasto_operativo_usd: Number(
+        summary.rows.reduce((s, r) => s + r.gastosOperativos, 0).toFixed(2),
+      ),
       gasto_total_usd: summary.kpis.gastoTotalUsd,
       rentabilidad_usd: summary.kpis.rentabilidadUsd,
       margen_pct: summary.kpis.margenRentabilidadPct,

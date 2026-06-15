@@ -27,8 +27,8 @@
     "test:rotacion-plantillas": "npx tsx --test src/lib/rotacion-plantillas/semana-cierre.test.ts src/lib/rotacion-plantillas/projection.test.ts src/lib/rotacion-plantillas/cierre-integracion.test.ts",
     "supabase:migrate:rotacion": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-rotacion.ps1",
     "supabase:migrate:reconciliation": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/supabase-apply-reconciliation.ps1",
-    "test:reconciliation": "npx tsx --test src/lib/reconciliation/reconciliation-engine.test.ts src/lib/reconciliation/aggregate-balance.test.ts",
-    "test:reports": "npx tsx --test src/lib/reports/execute-report-core.test.ts src/lib/reports/apply-module-filters.test.ts src/lib/reports/filtrable-columns.test.ts src/lib/reconciliation/reconciliation-module-data.test.ts src/lib/reconciliation/balance-operativo-rpc.test.ts",
+    "test:reconciliation": "npx tsx --test src/lib/reconciliation/reconciliation-engine.test.ts src/lib/reconciliation/aggregate-balance.test.ts src/lib/reconciliation/gastos-classify.test.ts",
+    "test:reports": "npx tsx --test src/lib/reports/execute-report-core.test.ts src/lib/reports/apply-module-filters.test.ts src/lib/reports/filtrable-columns.test.ts src/lib/reconciliation/reconciliation-module-data.test.ts src/lib/reconciliation/balance-operativo-rpc.test.ts src/lib/reports/live-modules/balance-parity.test.ts src/lib/reports/live-modules/module-view-mode.test.ts",
     "test:reports:live": "npx tsx --test src/lib/reports/execute-report.live.test.ts"
   },
   "dependencies": {
