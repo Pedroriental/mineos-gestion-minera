@@ -12,6 +12,7 @@ import type {
   BalanceReportFilters,
   ReportPayload,
   ExecuteReportResult,
+  ModuleReportData,
 } from '../reports/report-types';
 import type {
   ReporteProduccion,
@@ -472,14 +473,40 @@ export async function executeReportAction(
   'use server';
 
   const supabase = await createServerClient();
+  const modules = payload.modules ?? [];
+  const rpcModules = modules.filter((m) => m !== 'balance');
+  const dateRange = { from: payload.dateFrom, to: payload.dateTo };
 
-  const { data, error } = await supabase.rpc('execute_dynamic_report', {
-    payload,
-  });
+  let data: Record<string, ModuleReportData> = {};
 
-  if (error) {
-    throw new Error(`RPC error: ${error.message}`);
+  if (rpcModules.length > 0) {
+    const { data: rpcResult, error } = await supabase.rpc('execute_dynamic_report', {
+      payload: { ...payload, modules: rpcModules },
+    });
+
+    if (error) {
+      throw new Error(`RPC error: ${error.message}`);
+    }
+
+    const parsed = (rpcResult ?? {
+      ok: false,
+      dateRange,
+      data: {},
+    }) as ExecuteReportResult;
+    data = { ...(parsed.data ?? {}) };
   }
 
-  return (data ?? { ok: false, dateRange: { from: '', to: '' }, data: {} }) as ExecuteReportResult;
+  if (modules.includes('balance')) {
+    const { fetchBalanceConstructorModule } = await import('@/lib/actions/reconciliation-actions');
+    data.balance = await fetchBalanceConstructorModule(dateRange, payload.groupBy);
+  }
+
+  return {
+    ok: true,
+    dateRange,
+    groupBy: payload.groupBy,
+    crossModule: payload.crossModuleJoin ?? undefined,
+    modules,
+    data,
+  };
 }

@@ -105,6 +105,7 @@ export const FILTRABLE_COLUMNS = {
   },
 
   balance_diario: {
+    /** Metadatos UI del constructor; los datos salen del motor en vivo (no de esta tabla). */
     table: 'balance_diario' as const,
     columns: [
       { key: 'fecha',                     type: 'date',  label: 'Fecha',              dbCol: 'fecha::date' },

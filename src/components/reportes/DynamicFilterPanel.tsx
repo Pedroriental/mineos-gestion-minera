@@ -166,6 +166,11 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
             <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
               {MODULE_NAMES[mod] ?? mod}
             </p>
+            {mod === 'balance' ? (
+              <p className="text-[10px] leading-snug text-zinc-500">
+                Calculado en vivo con el mismo motor que Reconciliación y Balance en Reportes.
+              </p>
+            ) : null}
             <div className="space-y-1.5">
               {cfg.columns.map((col) => {
                 if (col.type === 'date') return null;

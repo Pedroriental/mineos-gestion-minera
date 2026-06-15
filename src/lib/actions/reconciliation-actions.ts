@@ -5,7 +5,7 @@ import { createServerClient } from '@/lib/supabase-server';
 import { loadBibliotecaCompleta, upsertBibliotecaVariableAction } from '@/lib/actions/biblioteca-variables';
 import { BIBLIOTECA_FALLBACK_RECONCILIATION } from '@/lib/biblioteca-fallbacks-reconciliation';
 import { fetchBalanceReport } from '@/lib/actions/report-actions';
-import type { DateRange } from '@/lib/reports/report-types';
+import type { DateRange, ModuleReportData } from '@/lib/reports/report-types';
 import { buildReconciliationDrillDown } from '@/lib/reconciliation/drill-down';
 import { getProduccionDiaria, getRentabilidad } from '@/lib/rpc/rentabilidad';
 import {
@@ -13,7 +13,12 @@ import {
   reconciliationParamsToBibliotecaRows,
 } from '@/lib/reconciliation/load-params';
 import { validateNominaDivisiones } from '@/lib/reconciliation/nomina-divisiones';
-import { aggregateBalance, type BalanceSummary } from '@/lib/reconciliation/aggregate-balance';
+import {
+  aggregateBalance,
+  buildBalanceModuleReportData,
+  normalizeBalanceGroupBy,
+  type BalanceSummary,
+} from '@/lib/reconciliation/aggregate-balance';
 import { computeOperationalInputs } from '@/lib/reconciliation/operational-inputs';
 import { buildSnapshot } from '@/lib/reconciliation/reconciliation-engine';
 import { buildPrecioOroOrigenUi } from '@/lib/reconciliation/precio-oro-origen';
@@ -205,6 +210,22 @@ export async function fetchBalanceReportAggregated(
     ctx.nominaSemanasUsd,
   );
   return { aggregated, precioOro: ctx.precioOro };
+}
+
+/** Constructor universal: balance en vivo (paridad con pestaña Balance / Reconciliación). */
+export async function fetchBalanceConstructorModule(
+  dateRange: DateRange,
+  groupBy?: string | null,
+): Promise<ModuleReportData> {
+  const ctx = await gatherOperationalContext(dateRange);
+  return buildBalanceModuleReportData(
+    ctx.balance,
+    normalizeBalanceGroupBy(groupBy),
+    ctx.precioOro.usdPorGramo,
+    ctx.sacosExtraccion,
+    ctx.oroQuemadoG,
+    ctx.nominaSemanasUsd,
+  );
 }
 
 export async function fetchReconciliationSnapshot(
