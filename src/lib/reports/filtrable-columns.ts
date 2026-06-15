@@ -103,6 +103,28 @@ export const FILTRABLE_COLUMNS = {
     dateColumn: 'semana_inicio',
     monthDateColumn: 'semana_fin',
   },
+
+  balance_diario: {
+    table: 'balance_diario' as const,
+    columns: [
+      { key: 'fecha',                     type: 'date',  label: 'Fecha',              dbCol: 'fecha::date' },
+      { key: 'gramos_oro_recuperado_total', type: 'range', label: 'Oro recuperado',   dbCol: 'gramos_oro_recuperado_total', unit: 'g' },
+      { key: 'precio_oro_usd_gramo',      type: 'range', label: 'Precio oro',        dbCol: 'precio_oro_usd_gramo', unit: 'USD/g' },
+      { key: 'ingreso_bruto_oro_usd',     type: 'range', label: 'Ingreso oro',       dbCol: 'ingreso_bruto_oro_usd', unit: 'USD' },
+      { key: 'ingreso_venta_arenas_usd', type: 'range', label: 'Ingreso arenas',    dbCol: 'ingreso_venta_arenas_usd', unit: 'USD' },
+      { key: 'ingreso_total_usd',        type: 'range', label: 'Ingreso total',      dbCol: 'ingreso_total_usd', unit: 'USD' },
+      { key: 'gasto_nomina_usd',         type: 'range', label: 'Gasto nómina',       dbCol: 'gasto_nomina_usd', unit: 'USD' },
+      { key: 'gasto_insumos_usd',        type: 'range', label: 'Gasto insumos',       dbCol: 'gasto_insumos_usd', unit: 'USD' },
+      { key: 'gasto_operativo_usd',      type: 'range', label: 'Gasto operativo',    dbCol: 'gasto_operativo_usd', unit: 'USD' },
+      { key: 'gasto_total_usd',          type: 'range', label: 'Gasto total',        dbCol: 'gasto_total_usd', unit: 'USD' },
+      { key: 'rentabilidad_usd',         type: 'range', label: 'Rentabilidad',       dbCol: 'rentabilidad_usd', unit: 'USD' },
+      { key: 'margen_porcentaje',       type: 'range', label: 'Margen',            dbCol: 'margen_porcentaje', unit: '%' },
+      { key: 'notas',                   type: 'text',  label: 'Notas',              dbCol: 'notas' },
+    ],
+    defaultGroupBy: 'dia',
+    groupByOptions: ['dia', 'semana', 'mes', 'ano'],
+    dateColumn: 'fecha',
+  },
 } as const;
 
 export type FilterableTable = keyof typeof FILTRABLE_COLUMNS;
