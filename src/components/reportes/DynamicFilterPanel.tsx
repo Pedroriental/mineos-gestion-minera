@@ -23,6 +23,7 @@ type Props = {
 const MODULE_NAMES: Record<string, string> = {
   produccion: 'Producción', extraccion: 'Extracción', quemado: 'Quemado',
   voladuras: 'Voladuras', gastos: 'Gastos', nomina: 'Nómina', balance: 'Balance',
+  reconciliacion: 'Reconciliación',
 };
 
 export const DynamicFilterPanel = memo(function DynamicFilterPanel({
@@ -169,6 +170,11 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
             {mod === 'balance' ? (
               <p className="text-[10px] leading-snug text-zinc-500">
                 Calculado en vivo con el mismo motor que Reconciliación y Balance en Reportes.
+              </p>
+            ) : null}
+            {mod === 'reconciliacion' ? (
+              <p className="text-[10px] leading-snug text-zinc-500">
+                Matriz de reglas del periodo; validación cruzada con RPC operativo en vivo.
               </p>
             ) : null}
             <div className="space-y-1.5">

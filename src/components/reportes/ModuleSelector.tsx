@@ -16,7 +16,7 @@ const MODULE_LABELS: Record<ReportModule, string> = {
 };
 
 const ALL_MODULES: ReportModule[] = [
-  'produccion', 'extraccion', 'quemado', 'voladuras', 'gastos', 'nomina', 'balance',
+  'produccion', 'extraccion', 'quemado', 'voladuras', 'gastos', 'nomina', 'balance', 'reconciliacion',
 ];
 
 type Props = {

@@ -12,7 +12,28 @@ type Props = {
 const MODULE_LABELS: Record<string, string> = {
   produccion: 'Producción', extraccion: 'Extracción', quemado: 'Quemado',
   voladuras: 'Voladuras', gastos: 'Gastos', nomina: 'Nómina', balance: 'Balance',
+  reconciliacion: 'Reconciliación',
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  ok: 'OK',
+  warning: 'Alerta',
+  error: 'Error',
+  insufficient_data: 'Sin datos',
+};
+
+function statusClass(status: unknown): string {
+  switch (String(status)) {
+    case 'ok':
+      return 'text-emerald-400';
+    case 'warning':
+      return 'text-amber-400';
+    case 'error':
+      return 'text-red-400';
+    default:
+      return 'text-zinc-400';
+  }
+}
 
 function formatNum(n: unknown, decimals = 2): string {
   const num = Number(n);
@@ -45,9 +66,20 @@ function renderRows(rows: Record<string, unknown>[] | undefined) {
               {allColumns.map((col) => {
                 const val = row[col];
                 const isNum = typeof val === 'number' || (typeof val === 'string' && !isNaN(Number(val)));
+                const isStatus = col === 'estado';
                 return (
-                  <td key={col} className="px-2.5 py-1.5 whitespace-nowrap tabular-nums">
-                    {isNum ? formatNum(val) : String(val ?? '—')}
+                  <td
+                    key={col}
+                    className={cn(
+                      'px-2.5 py-1.5 whitespace-nowrap tabular-nums',
+                      isStatus && statusClass(val),
+                    )}
+                  >
+                    {isStatus
+                      ? STATUS_LABELS[String(val)] ?? String(val ?? '—')
+                      : isNum
+                        ? formatNum(val)
+                        : String(val ?? '—')}
                   </td>
                 );
               })}

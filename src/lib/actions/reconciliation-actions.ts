@@ -5,7 +5,16 @@ import { createServerClient } from '@/lib/supabase-server';
 import { loadBibliotecaCompleta, upsertBibliotecaVariableAction } from '@/lib/actions/biblioteca-variables';
 import { BIBLIOTECA_FALLBACK_RECONCILIATION } from '@/lib/biblioteca-fallbacks-reconciliation';
 import { fetchBalanceReport } from '@/lib/actions/report-actions';
-import type { DateRange, ModuleReportData } from '@/lib/reports/report-types';
+import type { DateRange, ModuleFilters, ModuleReportData } from '@/lib/reports/report-types';
+import { applyBalanceModuleFilters } from '@/lib/reports/apply-module-filters';
+import {
+  buildReconciliationModuleReportData,
+  parseReconciliationFiltersFromModule,
+} from '@/lib/reconciliation/reconciliation-module-data';
+import {
+  parseBalanceOperativoRpc,
+  type BalanceOperativoRpc,
+} from '@/lib/reconciliation/balance-operativo-rpc';
 import { buildReconciliationDrillDown } from '@/lib/reconciliation/drill-down';
 import { getProduccionDiaria, getRentabilidad } from '@/lib/rpc/rentabilidad';
 import {
@@ -216,9 +225,10 @@ export async function fetchBalanceReportAggregated(
 export async function fetchBalanceConstructorModule(
   dateRange: DateRange,
   groupBy?: string | null,
+  balanceFilters?: ModuleFilters,
 ): Promise<ModuleReportData> {
   const ctx = await gatherOperationalContext(dateRange);
-  return buildBalanceModuleReportData(
+  const moduleData = buildBalanceModuleReportData(
     ctx.balance,
     normalizeBalanceGroupBy(groupBy),
     ctx.precioOro.usdPorGramo,
@@ -226,6 +236,17 @@ export async function fetchBalanceConstructorModule(
     ctx.oroQuemadoG,
     ctx.nominaSemanasUsd,
   );
+  return applyBalanceModuleFilters(moduleData, balanceFilters);
+}
+
+/** Constructor universal: reconciliación en vivo (reglas + KPIs del periodo). */
+export async function fetchReconciliationConstructorModule(
+  dateRange: DateRange,
+  moduleFilters?: ModuleFilters,
+): Promise<ModuleReportData> {
+  const reconciliationFilters = parseReconciliationFiltersFromModule(moduleFilters);
+  const snapshot = await fetchReconciliationSnapshot(dateRange, reconciliationFilters);
+  return buildReconciliationModuleReportData(snapshot);
 }
 
 export async function fetchReconciliationSnapshot(
@@ -234,8 +255,18 @@ export async function fetchReconciliationSnapshot(
   paramsOverride?: Partial<ReconciliationParams>,
 ): Promise<ReconciliationSnapshot> {
   const ctx = await gatherOperationalContext(dateRange, filters, paramsOverride);
-  const rentabilidadRpc = await getRentabilidad(dateRange.from, dateRange.to);
-  return buildSnapshot(dateRange, ctx.params, ctx.inputs, rentabilidadRpc, ctx.precioOro);
+  const [rentabilidadRpc, balanceOperativoRaw] = await Promise.all([
+    getRentabilidad(dateRange.from, dateRange.to),
+    fetchBalanceOperativoRpc(dateRange, filters),
+  ]);
+  return buildSnapshot(
+    dateRange,
+    ctx.params,
+    ctx.inputs,
+    rentabilidadRpc,
+    ctx.precioOro,
+    balanceOperativoRaw,
+  );
 }
 
 export async function saveReconciliationParams(
@@ -308,18 +339,21 @@ export async function fetchReconciliationDrillDown(
   });
 }
 
-/** Intenta leer agregados vía RPC (opcional si la migración está aplicada). */
+/** Agregados vía RPC get_balance_operativo (validación cruzada con motor en vivo). */
 export async function fetchBalanceOperativoRpc(
   dateRange: DateRange,
-): Promise<Record<string, unknown> | null> {
+  filters?: ReconciliationFilters,
+): Promise<BalanceOperativoRpc | null> {
   const supabase = await createServerClient();
   const { data, error } = await supabase.rpc('get_balance_operativo', {
     p_desde: dateRange.from,
     p_hasta: dateRange.to,
+    p_molino: filters?.molinos?.[0] ?? null,
+    p_mina: filters?.minas?.[0] ?? null,
   });
   if (error) {
     console.warn('[RPC] get_balance_operativo:', error.message);
     return null;
   }
-  return (data as Record<string, unknown>) ?? null;
+  return parseBalanceOperativoRpc((data as Record<string, unknown>) ?? null);
 }

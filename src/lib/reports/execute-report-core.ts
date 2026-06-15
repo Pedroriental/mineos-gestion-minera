@@ -1,29 +1,39 @@
 import type {
   ExecuteReportResult,
+  ModuleFilters,
   ModuleReportData,
   ReportModule,
   ReportPayload,
 } from '@/lib/reports/report-types';
+
+const LIVE_MODULES = new Set<ReportModule>(['balance', 'reconciliacion']);
 
 export type ExecuteReportDeps = {
   callRpc: (payload: ReportPayload) => Promise<ExecuteReportResult>;
   fetchBalanceModule: (
     dateRange: { from: string; to: string },
     groupBy?: string | null,
+    balanceFilters?: ModuleFilters,
+  ) => Promise<ModuleReportData>;
+  fetchReconciliationModule: (
+    dateRange: { from: string; to: string },
+    reconciliationFilters?: ModuleFilters,
   ) => Promise<ModuleReportData>;
 };
 
-/** Balance usa motor en vivo; el resto pasa por execute_dynamic_report. */
+/** Balance y reconciliación usan motor en vivo; el resto pasa por execute_dynamic_report. */
 export function splitReportModules(modules: ReportModule[]): {
   rpcModules: ReportModule[];
   includesBalance: boolean;
+  includesReconciliacion: boolean;
 } {
   const includesBalance = modules.includes('balance');
-  const rpcModules = modules.filter((m) => m !== 'balance');
-  return { rpcModules, includesBalance };
+  const includesReconciliacion = modules.includes('reconciliacion');
+  const rpcModules = modules.filter((m) => !LIVE_MODULES.has(m));
+  return { rpcModules, includesBalance, includesReconciliacion };
 }
 
-/** Payload enviado al RPC (sin balance). */
+/** Payload enviado al RPC (sin módulos en vivo). */
 export function buildExecuteReportRpcPayload(payload: ReportPayload): ReportPayload | null {
   const { rpcModules } = splitReportModules(payload.modules ?? []);
   if (rpcModules.length === 0) return null;
@@ -53,7 +63,7 @@ export async function runExecuteReport(
 ): Promise<ExecuteReportResult> {
   const modules = payload.modules ?? [];
   const dateRange = { from: payload.dateFrom, to: payload.dateTo };
-  const { includesBalance } = splitReportModules(modules);
+  const { includesBalance, includesReconciliacion } = splitReportModules(modules);
 
   let data: Record<string, ModuleReportData> = {};
 
@@ -64,7 +74,18 @@ export async function runExecuteReport(
   }
 
   if (includesBalance) {
-    data.balance = await deps.fetchBalanceModule(dateRange, payload.groupBy);
+    data.balance = await deps.fetchBalanceModule(
+      dateRange,
+      payload.groupBy,
+      payload.filters?.balance,
+    );
+  }
+
+  if (includesReconciliacion) {
+    data.reconciliacion = await deps.fetchReconciliationModule(
+      dateRange,
+      payload.filters?.reconciliacion,
+    );
   }
 
   return {

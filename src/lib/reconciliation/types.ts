@@ -1,6 +1,10 @@
 import type { DateRange } from '@/lib/reports/report-types';
 import type { RentabilidadResult } from '@/lib/rpc/rentabilidad';
 import type { NominaDivisionParam } from '@/lib/reconciliation/nomina-divisiones';
+import type {
+  BalanceOperativoDivergence,
+  BalanceOperativoRpc,
+} from '@/lib/reconciliation/balance-operativo-rpc';
 
 export type RuleSeverity = 'low' | 'medium' | 'high';
 export type RuleStatus = 'ok' | 'warning' | 'error' | 'insufficient_data';
@@ -136,11 +140,13 @@ export interface ReconciliationSnapshot {
   rules: ReconciliationRuleResult[];
   inputs: ReconciliationRawInputs;
   rentabilidadRpc: RentabilidadResult | null;
+  balanceOperativoRpc: BalanceOperativoRpc | null;
   rpcDivergence: {
     ingresoDiffUsd: number;
     margenDiffPct: number;
     flagged: boolean;
   } | null;
+  balanceOperativoDivergence: BalanceOperativoDivergence | null;
   generatedAt: string;
 }
 

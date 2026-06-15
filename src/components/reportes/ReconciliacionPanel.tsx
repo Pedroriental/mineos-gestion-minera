@@ -200,6 +200,13 @@ export function ReconciliacionPanel() {
                 Divergencia con Resumen: ingreso Δ ${snapshot.rpcDivergence.ingresoDiffUsd.toFixed(2)}
               </p>
             )}
+            {snapshot.balanceOperativoDivergence?.flagged && (
+              <p className="shrink-0 text-xs text-amber-400/90 border border-amber-500/20 rounded-lg px-3 py-2">
+                Divergencia RPC operativo: nómina Δ ${snapshot.balanceOperativoDivergence.nominaDiffUsd.toFixed(2)}
+                {' · '}
+                ingreso oro Δ ${snapshot.balanceOperativoDivergence.ingresoOroDiffUsd.toFixed(2)}
+              </p>
+            )}
             <ReconciliacionRulesMatrix
               rules={snapshot.rules}
               nominaDivisiones={snapshot.params.nominaDivisiones}

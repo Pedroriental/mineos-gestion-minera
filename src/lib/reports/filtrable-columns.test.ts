@@ -17,4 +17,11 @@ describe('filtrable-columns', () => {
     assert.ok(cfg?.columns.some((c) => c.key === 'rentabilidad_usd'));
     assert.ok(cfg?.columns.some((c) => c.key === 'gasto_nomina_usd'));
   });
+
+  it('getTableConfig(reconciliacion) expone filtros opcionales', () => {
+    const cfg = getTableConfig('reconciliacion');
+    assert.ok(cfg);
+    assert.deepEqual(cfg?.groupByOptions, ['periodo']);
+    assert.ok(cfg?.columns.some((c) => c.key === 'molino'));
+  });
 });

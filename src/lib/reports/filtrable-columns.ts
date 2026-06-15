@@ -126,6 +126,17 @@ export const FILTRABLE_COLUMNS = {
     groupByOptions: ['dia', 'semana', 'mes', 'ano'],
     dateColumn: 'fecha',
   },
+
+  reconciliacion_meta: {
+    table: 'reconciliacion' as const,
+    columns: [
+      { key: 'molino', type: 'text', label: 'Molino (filtro)', dbCol: 'molino' },
+      { key: 'mina', type: 'text', label: 'Mina (filtro)', dbCol: 'mina' },
+    ],
+    defaultGroupBy: 'periodo',
+    groupByOptions: ['periodo'],
+    dateColumn: 'fecha',
+  },
 } as const;
 
 export type FilterableTable = keyof typeof FILTRABLE_COLUMNS;
@@ -159,6 +170,7 @@ const MODULE_TO_TABLE: Record<string, string> = {
   gastos:      'gastos',
   nomina:      'nomina_semanas',
   balance:     'balance_diario',
+  reconciliacion: 'reconciliacion_meta',
 };
 
 export function getTableConfig(module: string): TableFilterConfig | undefined {

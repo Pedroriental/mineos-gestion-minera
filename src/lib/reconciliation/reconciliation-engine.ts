@@ -8,16 +8,10 @@ import {
   periodCalendarDays,
   elapsedDaysInPeriod,
 } from '@/lib/reconciliation/projection';
-import type {
-  MacroSummary,
-  PrecioOroAplicado,
-  ReconciliationParams,
-  ReconciliationRawInputs,
-  ReconciliationRuleDef,
-  ReconciliationRuleResult,
-  ReconciliationSnapshot,
-  RuleStatus,
-} from '@/lib/reconciliation/types';
+import {
+  buildBalanceOperativoDivergence,
+  type BalanceOperativoRpc,
+} from '@/lib/reconciliation/balance-operativo-rpc';
 
 function ruleProcedencia(def: ReconciliationRuleDef) {
   return {
@@ -327,6 +321,7 @@ export function buildSnapshot(
   inputs: ReconciliationRawInputs,
   rentabilidadRpc: RentabilidadResult | null,
   precioOro: PrecioOroAplicado,
+  balanceOperativoRpc: BalanceOperativoRpc | null = null,
 ): ReconciliationSnapshot {
   const macro = buildMacroSummary(dateRange, inputs, params, precioOro);
   const rules = evaluateRules(inputs, params, rentabilidadRpc);
@@ -343,6 +338,12 @@ export function buildSnapshot(
     };
   }
 
+  const balanceOperativoDivergence = buildBalanceOperativoDivergence(
+    inputs,
+    balanceOperativoRpc,
+    params.tolRpcIngresoPct,
+  );
+
   return {
     dateRange,
     params,
@@ -350,7 +351,9 @@ export function buildSnapshot(
     rules,
     inputs,
     rentabilidadRpc,
+    balanceOperativoRpc,
     rpcDivergence,
+    balanceOperativoDivergence,
     generatedAt: new Date().toISOString(),
   };
 }

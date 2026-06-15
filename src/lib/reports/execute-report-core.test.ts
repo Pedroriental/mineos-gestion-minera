@@ -36,14 +36,17 @@ const mixedPayload: ReportPayload = {
   },
 };
 
+const noopReconciliation = async () => ({ rows: [] });
+
 describe('execute-report-core module split', () => {
-  it('separa balance del resto de modulos', () => {
-    const split = splitReportModules(['produccion', 'balance', 'nomina']);
+  it('separa balance y reconciliacion del resto de modulos', () => {
+    const split = splitReportModules(['produccion', 'balance', 'nomina', 'reconciliacion']);
     assert.deepEqual(split.rpcModules, ['produccion', 'nomina']);
     assert.equal(split.includesBalance, true);
+    assert.equal(split.includesReconciliacion, true);
   });
 
-  it('buildExecuteReportRpcPayload excluye balance', () => {
+  it('buildExecuteReportRpcPayload excluye modulos en vivo', () => {
     const rpcPayload = buildExecuteReportRpcPayload(mixedPayload);
     assert.ok(rpcPayload);
     assert.deepEqual(rpcPayload!.modules, ['produccion', 'nomina']);
@@ -51,8 +54,15 @@ describe('execute-report-core module split', () => {
     assert.deepEqual(rpcPayload!.filters, mixedPayload.filters);
   });
 
-  it('retorna null si solo hay balance (sin RPC)', () => {
+  it('retorna null si solo hay modulos en vivo (sin RPC)', () => {
     assert.equal(buildExecuteReportRpcPayload(balanceOnlyPayload), null);
+    assert.equal(
+      buildExecuteReportRpcPayload({
+        ...balanceOnlyPayload,
+        modules: ['reconciliacion'],
+      }),
+      null,
+    );
   });
 });
 
@@ -114,6 +124,7 @@ describe('execute-report-core runExecuteReport', () => {
         fetchBalanceModule: async () => {
           throw new Error('balance no deberia llamarse');
         },
+        fetchReconciliationModule: noopReconciliation,
       },
       minimalProduccionPayload,
     );
@@ -138,6 +149,7 @@ describe('execute-report-core runExecuteReport', () => {
           rows: [{ periodo_label: '2026-05', rentabilidad_usd: 100 }],
           totals: { rentabilidad_usd: 100 },
         }),
+        fetchReconciliationModule: noopReconciliation,
       },
       balanceOnlyPayload,
     );
@@ -167,6 +179,7 @@ describe('execute-report-core runExecuteReport', () => {
         fetchBalanceModule: async () => ({
           totals: { rentabilidad_usd: 500, gasto_nomina_usd: 2000 },
         }),
+        fetchReconciliationModule: noopReconciliation,
       },
       mixedPayload,
     );
@@ -187,10 +200,59 @@ describe('execute-report-core runExecuteReport', () => {
               throw new Error('RPC error: permission denied');
             },
             fetchBalanceModule: async () => ({ rows: [] }),
+            fetchReconciliationModule: noopReconciliation,
           },
           minimalProduccionPayload,
         ),
       /permission denied/,
     );
+  });
+
+  it('pasa filtros de balance al fetch en vivo', async () => {
+    let receivedFilters: unknown;
+
+    await runExecuteReport(
+      {
+        callRpc: async () => ({ ok: true, dateRange: { from: '', to: '' }, data: {} }),
+        fetchBalanceModule: async (_range, _groupBy, balanceFilters) => {
+          receivedFilters = balanceFilters;
+          return { rows: [] };
+        },
+        fetchReconciliationModule: noopReconciliation,
+      },
+      {
+        ...balanceOnlyPayload,
+        filters: { balance: { rentabilidad_usd: { gte: 0 } } },
+      },
+    );
+
+    assert.deepEqual(receivedFilters, { rentabilidad_usd: { gte: 0 } });
+  });
+
+  it('solo reconciliacion usa motor en vivo sin RPC', async () => {
+    let rpcCalled = false;
+
+    const result = await runExecuteReport(
+      {
+        callRpc: async () => {
+          rpcCalled = true;
+          return { ok: true, dateRange: { from: '', to: '' }, data: {} };
+        },
+        fetchBalanceModule: async () => ({ rows: [] }),
+        fetchReconciliationModule: async () => ({
+          rows: [{ regla: 'Sacos mina/planta', estado: 'ok' }],
+          totals: { oro_real_g: 90 },
+        }),
+      },
+      {
+        dateFrom: '2026-05-01',
+        dateTo: '2026-05-07',
+        modules: ['reconciliacion'],
+        groupBy: 'periodo',
+      },
+    );
+
+    assert.equal(rpcCalled, false);
+    assert.equal(result.data.reconciliacion?.rows?.length, 1);
   });
 });
