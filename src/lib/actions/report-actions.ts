@@ -12,7 +12,6 @@ import type {
   BalanceReportFilters,
   ReportPayload,
   ExecuteReportResult,
-  ModuleReportData,
 } from '../reports/report-types';
 import type {
   ReporteProduccion,
@@ -33,6 +32,7 @@ import {
   buildNominaPeriodFilterFromRange,
   dedupeNominaSemanasForAggregation,
 } from '@/lib/nomina/nomina-read-model';
+import { runExecuteReport } from '@/lib/reports/execute-report-core';
 
 // ── 1. Fetch Dynamic Dropdown Options ──────────────────────
 
@@ -473,40 +473,31 @@ export async function executeReportAction(
   'use server';
 
   const supabase = await createServerClient();
-  const modules = payload.modules ?? [];
-  const rpcModules = modules.filter((m) => m !== 'balance');
-  const dateRange = { from: payload.dateFrom, to: payload.dateTo };
 
-  let data: Record<string, ModuleReportData> = {};
+  return runExecuteReport(
+    {
+      callRpc: async (rpcPayload) => {
+        const { data: rpcResult, error } = await supabase.rpc('execute_dynamic_report', {
+          payload: rpcPayload,
+        });
 
-  if (rpcModules.length > 0) {
-    const { data: rpcResult, error } = await supabase.rpc('execute_dynamic_report', {
-      payload: { ...payload, modules: rpcModules },
-    });
+        if (error) {
+          throw new Error(`RPC error: ${error.message}`);
+        }
 
-    if (error) {
-      throw new Error(`RPC error: ${error.message}`);
-    }
-
-    const parsed = (rpcResult ?? {
-      ok: false,
-      dateRange,
-      data: {},
-    }) as ExecuteReportResult;
-    data = { ...(parsed.data ?? {}) };
-  }
-
-  if (modules.includes('balance')) {
-    const { fetchBalanceConstructorModule } = await import('@/lib/actions/reconciliation-actions');
-    data.balance = await fetchBalanceConstructorModule(dateRange, payload.groupBy);
-  }
-
-  return {
-    ok: true,
-    dateRange,
-    groupBy: payload.groupBy,
-    crossModule: payload.crossModuleJoin ?? undefined,
-    modules,
-    data,
-  };
+        return (rpcResult ?? {
+          ok: false,
+          dateRange: { from: payload.dateFrom, to: payload.dateTo },
+          data: {},
+        }) as ExecuteReportResult;
+      },
+      fetchBalanceModule: async (dateRange, groupBy) => {
+        const { fetchBalanceConstructorModule } = await import(
+          '@/lib/actions/reconciliation-actions'
+        );
+        return fetchBalanceConstructorModule(dateRange, groupBy);
+      },
+    },
+    payload,
+  );
 }
