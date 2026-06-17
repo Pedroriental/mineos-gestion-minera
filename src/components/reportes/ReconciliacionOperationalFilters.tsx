@@ -25,7 +25,7 @@ function FilterChipGroup({
   selected: string[];
   onToggle: (value: string) => void;
 }) {
-  if (options.length === 0) return null;
+  if (!options?.length) return null;
   return (
     <div className="flex flex-col gap-1.5">
       <label className={ui.fieldLabel}>{label}</label>

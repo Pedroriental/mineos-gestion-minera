@@ -40,10 +40,11 @@ function mergePagoDirecto(
   }));
 }
 
-function resolveInitialPartes(bibliotecaDivisiones: NominaDivisionParam[]): DistribucionParte[] {
+function resolveInitialPartes(bibliotecaDivisiones: NominaDivisionParam[] | undefined): DistribucionParte[] {
+  const divisiones = bibliotecaDivisiones ?? [];
   const stored = loadDistribucionFromStorage();
-  if (bibliotecaDivisiones.length) {
-    return mergePagoDirecto(bibliotecaDivisiones, stored);
+  if (divisiones.length) {
+    return mergePagoDirecto(divisiones, stored);
   }
   if (stored.length) return stored;
   return DEFAULT_DISTRIBUCION_PARTES.map((p) => ({ ...p }));

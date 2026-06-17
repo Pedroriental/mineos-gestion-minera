@@ -93,7 +93,7 @@ export function ReconciliacionPanel({ initialOptions }: Props) {
       </div>
 
       <ReconciliacionOperationalFilters
-        molinos={initialOptions.produccion.molinos}
+        molinos={initialOptions.produccion?.molinos ?? []}
         minas={minasOptions}
         selectedMolinos={selectedMolinos}
         selectedMinas={selectedMinas}

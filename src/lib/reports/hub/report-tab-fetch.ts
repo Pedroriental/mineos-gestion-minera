@@ -155,7 +155,45 @@ export function reportesTableColSpan(tab: ReportModule, nominaDivisionCount = 0)
   }
 }
 
+export const EMPTY_FILTER_OPTIONS: FilterOptions = {
+  produccion: { molinos: [], materiales: [] },
+  nomina: { cargos: [], personal: [] },
+  voladuras: { minas: [], verticales: [] },
+  extraccion: { minas: [], verticales: [] },
+  gastos: { categorias: [] },
+};
+
+/** Garantiza arrays definidos en opciones de filtros (evita `.map` sobre undefined). */
+export function normalizeFilterOptions(
+  raw: Partial<FilterOptions> | null | undefined,
+): FilterOptions {
+  return {
+    produccion: {
+      molinos: raw?.produccion?.molinos ?? [],
+      materiales: raw?.produccion?.materiales ?? [],
+    },
+    nomina: {
+      cargos: raw?.nomina?.cargos ?? [],
+      personal: raw?.nomina?.personal ?? [],
+    },
+    voladuras: {
+      minas: raw?.voladuras?.minas ?? [],
+      verticales: raw?.voladuras?.verticales ?? [],
+    },
+    extraccion: {
+      minas: raw?.extraccion?.minas ?? [],
+      verticales: raw?.extraccion?.verticales ?? [],
+    },
+    gastos: {
+      categorias: raw?.gastos?.categorias ?? [],
+    },
+  };
+}
+
 export function uniqueMinasFromOptions(options: FilterOptions): string[] {
-  const set = new Set([...options.voladuras.minas, ...options.extraccion.minas]);
+  const set = new Set([
+    ...(options.voladuras?.minas ?? []),
+    ...(options.extraccion?.minas ?? []),
+  ]);
   return Array.from(set).sort();
 }

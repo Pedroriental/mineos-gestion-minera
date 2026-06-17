@@ -18,7 +18,14 @@ export function BibliotecaProvider({
   snapshot: BibliotecaAppSnapshot;
   children: ReactNode;
 }) {
-  return <BibliotecaContext.Provider value={snapshot}>{children}</BibliotecaContext.Provider>;
+  const value = useMemo(
+    () => ({
+      ...snapshot,
+      nominaDivisiones: snapshot.nominaDivisiones ?? [],
+    }),
+    [snapshot],
+  );
+  return <BibliotecaContext.Provider value={value}>{children}</BibliotecaContext.Provider>;
 }
 
 export function useBiblioteca(): BibliotecaAppSnapshot {

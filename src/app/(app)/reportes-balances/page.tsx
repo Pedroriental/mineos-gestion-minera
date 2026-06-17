@@ -1,4 +1,5 @@
 import { fetchFilterOptions } from '@/lib/actions/report-actions';
+import { normalizeFilterOptions } from '@/lib/reports/hub/report-tab-fetch';
 import ReportesClient from './ReportesClient';
 
 export const metadata = {
@@ -8,7 +9,7 @@ export const metadata = {
 
 export default async function ReportesPage() {
   // Fetch initial dropdown options on the server side
-  const filterOptions = await fetchFilterOptions();
+  const filterOptions = normalizeFilterOptions(await fetchFilterOptions());
 
   return (
     <div className="reportes-balances-page flex min-h-0 w-full flex-1 flex-col overflow-hidden p-0">

@@ -89,7 +89,7 @@ export function BalanceReportPanel({ initialOptions }: Props) {
         </p>
       </div>
       <ReconciliacionOperationalFilters
-        molinos={initialOptions.produccion.molinos}
+        molinos={initialOptions.produccion?.molinos ?? []}
         minas={minasOptions}
         selectedMolinos={selectedMolinos}
         selectedMinas={selectedMinas}

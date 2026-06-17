@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import type { FilterOptions, ReportModule, DateRange } from '@/lib/reports/report-types';
+import { normalizeFilterOptions } from '@/lib/reports/hub/report-tab-fetch';
 import { downloadReportPDF } from '@/lib/reports/report-pdf-generator';
 import { downloadReportCSV } from '@/lib/reports/report-csv-generator';
 import {
@@ -48,7 +49,8 @@ interface ReportesClientProps {
   initialOptions: FilterOptions;
 }
 
-export default function ReportesClient({ initialOptions }: ReportesClientProps) {
+export default function ReportesClient({ initialOptions: rawOptions }: ReportesClientProps) {
+  const initialOptions = useMemo(() => normalizeFilterOptions(rawOptions), [rawOptions]);
   const { nominaDivisiones } = useBiblioteca();
   const [activeTab, setActiveTab] = useState<ReportModule>('reconciliacion');
 
