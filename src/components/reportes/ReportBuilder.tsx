@@ -274,7 +274,7 @@ export function ReportBuilder() {
           <h3 className={ui.sectionTitle}>Constructor</h3>
           <Link href="/reportes-balances" className={ui.linkSubtle}>
             <CircleDollarSign className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            Ver en hub de reportes
+            Ver en Reporte y Balance
           </Link>
           {filterPanels}
         </aside>
@@ -339,7 +339,7 @@ export function ReportBuilder() {
         <div className="space-y-3">
           <Link href="/reportes-balances" className={cn(ui.linkSubtle, 'w-full justify-center')}>
             <CircleDollarSign className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            Ver en hub de reportes
+            Ver en Reporte y Balance
           </Link>
           {filterPanels}
         </div>
