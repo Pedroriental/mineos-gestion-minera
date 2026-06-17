@@ -4529,6 +4529,13 @@ input, textarea, select {
   min-height: 2.35rem;
 }
 
+@media (max-width: 767px) {
+  .produccion-page__modal-footer .btn-secondary,
+  .produccion-page__modal-footer .btn-primary {
+    min-height: 2.75rem;
+  }
+}
+
 .produccion-page__grid {
   flex: 1 1 auto;
   align-items: stretch;
@@ -10937,16 +10944,35 @@ input, textarea, select {
     gap: 0.5rem;
   }
 
+  /* Footer móvil estándar: Cancelar | Acción en una fila, misma altura */
+  .page-form-modal-backdrop .page-form-modal-footer,
+  .confirm-dialog-panel--mobile .confirm-dialog-actions {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+
+  .page-form-modal-backdrop .page-form-modal-footer > button,
   .page-form-modal-backdrop .page-form-modal-footer .btn-secondary,
-  .page-form-modal-backdrop .page-form-modal-footer .app-btn-primary {
-    flex: 1 1 calc(50% - 0.25rem);
-    min-height: 2.375rem;
-    border-radius: 0.625rem;
+  .page-form-modal-backdrop .page-form-modal-footer .btn-primary,
+  .page-form-modal-backdrop .page-form-modal-footer .btn-danger,
+  .page-form-modal-backdrop .page-form-modal-footer .app-btn-primary,
+  .confirm-dialog-panel--mobile .confirm-dialog-actions > button {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+    min-height: 2.75rem !important;
+    height: auto;
+    display: inline-flex !important;
+    align-items: center;
     justify-content: center;
+    border-radius: 0.625rem;
     font-size: 0.8125rem;
     font-weight: 600;
   }
 
+  .page-form-modal-backdrop .mobile-bottom-sheet .page-form-modal-footer .btn-primary,
   .page-form-modal-backdrop .mobile-bottom-sheet .page-form-modal-footer .app-btn-primary {
     box-shadow: 0 4px 14px color-mix(in srgb, var(--mineos-general) 28%, transparent);
   }

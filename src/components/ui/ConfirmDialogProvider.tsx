@@ -163,24 +163,19 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                   </div>
                 </div>
 
-                <div className={cn('mt-8 flex gap-3', isMobile ? 'flex-col-reverse' : 'justify-end')}>
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className={cn(
-                      'btn-secondary',
-                      isMobile && 'min-h-[2.75rem] w-full justify-center',
-                    )}
-                  >
+                <div
+                  className={cn(
+                    'confirm-dialog-actions mt-8 flex gap-3',
+                    !isMobile && 'justify-end',
+                  )}
+                >
+                  <button type="button" onClick={handleClose} className="btn-secondary">
                     {options?.cancelLabel || 'Cancelar'}
                   </button>
                   <button
                     type="button"
                     onClick={handleConfirm}
-                    className={cn(
-                      variant === 'danger' ? 'btn-danger' : 'btn-primary',
-                      isMobile && 'min-h-[2.75rem] w-full justify-center',
-                    )}
+                    className={variant === 'danger' ? 'btn-danger' : 'btn-primary'}
                   >
                     {options?.confirmLabel || 'Aceptar'}
                   </button>

@@ -48,7 +48,7 @@ export function GerencialRecordDetailModal({
 
       <div className="space-y-5">{children}</div>
 
-      <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+      <PageFormModalFooter>
         <button type="button" onClick={onClose} className="btn-secondary min-h-[48px] w-full sm:min-h-[40px] sm:w-auto">
           Cerrar
         </button>

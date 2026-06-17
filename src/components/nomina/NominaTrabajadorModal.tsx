@@ -521,7 +521,7 @@ export default function NominaTrabajadorModal({
         ) : null}
       </div>
 
-      <PageFormModalFooter className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+      <PageFormModalFooter className="mt-5 sm:justify-end">
         <button type="button" onClick={onEditPerfil} className={cn(mineosBtnSubtleClass('neutral'), 'h-10 px-4')}>
           <Edit2 className="h-3.5 w-3.5" />
           Editar perfil

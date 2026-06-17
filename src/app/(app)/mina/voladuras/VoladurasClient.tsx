@@ -945,7 +945,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
           </section>
         </div>
 
-        <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+        <PageFormModalFooter>
           <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
           <button
             type="button"

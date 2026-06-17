@@ -1069,7 +1069,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
               </section>
             </div>
 
-            <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+            <PageFormModalFooter>
               <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
               <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary disabled:opacity-40">
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}

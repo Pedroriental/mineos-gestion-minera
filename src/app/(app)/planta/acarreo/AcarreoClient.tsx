@@ -661,7 +661,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
           </section>
         </div>
 
-        <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+        <PageFormModalFooter>
           <button type="button" onClick={closeFormModal} className="btn-secondary min-h-[48px] sm:min-h-[40px]">
             Cancelar
           </button>

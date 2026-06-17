@@ -983,9 +983,9 @@ export default function ProduccionGerencialClient({
               </section>
             </div>
 
-            <PageFormModalFooter className="produccion-page__modal-footer flex-col-reverse sm:flex-row">
-              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">Cancelar</button>
-              <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary min-h-[48px] sm:min-h-[40px]">
+            <PageFormModalFooter className="produccion-page__modal-footer">
+              <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary">
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 {editItem ? 'Actualizar' : 'Registrar Producción'}
               </button>

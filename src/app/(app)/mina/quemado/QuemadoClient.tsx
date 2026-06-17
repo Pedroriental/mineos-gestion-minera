@@ -877,7 +877,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
           </section>
         </div>
 
-        <PageFormModalFooter className="flex-col-reverse sm:flex-row">
+        <PageFormModalFooter>
           <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">
             Cancelar
           </button>
