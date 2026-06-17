@@ -999,7 +999,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
             <div className="extraccion-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
               <section className="extraccion-page__modal-col flex flex-col gap-2.5">
                 <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-amber-400">
-                  <span>📍 Identificación</span>
+                  <span>Identificación</span>
                   <span className="h-px flex-1 bg-amber-400/20" />
                 </h3>
                 <div><label className="input-label">Fecha *</label><AppDatePicker value={form.fecha} onChange={(val) => setFormField('fecha', val)} /></div>
@@ -1020,7 +1020,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
               <section className="extraccion-page__modal-col flex flex-col gap-2.5">
                 <div className="flex items-center gap-2">
                   <h3 className={mineosModalHeadingBetween('general')}>
-                    <span>📋 Eventos</span>
+                    <span>Eventos</span>
                     <span className={mineosModalDivider('general')} />
                   </h3>
                   <button type="button" onClick={addEvento} className={`${mineosBtnSubtleClass('general')} shrink-0`}>
@@ -1053,7 +1053,7 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
 
               <section className="extraccion-page__modal-col flex flex-col gap-2.5">
                 <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-emerald-400">
-                  <span>📦 Producción del Turno</span>
+                  <span>Producción del Turno</span>
                   <span className="h-px flex-1 bg-emerald-400/20" />
                 </h3>
                 <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] p-3">
