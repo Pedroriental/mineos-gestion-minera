@@ -746,7 +746,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
         )}
 
         <div className="voladuras-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
-          <section className="voladuras-page__modal-col flex flex-col gap-4">
+          <section className="voladuras-page__modal-col flex flex-col gap-2.5">
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
                 <span>Identificación</span>
@@ -775,7 +775,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
             </div>
           </section>
 
-          <section className="voladuras-page__modal-col flex flex-col gap-4">
+          <section className="voladuras-page__modal-col flex flex-col gap-2.5">
             <div className="flex flex-col gap-2.5">
               <h3 className={`${mineosModalHeading('general')} justify-between`}>
                 <div className="flex items-center gap-2">
@@ -821,7 +821,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
             </div>
           </section>
 
-          <section className="voladuras-page__modal-col flex flex-col gap-4">
+          <section className="voladuras-page__modal-col flex flex-col gap-2.5">
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
                 <span>Manto y Retorta</span>
@@ -878,10 +878,10 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
         </div>
 
         <PageFormModalFooter>
-          <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary min-h-[48px] sm:min-h-[40px]">
+          <button type="button" onClick={() => { setShowModal(false); setFormError(null); }} className="btn-secondary">
             Cancelar
           </button>
-          <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary min-h-[48px] sm:min-h-[40px]">
+          <button type="button" onClick={handleSave} disabled={isPending} className="btn-primary">
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {editItem ? 'Actualizar' : 'Registrar Quemado'}
           </button>

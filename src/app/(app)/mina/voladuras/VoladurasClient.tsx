@@ -800,7 +800,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
         </div>
 
         <div className="voladuras-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
-          <section className="voladuras-page__modal-col flex flex-col gap-4">
+          <section className="voladuras-page__modal-col flex flex-col gap-2.5">
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
                 <span>Identificación</span>
@@ -874,7 +874,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
             </div>
           </section>
 
-          <section className="voladuras-page__modal-col flex flex-col gap-4">
+          <section className="voladuras-page__modal-col flex flex-col gap-2.5">
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
                 <span>Condimentos</span>

@@ -171,7 +171,7 @@ export function PageFormModal({
             <div className="mobile-bottom-sheet__body flex min-h-0 flex-1 flex-col overflow-hidden">
               <div
                 ref={scrollRef}
-                className="mobile-bottom-sheet__scroll min-h-0 flex-1 overflow-y-auto overscroll-contain pt-3"
+                className="mobile-bottom-sheet__scroll page-form-modal-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain pt-3"
               >
                 {sheetChildren}
               </div>

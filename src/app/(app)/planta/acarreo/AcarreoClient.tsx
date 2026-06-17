@@ -523,7 +523,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
         ) : null}
 
         <div className="acarreo-page__modal-columns grid grid-cols-1 gap-5 lg:grid-cols-4 lg:gap-6">
-          <section className="flex flex-col gap-2.5">
+          <section className="acarreo-page__modal-col flex flex-col gap-2.5">
             <h3 className={mineosModalHeading('general')}>
               <span>Identificación</span>
               <span className={mineosModalDivider('general')} />
@@ -556,7 +556,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
             </div>
           </section>
 
-          <section className="flex min-w-0 flex-col gap-2.5 lg:col-span-2">
+          <section className="acarreo-page__modal-col flex min-w-0 flex-col gap-2.5 lg:col-span-2">
             <div className="flex items-center justify-between gap-2">
               <h3 className={mineosModalHeading('general')}>
                 <span>Detalle de carga</span>
@@ -624,7 +624,7 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
             </div>
           </section>
 
-          <section className="flex flex-col gap-2.5">
+          <section className="acarreo-page__modal-col flex flex-col gap-2.5">
             <h3 className={mineosModalHeading('general')}>
               <span>Totales</span>
               <span className={mineosModalDivider('general')} />
@@ -662,14 +662,14 @@ export default function AcarreoClient({ data: initialData }: AcarreoClientProps)
         </div>
 
         <PageFormModalFooter>
-          <button type="button" onClick={closeFormModal} className="btn-secondary min-h-[48px] sm:min-h-[40px]">
+          <button type="button" onClick={closeFormModal} className="btn-secondary">
             Cancelar
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={isPending}
-            className="btn-primary min-h-[48px] sm:min-h-[40px]"
+            className="btn-primary"
           >
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {editItem ? 'Actualizar informe' : 'Registrar acarreo'}

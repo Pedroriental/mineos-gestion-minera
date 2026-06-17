@@ -10963,13 +10963,19 @@ input, textarea, select {
     min-width: 0 !important;
     width: auto !important;
     min-height: 2.75rem !important;
-    height: auto;
+    height: 2.75rem !important;
+    padding: 0 0.625rem !important;
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
-    border-radius: 0.625rem;
+    border-radius: 0.625rem !important;
     font-size: 0.8125rem;
     font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
   }
 
   .page-form-modal-backdrop .mobile-bottom-sheet .page-form-modal-footer .btn-primary,
@@ -11098,11 +11104,13 @@ input, textarea, select {
 
   /* ── Login móvil: estratos más presentes ── */
 
-  /* ── Modales sheet: header integrado + inputs a ancho completo ── */
+  /* ── Modales sheet: estándar formulario (referencia: producción) ── */
+  .page-form-modal-backdrop .page-form-modal-scroll,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll {
     padding-inline: 0.875rem;
   }
 
+  .page-form-modal-backdrop .acarreo-page__modal,
   .page-form-modal-backdrop .voladuras-page__modal,
   .page-form-modal-backdrop .extraccion-page__modal,
   .page-form-modal-backdrop .produccion-page__modal,
@@ -11110,6 +11118,41 @@ input, textarea, select {
     padding-inline: 0 !important;
   }
 
+  .page-form-modal-backdrop .page-form-modal-scroll [class*='__modal-columns'],
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll [class*='__modal-columns'] {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .page-form-modal-backdrop .page-form-modal-scroll [class*='__modal-col'],
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll [class*='__modal-col'],
+  .page-form-modal-backdrop .page-form-modal-scroll section.flex.flex-col,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll section.flex.flex-col {
+    gap: 0.625rem !important;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .page-form-modal-backdrop .page-form-modal-scroll div:has(> .input-label),
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll div:has(> .input-label) {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .page-form-modal-backdrop .page-form-modal-scroll .input-field,
+  .page-form-modal-backdrop .page-form-modal-scroll .app-select,
+  .page-form-modal-backdrop .page-form-modal-scroll .app-select__trigger,
+  .page-form-modal-backdrop .page-form-modal-scroll .app-combobox,
+  .page-form-modal-backdrop .page-form-modal-scroll .app-combobox__input,
+  .page-form-modal-backdrop .page-form-modal-scroll .app-date-picker,
+  .page-form-modal-backdrop .page-form-modal-scroll .app-date-picker__trigger,
+  .page-form-modal-backdrop .page-form-modal-scroll .app-time-picker,
+  .page-form-modal-backdrop .page-form-modal-scroll .app-time-picker__trigger,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .input-field,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-select,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-select__trigger,
@@ -11119,18 +11162,44 @@ input, textarea, select {
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-date-picker__trigger,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-time-picker,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-time-picker__trigger,
+  .page-form-modal-backdrop .page-form-modal-scroll .relative.w-full > button,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .relative.w-full > button,
+  .page-form-modal-backdrop .page-form-modal-scroll textarea.input-field,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll textarea.input-field {
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
   }
 
+  .page-form-modal-backdrop .page-form-modal-scroll .grid > div,
+  .page-form-modal-backdrop .page-form-modal-scroll .flex.flex-col.gap-2\.5 > div,
+  .page-form-modal-backdrop .page-form-modal-scroll .flex.flex-col.gap-3 > div,
+  .page-form-modal-backdrop .page-form-modal-scroll .flex.flex-col.gap-4 > div,
+  .page-form-modal-backdrop .page-form-modal-scroll [class*='__modal-col'] > div,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .grid > div,
   .page-form-modal-backdrop .mobile-bottom-sheet__scroll .flex.flex-col.gap-2\.5 > div,
-  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .voladuras-page__modal-col > div,
-  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .produccion-page__modal-col > div {
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .flex.flex-col.gap-3 > div,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .flex.flex-col.gap-4 > div,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll [class*='__modal-col'] > div {
+    width: 100%;
     min-width: 0;
+  }
+
+  /* Campos en 2 columnas → una columna a ancho completo (excepto filas compactas) */
+  .page-form-modal-backdrop .page-form-modal-scroll .grid.grid-cols-2:not([class*='grid-cols-[']),
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .grid.grid-cols-2:not([class*='grid-cols-[']) {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.625rem;
+  }
+
+  /* Secciones con caja interna (gastos, ítems): aplanar en móvil */
+  .page-form-modal-backdrop .page-form-modal-scroll > .grid > .rounded-xl.border,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll > .grid > .rounded-xl.border {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 
   /* ── Selectores de periodo/mes a ancho completo ── */
