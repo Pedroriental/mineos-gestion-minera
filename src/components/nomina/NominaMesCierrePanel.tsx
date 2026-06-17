@@ -489,7 +489,7 @@ export function NominaMesCierrePanel({
                     </p>
                   </div>
                 ) : (
-                  <div className="grid max-h-[22rem] gap-1.5 overflow-y-auto pr-1">
+                  <div className="nomina-mes-cierre-panel__ciclos-scroll grid max-h-[22rem] gap-1.5 overflow-y-auto pr-1">
                     {data.ciclosDisponibles.map((c) => {
                       const selected = selectedIds.has(c.id);
                       return (

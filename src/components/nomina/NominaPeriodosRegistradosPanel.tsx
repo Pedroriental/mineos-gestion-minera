@@ -180,18 +180,18 @@ export function NominaPeriodosRegistradosPanel({
   }
 
   return (
-    <section className={cn(mineosPanel('neutral'), 'w-full min-w-0')}>
-      <header className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-[var(--card-border)] pb-3">
-        <div className="flex min-w-0 items-start gap-2">
+    <section className={cn(mineosPanel('neutral'), 'nomina-periodos-panel w-full min-w-0')}>
+      <header className="nomina-periodos-panel__header mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-[var(--card-border)] pb-3">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
           <Archive className="mt-0.5 h-4 w-4 shrink-0 text-[var(--mineos-general-bright)]" />
-          <div>
+          <div className="min-w-0">
             <h3 className="text-sm font-bold text-[var(--text-primary)]">Periodos registrados</h3>
             <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
               Ciclos consolidados. Expanda una fila para ver totales semanales y retomar semanas.
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="nomina-periodos-panel__mes-field flex w-full min-w-0 flex-col gap-1 lg:w-auto lg:shrink-0 lg:items-end">
           <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
             Mes
           </span>
@@ -200,7 +200,7 @@ export function NominaPeriodosRegistradosPanel({
             value={monthFilter}
             onChange={setMonthFilter}
             placeholder="Seleccionar mes…"
-            className="w-[10rem] [&>button]:rounded-lg [&>button]:py-1.5 [&>button]:text-[11px]"
+            className="nomina-periodos-panel__mes-picker w-full min-w-0 lg:w-[10rem] lg:shrink-0 [&>button]:rounded-lg [&>button]:py-1.5 [&>button]:text-[11px]"
           />
         </div>
       </header>
@@ -244,7 +244,7 @@ export function NominaPeriodosRegistradosPanel({
           ) : null}
         </div>
       ) : (
-        <div className="max-h-[min(28rem,55vh)] overflow-y-auto overflow-x-auto rounded-xl border border-[var(--card-border)]">
+        <div className="max-h-[min(28rem,55vh)] overflow-y-auto overflow-x-auto rounded-xl border border-[var(--card-border)] nomina-periodos-panel__table-scroll">
           <table className="w-full min-w-[520px] border-collapse text-xs">
             <thead className="sticky top-0 z-[1] bg-[var(--surface-elevated)] shadow-[0_1px_0_var(--card-border)]">
               <tr className="border-b border-[var(--card-border)] bg-[var(--surface-elevated)]/50 text-left">

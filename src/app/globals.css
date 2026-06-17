@@ -7960,10 +7960,11 @@ input, textarea, select {
   --ml-radius: clamp(0.75rem, 2.8vw, 1rem);
   --ml-input-h: clamp(2.875rem, 8.2vw, 3.25rem);
   --ml-btn-h: clamp(2.875rem, 8vw, 3.25rem);
-  --ml-logo-h: clamp(2rem, 7vw, 2.375rem);
-  --ml-logo-w: min(68vw, 12.5rem);
-  --ml-logo-gap: clamp(0.375rem, 1.5vh, 0.625rem);
+  --ml-logo-h: clamp(2.375rem, 8.5vw, 2.875rem);
+  --ml-logo-w: min(78vw, 14.5rem);
+  --ml-logo-gap: clamp(0.5rem, 2vh, 0.75rem);
   --ml-intro-gap: clamp(0.875rem, 3.5vh, 1.25rem);
+  --ml-main-offset: clamp(1.25rem, 6vh, 2.75rem);
 
   position: relative;
   display: flex;
@@ -8013,9 +8014,10 @@ input, textarea, select {
   right: 0;
   bottom: 0;
   left: 0;
-  height: clamp(5rem, 18vw, 7.5rem);
-  opacity: 0.58;
-  mask-image: linear-gradient(to top, black 50%, transparent);
+  z-index: 5;
+  height: clamp(7.5rem, 28vw, 11rem);
+  opacity: 0.88;
+  mask-image: linear-gradient(to top, black 72%, transparent 100%);
 }
 
 .mobile-login__strata-1 {
@@ -8028,6 +8030,16 @@ input, textarea, select {
 
 .mobile-login__strata-3 {
   fill: var(--login-strata-3);
+}
+
+@media (max-width: 767px) {
+  .mobile-login__strata-2 {
+    fill: color-mix(in srgb, var(--login-strata-2) 90%, var(--login-accent) 10%);
+  }
+
+  .mobile-login__strata-3 {
+    fill: color-mix(in srgb, var(--login-strata-3) 85%, var(--login-accent) 15%);
+  }
 }
 
 .mobile-login__topbar {
@@ -8083,9 +8095,10 @@ input, textarea, select {
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   overflow: hidden;
-  padding-top: var(--ml-logo-gap);
+  padding-top: var(--ml-main-offset);
+  padding-bottom: clamp(5.5rem, 22vw, 8rem);
 }
 
 .mobile-login__intro {
@@ -8362,11 +8375,16 @@ input, textarea, select {
     --ml-gap: clamp(0.6875rem, 2.2vh, 0.875rem);
     --ml-input-h: clamp(2.625rem, 7vh, 2.875rem);
     --ml-btn-h: clamp(2.75rem, 7.5vh, 3rem);
+    --ml-main-offset: clamp(0.75rem, 4vh, 1.5rem);
   }
 
   .mobile-login__strata {
-    height: clamp(3.5rem, 14vh, 5rem);
-    opacity: 0.45;
+    height: clamp(5.5rem, 20vh, 7.5rem);
+    opacity: 0.78;
+  }
+
+  .mobile-login__main {
+    padding-bottom: clamp(4.5rem, 18vw, 6.5rem);
   }
 }
 
@@ -9125,7 +9143,8 @@ input, textarea, select {
 .mobile-hotbar__label {
   color: inherit;
   font-size: clamp(0.5rem, 2.35vw, 0.625rem);
-  line-height: 1;
+  line-height: 1.25;
+  padding-bottom: 0.0625rem;
 }
 
 @media (max-width: 359px) {
@@ -10288,28 +10307,23 @@ input, textarea, select {
   position: sticky;
   top: 0;
   z-index: 4;
-  background: color-mix(in srgb, var(--dashboard-card-bg) 94%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .mobile-sheet-chrome__accent {
-  height: 2px;
-  margin: 0 1.5rem;
+  height: 3px;
+  margin: 0.375rem auto 0;
+  width: 2.25rem;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--mineos-general) 55%, transparent) 35%,
-    color-mix(in srgb, var(--mineos-general-bright) 75%, transparent) 50%,
-    color-mix(in srgb, var(--mineos-general) 55%, transparent) 65%,
-    transparent 100%
-  );
-  opacity: 0.85;
+  background: color-mix(in srgb, var(--mineos-general) 40%, var(--dashboard-text-muted));
+  opacity: 0.75;
 }
 
 .mobile-sheet-chrome__top {
-  border-bottom: 1px solid color-mix(in srgb, var(--dashboard-border) 75%, transparent);
+  border-bottom: none;
+  padding-top: 0.125rem;
 }
 
 .mobile-sheet-chrome__handle-row {
@@ -11054,5 +11068,154 @@ input, textarea, select {
 
   .mobile-shell .resumen-ejecutivo-page {
     padding-top: 0.25rem;
+  }
+
+  /* ── Login móvil: estratos más presentes ── */
+
+  /* ── Modales sheet: header integrado + inputs a ancho completo ── */
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll {
+    padding-inline: 0.875rem;
+  }
+
+  .page-form-modal-backdrop .voladuras-page__modal,
+  .page-form-modal-backdrop .extraccion-page__modal,
+  .page-form-modal-backdrop .produccion-page__modal,
+  .page-form-modal-backdrop .quemado-page__modal {
+    padding-inline: 0 !important;
+  }
+
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .input-field,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-select,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-select__trigger,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-combobox,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-combobox__input,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-date-picker,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-date-picker__trigger,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-time-picker,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .app-time-picker__trigger,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .relative.w-full > button,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll textarea.input-field {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .grid > div,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .flex.flex-col.gap-2\.5 > div,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .voladuras-page__modal-col > div,
+  .page-form-modal-backdrop .mobile-bottom-sheet__scroll .produccion-page__modal-col > div {
+    min-width: 0;
+  }
+
+  /* ── Selectores de periodo/mes a ancho completo ── */
+  .mobile-shell .gastos-resumen-page__filters .app-month-picker,
+  .mobile-shell .gastos-resumen-page__filters .app-date-picker,
+  .mobile-shell .nomina-periodos-panel__mes-picker {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .mobile-shell .gastos-resumen-page__filters .gastos-resumen-page__month-picker > button,
+  .mobile-shell .gastos-resumen-page__filters .gastos-resumen-page__day-picker .app-date-picker__trigger,
+  .mobile-shell .nomina-periodos-panel__mes-picker > button {
+    width: 100%;
+    min-height: 2.625rem;
+  }
+
+  .mobile-shell .nomina-periodos-panel__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mobile-shell .nomina-periodos-panel__mes-field {
+    align-items: stretch !important;
+  }
+
+  /* ── Scroll móvil: evitar trampas en tablas y filtros anidados ── */
+  .mobile-shell__content {
+    overscroll-behavior-y: auto;
+    overscroll-behavior-x: none;
+  }
+
+  .mobile-shell .gastos-page,
+  .mobile-shell .gastos-page__grid,
+  .mobile-shell .gastos-page__table {
+    overflow: visible !important;
+  }
+
+  .mobile-shell .gastos-page__table {
+    min-height: min-content !important;
+    flex: none !important;
+  }
+
+  .mobile-shell .gastos-page__table-body,
+  .mobile-shell .inventario-page .gastos-page__table-body,
+  .mobile-shell .trabajadores-page .gastos-page__table-body {
+    flex: none !important;
+    max-height: none !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-shell .gastos-resumen-page__grid,
+  .mobile-shell .gastos-page__filter-scroll,
+  .mobile-shell .gastos-page__filter-scroll--months,
+  .mobile-shell .gastos-page__filter-scroll--categories {
+    overscroll-behavior-y: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .mobile-shell .nomina-periodos-panel__table-scroll,
+  .mobile-shell .nomina-mes-cierre-panel__ciclos-scroll {
+    max-height: none !important;
+    overflow-y: visible !important;
+    overflow-x: auto;
+    overscroll-behavior-y: auto;
+  }
+
+  .mobile-shell .nomina-page__main,
+  .mobile-shell .nomina-page__content {
+    overflow: visible !important;
+  }
+
+  .mobile-shell .nomina-page__table-scroll {
+    overflow: visible !important;
+    flex: none !important;
+  }
+
+  /* ── Labels de categoría: descenders visibles ── */
+  .mobile-shell .gastos-filter-pill,
+  .mobile-shell .gastos-cat-pill,
+  .mobile-shell .gastos-kpi-card p.text-\[9px\],
+  .mobile-shell .gastos-resumen-page__filters p.text-\[9px\],
+  .mobile-shell .gastos-resumen-page__filters label.text-\[10px\],
+  .mobile-shell .nomina-mobile-chrome p.text-\[9px\],
+  .mobile-shell .nomina-mobile-dock span.text-\[9px\] {
+    line-height: 1.3 !important;
+    padding-block: 0.125rem;
+  }
+
+  .mobile-shell .gastos-table__cell .gastos-cat-pill {
+    display: inline-block;
+    max-height: none;
+    overflow: visible;
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  .mobile-shell .gastos-table__cell {
+    height: auto;
+    max-height: none;
+    min-height: var(--gastos-row-h);
+    overflow: visible;
+    padding-block: 0.25rem;
+  }
+
+  .mobile-shell .gastos-table__row {
+    height: auto;
+    max-height: none;
   }
 }

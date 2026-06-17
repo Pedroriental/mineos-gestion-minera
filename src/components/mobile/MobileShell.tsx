@@ -50,7 +50,7 @@ export function MobileShell({ header, children }: MobileShellProps) {
       <div className="mobile-shell flex h-[100dvh] max-w-full flex-col overflow-hidden overflow-x-clip">
         {header}
         <main
-          className="mobile-shell__content min-h-0 min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-contain overscroll-x-none"
+          className="mobile-shell__content min-h-0 min-w-0 max-w-full flex-1 overflow-x-clip overflow-y-auto overscroll-y-auto overscroll-x-none"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           {children}
