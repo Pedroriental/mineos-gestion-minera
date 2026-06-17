@@ -85,6 +85,7 @@ export default function GastosResumenClient({ summary }: Props) {
               value={period.mes}
               onChange={(val) => pushFilters(val, null)}
               placeholder="Seleccionar mes..."
+              className="gastos-resumen-page__month-picker w-full min-w-0"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -98,7 +99,7 @@ export default function GastosResumenClient({ summary }: Props) {
                   if (val.startsWith(period.mes)) pushFilters(period.mes, val);
                 }}
                 placeholder="Todo el mes"
-                className="min-w-0 flex-1"
+                className="gastos-resumen-page__day-picker min-w-0 w-full flex-1"
               />
               {period.dia ? (
                 <button
