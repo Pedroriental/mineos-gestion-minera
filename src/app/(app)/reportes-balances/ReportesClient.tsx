@@ -1,23 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useTransition } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import type { FilterOptions, ReportModule, DateRange } from '@/lib/reports/report-types';
-import {
-  fetchProduccionReport,
-  fetchNominaReport,
-  fetchVoladurasReport,
-  fetchQuemadoReport,
-  fetchExtraccionReport,
-  fetchGastosReport,
-} from '@/lib/actions/report-actions';
-import {
-  aggregateProduccion,
-  aggregateNomina,
-  aggregateVoladuras,
-  aggregateQuemado,
-  aggregateExtraccion,
-  aggregateGastos,
-} from '@/lib/reports/report-engine';
 import { downloadReportPDF } from '@/lib/reports/report-pdf-generator';
 import { downloadReportCSV } from '@/lib/reports/report-csv-generator';
 import {
@@ -43,11 +27,10 @@ import { AppDateRangeFields } from '@/components/ui/AppDateRangeFields';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { ReportesTabs } from '@/components/reportes/ReportesTabs';
 import { ReconciliacionPanel } from '@/components/reportes/ReconciliacionPanel';
+import { BalanceReportPanel } from '@/components/reportes/BalanceReportPanel';
 import { reportesUi as ui } from '@/components/reportes/reportes-ui';
-import {
-  fetchBalanceReportAggregated,
-  type BalanceReportPayload,
-} from '@/lib/actions/reconciliation-actions';
+import { reportesTableColSpan } from '@/lib/reports/hub/report-tab-fetch';
+import { useReportTabData } from '@/hooks/useReportTabData';
 import { cn } from '@/lib/utils';
 import {
   ReportesTableFooter,
@@ -58,27 +41,6 @@ import { MobileFilterTrigger, MobileFilterSheet, useMobileFilterSheet } from '@/
 import { useBiblioteca } from '@/contexts/biblioteca-context';
 import type { NominaDivisionAmount } from '@/lib/reconciliation/nomina-divisiones';
 
-function reportesTableColSpan(tab: ReportModule, nominaDivisionCount = 0): number {
-  switch (tab) {
-    case 'produccion':
-      return 6;
-    case 'nomina':
-      return 4 + (nominaDivisionCount > 0 ? nominaDivisionCount : 0);
-    case 'voladuras':
-      return 7;
-    case 'quemado':
-      return 6;
-    case 'extraccion':
-      return 4;
-    case 'gastos':
-      return 5;
-    case 'balance':
-      return 9;
-    default:
-      return 5;
-  }
-}
-
 interface ReportesClientProps {
   initialOptions: FilterOptions;
 }
@@ -86,8 +48,6 @@ interface ReportesClientProps {
 export default function ReportesClient({ initialOptions }: ReportesClientProps) {
   const { nominaDivisiones } = useBiblioteca();
   const [activeTab, setActiveTab] = useState<ReportModule>('reconciliacion');
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
   // ── 1. Date Range States ──────────────────────────────────
   const [dateRange, setDateRange] = useState<DateRange>({
@@ -130,127 +90,80 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
   const [searchProveedor, setSearchProveedor] = useState<string>('');
   const [groupByGst, setGroupByGst] = useState<'dia' | 'semana' | 'mes' | 'categoria'>('dia');
 
-  // Balance General
-  const [groupByBal, setGroupByBal] = useState<'semana' | 'mes'>('semana');
-  const [balancePayload, setBalancePayload] = useState<BalanceReportPayload | null>(null);
+  const tabFilters = useMemo(
+    () => ({
+      produccion: {
+        molinos: selectedMolinos,
+        materiales: selectedMateriales,
+        turnos: selectedTurnosProd,
+        groupBy: groupByProd,
+      },
+      nomina: {
+        areas: selectedAreasNom,
+        cargos: selectedCargosNom,
+        personalId: selectedWorkerId,
+        groupBy: groupByNom,
+        nominaDivisiones,
+      },
+      voladuras: {
+        minas: selectedMinasVol,
+        verticales: selectedVerticalesVol,
+        turnos: selectedTurnosVol,
+        groupBy: groupByVol,
+      },
+      quemado: {
+        turnos: selectedTurnosQuem,
+        groupBy: groupByQuem,
+      },
+      extraccion: {
+        minas: selectedMinasExt,
+        verticales: selectedVerticalesExt,
+        turnos: selectedTurnosExt,
+        groupBy: groupByExt,
+      },
+      gastos: {
+        categorias: selectedCategoriasGst,
+        tipos: selectedTiposGst,
+        proveedor: searchProveedor,
+        groupBy: groupByGst,
+      },
+    }),
+    [
+      selectedMolinos,
+      selectedMateriales,
+      selectedTurnosProd,
+      groupByProd,
+      selectedAreasNom,
+      selectedCargosNom,
+      selectedWorkerId,
+      groupByNom,
+      nominaDivisiones,
+      selectedMinasVol,
+      selectedVerticalesVol,
+      selectedTurnosVol,
+      groupByVol,
+      selectedTurnosQuem,
+      groupByQuem,
+      selectedMinasExt,
+      selectedVerticalesExt,
+      selectedTurnosExt,
+      groupByExt,
+      selectedCategoriasGst,
+      selectedTiposGst,
+      searchProveedor,
+      groupByGst,
+    ],
+  );
 
-  // ── 3. Data States ────────────────────────────────────────
-  const [rawData, setRawData] = useState<any>(null);
+  const isOperationalTab =
+    activeTab !== 'reconciliacion' && activeTab !== 'balance';
 
-  // Limpiar datos al cambiar de pestaña para evitar agregaciones incorrectas de datos obsoletos
-  useEffect(() => {
-    setRawData(null);
-    setBalancePayload(null);
-  }, [activeTab]);
-
-  // ── 4. Trigger Data Fetching on filter changes ──────────
-  useEffect(() => {
-    if (activeTab === 'reconciliacion') return;
-    setError(null);
-    startTransition(async () => {
-      try {
-        let fetched: any = null;
-        if (activeTab === 'produccion') {
-          fetched = await fetchProduccionReport({
-            dateRange,
-            molinos: selectedMolinos,
-            materiales: selectedMateriales,
-            turnos: selectedTurnosProd as any,
-          });
-        } else if (activeTab === 'nomina') {
-          fetched = await fetchNominaReport({
-            dateRange,
-            areas: selectedAreasNom as any,
-            cargos: selectedCargosNom,
-            personalId: selectedWorkerId,
-          });
-        } else if (activeTab === 'voladuras') {
-          fetched = await fetchVoladurasReport({
-            dateRange,
-            minas: selectedMinasVol,
-            verticales: selectedVerticalesVol,
-            turnos: selectedTurnosVol as any,
-          });
-        } else if (activeTab === 'quemado') {
-          fetched = await fetchQuemadoReport({
-            dateRange,
-            turnos: selectedTurnosQuem as any,
-          });
-        } else if (activeTab === 'extraccion') {
-          fetched = await fetchExtraccionReport({
-            dateRange,
-            minas: selectedMinasExt,
-            verticales: selectedVerticalesExt,
-            turnos: selectedTurnosExt as any,
-          });
-        } else if (activeTab === 'gastos') {
-          fetched = await fetchGastosReport({
-            dateRange,
-            categorias: selectedCategoriasGst,
-            tipos: selectedTiposGst as any,
-            proveedor: searchProveedor,
-          });
-        } else if (activeTab === 'balance') {
-          const payload = await fetchBalanceReportAggregated(dateRange, groupByBal);
-          setBalancePayload(payload);
-          setRawData({ ok: true });
-          return;
-        }
-        setRawData(fetched);
-      } catch (err: any) {
-        console.error('Error fetching report data:', err);
-        setError('No se pudieron obtener los datos filtrados de la base de datos.');
-      }
-    });
-  }, [
+  const { aggregated, error, isPending } = useReportTabData({
     activeTab,
     dateRange,
-    // Producción dependency array
-    selectedMolinos,
-    selectedMateriales,
-    selectedTurnosProd,
-    // Nómina dependency array
-    selectedAreasNom,
-    selectedCargosNom,
-    selectedWorkerId,
-    // Voladuras dependency array
-    selectedMinasVol,
-    selectedVerticalesVol,
-    selectedTurnosVol,
-    // Quemado dependency array
-    selectedTurnosQuem,
-    // Extracción dependency array
-    selectedMinasExt,
-    selectedVerticalesExt,
-    selectedTurnosExt,
-    // Gastos dependency array
-    selectedCategoriasGst,
-    selectedTiposGst,
-    searchProveedor,
-    groupByBal,
-  ]);
-
-  // ── 5. Run Aggregation logic via Engine ──────────────────
-  const aggregated = useMemo<any>(() => {
-    if (!rawData || error) return null;
-
-    if (activeTab === 'produccion' && Array.isArray(rawData)) {
-      return aggregateProduccion(rawData, groupByProd);
-    } else if (activeTab === 'nomina' && Array.isArray(rawData)) {
-      return aggregateNomina(rawData, groupByNom, nominaDivisiones);
-    } else if (activeTab === 'voladuras' && Array.isArray(rawData)) {
-      return aggregateVoladuras(rawData, groupByVol);
-    } else if (activeTab === 'quemado' && Array.isArray(rawData)) {
-      return aggregateQuemado(rawData, groupByQuem);
-    } else if (activeTab === 'extraccion' && Array.isArray(rawData)) {
-      return aggregateExtraccion(rawData, groupByExt);
-    } else if (activeTab === 'gastos' && Array.isArray(rawData)) {
-      return aggregateGastos(rawData, groupByGst);
-    } else if (activeTab === 'balance' && balancePayload) {
-      return balancePayload.aggregated;
-    }
-    return null;
-  }, [rawData, balancePayload, activeTab, groupByProd, groupByNom, groupByVol, groupByQuem, groupByExt, groupByGst, nominaDivisiones, error]);
+    filters: tabFilters,
+    enabled: isOperationalTab,
+  });
 
   const nominaSplitCols: NominaDivisionAmount[] =
     activeTab === 'nomina' && aggregated?.kpis?.divisiones?.length
@@ -277,7 +190,6 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
     groupByQuem,
     groupByExt,
     groupByGst,
-    groupByBal,
     selectedMolinos,
     selectedMateriales,
     selectedTurnosProd,
@@ -344,12 +256,6 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
           summaryValue: fmtUsd(kpis.totalGastado),
         };
         break;
-      case 'balance':
-        tabMeta = {
-          summaryLabel: 'Utilidad neta',
-          summaryValue: fmtUsd(kpis.rentabilidadUsd),
-        };
-        break;
       default:
         tabMeta = {
           summaryLabel: 'Total visible',
@@ -372,7 +278,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
       activeTab === 'voladuras' ? groupByVol :
       activeTab === 'quemado' ? groupByQuem :
       activeTab === 'extraccion' ? groupByExt :
-      activeTab === 'gastos' ? groupByGst : groupByBal;
+      groupByGst;
     downloadReportPDF(activeTab, aggregated, dateRange, groupOpt);
   };
 
@@ -384,7 +290,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
       activeTab === 'voladuras' ? groupByVol :
       activeTab === 'quemado' ? groupByQuem :
       activeTab === 'extraccion' ? groupByExt :
-      activeTab === 'gastos' ? groupByGst : groupByBal;
+      groupByGst;
     downloadReportCSV(activeTab, aggregated, groupOpt);
   };
 
@@ -893,39 +799,6 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
               </div>
             )}
 
-            {activeTab === 'balance' && (
-              <div className="space-y-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className={cn(ui.fieldLabel, 'flex items-center gap-1')}>
-                    Precio oro aplicado
-                    <span title="Definido en Reconciliación → Parámetros (biblioteca).">
-                      <HelpCircle className="w-3 h-3 text-zinc-500 hover:text-zinc-300 cursor-pointer" />
-                    </span>
-                  </label>
-                  <p className="rounded-lg border border-white/5 bg-zinc-900/40 px-2.5 py-1.5 text-sm text-zinc-200 tabular-nums">
-                    {balancePayload
-                      ? `${balancePayload.precioOro.usdPorGramo.toFixed(2)}/g · ${balancePayload.precioOro.origenUi}`
-                      : '—'}
-                  </p>
-                  <p className="text-[10px] text-zinc-600">
-                    Cambiar en Reconciliación → Parámetros.
-                  </p>
-                </div>
-
-                {/* Agrupar */}
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
-                  <label className={ui.fieldLabel}>Agrupar Balance por</label>
-                  <AppSelect
-                    value={groupByBal}
-                    onChange={(v) => setGroupByBal(v as typeof groupByBal)}
-                    options={[
-                      { value: 'semana', label: 'Por Semana' },
-                      { value: 'mes', label: 'Por Mes' },
-                    ]}
-                  />
-                </div>
-              </div>
-            )}
           </div>
     </div>
   );
@@ -936,12 +809,13 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab);
-          setError(null);
         }}
       />
 
       {activeTab === 'reconciliacion' ? (
-        <ReconciliacionPanel />
+        <ReconciliacionPanel initialOptions={initialOptions} />
+      ) : activeTab === 'balance' ? (
+        <BalanceReportPanel initialOptions={initialOptions} />
       ) : (
       <>
       {isMobile ? (
@@ -1173,28 +1047,6 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                     </>
                   )}
 
-                  {activeTab === 'balance' && (
-                    <>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Ingreso Total</p>
-                        <p className={ui.kpiValueAccent}>${aggregated.kpis.ingresoTotalUsd.toLocaleString()}</p>
-                      </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Gasto Total</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">${aggregated.kpis.gastoTotalUsd.toLocaleString()}</p>
-                      </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Utilidad Neta</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">${aggregated.kpis.rentabilidadUsd.toLocaleString()}</p>
-                      </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Margen % / Costo g</p>
-                        <p className={ui.kpiValueSmall}>
-                          {aggregated.kpis.margenRentabilidadPct.toFixed(1)}% · ${aggregated.kpis.costoPorGramoOro.toFixed(0)}/g
-                        </p>
-                      </div>
-                    </>
-                  )}
                 </div>
 
                 {/* 2. Table Preview */}
@@ -1267,17 +1119,6 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Gasto Promedio</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider text-red-300">Gasto Mayor</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Transacciones</th>
-                          </>
-                        )}
-                        {activeTab === 'balance' && (
-                          <>
-                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Ingresos Oro</th>
-                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Ingresos Arenas</th>
-                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Ingresos Total</th>
-                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Gasto Nómina</th>
-                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Gastos Ops</th>
-                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Utilidad Neta</th>
-                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Margen %</th>
                           </>
                         )}
                       </tr>
@@ -1358,17 +1199,6 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                             </>
                           )}
 
-                          {activeTab === 'balance' && (
-                            <>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.ingresosOro.toLocaleString()}</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.ingresosArenas.toLocaleString()}</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">${row.ingresosTotal.toLocaleString()}</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.gastosNomina.toLocaleString()}</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">${row.gastosOperativos.toLocaleString()}</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold">${row.rentabilidad.toLocaleString()}</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-medium">{row.margenPct.toFixed(1)}%</td>
-                            </>
-                          )}
                         </tr>
                       ))}
                       <ReportesTableRowPadding

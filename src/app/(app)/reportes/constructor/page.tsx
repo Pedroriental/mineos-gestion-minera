@@ -1,6 +1,15 @@
+import { Suspense } from 'react';
 import { ReportBuilder } from '@/components/reportes/ReportBuilder';
 
 export const metadata = { title: 'Constructor de Reportes - MineOS' };
+
+function ConstructorFallback() {
+  return (
+    <div className="flex min-h-[400px] items-center justify-center">
+      <p className="text-xs text-zinc-500">Cargando constructor…</p>
+    </div>
+  );
+}
 
 export default function ConstructorPage() {
   return (
@@ -16,7 +25,9 @@ export default function ConstructorPage() {
       <p className="text-[12px] text-zinc-500 -mt-2">
         Reportes cruzados multi-módulo con filtros dinámicos
       </p>
-      <ReportBuilder />
+      <Suspense fallback={<ConstructorFallback />}>
+        <ReportBuilder />
+      </Suspense>
     </div>
   );
 }

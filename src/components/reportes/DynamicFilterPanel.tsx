@@ -6,6 +6,7 @@ import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { reportesUi as ui } from '@/components/reportes/reportes-ui';
 import { getTableConfig } from '@/lib/reports/filtrable-columns';
+import { isLiveModule } from '@/lib/reports/live-modules/module-view-mode';
 import type { ReportModule, ModuleFilters } from '@/lib/reports/report-types';
 
 type Props = {
@@ -270,6 +271,11 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
           </div>
         );
       })}
+      {modules.some((m) => isLiveModule(m)) ? (
+        <p className="text-[10px] leading-snug text-zinc-500 border-t border-white/5 pt-2 mt-1">
+          Balance y Reconciliación usan motor en vivo (mismas cifras que el hub).
+        </p>
+      ) : null}
     </div>
   );
 });

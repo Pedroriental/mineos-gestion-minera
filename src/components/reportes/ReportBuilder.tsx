@@ -1,15 +1,26 @@
 'use client';
 
-import { useState, useCallback, useTransition } from 'react';
-import { Play, Download, FileText, Loader2 } from 'lucide-react';
+import { useState, useCallback, useTransition, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Play, Download, FileText, Loader2, CircleDollarSign } from 'lucide-react';
 import { ModuleSelector } from './ModuleSelector';
 import { DynamicFilterPanel } from './DynamicFilterPanel';
 import { PresetManager } from './PresetManager';
 import { ReportPreview } from './ReportPreview';
+import { CrossModuleJoinPanel } from './CrossModuleJoinPanel';
 import { executeReportAction } from '@/lib/actions/report-actions';
 import { downloadUnifiedReportPDF } from '@/lib/reports/report-pdf-generator';
 import { downloadUnifiedReportCSV } from '@/lib/reports/report-csv-generator';
-import type { ReportModule, ReportPayload, ModuleFilters, ExecuteReportResult } from '@/lib/reports/report-types';
+import { decodeReportPayloadFromSearchParams } from '@/lib/reports/report-deep-link';
+import { FACTORY_REPORT_PRESETS } from '@/lib/reports/factory-presets';
+import type {
+  ReportModule,
+  ReportPayload,
+  ModuleFilters,
+  ExecuteReportResult,
+  CrossModuleJoin,
+} from '@/lib/reports/report-types';
 
 function todayStr(): string {
   const d = new Date();
@@ -22,15 +33,77 @@ function monthAgoStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function applyPayloadToState(
+  payload: Partial<ReportPayload>,
+  setters: {
+    setDateFrom: (v: string) => void;
+    setDateTo: (v: string) => void;
+    setModules: (v: ReportModule[]) => void;
+    setFilters: (v: Partial<Record<ReportModule, ModuleFilters>>) => void;
+    setGroupBy: (v: string) => void;
+    setCrossJoinEnabled: (v: boolean) => void;
+    setCrossJoin: (v: CrossModuleJoin | null) => void;
+  },
+) {
+  if (payload.dateFrom) setters.setDateFrom(payload.dateFrom);
+  if (payload.dateTo) setters.setDateTo(payload.dateTo);
+  if (payload.modules?.length) setters.setModules(payload.modules);
+  if (payload.filters) setters.setFilters(payload.filters);
+  if (payload.groupBy) setters.setGroupBy(payload.groupBy);
+  if (payload.crossModuleJoin) {
+    setters.setCrossJoinEnabled(true);
+    setters.setCrossJoin(payload.crossModuleJoin);
+  } else {
+    setters.setCrossJoinEnabled(false);
+    setters.setCrossJoin(null);
+  }
+}
+
 export function ReportBuilder() {
+  const searchParams = useSearchParams();
+  const deepLinkPayload = useMemo(
+    () => decodeReportPayloadFromSearchParams(searchParams),
+    [searchParams],
+  );
+
   const [modules, setModules] = useState<ReportModule[]>(['produccion']);
   const [filters, setFilters] = useState<Partial<Record<ReportModule, ModuleFilters>>>({});
   const [dateFrom, setDateFrom] = useState(monthAgoStr());
   const [dateTo, setDateTo] = useState(todayStr());
   const [groupBy, setGroupBy] = useState('dia');
+  const [crossJoinEnabled, setCrossJoinEnabled] = useState(false);
+  const [crossJoin, setCrossJoin] = useState<CrossModuleJoin | null>(null);
   const [result, setResult] = useState<ExecuteReportResult | null>(null);
   const [running, startTransition] = useTransition();
   const [exporting, setExporting] = useState<'pdf' | 'csv' | null>(null);
+  const [hydratedFromUrl, setHydratedFromUrl] = useState(false);
+
+  const setters = useMemo(
+    () => ({
+      setDateFrom,
+      setDateTo,
+      setModules,
+      setFilters,
+      setGroupBy,
+      setCrossJoinEnabled,
+      setCrossJoin,
+    }),
+    [],
+  );
+
+  useEffect(() => {
+    if (hydratedFromUrl) return;
+    const hasDeepLink =
+      deepLinkPayload.dateFrom ||
+      deepLinkPayload.dateTo ||
+      deepLinkPayload.modules?.length ||
+      deepLinkPayload.filters ||
+      deepLinkPayload.crossModuleJoin;
+    if (hasDeepLink) {
+      applyPayloadToState(deepLinkPayload, setters);
+    }
+    setHydratedFromUrl(true);
+  }, [deepLinkPayload, hydratedFromUrl, setters]);
 
   const buildPayload = useCallback((): ReportPayload => ({
     dateFrom,
@@ -38,7 +111,11 @@ export function ReportBuilder() {
     modules,
     filters,
     groupBy,
-  }), [dateFrom, dateTo, modules, filters, groupBy]);
+    crossModuleJoin:
+      crossJoinEnabled && crossJoin?.value?.trim() && (crossJoin.include?.length ?? 0) > 0
+        ? crossJoin
+        : null,
+  }), [dateFrom, dateTo, modules, filters, groupBy, crossJoinEnabled, crossJoin]);
 
   const execute = useCallback(() => {
     const payload = buildPayload();
@@ -49,12 +126,8 @@ export function ReportBuilder() {
   }, [buildPayload]);
 
   const handleLoadPreset = useCallback((payload: ReportPayload) => {
-    if (payload.dateFrom) setDateFrom(payload.dateFrom);
-    if (payload.dateTo) setDateTo(payload.dateTo);
-    if (payload.modules?.length) setModules(payload.modules);
-    if (payload.filters) setFilters(payload.filters);
-    if (payload.groupBy) setGroupBy(payload.groupBy);
-  }, []);
+    applyPayloadToState(payload, setters);
+  }, [setters]);
 
   const handleExportPDF = useCallback(async () => {
     if (!result) return;
@@ -78,7 +151,6 @@ export function ReportBuilder() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-      {/* Sidebar: Filters */}
       <div className="lg:col-span-1 space-y-3 rounded-lg border border-white/5 bg-zinc-900/20 p-4">
         <ModuleSelector selected={modules} onChange={setModules} />
 
@@ -95,6 +167,33 @@ export function ReportBuilder() {
           groupBy={groupBy}
           onChangeGroupBy={setGroupBy}
         />
+
+        <CrossModuleJoinPanel
+          enabled={crossJoinEnabled}
+          onEnabledChange={setCrossJoinEnabled}
+          crossJoin={crossJoin}
+          onChange={setCrossJoin}
+          selectedModules={modules}
+        />
+
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            Plantillas rápidas
+          </p>
+          <div className="flex flex-col gap-1">
+            {FACTORY_REPORT_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handleLoadPreset(preset.payload)}
+                className="rounded-md border border-transparent px-2 py-1.5 text-left transition-colors hover:border-white/5 hover:bg-white/[0.03]"
+              >
+                <p className="text-[11px] text-zinc-300">{preset.name}</p>
+                <p className="text-[9px] text-zinc-500 truncate">{preset.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
 
         <PresetManager currentPayload={buildPayload()} onLoad={handleLoadPreset} />
 
@@ -113,10 +212,18 @@ export function ReportBuilder() {
         </button>
       </div>
 
-      {/* Main: Preview */}
       <div className="lg:col-span-3 space-y-4">
-        {/* Toolbar */}
-        {result && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/reportes-balances"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors hover:border-amber-500/30 hover:text-amber-300"
+          >
+            <CircleDollarSign className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Ver en hub de reportes
+          </Link>
+        </div>
+
+        {result ? (
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-zinc-500">
               {result.dateRange?.from} → {result.dateRange?.to}
@@ -143,7 +250,7 @@ export function ReportBuilder() {
               </button>
             </div>
           </div>
-        )}
+        ) : null}
 
         <div className="rounded-lg border border-white/5 bg-zinc-900/15 p-4 min-h-[400px]">
           <ReportPreview result={result} loading={running} />

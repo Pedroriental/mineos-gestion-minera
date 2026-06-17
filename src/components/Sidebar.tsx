@@ -20,6 +20,7 @@ import {
   Truck,
   BookOpen,
   ChevronDown,
+  Database,
   LogOut,
   X,
   PanelLeftClose,
@@ -64,6 +65,7 @@ const navigation: NavSection[] = [
         ],
       },
       { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
+      { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables', icon: <Database className="w-4 h-4" /> },
       {
         label: 'Nómina de Personal', href: '#', icon: <Users className="w-4 h-4" />,
         subItems: [

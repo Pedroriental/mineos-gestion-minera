@@ -491,11 +491,16 @@ export async function executeReportAction(
           data: {},
         }) as ExecuteReportResult;
       },
-      fetchBalanceModule: async (dateRange, groupBy, balanceFilters) => {
+      fetchBalanceModule: async (dateRange, groupBy, balanceFilters, operationalFilters) => {
         const { fetchBalanceConstructorModule } = await import(
           '@/lib/actions/reconciliation-actions'
         );
-        return fetchBalanceConstructorModule(dateRange, groupBy, balanceFilters);
+        return fetchBalanceConstructorModule(
+          dateRange,
+          groupBy,
+          balanceFilters,
+          operationalFilters,
+        );
       },
       fetchReconciliationModule: async (dateRange, reconciliationFilters) => {
         const { fetchReconciliationConstructorModule } = await import(

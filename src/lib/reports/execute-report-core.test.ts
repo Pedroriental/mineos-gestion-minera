@@ -1,8 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildCrossModuleRpcPayload,
   buildExecuteReportRpcPayload,
+  isCrossModuleJoinActive,
+  normalizeCrossModuleRpcData,
   resolveNominaRpcUsesSemanaFin,
+  resolveOperationalFilters,
   runExecuteReport,
   splitReportModules,
 } from '@/lib/reports/execute-report-core';
@@ -254,5 +258,113 @@ describe('execute-report-core runExecuteReport', () => {
 
     assert.equal(rpcCalled, false);
     assert.equal(result.data.reconciliacion?.rows?.length, 1);
+  });
+
+  it('cross-module join usa RPC con modulos incluidos y normaliza arrays', async () => {
+    const rpcCalls: ReportPayload[] = [];
+
+    const result = await runExecuteReport(
+      {
+        callRpc: async (payload) => {
+          rpcCalls.push(payload);
+          return {
+            ok: true,
+            dateRange: { from: payload.dateFrom, to: payload.dateTo },
+            data: {
+              produccion: [{ molino: 'M1', oro_recuperado_g: 5 }],
+              gastos: [{ monto: 100 }],
+            },
+          };
+        },
+        fetchBalanceModule: async () => ({ rows: [] }),
+        fetchReconciliationModule: noopReconciliation,
+      },
+      {
+        dateFrom: '2026-05-01',
+        dateTo: '2026-05-07',
+        modules: ['produccion', 'gastos', 'balance'],
+        crossModuleJoin: {
+          type: 'molino',
+          value: 'M1',
+          include: ['produccion', 'gastos'],
+        },
+      },
+    );
+
+    assert.equal(rpcCalls.length, 1);
+    assert.equal(rpcCalls[0]!.crossModuleJoin?.type, 'molino');
+    assert.equal(rpcCalls[0]!.crossModuleJoin?.value, 'M1');
+    assert.deepEqual(rpcCalls[0]!.modules, ['produccion', 'gastos']);
+    assert.equal(result.data.produccion?.rows?.length, 1);
+    assert.equal(result.data.gastos?.rows?.length, 1);
+    assert.ok(result.data.balance);
+  });
+
+  it('pasa operationalFilters desde reconciliacion al balance en vivo', async () => {
+    let receivedOperational: unknown;
+
+    await runExecuteReport(
+      {
+        callRpc: async () => ({ ok: true, dateRange: { from: '', to: '' }, data: {} }),
+        fetchBalanceModule: async (_range, _groupBy, _balanceFilters, operationalFilters) => {
+          receivedOperational = operationalFilters;
+          return { rows: [] };
+        },
+        fetchReconciliationModule: noopReconciliation,
+      },
+      {
+        ...balanceOnlyPayload,
+        modules: ['balance', 'reconciliacion'],
+        filters: {
+          reconciliacion: { minas: { in: ['Mina Norte'] } },
+        },
+      },
+    );
+
+    assert.deepEqual(receivedOperational, { minas: ['Mina Norte'] });
+  });
+});
+
+describe('execute-report-core cross-module helpers', () => {
+  it('isCrossModuleJoinActive requiere valor e include', () => {
+    assert.equal(isCrossModuleJoinActive(null), false);
+    assert.equal(isCrossModuleJoinActive({ type: 'molino', value: '  ', include: ['produccion'] }), false);
+    assert.equal(
+      isCrossModuleJoinActive({ type: 'molino', value: 'M1', include: ['produccion'] }),
+      true,
+    );
+  });
+
+  it('buildCrossModuleRpcPayload excluye modulos live', () => {
+    const payload = buildCrossModuleRpcPayload({
+      dateFrom: '2026-05-01',
+      dateTo: '2026-05-07',
+      modules: ['produccion', 'balance'],
+      crossModuleJoin: {
+        type: 'molino',
+        value: 'M1',
+        include: ['produccion', 'balance'],
+      },
+    });
+    assert.deepEqual(payload?.modules, ['produccion']);
+  });
+
+  it('normalizeCrossModuleRpcData convierte arrays planos', () => {
+    const normalized = normalizeCrossModuleRpcData({
+      produccion: [{ a: 1 }],
+      nomina: { rows: [{ b: 2 }], totals: { x: 3 } },
+    });
+    assert.equal(normalized.produccion?.rows?.length, 1);
+    assert.equal(normalized.nomina?.totals?.x, 3);
+  });
+
+  it('resolveOperationalFilters parsea minas desde reconciliacion', () => {
+    const filters = resolveOperationalFilters({
+      dateFrom: '2026-05-01',
+      dateTo: '2026-05-07',
+      modules: ['reconciliacion'],
+      filters: { reconciliacion: { minas: { in: ['A', 'B'] } } },
+    });
+    assert.deepEqual(filters, { minas: ['A', 'B'] });
   });
 });

@@ -6,11 +6,11 @@ import { loadBibliotecaCompleta, upsertBibliotecaVariableAction } from '@/lib/ac
 import { BIBLIOTECA_FALLBACK_RECONCILIATION } from '@/lib/biblioteca-fallbacks-reconciliation';
 import { fetchBalanceReport } from '@/lib/actions/report-actions';
 import type { DateRange, ModuleFilters, ModuleReportData } from '@/lib/reports/report-types';
-import { applyBalanceModuleFilters } from '@/lib/reports/apply-module-filters';
 import {
-  buildReconciliationModuleReportData,
-  parseReconciliationFiltersFromModule,
-} from '@/lib/reconciliation/reconciliation-module-data';
+  aggregateBalanceFromContext,
+  buildBalanceModuleFromContext,
+} from '@/lib/reports/live-modules/balance-live';
+import { fetchReconciliationLiveModule } from '@/lib/reports/live-modules/reconciliation-live';
 import {
   parseBalanceOperativoRpc,
   type BalanceOperativoRpc,
@@ -22,12 +22,7 @@ import {
   reconciliationParamsToBibliotecaRows,
 } from '@/lib/reconciliation/load-params';
 import { validateNominaDivisiones } from '@/lib/reconciliation/nomina-divisiones';
-import {
-  aggregateBalance,
-  buildBalanceModuleReportData,
-  normalizeBalanceGroupBy,
-  type BalanceSummary,
-} from '@/lib/reconciliation/aggregate-balance';
+import { type BalanceSummary } from '@/lib/reconciliation/aggregate-balance';
 import { computeOperationalInputs } from '@/lib/reconciliation/operational-inputs';
 import { buildSnapshot } from '@/lib/reconciliation/reconciliation-engine';
 import { buildPrecioOroOrigenUi } from '@/lib/reconciliation/precio-oro-origen';
@@ -172,7 +167,10 @@ export async function gatherOperationalContext(
   }
 
   const { extraccion, quemado } = await fetchExtraccionQuemadoRows(dateRange.from, dateRange.to);
-  const sacosExtraccion = extraccion.reduce((s, r) => s + Number(r.sacos_extraidos ?? 0), 0);
+  const extraccionRows = filters?.minas?.length
+    ? extraccion.filter((r) => filters.minas!.includes(String(r.mina ?? '')))
+    : extraccion;
+  const sacosExtraccion = extraccionRows.reduce((s, r) => s + Number(r.sacos_extraidos ?? 0), 0);
   const oroQuemadoG = quemado.reduce((s, r) => s + Number(r.total_oro_g ?? 0), 0);
   const nominaSemanasUsd = await fetchNominaSemanasTotal(dateRange.from, dateRange.to);
   const precioOro = await resolvePrecioOroAplicado(params);
@@ -207,18 +205,11 @@ export type BalanceReportPayload = {
 /** Reporte Balance: mismos totales y precio oro que Reconciliación. */
 export async function fetchBalanceReportAggregated(
   dateRange: DateRange,
-  agruparPor: 'semana' | 'mes' = 'semana',
+  agruparPor: 'dia' | 'semana' | 'mes' = 'semana',
+  operationalFilters?: ReconciliationFilters,
 ): Promise<BalanceReportPayload> {
-  const ctx = await gatherOperationalContext(dateRange);
-  const aggregated = aggregateBalance(
-    ctx.balance,
-    agruparPor,
-    ctx.precioOro.usdPorGramo,
-    ctx.sacosExtraccion,
-    ctx.oroQuemadoG,
-    ctx.nominaSemanasUsd,
-  );
-  return { aggregated, precioOro: ctx.precioOro };
+  const ctx = await gatherOperationalContext(dateRange, operationalFilters);
+  return aggregateBalanceFromContext(ctx, agruparPor);
 }
 
 /** Constructor universal: balance en vivo (paridad con pestaña Balance / Reconciliación). */
@@ -226,17 +217,10 @@ export async function fetchBalanceConstructorModule(
   dateRange: DateRange,
   groupBy?: string | null,
   balanceFilters?: ModuleFilters,
+  operationalFilters?: ReconciliationFilters,
 ): Promise<ModuleReportData> {
-  const ctx = await gatherOperationalContext(dateRange);
-  const moduleData = buildBalanceModuleReportData(
-    ctx.balance,
-    normalizeBalanceGroupBy(groupBy),
-    ctx.precioOro.usdPorGramo,
-    ctx.sacosExtraccion,
-    ctx.oroQuemadoG,
-    ctx.nominaSemanasUsd,
-  );
-  return applyBalanceModuleFilters(moduleData, balanceFilters);
+  const ctx = await gatherOperationalContext(dateRange, operationalFilters);
+  return buildBalanceModuleFromContext(ctx, groupBy, balanceFilters);
 }
 
 /** Constructor universal: reconciliación en vivo (reglas + KPIs del periodo). */
@@ -244,9 +228,7 @@ export async function fetchReconciliationConstructorModule(
   dateRange: DateRange,
   moduleFilters?: ModuleFilters,
 ): Promise<ModuleReportData> {
-  const reconciliationFilters = parseReconciliationFiltersFromModule(moduleFilters);
-  const snapshot = await fetchReconciliationSnapshot(dateRange, reconciliationFilters);
-  return buildReconciliationModuleReportData(snapshot);
+  return fetchReconciliationLiveModule(dateRange, moduleFilters);
 }
 
 export async function fetchReconciliationSnapshot(

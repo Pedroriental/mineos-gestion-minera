@@ -1,8 +1,15 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useTransition } from 'react';
 import { cn } from '@/lib/utils';
-import type { ExecuteReportResult, ModuleReportData } from '@/lib/reports/report-types';
+import type { ExecuteReportResult, ModuleReportData, ReportModule } from '@/lib/reports/report-types';
+import { resolvePreviewMode } from '@/lib/reports/live-modules/module-view-mode';
+import { balanceSummaryFromModuleData } from '@/lib/reports/constructor-preview-adapters';
+import { BalanceKpiStrip } from '@/components/reportes/BalanceKpiStrip';
+import { BalancePeriodTable } from '@/components/reportes/BalancePeriodTable';
+import { fetchReconciliationDrillDown } from '@/lib/actions/reconciliation-actions';
+import { getRuleDef } from '@/lib/reconciliation/rules-registry';
+import { ReconciliacionDrillDown } from '@/components/reportes/ReconciliacionDrillDown';
 
 type Props = {
   result: ExecuteReportResult | null;
@@ -41,12 +48,16 @@ function formatNum(n: unknown, decimals = 2): string {
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-function renderRows(rows: Record<string, unknown>[] | undefined) {
+function renderRows(
+  rows: Record<string, unknown>[] | undefined,
+  opts?: { clickable?: boolean; onRowClick?: (row: Record<string, unknown>) => void },
+) {
   if (!rows || rows.length === 0) return null;
+  const hasPeriod = rows.some((r) => r.periodo_label != null);
   const columns = Object.keys(rows[0]).filter(
     (k) => k !== 'periodo' && k !== 'periodo_label' && !k.startsWith('_'),
   );
-  const allColumns = ['periodo_label', ...columns];
+  const allColumns = hasPeriod ? ['periodo_label', ...columns] : columns;
 
   return (
     <div className={cn('overflow-x-auto rounded-lg border border-white/5')}>
@@ -62,7 +73,14 @@ function renderRows(rows: Record<string, unknown>[] | undefined) {
         </thead>
         <tbody className="divide-y divide-white/5 text-[11px] text-zinc-400">
           {rows.map((row, i) => (
-            <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+            <tr
+              key={i}
+              className={cn(
+                'transition-colors',
+                opts?.clickable ? 'cursor-pointer hover:bg-amber-500/5' : 'hover:bg-white/[0.02]',
+              )}
+              onClick={opts?.clickable ? () => opts.onRowClick?.(row) : undefined}
+            >
               {allColumns.map((col) => {
                 const val = row[col];
                 const isNum = typeof val === 'number' || (typeof val === 'string' && !isNaN(Number(val)));
@@ -109,48 +127,101 @@ function renderTotals(totals: Record<string, number> | undefined) {
   );
 }
 
-function renderModuleData(mod: string, data: ModuleReportData) {
-  if (data.error) {
-    return (
-      <div key={mod} className="space-y-2">
-        <h4 className="text-sm font-semibold text-zinc-300">
-          {MODULE_LABELS[mod] ?? mod}
-        </h4>
-        <p className="text-[11px] text-red-400 bg-red-500/5 rounded-lg border border-red-500/20 px-3 py-2">
-          {data.error}
-        </p>
-      </div>
-    );
+function BalanceRichPreview({ data }: { data: ModuleReportData }) {
+  const summary = balanceSummaryFromModuleData(data);
+  if (!summary) {
+    return <p className="text-[11px] text-zinc-500 italic py-2">Sin datos de balance</p>;
   }
+  return (
+    <div className="space-y-4">
+      <BalanceKpiStrip kpis={summary.kpis} compact />
+      <BalancePeriodTable rows={summary.rows} />
+    </div>
+  );
+}
 
-  if (!data.rows || data.rows.length === 0) {
-    return (
-      <div key={mod} className="space-y-2">
-        <h4 className="text-sm font-semibold text-zinc-300">
-          {MODULE_LABELS[mod] ?? mod}
-        </h4>
-        <p className="text-[11px] text-zinc-500 italic py-2">Sin resultados</p>
-      </div>
-    );
+function ReconciliationRichPreview({
+  data,
+  dateRange,
+}: {
+  data: ModuleReportData;
+  dateRange: { from: string; to: string };
+}) {
+  const [drillRuleId, setDrillRuleId] = useState<string | null>(null);
+  const [drillRows, setDrillRows] = useState<Awaited<ReturnType<typeof fetchReconciliationDrillDown>>>([]);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const [, startTransition] = useTransition();
+
+  const handleRowClick = (ruleId: string) => {
+    setDrillRuleId(ruleId);
+    setDrillRows([]);
+    setDrillLoading(true);
+    startTransition(async () => {
+      try {
+        const rows = await fetchReconciliationDrillDown(ruleId, dateRange);
+        setDrillRows(rows);
+      } catch {
+        setDrillRows([]);
+      } finally {
+        setDrillLoading(false);
+      }
+    });
+  };
+
+  if (!data.rows?.length) {
+    return <p className="text-[11px] text-zinc-500 italic py-2">Sin reglas en el periodo</p>;
   }
 
   return (
-    <div key={mod} className="space-y-2.5">
-      <div className="flex items-center gap-2">
-        <h4 className="text-sm font-semibold text-zinc-300">
-          {MODULE_LABELS[mod] ?? mod}
-        </h4>
-        <span className="text-[10px] text-zinc-500 tabular-nums">
-          {data.rows.length} filas
-        </span>
-      </div>
+    <div className="space-y-3">
       {renderTotals(data.totals)}
-      {renderRows(data.rows)}
+        {renderRows(data.rows, {
+          clickable: true,
+          onRowClick: (row) => {
+            const ruleId = String(row._rule_id ?? '');
+            if (ruleId) handleRowClick(ruleId);
+          },
+        })}
+      {drillRuleId ? (
+        <ReconciliacionDrillDown
+          ruleId={drillRuleId}
+          ruleLabel={getRuleDef(drillRuleId)?.label ?? drillRuleId}
+          rows={drillRows}
+          isLoading={drillLoading}
+          dateFrom={dateRange.from}
+          dateTo={dateRange.to}
+          onClose={() => {
+            setDrillRuleId(null);
+            setDrillRows([]);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
 export const ReportPreview = memo(function ReportPreview({ result, loading }: Props) {
+  const [drillRuleId, setDrillRuleId] = useState<string | null>(null);
+  const [drillRows, setDrillRows] = useState<Awaited<ReturnType<typeof fetchReconciliationDrillDown>>>([]);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const [, startDrillTransition] = useTransition();
+
+  const openReconciliationDrill = (ruleId: string, dateRange: { from: string; to: string }) => {
+    setDrillRuleId(ruleId);
+    setDrillRows([]);
+    setDrillLoading(true);
+    startDrillTransition(async () => {
+      try {
+        const rows = await fetchReconciliationDrillDown(ruleId, dateRange);
+        setDrillRows(rows);
+      } catch {
+        setDrillRows([]);
+      } finally {
+        setDrillLoading(false);
+      }
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 py-10">
@@ -187,9 +258,105 @@ export const ReportPreview = memo(function ReportPreview({ result, loading }: Pr
     );
   }
 
+  const selectedModules = (result.modules ?? modules) as ReportModule[];
+  const previewMode = resolvePreviewMode(selectedModules);
+  const dateRange = result.dateRange ?? { from: '', to: '' };
+
+  if (previewMode === 'balance-rich' && result.data.balance) {
+    return (
+      <div className="space-y-3">
+        <p className="text-[10px] text-zinc-500">
+          Vista rica de balance · {dateRange.from} → {dateRange.to}
+        </p>
+        <BalanceRichPreview data={result.data.balance} />
+      </div>
+    );
+  }
+
+  if (previewMode === 'reconciliation-rich' && result.data.reconciliacion) {
+    return (
+      <div className="space-y-3">
+        <p className="text-[10px] text-zinc-500">
+          Vista rica de reconciliación · {dateRange.from} → {dateRange.to}
+        </p>
+        <ReconciliationRichPreview data={result.data.reconciliacion} dateRange={dateRange} />
+      </div>
+    );
+  }
+
+  const renderModuleData = (mod: string, data: ModuleReportData) => {
+    if (data.error) {
+      return (
+        <div key={mod} className="space-y-2">
+          <h4 className="text-sm font-semibold text-zinc-300">
+            {MODULE_LABELS[mod] ?? mod}
+          </h4>
+          <p className="text-[11px] text-red-400 bg-red-500/5 rounded-lg border border-red-500/20 px-3 py-2">
+            {data.error}
+          </p>
+        </div>
+      );
+    }
+
+    if (!data.rows || data.rows.length === 0) {
+      return (
+        <div key={mod} className="space-y-2">
+          <h4 className="text-sm font-semibold text-zinc-300">
+            {MODULE_LABELS[mod] ?? mod}
+          </h4>
+          <p className="text-[11px] text-zinc-500 italic py-2">Sin resultados</p>
+        </div>
+      );
+    }
+
+    const isReconciliation = mod === 'reconciliacion';
+
+    return (
+      <div key={mod} className="space-y-2.5">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-semibold text-zinc-300">
+            {MODULE_LABELS[mod] ?? mod}
+          </h4>
+          <span className="text-[10px] text-zinc-500 tabular-nums">
+            {data.rows.length} filas
+          </span>
+        </div>
+        {renderTotals(data.totals)}
+        {renderRows(data.rows, {
+          clickable: isReconciliation,
+          onRowClick: isReconciliation
+            ? (row) => {
+                const ruleId = String(row._rule_id ?? '');
+                if (ruleId) openReconciliationDrill(ruleId, dateRange);
+              }
+            : undefined,
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5">
+      {result.crossModule ? (
+        <p className="text-[10px] text-amber-400/90 border border-amber-500/20 rounded-lg px-3 py-2">
+          Modo cruce: {result.crossModule.type} = {result.crossModule.value}
+        </p>
+      ) : null}
       {modules.map((mod) => renderModuleData(mod, result.data[mod]))}
+      {drillRuleId && dateRange.from ? (
+        <ReconciliacionDrillDown
+          ruleId={drillRuleId}
+          ruleLabel={getRuleDef(drillRuleId)?.label ?? drillRuleId}
+          rows={drillRows}
+          isLoading={drillLoading}
+          dateFrom={dateRange.from}
+          dateTo={dateRange.to}
+          onClose={() => {
+            setDrillRuleId(null);
+            setDrillRows([]);
+          }}
+        />
+      ) : null}
     </div>
   );
 });
