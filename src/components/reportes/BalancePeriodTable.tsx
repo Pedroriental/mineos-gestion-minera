@@ -19,7 +19,7 @@ export const BalancePeriodTable = memo(function BalancePeriodTable({ rows }: Pro
     pageIndex,
     setPageIndex,
     pageCount,
-    pageRows,
+    visibleRows: pageRows,
     emptyRowSlots,
   } = useDataTablePagination(rows, 12);
 
