@@ -42,6 +42,7 @@ import { useDataTablePagination } from '@/hooks/useDataTablePagination';
 import { MobileFilterTrigger, MobileFilterSheet, useMobileFilterSheet } from '@/components/mobile';
 import { useBiblioteca } from '@/contexts/biblioteca-context';
 import type { NominaDivisionAmount } from '@/lib/reconciliation/nomina-divisiones';
+import { resolveNominaSplitCols } from '@/lib/reports/hub/nomina-split-cols';
 
 interface ReportesClientProps {
   initialOptions: FilterOptions;
@@ -105,7 +106,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
         cargos: selectedCargosNom,
         personalId: selectedWorkerId,
         groupBy: groupByNom,
-        nominaDivisiones,
+        nominaDivisiones: nominaDivisiones ?? [],
       },
       voladuras: {
         minas: selectedMinasVol,
@@ -177,12 +178,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
     enabled: isOperationalTab,
   });
 
-  const nominaSplitCols: NominaDivisionAmount[] =
-    activeTab === 'nomina' && aggregated?.kpis?.divisiones?.length
-      ? aggregated.kpis.divisiones
-      : activeTab === 'nomina'
-        ? (nominaDivisiones ?? []).map((d) => ({ id: d.id, nombre: d.nombre, montoUsd: 0 }))
-        : [];
+  const nominaSplitCols = resolveNominaSplitCols(
+    activeTab,
+    aggregated?.kpis?.divisiones as NominaDivisionAmount[] | undefined,
+    nominaDivisiones,
+  );
   const showNominaSplit = activeTab === 'nomina' && nominaSplitCols.length > 0;
 
   const tableRows = aggregated?.rows ?? [];
@@ -363,12 +363,12 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
   const workerSelectOptions = useMemo(
     () => [
       { value: '', label: 'Todos los trabajadores' },
-      ...initialOptions.nomina.personal.map((p) => ({
+      ...(initialOptions.nomina?.personal ?? []).map((p) => ({
         value: p.id,
         label: `${p.nombre_completo} (${p.cedula})`,
       })),
     ],
-    [initialOptions.nomina.personal],
+    [initialOptions.nomina?.personal],
   );
 
   const reportesFiltersPanel = (

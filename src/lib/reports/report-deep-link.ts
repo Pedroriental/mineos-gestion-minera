@@ -148,7 +148,10 @@ function extractList(
   if (raw === undefined || raw === null) return undefined;
   if (Array.isArray(raw)) return raw.length ? raw.map(String) : undefined;
   if (typeof raw === 'object' && 'in' in raw) {
-    return raw.in.length ? raw.in.map(String) : undefined;
+    const list = Array.isArray((raw as { in?: unknown }).in)
+      ? (raw as { in: unknown[] }).in
+      : [];
+    return list.length ? list.map(String) : undefined;
   }
   const str = String(raw).trim();
   return str ? [str] : undefined;

@@ -179,11 +179,11 @@ function ReglaFila({
 }
 
 export function ReconciliacionRulesMatrix({
-  rules,
+  rules = [],
   nominaDivisiones = [],
   onDrillDown,
 }: {
-  rules: ReconciliationRuleResult[];
+  rules?: ReconciliationRuleResult[];
   nominaDivisiones?: NominaDivisionParam[];
   onDrillDown: (ruleId: string) => void;
 }) {

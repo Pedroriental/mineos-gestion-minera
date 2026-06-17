@@ -38,7 +38,10 @@ export const CrossModuleJoinPanel = memo(function CrossModuleJoinPanel({
   selectedModules,
 }: Props) {
   const eligible = selectedModules.filter((m) => RPC_CROSS_MODULES.includes(m));
-  const current = crossJoin ?? { type: 'molino', value: '', include: eligible };
+  const include = crossJoin?.include ?? eligible;
+  const current: CrossModuleJoin = crossJoin
+    ? { ...crossJoin, include: crossJoin.include ?? eligible }
+    : { type: 'molino', value: '', include: eligible };
 
   const toggleModule = (mod: ReportModule) => {
     const include = current.include.includes(mod)

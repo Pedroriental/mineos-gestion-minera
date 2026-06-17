@@ -122,7 +122,7 @@ export function aggregateOperationalTab(
     case 'produccion':
       return aggregateProduccion(rawData, filters.groupBy);
     case 'nomina':
-      return aggregateNomina(rawData, filters.groupBy, filters.nominaDivisiones);
+      return aggregateNomina(rawData, filters.groupBy, filters.nominaDivisiones ?? []);
     case 'voladuras':
       return aggregateVoladuras(rawData, filters.groupBy);
     case 'quemado':

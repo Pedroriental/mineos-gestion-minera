@@ -76,7 +76,10 @@ export function ReconciliacionParametros({
   inputs?: ReconciliationRawInputs;
   onSaved: () => void;
 }) {
-  const [form, setForm] = useState(params);
+  const [form, setForm] = useState({
+    ...params,
+    nominaDivisiones: params.nominaDivisiones ?? [],
+  });
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -161,7 +164,7 @@ export function ReconciliacionParametros({
           Reparto de nómina
         </h4>
         <ReconciliacionNominaDivisiones
-          divisiones={form.nominaDivisiones}
+          divisiones={form.nominaDivisiones ?? []}
           onChange={setNominaDivisiones}
           nominaReferenciaUsd={nominaReferenciaUsd}
         />

@@ -56,7 +56,10 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
     const val = f[key];
     if (val === undefined || val === null) return asArray ? [] : '';
     if (Array.isArray(val)) return val;
-    if (typeof val === 'object' && 'in' in val) return (val as { in: string[] }).in;
+    if (typeof val === 'object' && 'in' in val) {
+      const list = (val as { in?: unknown }).in;
+      return Array.isArray(list) ? list : [];
+    }
     if (typeof val === 'object' && 'regex' in val) return (val as { regex: string }).regex;
     if (typeof val === 'string' || typeof val === 'number') return String(val);
     return asArray ? [] : '';

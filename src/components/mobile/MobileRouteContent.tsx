@@ -25,7 +25,8 @@ export function MobileRouteContent({
   hideSectionLead,
 }: MobileRouteContentProps) {
   const isDashboard = pathname === '/dashboard' || pathname?.startsWith('/dashboard/');
-  const isReportes = pathname?.startsWith('/reportes-balances');
+  const isReportes =
+    pathname?.startsWith('/reportes-balances') || pathname?.startsWith('/reportes/constructor');
   const isResumen = pathname?.startsWith('/operaciones/resumen');
   const isHotbarPrimary = isDashboard || isReportes;
   const showLead = sectionMeta && !hideSectionLead && !isHotbarPrimary;

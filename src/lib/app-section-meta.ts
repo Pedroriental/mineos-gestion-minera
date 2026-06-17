@@ -22,6 +22,7 @@ import {
   Wrench,
   Zap,
   FileText,
+  FileSearch,
   Receipt,
   Truck,
 } from 'lucide-react';
@@ -49,6 +50,12 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     title: 'Centro de Reportes y Balances',
     description: 'Consolida y descarga reportes de toda tu operación minera.',
     Icon: CircleDollarSign,
+    iconClassName: 'text-amber-500',
+  },
+  '/reportes/constructor': {
+    title: 'Constructor de Reportes',
+    description: 'Reportes cruzados multi-módulo con filtros dinámicos.',
+    Icon: FileSearch,
     iconClassName: 'text-amber-500',
   },
   '/admin/gastos': {
