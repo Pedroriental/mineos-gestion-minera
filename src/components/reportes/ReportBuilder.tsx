@@ -1,19 +1,29 @@
 'use client';
 
-import { useState, useCallback, useTransition, useEffect, useMemo } from 'react';
+import { useState, useCallback, useTransition, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Play, Download, FileText, Loader2, CircleDollarSign } from 'lucide-react';
+import { Play, Download, FileText, Loader2, CircleDollarSign, SlidersHorizontal } from 'lucide-react';
 import { ModuleSelector } from './ModuleSelector';
 import { DynamicFilterPanel } from './DynamicFilterPanel';
 import { PresetManager } from './PresetManager';
 import { ReportPreview } from './ReportPreview';
 import { CrossModuleJoinPanel } from './CrossModuleJoinPanel';
 import { executeReportAction } from '@/lib/actions/report-actions';
-import { downloadUnifiedReportPDF } from '@/lib/reports/report-pdf-generator';
-import { downloadUnifiedReportCSV } from '@/lib/reports/report-csv-generator';
 import { decodeReportPayloadFromSearchParams } from '@/lib/reports/report-deep-link';
 import { FACTORY_REPORT_PRESETS } from '@/lib/reports/factory-presets';
+import { validateReportPayload } from '@/lib/reports/report-builder-validation';
+import {
+  downloadConstructorCSV,
+  downloadConstructorPDF,
+} from '@/lib/reports/constructor-exports';
+import {
+  MobileFilterSheet,
+  MobileFilterTrigger,
+  useMobileFilterSheet,
+} from '@/components/mobile';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
+import { cn } from '@/lib/utils';
 import type {
   ReportModule,
   ReportPayload,
@@ -65,6 +75,7 @@ export function ReportBuilder() {
     () => decodeReportPayloadFromSearchParams(searchParams),
     [searchParams],
   );
+  const autoRunFromUrl = deepLinkPayload.autoRun === true;
 
   const [modules, setModules] = useState<ReportModule[]>(['produccion']);
   const [filters, setFilters] = useState<Partial<Record<ReportModule, ModuleFilters>>>({});
@@ -77,6 +88,8 @@ export function ReportBuilder() {
   const [running, startTransition] = useTransition();
   const [exporting, setExporting] = useState<'pdf' | 'csv' | null>(null);
   const [hydratedFromUrl, setHydratedFromUrl] = useState(false);
+  const autoRunDone = useRef(false);
+  const { open: filtersOpen, setOpen: setFiltersOpen, close: closeFilters } = useMobileFilterSheet();
 
   const setters = useMemo(
     () => ({
@@ -117,13 +130,24 @@ export function ReportBuilder() {
         : null,
   }), [dateFrom, dateTo, modules, filters, groupBy, crossJoinEnabled, crossJoin]);
 
+  const validation = useMemo(() => validateReportPayload(buildPayload()), [buildPayload]);
+
   const execute = useCallback(() => {
     const payload = buildPayload();
+    const check = validateReportPayload(payload);
+    if (!check.ok) return;
+
     startTransition(async () => {
       const res = await executeReportAction(payload);
       setResult(res);
     });
   }, [buildPayload]);
+
+  useEffect(() => {
+    if (!hydratedFromUrl || !autoRunFromUrl || autoRunDone.current) return;
+    autoRunDone.current = true;
+    execute();
+  }, [hydratedFromUrl, autoRunFromUrl, execute]);
 
   const handleLoadPreset = useCallback((payload: ReportPayload) => {
     applyPayloadToState(payload, setters);
@@ -133,108 +157,137 @@ export function ReportBuilder() {
     if (!result) return;
     setExporting('pdf');
     try {
-      await downloadUnifiedReportPDF(result, dateFrom, dateTo, groupBy);
+      await downloadConstructorPDF(result, buildPayload());
     } finally {
       setExporting(null);
     }
-  }, [result, dateFrom, dateTo, groupBy]);
+  }, [result, buildPayload]);
 
   const handleExportCSV = useCallback(async () => {
     if (!result) return;
     setExporting('csv');
     try {
-      await downloadUnifiedReportCSV(result, groupBy);
+      await downloadConstructorCSV(result, buildPayload());
     } finally {
       setExporting(null);
     }
-  }, [result, groupBy]);
+  }, [result, buildPayload]);
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-      <div className="lg:col-span-1 space-y-3 rounded-lg border border-white/5 bg-zinc-900/20 p-4">
-        <ModuleSelector selected={modules} onChange={setModules} />
+  const liveContext = useMemo(
+    () => ({
+      dateFrom,
+      dateTo,
+      groupBy,
+      filters,
+    }),
+    [dateFrom, dateTo, groupBy, filters],
+  );
 
-        <DynamicFilterPanel
-          modules={modules}
-          filters={filters}
-          onChangeFilters={(mod, updates) =>
-            setFilters((prev) => ({ ...prev, [mod]: updates }))
-          }
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onChangeDateFrom={setDateFrom}
-          onChangeDateTo={setDateTo}
-          groupBy={groupBy}
-          onChangeGroupBy={setGroupBy}
-        />
+  const sidebarContent = (
+    <>
+      <ModuleSelector selected={modules} onChange={setModules} />
 
-        <CrossModuleJoinPanel
-          enabled={crossJoinEnabled}
-          onEnabledChange={setCrossJoinEnabled}
-          crossJoin={crossJoin}
-          onChange={setCrossJoin}
-          selectedModules={modules}
-        />
+      <DynamicFilterPanel
+        modules={modules}
+        filters={filters}
+        onChangeFilters={(mod, updates) =>
+          setFilters((prev) => ({ ...prev, [mod]: updates }))
+        }
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onChangeDateFrom={setDateFrom}
+        onChangeDateTo={setDateTo}
+        groupBy={groupBy}
+        onChangeGroupBy={setGroupBy}
+      />
 
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
-            Plantillas rápidas
-          </p>
-          <div className="flex flex-col gap-1">
-            {FACTORY_REPORT_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handleLoadPreset(preset.payload)}
-                className="rounded-md border border-transparent px-2 py-1.5 text-left transition-colors hover:border-white/5 hover:bg-white/[0.03]"
-              >
-                <p className="text-[11px] text-zinc-300">{preset.name}</p>
-                <p className="text-[9px] text-zinc-500 truncate">{preset.description}</p>
-              </button>
-            ))}
-          </div>
+      <CrossModuleJoinPanel
+        enabled={crossJoinEnabled}
+        onEnabledChange={setCrossJoinEnabled}
+        crossJoin={crossJoin}
+        onChange={setCrossJoin}
+        selectedModules={modules}
+      />
+
+      <div className="space-y-1.5">
+        <p className={ui.sectionTitle}>Plantillas rápidas</p>
+        <div className="flex flex-col gap-1">
+          {FACTORY_REPORT_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => handleLoadPreset(preset.payload)}
+              className={ui.presetButton}
+            >
+              <p className={ui.presetTitle}>{preset.name}</p>
+              <p className={ui.presetDesc}>{preset.description}</p>
+            </button>
+          ))}
         </div>
-
-        <PresetManager currentPayload={buildPayload()} onLoad={handleLoadPreset} />
-
-        <button
-          type="button"
-          onClick={execute}
-          disabled={running || modules.length === 0}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500/15 border border-amber-500/30 px-3 py-2 text-[12px] font-semibold text-amber-300 hover:bg-amber-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {running ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
-          {running ? 'Ejecutando...' : 'Ejecutar Reporte'}
-        </button>
       </div>
 
-      <div className="lg:col-span-3 space-y-4">
+      <PresetManager currentPayload={buildPayload()} onLoad={handleLoadPreset} />
+
+      {!validation.ok ? (
+        <div className={ui.validationBanner}>
+          {validation.messages.map((msg) => (
+            <p key={msg} className={ui.validationText}>
+              {msg}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={execute}
+        disabled={running || !validation.ok}
+        className={ui.btnExecute}
+      >
+        {running ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Play className="h-4 w-4" />
+        )}
+        {running ? 'Ejecutando...' : 'Ejecutar Reporte'}
+      </button>
+    </>
+  );
+
+  return (
+    <div className="report-builder grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <MobileFilterTrigger
+        label="Filtros del constructor"
+        subtitle={`${dateFrom} — ${dateTo}`}
+        showBadge={modules.length > 1 || !validation.ok}
+        onOpen={() => setFiltersOpen(true)}
+        className="lg:hidden"
+      />
+
+      <div className={cn(ui.sidebar, 'hidden lg:block lg:col-span-1')}>
+        {sidebarContent}
+      </div>
+
+      <div className="lg:col-span-3 space-y-4 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/reportes-balances"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors hover:border-amber-500/30 hover:text-amber-300"
-          >
+          <Link href="/reportes-balances" className={ui.linkSubtle}>
             <CircleDollarSign className="h-3.5 w-3.5 shrink-0" aria-hidden />
             Ver en hub de reportes
           </Link>
         </div>
 
         {result ? (
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-zinc-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={ui.metaText}>
               {result.dateRange?.from} → {result.dateRange?.to}
               {result.groupBy ? ` · Agrupado por ${result.groupBy}` : ''}
             </span>
-            <div className="ml-auto flex items-center gap-1.5">
+            <div className={cn(ui.exportActions, 'ml-auto gap-1.5')}>
               <button
                 type="button"
                 onClick={handleExportCSV}
                 disabled={exporting !== null}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-transparent px-3 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-white/5 disabled:opacity-40"
+                className={ui.btnSecondary}
               >
                 {exporting === 'csv' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
                 CSV
@@ -243,7 +296,7 @@ export function ReportBuilder() {
                 type="button"
                 onClick={handleExportPDF}
                 disabled={exporting !== null}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-transparent px-3 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-white/5 disabled:opacity-40"
+                className={ui.btnSecondary}
               >
                 {exporting === 'pdf' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                 PDF
@@ -252,10 +305,19 @@ export function ReportBuilder() {
           </div>
         ) : null}
 
-        <div className="rounded-lg border border-white/5 bg-zinc-900/15 p-4 min-h-[400px]">
-          <ReportPreview result={result} loading={running} />
+        <div className={cn(ui.previewPanel, 'min-h-[400px]')}>
+          <ReportPreview result={result} loading={running} liveContext={liveContext} />
         </div>
       </div>
+
+      <MobileFilterSheet
+        open={filtersOpen}
+        onClose={closeFilters}
+        title="Constructor de reportes"
+        icon={<SlidersHorizontal className="h-4 w-4" />}
+      >
+        <div className="space-y-3">{sidebarContent}</div>
+      </MobileFilterSheet>
     </div>
   );
 }

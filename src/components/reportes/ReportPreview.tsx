@@ -1,19 +1,33 @@
 'use client';
 
 import { memo, useState, useTransition } from 'react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ExecuteReportResult, ModuleReportData, ReportModule } from '@/lib/reports/report-types';
+import type {
+  ExecuteReportResult,
+  ModuleReportData,
+  ModuleFilters,
+  ReportModule,
+} from '@/lib/reports/report-types';
 import { resolvePreviewMode } from '@/lib/reports/live-modules/module-view-mode';
-import { balanceSummaryFromModuleData } from '@/lib/reports/constructor-preview-adapters';
-import { BalanceKpiStrip } from '@/components/reportes/BalanceKpiStrip';
-import { BalancePeriodTable } from '@/components/reportes/BalancePeriodTable';
+import { ConstructorBalanceRich } from '@/components/reportes/ConstructorBalanceRich';
+import { ConstructorReconciliationRich } from '@/components/reportes/ConstructorReconciliationRich';
 import { fetchReconciliationDrillDown } from '@/lib/actions/reconciliation-actions';
 import { getRuleDef } from '@/lib/reconciliation/rules-registry';
 import { ReconciliacionDrillDown } from '@/components/reportes/ReconciliacionDrillDown';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
+
+export type ConstructorLiveContext = {
+  dateFrom: string;
+  dateTo: string;
+  groupBy: string;
+  filters: Partial<Record<ReportModule, ModuleFilters>>;
+};
 
 type Props = {
   result: ExecuteReportResult | null;
   loading: boolean;
+  liveContext?: ConstructorLiveContext;
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -32,13 +46,13 @@ const STATUS_LABELS: Record<string, string> = {
 function statusClass(status: unknown): string {
   switch (String(status)) {
     case 'ok':
-      return 'text-emerald-400';
+      return ui.statusBenefit;
     case 'warning':
-      return 'text-amber-400';
+      return ui.statusGeneral;
     case 'error':
-      return 'text-red-400';
+      return ui.statusExpense;
     default:
-      return 'text-zinc-400';
+      return 'text-[var(--dashboard-text-muted)]';
   }
 }
 
@@ -127,80 +141,7 @@ function renderTotals(totals: Record<string, number> | undefined) {
   );
 }
 
-function BalanceRichPreview({ data }: { data: ModuleReportData }) {
-  const summary = balanceSummaryFromModuleData(data);
-  if (!summary) {
-    return <p className="text-[11px] text-zinc-500 italic py-2">Sin datos de balance</p>;
-  }
-  return (
-    <div className="space-y-4">
-      <BalanceKpiStrip kpis={summary.kpis} compact />
-      <BalancePeriodTable rows={summary.rows} />
-    </div>
-  );
-}
-
-function ReconciliationRichPreview({
-  data,
-  dateRange,
-}: {
-  data: ModuleReportData;
-  dateRange: { from: string; to: string };
-}) {
-  const [drillRuleId, setDrillRuleId] = useState<string | null>(null);
-  const [drillRows, setDrillRows] = useState<Awaited<ReturnType<typeof fetchReconciliationDrillDown>>>([]);
-  const [drillLoading, setDrillLoading] = useState(false);
-  const [, startTransition] = useTransition();
-
-  const handleRowClick = (ruleId: string) => {
-    setDrillRuleId(ruleId);
-    setDrillRows([]);
-    setDrillLoading(true);
-    startTransition(async () => {
-      try {
-        const rows = await fetchReconciliationDrillDown(ruleId, dateRange);
-        setDrillRows(rows);
-      } catch {
-        setDrillRows([]);
-      } finally {
-        setDrillLoading(false);
-      }
-    });
-  };
-
-  if (!data.rows?.length) {
-    return <p className="text-[11px] text-zinc-500 italic py-2">Sin reglas en el periodo</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      {renderTotals(data.totals)}
-        {renderRows(data.rows, {
-          clickable: true,
-          onRowClick: (row) => {
-            const ruleId = String(row._rule_id ?? '');
-            if (ruleId) handleRowClick(ruleId);
-          },
-        })}
-      {drillRuleId ? (
-        <ReconciliacionDrillDown
-          ruleId={drillRuleId}
-          ruleLabel={getRuleDef(drillRuleId)?.label ?? drillRuleId}
-          rows={drillRows}
-          isLoading={drillLoading}
-          dateFrom={dateRange.from}
-          dateTo={dateRange.to}
-          onClose={() => {
-            setDrillRuleId(null);
-            setDrillRows([]);
-          }}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-export const ReportPreview = memo(function ReportPreview({ result, loading }: Props) {
+export const ReportPreview = memo(function ReportPreview({ result, loading, liveContext }: Props) {
   const [drillRuleId, setDrillRuleId] = useState<string | null>(null);
   const [drillRows, setDrillRows] = useState<Awaited<ReturnType<typeof fetchReconciliationDrillDown>>>([]);
   const [drillLoading, setDrillLoading] = useState(false);
@@ -224,17 +165,17 @@ export const ReportPreview = memo(function ReportPreview({ result, loading }: Pr
 
   if (loading) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 py-10">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-500 border-t-amber-400" />
-        <p className="text-xs text-zinc-500">Ejecutando reporte...</p>
+      <div className={cn(ui.emptyState, 'h-64')}>
+        <Loader2 className={cn('h-5 w-5 animate-spin', ui.statusGeneral)} />
+        <p className={ui.metaText}>Ejecutando reporte...</p>
       </div>
     );
   }
 
   if (!result) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 py-10">
-        <p className="text-xs text-zinc-500">
+      <div className={cn(ui.emptyState, 'h-64')}>
+        <p className={ui.metaText}>
           Selecciona módulos y filtros, luego presiona Ejecutar
         </p>
       </div>
@@ -243,8 +184,8 @@ export const ReportPreview = memo(function ReportPreview({ result, loading }: Pr
 
   if (!result.ok) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-red-500/20 py-10">
-        <p className="text-xs text-red-400">Error al ejecutar el reporte</p>
+      <div className={cn(ui.emptyState, 'h-64 border-[color-mix(in_srgb,var(--mineos-expense)_28%,var(--dashboard-border))]')}>
+        <p className={ui.statusExpense}>Error al ejecutar el reporte</p>
       </div>
     );
   }
@@ -252,8 +193,8 @@ export const ReportPreview = memo(function ReportPreview({ result, loading }: Pr
   const modules = Object.keys(result.data);
   if (modules.length === 0) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 py-10">
-        <p className="text-xs text-zinc-500">Sin datos para los filtros seleccionados</p>
+      <div className={cn(ui.emptyState, 'h-64')}>
+        <p className={ui.metaText}>Sin datos para los filtros seleccionados</p>
       </div>
     );
   }
@@ -261,25 +202,39 @@ export const ReportPreview = memo(function ReportPreview({ result, loading }: Pr
   const selectedModules = (result.modules ?? modules) as ReportModule[];
   const previewMode = resolvePreviewMode(selectedModules);
   const dateRange = result.dateRange ?? { from: '', to: '' };
+  const ctx = liveContext ?? {
+    dateFrom: dateRange.from,
+    dateTo: dateRange.to,
+    groupBy: result.groupBy ?? 'dia',
+    filters: {},
+  };
 
-  if (previewMode === 'balance-rich' && result.data.balance) {
+  if (previewMode === 'balance-rich') {
     return (
       <div className="space-y-3">
         <p className="text-[10px] text-zinc-500">
           Vista rica de balance · {dateRange.from} → {dateRange.to}
         </p>
-        <BalanceRichPreview data={result.data.balance} />
+        <ConstructorBalanceRich
+          dateRange={{ from: ctx.dateFrom, to: ctx.dateTo }}
+          groupBy={ctx.groupBy}
+          moduleFilters={ctx.filters.balance}
+          reconciliationFilters={ctx.filters.reconciliacion}
+        />
       </div>
     );
   }
 
-  if (previewMode === 'reconciliation-rich' && result.data.reconciliacion) {
+  if (previewMode === 'reconciliation-rich') {
     return (
       <div className="space-y-3">
         <p className="text-[10px] text-zinc-500">
           Vista rica de reconciliación · {dateRange.from} → {dateRange.to}
         </p>
-        <ReconciliationRichPreview data={result.data.reconciliacion} dateRange={dateRange} />
+        <ConstructorReconciliationRich
+          dateRange={{ from: ctx.dateFrom, to: ctx.dateTo }}
+          moduleFilters={ctx.filters.reconciliacion}
+        />
       </div>
     );
   }

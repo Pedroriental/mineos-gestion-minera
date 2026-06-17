@@ -31,6 +31,8 @@ import { BalanceReportPanel } from '@/components/reportes/BalanceReportPanel';
 import { reportesUi as ui } from '@/components/reportes/reportes-ui';
 import { reportesTableColSpan } from '@/lib/reports/hub/report-tab-fetch';
 import { useReportTabData } from '@/hooks/useReportTabData';
+import { HubConstructorLink } from '@/components/reportes/HubConstructorLink';
+import { buildHubTabConstructorPayload } from '@/lib/reports/hub-constructor-payload';
 import { cn } from '@/lib/utils';
 import {
   ReportesTableFooter,
@@ -157,6 +159,16 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
   const isOperationalTab =
     activeTab !== 'reconciliacion' && activeTab !== 'balance';
+
+  const hubConstructorPayload = useMemo(
+    () =>
+      buildHubTabConstructorPayload({
+        dateRange,
+        tab: activeTab,
+        tabFilters,
+      }),
+    [activeTab, dateRange, tabFilters],
+  );
 
   const { aggregated, error, isPending } = useReportTabData({
     activeTab,
@@ -368,7 +380,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
             labelClassName={ui.fieldLabel}
           />
 
-          <div className="border-t border-white/5 pt-4 space-y-4">
+          <div className={cn(ui.divider, 'space-y-4 pt-4')}>
             <h3 className={ui.sectionTitle}>Filtros</h3>
 
             {/* DYNAMIC COMPONENT-SPECIFIC FILTERS */}
@@ -438,7 +450,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 </div>
 
                 {/* Agrupar */}
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
+                <div className={cn(ui.divider, 'flex flex-col gap-1.5 pt-2')}>
                   <label className={ui.fieldLabel}>Agrupar Datos por</label>
                   <AppSelect
                     value={groupByProd}
@@ -511,7 +523,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 </div>
 
                 {/* Agrupar */}
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
+                <div className={cn(ui.divider, 'flex flex-col gap-1.5 pt-2')}>
                   <label className={ui.fieldLabel}>Agrupar Nómina por</label>
                   <AppSelect
                     value={groupByNom}
@@ -592,7 +604,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 </div>
 
                 {/* Agrupar */}
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
+                <div className={cn(ui.divider, 'flex flex-col gap-1.5 pt-2')}>
                   <label className={ui.fieldLabel}>Agrupar Voladuras por</label>
                   <AppSelect
                     value={groupByVol}
@@ -631,7 +643,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 </div>
 
                 {/* Agrupar */}
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
+                <div className={cn(ui.divider, 'flex flex-col gap-1.5 pt-2')}>
                   <label className={ui.fieldLabel}>Agrupar por</label>
                   <AppSelect
                     value={groupByQuem}
@@ -712,7 +724,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 </div>
 
                 {/* Agrupar */}
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
+                <div className={cn(ui.divider, 'flex flex-col gap-1.5 pt-2')}>
                   <label className={ui.fieldLabel}>Agrupar por</label>
                   <AppSelect
                     value={groupByExt}
@@ -783,7 +795,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 </div>
 
                 {/* Agrupar */}
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-white/5">
+                <div className={cn(ui.divider, 'flex flex-col gap-1.5 pt-2')}>
                   <label className={ui.fieldLabel}>Agrupar por</label>
                   <AppSelect
                     value={groupByGst}
@@ -846,10 +858,11 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
             <div className="reportes-ui__preview-head flex shrink-0 flex-col gap-2.5">
               <h2 className={cn(ui.previewTitle, 'flex items-center gap-2')}>
                 Vista previa
-                {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />}
+                {isPending && <Loader2 className={cn('w-3.5 h-3.5 animate-spin', ui.metaText)} />}
               </h2>
               {aggregated && aggregated.rows.length > 0 && (
-                <div className={ui.exportActions}>
+                <div className={cn(ui.exportActions, 'flex-wrap items-center gap-2')}>
+                  <HubConstructorLink payload={hubConstructorPayload} />
                   <button type="button" onClick={handleDownloadPDF} className={ui.btnExport}>
                     <FileText className="h-4 w-4 shrink-0" />
                     PDF
@@ -873,17 +886,17 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
             {/* LOADING STATE */}
             {isPending && !aggregated && (
               <div className={ui.emptyState}>
-                <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
-                <p className="text-sm text-zinc-500">Cargando datos…</p>
+                <Loader2 className={cn('h-6 w-6 animate-spin', ui.metaText)} />
+                <p className={ui.emptyTitle}>Cargando datos…</p>
               </div>
             )}
 
             {/* NO DATA STATE */}
             {!isPending && (!aggregated || aggregated.rows.length === 0) && !error && (
               <div className={ui.emptyState}>
-                <HelpCircle className="h-8 w-8 text-zinc-600" />
-                <p className="text-sm font-medium text-zinc-400">No se encontraron registros</p>
-                <p className="text-xs text-zinc-600 text-center max-w-[280px]">
+                <HelpCircle className="h-8 w-8 text-[var(--dashboard-text-muted)] opacity-60" />
+                <p className={ui.emptyTitle}>No se encontraron registros</p>
+                <p className={ui.emptyHint}>
                   Prueba ampliando el rango de fechas o seleccionando menos filtros dinámicos.
                 </p>
               </div>
@@ -896,38 +909,38 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                 <div className="reportes-ui__kpi-grid grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4">
                   {activeTab === 'produccion' && (
                     <>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Oro Recuperado</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.oroTotalGrams.toLocaleString()} g</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Oro Recuperado</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.oroTotalGrams.toLocaleString()} g</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Sacos Vaciados</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.sacosTotal.toLocaleString()}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Sacos Vaciados</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.sacosTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Toneladas</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.toneladasTotal.toLocaleString()} t</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Toneladas</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.toneladasTotal.toLocaleString()} t</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Tenor Promedio</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.tenorPromedioGpt.toFixed(2)} g/t</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Tenor Promedio</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.tenorPromedioGpt.toFixed(2)} g/t</p>
                       </div>
                     </>
                   )}
 
                   {activeTab === 'nomina' && (
                     <>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Total Nómina</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">${aggregated.kpis.totalPagado.toLocaleString()}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Total Nómina</p>
+                        <p className={ui.kpiValue}>${aggregated.kpis.totalPagado.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Bono Transporte</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">${aggregated.kpis.bonoTransporteTotal.toLocaleString()}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Bono Transporte</p>
+                        <p className={ui.kpiValueSmall}>${aggregated.kpis.bonoTransporteTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Trabajadores</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.trabajadoresUnicos}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Trabajadores</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.trabajadoresUnicos}</p>
                       </div>
                       {showNominaSplit ? (
                         nominaSplitCols.map((div) => {
@@ -935,21 +948,21 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
                           return (
                             <div
                               key={div.id}
-                              className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5"
+                              className={ui.kpiCard}
                             >
-                              <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500 truncate" title={div.nombre}>
+                              <p className={cn(ui.kpiLabel, 'truncate')} title={div.nombre}>
                                 {div.nombre}
                               </p>
-                              <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">
+                              <p className={ui.kpiValue}>
                                 ${(kpiDiv?.montoUsd ?? 0).toLocaleString()}
                               </p>
                             </div>
                           );
                         })
                       ) : (
-                        <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                          <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Reparto cierre</p>
-                          <p className="text-[11px] font-bold mt-1 tabular-nums text-zinc-300">
+                        <div className={ui.kpiCard}>
+                          <p className={ui.kpiLabel}>Reparto cierre</p>
+                          <p className={cn(ui.kpiValueSmall, 'mt-1 font-bold')}>
                             ${aggregated.kpis.pedroTotal.toLocaleString()} / ${aggregated.kpis.darinelTotal.toLocaleString()} / ${aggregated.kpis.laFeTotal.toLocaleString()}
                           </p>
                         </div>
@@ -959,42 +972,42 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                   {activeTab === 'voladuras' && (
                     <>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Nro. Disparos</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.disparosCount}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Nro. Disparos</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.disparosCount}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Huecos</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.huecosTotal.toLocaleString()}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Huecos</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.huecosTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Chupis</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.chupisTotal.toLocaleString()}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Chupis</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.chupisTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Consumo Arroz</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.arrozKgTotal.toLocaleString()} kg</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Consumo Arroz</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.arrozKgTotal.toLocaleString()} kg</p>
                       </div>
                     </>
                   )}
 
                   {activeTab === 'quemado' && (
                     <>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Total Amalgama</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.amalgamaTotalG.toLocaleString()} g</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Total Amalgama</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.amalgamaTotalG.toLocaleString()} g</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Oro Puro</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.oroTotalG.toLocaleString()} g</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Oro Puro</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.oroTotalG.toLocaleString()} g</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Rendimiento</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.rendimientoOroPct.toFixed(2)}%</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Rendimiento</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.rendimientoOroPct.toFixed(2)}%</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Manto / Retorta</p>
-                        <p className="text-xs font-bold text-zinc-300 mt-2">
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Manto / Retorta</p>
+                        <p className={cn(ui.kpiValueSmall, 'mt-2 text-xs font-bold')}>
                           M:{aggregated.kpis.mantoOroTotalG.toFixed(0)}g | R:{aggregated.kpis.retortaOroTotalG.toFixed(0)}g
                         </p>
                       </div>
@@ -1003,21 +1016,21 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                   {activeTab === 'extraccion' && (
                     <>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Reportes</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.reportesCount}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Reportes</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.reportesCount}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Sacos Extraídos</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">{aggregated.kpis.sacosTotal.toLocaleString()}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Sacos Extraídos</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.sacosTotal.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Eventos / Novedades</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.eventosTotal}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Eventos / Novedades</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.eventosTotal}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Promedio/Reporte</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-100">
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Promedio/Reporte</p>
+                        <p className={ui.kpiValue}>
                           {aggregated.kpis.reportesCount > 0 ? (aggregated.kpis.sacosTotal / aggregated.kpis.reportesCount).toFixed(0) : '0'}
                         </p>
                       </div>
@@ -1026,20 +1039,20 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
 
                   {activeTab === 'gastos' && (
                     <>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Total Gastado</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">${aggregated.kpis.totalGastado.toLocaleString()}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Total Gastado</p>
+                        <p className={ui.kpiValueSmall}>${aggregated.kpis.totalGastado.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Gasto Promedio</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">${aggregated.kpis.promedioGasto.toLocaleString()}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Gasto Promedio</p>
+                        <p className={ui.kpiValueSmall}>${aggregated.kpis.promedioGasto.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Nro. Transacciones</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-300">{aggregated.kpis.registrosCount}</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Nro. Transacciones</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.registrosCount}</p>
                       </div>
-                      <div className="rounded-lg border border-white/5 bg-zinc-900/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">Mayor Gasto Único</p>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Mayor Gasto Único</p>
                         <p className={cn(ui.kpiValueSmall, 'truncate')} title={aggregated.kpis.mayorGastoDesc}>
                           ${aggregated.kpis.mayorGastoMonto.toLocaleString()}
                         </p>

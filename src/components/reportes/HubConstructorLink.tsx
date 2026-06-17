@@ -4,12 +4,21 @@ import Link from 'next/link';
 import { FileSearch } from 'lucide-react';
 import { buildConstructorUrl } from '@/lib/reports/report-deep-link';
 import type { ReportPayload } from '@/lib/reports/report-types';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
+import { cn } from '@/lib/utils';
 
-export function HubConstructorLink({ payload }: { payload: Partial<ReportPayload> }) {
+type Props = {
+  payload: Partial<ReportPayload>;
+  /** Ejecutar automáticamente al abrir el constructor (desde hub). */
+  autoRun?: boolean;
+  className?: string;
+};
+
+export function HubConstructorLink({ payload, autoRun = true, className }: Props) {
   return (
     <Link
-      href={buildConstructorUrl(payload)}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-transparent px-2.5 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors hover:border-amber-500/30 hover:text-amber-300"
+      href={buildConstructorUrl(payload, { autoRun })}
+      className={cn(ui.linkSubtle, className)}
     >
       <FileSearch className="h-3.5 w-3.5 shrink-0" aria-hidden />
       Abrir en constructor

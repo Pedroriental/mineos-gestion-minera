@@ -5,16 +5,13 @@ import { format, subDays } from 'date-fns';
 import { Loader2, Download, FileSpreadsheet, Calendar, RefreshCw } from 'lucide-react';
 import type { DateRange, FilterOptions } from '@/lib/reports/report-types';
 import { fetchReconciliationSnapshot } from '@/lib/actions/reconciliation-actions';
-import { getRuleDef } from '@/lib/reconciliation/rules-registry';
 import type { ReconciliationSnapshot } from '@/lib/reconciliation/types';
 import { buildOperationalFilters } from '@/lib/reports/live-modules/operational-filters';
 import { uniqueMinasFromOptions } from '@/lib/reports/hub/report-tab-fetch';
 import { ReconciliacionMacroKpis } from '@/components/reportes/ReconciliacionMacroKpis';
-import { ReconciliacionRulesMatrix } from '@/components/reportes/ReconciliacionRulesMatrix';
 import { ReconciliacionParametros } from '@/components/reportes/ReconciliacionParametros';
-import { ReconciliacionDrillDown } from '@/components/reportes/ReconciliacionDrillDown';
+import { ReconciliacionAnalysisView } from '@/components/reportes/ReconciliacionAnalysisView';
 import { ReconciliacionDateField } from '@/components/reportes/ReconciliacionDateField';
-import { ReconciliacionDivergenceBanner } from '@/components/reportes/ReconciliacionDivergenceBanner';
 import { ReconciliacionOperationalFilters } from '@/components/reportes/ReconciliacionOperationalFilters';
 import { downloadReconciliationCSV } from '@/lib/reports/reconciliation-export';
 import { useReconciliationDrillDown } from '@/hooks/useReconciliationDrillDown';
@@ -243,28 +240,16 @@ export function ReconciliacionPanel({ initialOptions }: Props) {
         )}
 
         {subView === 'analisis' && snapshot && (
-          <div className="reconciliacion-panel__analysis flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-            <ReconciliacionDivergenceBanner
-              snapshot={snapshot}
-              onDrillRpc={() => openDrillDown('rpc_divergencia')}
-            />
-            <ReconciliacionRulesMatrix
-              rules={snapshot.rules}
-              nominaDivisiones={snapshot.params.nominaDivisiones}
-              onDrillDown={openDrillDown}
-            />
-            {drillRuleId ? (
-              <ReconciliacionDrillDown
-                ruleId={drillRuleId}
-                ruleLabel={getRuleDef(drillRuleId)?.label ?? drillRuleId}
-                rows={drillRows}
-                isLoading={drillLoading}
-                dateFrom={dateRange.from}
-                dateTo={dateRange.to}
-                onClose={closeDrillDown}
-              />
-            ) : null}
-          </div>
+          <ReconciliacionAnalysisView
+            snapshot={snapshot}
+            dateRange={dateRange}
+            drillRuleId={drillRuleId}
+            drillRows={drillRows}
+            drillLoading={drillLoading}
+            onDrillDown={openDrillDown}
+            onCloseDrill={closeDrillDown}
+            showMacroKpis={false}
+          />
         )}
 
         {!isPending && !snapshot && !error && (

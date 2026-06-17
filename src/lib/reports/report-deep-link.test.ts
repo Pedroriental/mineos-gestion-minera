@@ -48,6 +48,27 @@ describe('report-deep-link', () => {
     assert.match(url, /modules=reconciliacion/);
   });
 
+  it('autoRun agrega run=1 y decodifica autoRun', () => {
+    const url = buildConstructorUrl(
+      { dateFrom: '2026-05-01', dateTo: '2026-05-07', modules: ['produccion'] },
+      { autoRun: true },
+    );
+    assert.match(url, /run=1/);
+    const decoded = decodeReportPayloadFromSearchParams(new URLSearchParams(url.split('?')[1]!));
+    assert.equal(decoded.autoRun, true);
+  });
+
+  it('codifica filtros en base64 filters param', () => {
+    const params = encodeReportPayloadToSearchParams({
+      filters: {
+        produccion: { molino: { in: ['M1'] } },
+      },
+    });
+    assert.ok(params.get('filters'));
+    const decoded = decodeReportPayloadFromSearchParams(params);
+    assert.deepEqual(decoded.filters?.produccion?.molino, { in: ['M1'] });
+  });
+
   it('ignora modulos invalidos al decodificar', () => {
     const params = new URLSearchParams('modules=balance,invalid,produccion');
     const decoded = decodeReportPayloadFromSearchParams(params);

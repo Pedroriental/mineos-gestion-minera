@@ -144,7 +144,7 @@ export function BalanceReportPanel({ initialOptions }: Props) {
           <div className="reportes-ui__preview-head flex shrink-0 flex-col gap-2.5">
             <h2 className={cn(ui.previewTitle, 'flex items-center gap-2')}>
               Vista previa
-              {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" /> : null}
+              {isPending ? <Loader2 className={cn('w-3.5 h-3.5 animate-spin', ui.metaText)} /> : null}
             </h2>
             {payload && payload.aggregated.rows.length > 0 ? (
               <div className={cn(ui.exportActions, 'flex-wrap items-center gap-2')}>
@@ -183,16 +183,16 @@ export function BalanceReportPanel({ initialOptions }: Props) {
 
           {isPending && !payload ? (
             <div className={ui.emptyState}>
-              <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
-              <p className="text-sm text-zinc-500">Calculando balance en vivo…</p>
+              <Loader2 className={cn('h-6 w-6 animate-spin', ui.metaText)} />
+              <p className={ui.emptyTitle}>Calculando balance en vivo…</p>
             </div>
           ) : null}
 
           {!isPending && payload && payload.aggregated.rows.length === 0 && !error ? (
             <div className={ui.emptyState}>
-              <HelpCircle className="h-8 w-8 text-zinc-600" />
-              <p className="text-sm font-medium text-zinc-400">Sin periodos en el rango</p>
-              <p className="text-xs text-zinc-600 text-center max-w-[280px]">
+              <HelpCircle className="h-8 w-8 text-[var(--dashboard-text-muted)] opacity-60" />
+              <p className={ui.emptyTitle}>Sin periodos en el rango</p>
+              <p className={ui.emptyHint}>
                 Amplía fechas o quita filtros de molino/mina.
               </p>
             </div>

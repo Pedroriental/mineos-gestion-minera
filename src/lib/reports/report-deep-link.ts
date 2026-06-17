@@ -11,14 +11,22 @@ const VALID_MODULES = new Set<ReportModule>([
   'reconciliacion',
 ]);
 
-export function buildConstructorUrl(payload: Partial<ReportPayload>): string {
-  const params = encodeReportPayloadToSearchParams(payload);
+export type ConstructorUrlOptions = {
+  autoRun?: boolean;
+};
+
+export function buildConstructorUrl(
+  payload: Partial<ReportPayload>,
+  options?: ConstructorUrlOptions,
+): string {
+  const params = encodeReportPayloadToSearchParams(payload, options);
   const qs = params.toString();
   return qs ? `/reportes/constructor?${qs}` : '/reportes/constructor';
 }
 
 export function encodeReportPayloadToSearchParams(
   payload: Partial<ReportPayload>,
+  options?: ConstructorUrlOptions,
 ): URLSearchParams {
   const params = new URLSearchParams();
 
@@ -28,6 +36,15 @@ export function encodeReportPayloadToSearchParams(
 
   if (payload.modules?.length) {
     params.set('modules', payload.modules.join(','));
+  }
+
+  if (payload.filters && Object.keys(payload.filters).length > 0) {
+    try {
+      const json = JSON.stringify(payload.filters);
+      params.set('filters', btoa(unescape(encodeURIComponent(json))));
+    } catch {
+      // fallback: molinos/minas legacy below
+    }
   }
 
   const recon = payload.filters?.reconciliacion;
@@ -45,13 +62,17 @@ export function encodeReportPayloadToSearchParams(
     params.set('crossInclude', cross.include.join(','));
   }
 
+  if (options?.autoRun) {
+    params.set('run', '1');
+  }
+
   return params;
 }
 
 export function decodeReportPayloadFromSearchParams(
   params: URLSearchParams,
-): Partial<ReportPayload> {
-  const payload: Partial<ReportPayload> = {};
+): Partial<ReportPayload> & { autoRun?: boolean } {
+  const payload: Partial<ReportPayload> & { autoRun?: boolean } = {};
 
   const from = params.get('from');
   const to = params.get('to');
@@ -70,11 +91,23 @@ export function decodeReportPayloadFromSearchParams(
     if (modules.length) payload.modules = modules;
   }
 
+  const filtersB64 = params.get('filters');
+  if (filtersB64) {
+    try {
+      const json = decodeURIComponent(escape(atob(filtersB64)));
+      payload.filters = JSON.parse(json) as ReportPayload['filters'];
+    } catch {
+      // ignore malformed payload
+    }
+  }
+
   const molinos = splitCsv(params.get('molinos'));
   const minas = splitCsv(params.get('minas'));
   if (molinos?.length || minas?.length) {
     payload.filters = {
+      ...payload.filters,
       reconciliacion: {
+        ...payload.filters?.reconciliacion,
         ...(molinos?.length ? { molinos: { in: molinos } } : {}),
         ...(minas?.length ? { minas: { in: minas } } : {}),
       },
@@ -94,7 +127,13 @@ export function decodeReportPayloadFromSearchParams(
     };
   }
 
+  payload.autoRun = params.get('run') === '1';
+
   return payload;
+}
+
+export function shouldAutoRunFromSearchParams(params: URLSearchParams): boolean {
+  return params.get('run') === '1';
 }
 
 function splitCsv(raw: string | null): string[] | undefined {

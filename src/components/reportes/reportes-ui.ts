@@ -31,4 +31,26 @@ export const reportesUi = {
   tableRow: 'hover:bg-[color-mix(in_srgb,var(--dashboard-card-muted)_65%,transparent)] transition-colors',
   emptyState:
     'flex h-52 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--dashboard-border)] py-10',
+  linkSubtle:
+    'inline-flex items-center gap-1.5 rounded-lg border border-[var(--dashboard-border)] bg-transparent px-2.5 py-1.5 text-[11px] font-medium text-[var(--dashboard-text-muted)] transition-colors hover:border-[color-mix(in_srgb,var(--mineos-general)_30%,var(--dashboard-border))] hover:text-[var(--mineos-general-bright)]',
+  btnSecondary:
+    'inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--dashboard-border)] bg-transparent px-3 py-1.5 text-[11px] font-medium text-[var(--dashboard-text)] transition-colors hover:bg-[color-mix(in_srgb,var(--dashboard-card-muted)_80%,transparent)] disabled:opacity-40',
+  btnExecute:
+    'flex w-full items-center justify-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--mineos-general)_32%,var(--dashboard-border))] bg-[color-mix(in_srgb,var(--mineos-general-soft)_55%,var(--dashboard-card-muted))] px-3 py-2 text-[12px] font-semibold text-[var(--mineos-general-bright)] transition-colors hover:bg-[color-mix(in_srgb,var(--mineos-general-soft)_75%,var(--dashboard-card-muted))] disabled:cursor-not-allowed disabled:opacity-40',
+  validationBanner:
+    'space-y-1 rounded-lg border border-[color-mix(in_srgb,var(--mineos-general)_25%,var(--dashboard-border))] bg-[color-mix(in_srgb,var(--mineos-general-soft)_35%,var(--dashboard-card-muted))] px-2.5 py-2',
+  validationText: 'text-[10px] leading-snug text-[var(--mineos-general-bright)]',
+  presetButton:
+    'rounded-md border border-transparent px-2 py-1.5 text-left transition-colors hover:border-[var(--dashboard-border)] hover:bg-[color-mix(in_srgb,var(--dashboard-card-muted)_80%,transparent)]',
+  presetTitle: 'text-[11px] text-[var(--dashboard-text)]',
+  presetDesc: 'truncate text-[9px] text-[var(--dashboard-text-muted)]',
+  metaText: 'text-[10px] text-[var(--dashboard-text-muted)]',
+  emptyTitle: 'text-sm font-medium text-[var(--dashboard-text-muted)]',
+  emptyHint: 'max-w-[280px] text-center text-xs text-[var(--dashboard-text-muted)] opacity-80',
+  inlineError:
+    'rounded-lg border border-[color-mix(in_srgb,var(--mineos-expense)_28%,var(--dashboard-border))] bg-[color-mix(in_srgb,var(--mineos-expense-soft)_40%,transparent)] px-3 py-2 text-[11px] text-[var(--mineos-expense)]',
+  statusBenefit: 'text-[var(--mineos-benefit)]',
+  statusGeneral: 'text-[var(--mineos-general-bright)]',
+  statusExpense: 'text-[var(--mineos-expense)]',
+  divider: 'border-t border-[var(--dashboard-border)]',
 } as const;
