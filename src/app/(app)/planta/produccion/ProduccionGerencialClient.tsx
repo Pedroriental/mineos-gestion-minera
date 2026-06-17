@@ -951,20 +951,20 @@ export default function ProduccionGerencialClient({
               {/* Columna 2 — Amalgamación */}
               <section className="produccion-page__modal-col produccion-page__modal-col--amalg flex flex-col gap-2.5">
                 <h3 className="produccion-page__modal-col-title flex items-center gap-2 text-sm font-semibold text-amber-400">
-                  <span>⚗️ Amalgamación</span>
+                  <span>Amalgamación</span>
                   <span className="h-px flex-1 bg-amber-400/20" />
                 </h3>
                 <div><label className="input-label">Amalgama 1 (g)</label><input type="number" step="0.01" value={form.amalgama_1_g} onChange={e => handleFieldChange('amalgama_1_g', e.target.value)} className="input-field" placeholder="23.00" /></div>
                 <div><label className="input-label">Amalgama 2 (g)</label><input type="number" step="0.01" value={form.amalgama_2_g} onChange={e => handleFieldChange('amalgama_2_g', e.target.value)} className="input-field" placeholder="22.90" /></div>
                 <div><label className="input-label">Oro Recuperado (g Au) *</label><input type="number" step="0.0001" value={form.oro_recuperado_g} onChange={e => handleFieldChange('oro_recuperado_g', e.target.value)} className="input-field" placeholder="10.90" required /></div>
-              <div><label className="input-label flex items-center gap-1"><Calculator className="h-3.5 w-3.5" /> Merma 1 (%)</label><input type="text" value={form.merma_1_pct ? `${form.merma_1_pct}%` : '—'} readOnly className="input-field produccion-field-readonly cursor-not-allowed" /></div>
-              <div><label className="input-label flex items-center gap-1"><Calculator className="h-3.5 w-3.5" /> Merma 2 (%)</label><input type="text" value={form.merma_2_pct ? `${form.merma_2_pct}%` : '—'} readOnly className="input-field produccion-field-readonly cursor-not-allowed" /></div>
+              <div><label className="input-label">Merma 1 (%)</label><input type="text" value={form.merma_1_pct ? `${form.merma_1_pct}%` : '—'} readOnly className="input-field produccion-field-readonly cursor-not-allowed" /></div>
+              <div><label className="input-label">Merma 2 (%)</label><input type="text" value={form.merma_2_pct ? `${form.merma_2_pct}%` : '—'} readOnly className="input-field produccion-field-readonly cursor-not-allowed" /></div>
               </section>
 
               {/* Columna 3 — Producción */}
               <section className="produccion-page__modal-col produccion-page__modal-col--prod flex flex-col gap-2.5">
                 <h3 className="produccion-page__modal-col-title produccion-page__modal-col-title--general flex items-center gap-2 text-sm font-semibold">
-                  <span>📦 Producción</span>
+                  <span>Producción</span>
                   <span className="produccion-page__modal-col-rule produccion-page__modal-col-rule--general h-px flex-1" />
                 </h3>
                 <div>
@@ -978,8 +978,8 @@ export default function ProduccionGerencialClient({
                 </div>
                 <div><label className="input-label">Ton. Procesadas <span className="produccion-muted font-normal">(auto)</span></label><input type="number" step="0.001" value={form.toneladas_procesadas} onChange={e => handleFieldChange('toneladas_procesadas', e.target.value)} className="input-field" placeholder="1.950" /></div>
                 <div><label className="input-label">Responsable</label><input value={form.responsable} onChange={e => handleFieldChange('responsable', e.target.value)} className="input-field" /></div>
-                <div><label className="input-label flex items-center gap-1"><Calculator className="h-3.5 w-3.5" /> Tenor (g/t)</label><input type="text" value={form.tenor_tonelada_gpt || '—'} readOnly className="input-field produccion-field-readonly produccion-field-readonly--tenor cursor-not-allowed font-semibold" /></div>
-                <div><label className="input-label flex items-center gap-1"><Calculator className="h-3.5 w-3.5" /> Tenor (g/s)</label><input type="text" value={form.tenor_saco_gps || '—'} readOnly className="input-field produccion-field-readonly produccion-field-readonly--accent cursor-not-allowed font-semibold" /></div>
+                <div><label className="input-label">Tenor (g/t)</label><input type="text" value={form.tenor_tonelada_gpt || '—'} readOnly className="input-field produccion-field-readonly produccion-field-readonly--tenor cursor-not-allowed font-semibold" /></div>
+                <div><label className="input-label">Tenor (g/s)</label><input type="text" value={form.tenor_saco_gps || '—'} readOnly className="input-field produccion-field-readonly produccion-field-readonly--accent cursor-not-allowed font-semibold" /></div>
               </section>
             </div>
 

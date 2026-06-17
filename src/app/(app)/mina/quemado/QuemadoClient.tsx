@@ -749,7 +749,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
-                <span>📍 Identificación</span>
+                <span>Identificación</span>
                 <span className={mineosModalDivider('general')} />
               </h3>
               <div>
@@ -779,7 +779,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
             <div className="flex flex-col gap-2.5">
               <h3 className={`${mineosModalHeading('general')} justify-between`}>
                 <div className="flex items-center gap-2">
-                  <span>🥞 Planchas</span>
+                  <span>Planchas</span>
                   <span className={`${mineosModalDivider('general')} !flex-none w-8`} />
                 </div>
                 <button
@@ -824,7 +824,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
           <section className="voladuras-page__modal-col flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">
               <h3 className={mineosModalHeading('general')}>
-                <span>🔧 Manto y ⚗️ Retorta</span>
+                <span>Manto y Retorta</span>
                 <span className={mineosModalDivider('general')} />
               </h3>
               <div className="app-detail-panel grid grid-cols-2 gap-3 rounded-xl p-3">
