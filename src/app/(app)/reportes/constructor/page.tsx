@@ -1,30 +1,32 @@
 import { Suspense } from 'react';
 import { ReportBuilder } from '@/components/reportes/ReportBuilder';
+import { reportesUi as ui } from '@/components/reportes/reportes-ui';
+import { cn } from '@/lib/utils';
 
 export const metadata = { title: 'Constructor de Reportes - MineOS' };
 
 function ConstructorFallback() {
   return (
-    <div className="flex min-h-[400px] items-center justify-center">
-      <p className="text-xs text-zinc-500">Cargando constructor…</p>
+    <div className={cn(ui.emptyState, 'min-h-[320px]')}>
+      <p className={ui.metaText}>Cargando constructor…</p>
     </div>
   );
 }
 
 export default function ConstructorPage() {
   return (
-    <div className="space-y-4 p-4 lg:p-6">
-      <div className="flex items-center gap-2">
-        <h1 className="text-base font-semibold text-zinc-100">
-          Constructor de Reportes
-        </h1>
-        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
-          Universal
-        </span>
-      </div>
-      <p className="text-[12px] text-zinc-500 -mt-2">
-        Reportes cruzados multi-módulo con filtros dinámicos
-      </p>
+    <div className="reportes-balances-page flex min-h-0 w-full flex-1 flex-col overflow-hidden p-0">
+      <header className="reportes-constructor-page__head shrink-0 px-4 pt-3 lg:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className={ui.previewTitle}>Constructor de Reportes</h1>
+          <span className="rounded-full border border-[color-mix(in_srgb,var(--mineos-general)_32%,var(--dashboard-border))] bg-[color-mix(in_srgb,var(--mineos-general-soft)_45%,var(--dashboard-card-muted))] px-2 py-0.5 text-[10px] font-medium text-[var(--mineos-general-bright)]">
+            Universal
+          </span>
+        </div>
+        <p className="mt-1 text-[12px] text-[var(--dashboard-text-muted)]">
+          Reportes cruzados multi-módulo con filtros dinámicos
+        </p>
+      </header>
       <Suspense fallback={<ConstructorFallback />}>
         <ReportBuilder />
       </Suspense>

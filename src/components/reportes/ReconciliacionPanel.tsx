@@ -134,7 +134,7 @@ export function ReconciliacionPanel({ initialOptions }: Props) {
   );
 
   return (
-    <div className="reconciliacion-panel reconciliacion-panel--layout grid min-h-0 flex-1 grid-cols-1 items-stretch gap-4 sm:gap-6 pt-0 sm:pt-2 md:grid-cols-4">
+    <div className="reconciliacion-panel reconciliacion-panel--layout grid min-h-0 flex-1 grid-cols-1 items-stretch gap-2 sm:gap-3 md:grid-cols-4">
       <aside className="reconciliacion-panel__controls reportes-ui__sidebar md:col-span-1 flex min-h-0 flex-col gap-3 min-w-0 rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-card-bg)] p-4 md:overflow-y-auto md:overscroll-contain custom-scrollbar">
         <h3 className="reconciliacion-panel__label text-[10px] font-extrabold uppercase tracking-widest text-zinc-500 pt-0.5">
           Reconciliación
@@ -208,7 +208,7 @@ export function ReconciliacionPanel({ initialOptions }: Props) {
         )}
       </aside>
 
-      <div className="reconciliacion-panel__main md:col-span-3 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
+      <div className="reconciliacion-panel__main md:col-span-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {error && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
             <p className="text-sm text-red-400">{error}</p>

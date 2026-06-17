@@ -14,7 +14,7 @@ export function ReportesTabs({
   return (
     <div className="reportes-tabs-scroll">
       <div
-        className="reportes-tabs flex flex-nowrap gap-0.5 overflow-x-auto pb-1 scrollbar-thin md:overflow-visible md:border-b md:border-white/5"
+        className="reportes-tabs flex flex-nowrap gap-0.5 overflow-x-auto pb-0 scrollbar-thin md:overflow-visible md:border-b md:border-[var(--dashboard-border)]"
         role="tablist"
         aria-label="Módulos de reportes"
       >

@@ -183,7 +183,7 @@ export function ReportBuilder() {
     [dateFrom, dateTo, groupBy, filters],
   );
 
-  const sidebarContent = (
+  const filterPanels = (
     <>
       <ModuleSelector selected={modules} onChange={setModules} />
 
@@ -230,7 +230,7 @@ export function ReportBuilder() {
 
       {!validation.ok ? (
         <div className={ui.validationBanner}>
-          {validation.messages.map((msg) => (
+          {(validation.messages ?? []).map((msg) => (
             <p key={msg} className={ui.validationText}>
               {msg}
             </p>
@@ -255,58 +255,78 @@ export function ReportBuilder() {
   );
 
   return (
-    <div className="report-builder grid grid-cols-1 lg:grid-cols-4 gap-4">
+    <div className="reportes-page report-builder-page flex min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden px-4 pb-4 sm:gap-2.5 lg:px-6 lg:pb-6">
       <MobileFilterTrigger
         label="Filtros del constructor"
         subtitle={`${dateFrom} — ${dateTo}`}
         showBadge={modules.length > 1 || !validation.ok}
         onOpen={() => setFiltersOpen(true)}
-        className="lg:hidden"
+        className="md:hidden"
       />
 
-      <div className={cn(ui.sidebar, 'hidden lg:block lg:col-span-1')}>
-        {sidebarContent}
-      </div>
-
-      <div className="lg:col-span-3 space-y-4 min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="reportes-page__grid grid min-h-0 flex-1 grid-cols-1 items-stretch gap-3 md:grid-cols-4 md:gap-4">
+        <aside
+          className={cn(
+            ui.sidebar,
+            'reportes-page__sidebar hidden md:flex md:min-h-0 md:min-w-0 md:overflow-y-auto md:overscroll-contain custom-scrollbar',
+          )}
+        >
+          <h3 className={ui.sectionTitle}>Constructor</h3>
           <Link href="/reportes-balances" className={ui.linkSubtle}>
             <CircleDollarSign className="h-3.5 w-3.5 shrink-0" aria-hidden />
             Ver en hub de reportes
           </Link>
-        </div>
+          {filterPanels}
+        </aside>
 
-        {result ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={ui.metaText}>
-              {result.dateRange?.from} → {result.dateRange?.to}
-              {result.groupBy ? ` · Agrupado por ${result.groupBy}` : ''}
-            </span>
-            <div className={cn(ui.exportActions, 'ml-auto gap-1.5')}>
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                disabled={exporting !== null}
-                className={ui.btnSecondary}
-              >
-                {exporting === 'csv' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-                CSV
-              </button>
-              <button
-                type="button"
-                onClick={handleExportPDF}
-                disabled={exporting !== null}
-                className={ui.btnSecondary}
-              >
-                {exporting === 'pdf' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                PDF
-              </button>
+        <div className="reportes-page__preview-col md:col-span-3 flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className={cn(ui.previewPanel, 'min-h-0 flex-1')}>
+            <div className="reportes-ui__preview-head flex shrink-0 flex-col gap-2.5">
+              <h2 className={cn(ui.previewTitle, 'flex flex-wrap items-center gap-2')}>
+                Vista previa
+                {running ? <Loader2 className={cn('h-3.5 w-3.5 animate-spin', ui.metaText)} /> : null}
+              </h2>
+              {result ? (
+                <div className={cn(ui.exportActions, 'flex-wrap items-center gap-2')}>
+                  <span className={ui.metaText}>
+                    {result.dateRange?.from} → {result.dateRange?.to}
+                    {result.groupBy ? ` · ${result.groupBy}` : ''}
+                  </span>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleExportCSV}
+                      disabled={exporting !== null}
+                      className={ui.btnSecondary}
+                    >
+                      {exporting === 'csv' ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <FileText className="h-3.5 w-3.5" />
+                      )}
+                      CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportPDF}
+                      disabled={exporting !== null}
+                      className={ui.btnSecondary}
+                    >
+                      {exporting === 'pdf' ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Download className="h-3.5 w-3.5" />
+                      )}
+                      PDF
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="reportes-ui__preview-body flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ReportPreview result={result} loading={running} liveContext={liveContext} />
             </div>
           </div>
-        ) : null}
-
-        <div className={cn(ui.previewPanel, 'min-h-[400px]')}>
-          <ReportPreview result={result} loading={running} liveContext={liveContext} />
         </div>
       </div>
 
@@ -316,7 +336,13 @@ export function ReportBuilder() {
         title="Constructor de reportes"
         icon={<SlidersHorizontal className="h-4 w-4" />}
       >
-        <div className="space-y-3">{sidebarContent}</div>
+        <div className="space-y-3">
+          <Link href="/reportes-balances" className={cn(ui.linkSubtle, 'w-full justify-center')}>
+            <CircleDollarSign className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Ver en hub de reportes
+          </Link>
+          {filterPanels}
+        </div>
       </MobileFilterSheet>
     </div>
   );

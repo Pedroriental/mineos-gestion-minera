@@ -113,7 +113,7 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
     for (const m of modules) {
       const cfg = getTableConfig(m);
       if (!cfg) continue;
-      for (const g of cfg.groupByOptions) {
+      for (const g of cfg.groupByOptions ?? []) {
         if (seen.has(g)) continue;
         seen.add(g);
         opts.push({ key: g, label: g.charAt(0).toUpperCase() + g.slice(1) });
@@ -179,7 +179,7 @@ export const DynamicFilterPanel = memo(function DynamicFilterPanel({
               </p>
             ) : null}
             <div className="space-y-1.5">
-              {cfg.columns.map((col) => {
+              {(cfg.columns ?? []).map((col) => {
                 if (col.type === 'date') return null;
 
                 if (col.type === 'enum' || col.type === 'multi') {

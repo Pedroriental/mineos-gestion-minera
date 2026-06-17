@@ -165,7 +165,7 @@ export const ReportPreview = memo(function ReportPreview({ result, loading, live
 
   if (loading) {
     return (
-      <div className={cn(ui.emptyState, 'h-64')}>
+      <div className={cn(ui.emptyState, 'min-h-[240px] flex-1')}>
         <Loader2 className={cn('h-5 w-5 animate-spin', ui.statusGeneral)} />
         <p className={ui.metaText}>Ejecutando reporte...</p>
       </div>
@@ -174,7 +174,7 @@ export const ReportPreview = memo(function ReportPreview({ result, loading, live
 
   if (!result) {
     return (
-      <div className={cn(ui.emptyState, 'h-64')}>
+      <div className={cn(ui.emptyState, 'min-h-[240px] flex-1')}>
         <p className={ui.metaText}>
           Selecciona módulos y filtros, luego presiona Ejecutar
         </p>
@@ -190,7 +190,7 @@ export const ReportPreview = memo(function ReportPreview({ result, loading, live
     );
   }
 
-  const modules = Object.keys(result.data);
+  const modules = Object.keys(result.data ?? {});
   if (modules.length === 0) {
     return (
       <div className={cn(ui.emptyState, 'h-64')}>
@@ -297,7 +297,7 @@ export const ReportPreview = memo(function ReportPreview({ result, loading, live
           Modo cruce: {result.crossModule.type} = {result.crossModule.value}
         </p>
       ) : null}
-      {modules.map((mod) => renderModuleData(mod, result.data[mod]))}
+      {modules.map((mod) => renderModuleData(mod, result.data?.[mod] ?? { rows: [] }))}
       {drillRuleId && dateRange.from ? (
         <ReconciliacionDrillDown
           ruleId={drillRuleId}

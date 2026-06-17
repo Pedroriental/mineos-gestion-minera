@@ -180,7 +180,9 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
   const nominaSplitCols: NominaDivisionAmount[] =
     activeTab === 'nomina' && aggregated?.kpis?.divisiones?.length
       ? aggregated.kpis.divisiones
-      : nominaDivisiones.map((d) => ({ id: d.id, nombre: d.nombre, montoUsd: 0 }));
+      : activeTab === 'nomina'
+        ? (nominaDivisiones ?? []).map((d) => ({ id: d.id, nombre: d.nombre, montoUsd: 0 }))
+        : [];
   const showNominaSplit = activeTab === 'nomina' && nominaSplitCols.length > 0;
 
   const tableRows = aggregated?.rows ?? [];
@@ -816,7 +818,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
   );
 
   return (
-    <div className="reportes-page flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden sm:gap-6">
+    <div className="reportes-page flex min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden sm:gap-2.5">
       <ReportesTabs
         activeTab={activeTab}
         onTabChange={(tab) => {
@@ -840,7 +842,7 @@ export default function ReportesClient({ initialOptions }: ReportesClientProps) 
           />
         </div>
       ) : null}
-      <div className="reportes-page__grid grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 md:grid-cols-4">
+      <div className="reportes-page__grid grid min-h-0 flex-1 grid-cols-1 items-stretch gap-3 md:grid-cols-4 md:gap-4">
         {/* LEFT COLUMN: FILTERS (Glassmorphic Card) */}
         <div
           className={cn(

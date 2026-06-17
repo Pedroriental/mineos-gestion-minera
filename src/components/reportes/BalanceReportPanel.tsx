@@ -126,9 +126,23 @@ export function BalanceReportPanel({ initialOptions }: Props) {
   };
 
   return (
-    <div className="reportes-balance-panel grid min-h-0 flex-1 grid-cols-1 items-stretch gap-4 sm:gap-6 md:grid-cols-4">
+    <div className="reportes-balance-panel grid min-h-0 flex-1 grid-cols-1 items-stretch gap-2 sm:gap-3 md:grid-cols-4 md:gap-4">
       <aside className={cn(ui.sidebar, 'hidden md:flex md:min-h-0 md:overflow-y-auto custom-scrollbar')}>
         <h3 className={ui.sectionTitle}>Balance</h3>
+        <HubConstructorLink
+          payload={{
+            dateFrom: dateRange.from,
+            dateTo: dateRange.to,
+            modules: ['balance'],
+            groupBy,
+            filters: {
+              reconciliacion: {
+                ...(selectedMolinos.length ? { molinos: { in: selectedMolinos } } : {}),
+                ...(selectedMinas.length ? { minas: { in: selectedMinas } } : {}),
+              },
+            },
+          }}
+        />
         {filtersPanel}
       </aside>
 
@@ -148,20 +162,6 @@ export function BalanceReportPanel({ initialOptions }: Props) {
             </h2>
             {payload && payload.aggregated.rows.length > 0 ? (
               <div className={cn(ui.exportActions, 'flex-wrap items-center gap-2')}>
-                <HubConstructorLink
-                  payload={{
-                    dateFrom: dateRange.from,
-                    dateTo: dateRange.to,
-                    modules: ['balance'],
-                    groupBy,
-                    filters: {
-                      reconciliacion: {
-                        ...(selectedMolinos.length ? { molinos: { in: selectedMolinos } } : {}),
-                        ...(selectedMinas.length ? { minas: { in: selectedMinas } } : {}),
-                      },
-                    },
-                  }}
-                />
                 <button type="button" onClick={handleExportPDF} className={ui.btnExport}>
                   <FileText className="h-4 w-4 shrink-0" />
                   PDF

@@ -43,8 +43,8 @@ export function ReconciliacionAnalysisView({
         onDrillRpc={() => onDrillDown('rpc_divergencia')}
       />
       <ReconciliacionRulesMatrix
-        rules={snapshot.rules}
-        nominaDivisiones={snapshot.params.nominaDivisiones}
+        rules={snapshot.rules ?? []}
+        nominaDivisiones={snapshot.params.nominaDivisiones ?? []}
         onDrillDown={onDrillDown}
       />
       {drillRuleId ? (
