@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { uniqueMinasFromOptions } from '@/lib/reports/hub/report-tab-fetch';
 import { downloadReportPDF } from '@/lib/reports/report-pdf-generator';
 import { downloadReportCSV } from '@/lib/reports/report-csv-generator';
+import { HubConstructorLink } from '@/components/reportes/HubConstructorLink';
 import {
   MobileFilterTrigger,
   MobileFilterSheet,
@@ -146,7 +147,21 @@ export function BalanceReportPanel({ initialOptions }: Props) {
               {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" /> : null}
             </h2>
             {payload && payload.aggregated.rows.length > 0 ? (
-              <div className={ui.exportActions}>
+              <div className={cn(ui.exportActions, 'flex-wrap items-center gap-2')}>
+                <HubConstructorLink
+                  payload={{
+                    dateFrom: dateRange.from,
+                    dateTo: dateRange.to,
+                    modules: ['balance'],
+                    groupBy,
+                    filters: {
+                      reconciliacion: {
+                        ...(selectedMolinos.length ? { molinos: { in: selectedMolinos } } : {}),
+                        ...(selectedMinas.length ? { minas: { in: selectedMinas } } : {}),
+                      },
+                    },
+                  }}
+                />
                 <button type="button" onClick={handleExportPDF} className={ui.btnExport}>
                   <FileText className="h-4 w-4 shrink-0" />
                   PDF

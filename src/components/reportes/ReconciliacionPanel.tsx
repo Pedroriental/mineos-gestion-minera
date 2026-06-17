@@ -18,6 +18,7 @@ import { ReconciliacionDivergenceBanner } from '@/components/reportes/Reconcilia
 import { ReconciliacionOperationalFilters } from '@/components/reportes/ReconciliacionOperationalFilters';
 import { downloadReconciliationCSV } from '@/lib/reports/reconciliation-export';
 import { useReconciliationDrillDown } from '@/hooks/useReconciliationDrillDown';
+import { HubConstructorLink } from '@/components/reportes/HubConstructorLink';
 import {
   MobileFilterTrigger,
   MobileFilterSheet,
@@ -162,6 +163,21 @@ export function ReconciliacionPanel({ initialOptions }: Props) {
             Parámetros
           </button>
         </div>
+
+        <HubConstructorLink
+          payload={{
+            dateFrom: dateRange.from,
+            dateTo: dateRange.to,
+            modules: ['reconciliacion'],
+            groupBy: 'periodo',
+            filters: {
+              reconciliacion: {
+                ...(selectedMolinos.length ? { molinos: { in: selectedMolinos } } : {}),
+                ...(selectedMinas.length ? { minas: { in: selectedMinas } } : {}),
+              },
+            },
+          }}
+        />
 
         <MobileFilterTrigger
           label="Periodo y filtros"

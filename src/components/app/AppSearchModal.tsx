@@ -14,6 +14,7 @@ import {
   Flame,
   BarChart2,
   CircleDollarSign,
+  Database,
 } from 'lucide-react';
 
 const ALL_ROUTES = [
@@ -25,6 +26,7 @@ const ALL_ROUTES = [
   { label: 'Nómina Mina', href: '/mina/nomina', section: 'Administración', icon: Users },
   { label: 'Gastos', href: '/admin/gastos', section: 'Administración', icon: Receipt },
   { label: 'Inventario', href: '/admin/inventario', section: 'Administración', icon: Package },
+  { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables', section: 'Administración', icon: Database },
   { label: 'Voladuras', href: '/mina/voladuras', section: 'Mina', icon: Zap },
   { label: 'Extracción', href: '/mina/extraccion', section: 'Mina', icon: Wrench },
   { label: 'Quemado de Planchas', href: '/mina/quemado', section: 'Molino', icon: Flame },

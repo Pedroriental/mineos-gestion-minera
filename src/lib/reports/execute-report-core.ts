@@ -1,12 +1,25 @@
 import type {
+  CrossModuleJoin,
   ExecuteReportResult,
   ModuleFilters,
   ModuleReportData,
   ReportModule,
   ReportPayload,
+  ReportRow,
 } from '@/lib/reports/report-types';
+import { parseReconciliationFiltersFromModule } from '@/lib/reconciliation/reconciliation-module-data';
+import type { ReconciliationFilters } from '@/lib/reconciliation/types';
 
 const LIVE_MODULES = new Set<ReportModule>(['balance', 'reconciliacion']);
+
+const RPC_CROSS_MODULES = new Set<ReportModule>([
+  'produccion',
+  'extraccion',
+  'quemado',
+  'voladuras',
+  'gastos',
+  'nomina',
+]);
 
 export type ExecuteReportDeps = {
   callRpc: (payload: ReportPayload) => Promise<ExecuteReportResult>;
@@ -14,6 +27,7 @@ export type ExecuteReportDeps = {
     dateRange: { from: string; to: string },
     groupBy?: string | null,
     balanceFilters?: ModuleFilters,
+    operationalFilters?: ReconciliationFilters,
   ) => Promise<ModuleReportData>;
   fetchReconciliationModule: (
     dateRange: { from: string; to: string },
@@ -40,6 +54,46 @@ export function buildExecuteReportRpcPayload(payload: ReportPayload): ReportPayl
   return { ...payload, modules: rpcModules };
 }
 
+export function resolveOperationalFilters(payload: ReportPayload): ReconciliationFilters | undefined {
+  return parseReconciliationFiltersFromModule(payload.filters?.reconciliacion);
+}
+
+export function isCrossModuleJoinActive(cross?: CrossModuleJoin | null): boolean {
+  return Boolean(cross?.value?.trim() && (cross.include?.length ?? 0) > 0);
+}
+
+export function buildCrossModuleRpcPayload(payload: ReportPayload): ReportPayload | null {
+  if (!isCrossModuleJoinActive(payload.crossModuleJoin)) return null;
+  const include = (payload.crossModuleJoin!.include ?? []).filter((m) => RPC_CROSS_MODULES.has(m));
+  if (include.length === 0) return null;
+  return {
+    ...payload,
+    modules: include,
+    crossModuleJoin: {
+      type: payload.crossModuleJoin!.type,
+      value: payload.crossModuleJoin!.value.trim(),
+      include,
+    },
+  };
+}
+
+/** Normaliza respuesta cruzada del RPC (arrays planos) al formato del constructor. */
+export function normalizeCrossModuleRpcData(
+  data: Record<string, unknown>,
+): Record<string, ModuleReportData> {
+  const out: Record<string, ModuleReportData> = {};
+  for (const [mod, val] of Object.entries(data)) {
+    if (Array.isArray(val)) {
+      out[mod] = { rows: val as ReportRow[] };
+      continue;
+    }
+    if (val && typeof val === 'object') {
+      out[mod] = val as ModuleReportData;
+    }
+  }
+  return out;
+}
+
 /**
  * Eje de fecha para nómina en execute_dynamic_report (migration_dynamic_report_rpc.sql).
  * Debe alinearse con nomina_semanas_deduped_in_range(..., p_use_semana_fin).
@@ -64,13 +118,20 @@ export async function runExecuteReport(
   const modules = payload.modules ?? [];
   const dateRange = { from: payload.dateFrom, to: payload.dateTo };
   const { includesBalance, includesReconciliacion } = splitReportModules(modules);
+  const operationalFilters = resolveOperationalFilters(payload);
 
   let data: Record<string, ModuleReportData> = {};
 
-  const rpcPayload = buildExecuteReportRpcPayload(payload);
-  if (rpcPayload) {
-    const rpcResult = await deps.callRpc(rpcPayload);
-    data = { ...(rpcResult.data ?? {}) };
+  const crossPayload = buildCrossModuleRpcPayload(payload);
+  if (crossPayload) {
+    const crossResult = await deps.callRpc(crossPayload);
+    data = normalizeCrossModuleRpcData(crossResult.data ?? {});
+  } else {
+    const rpcPayload = buildExecuteReportRpcPayload(payload);
+    if (rpcPayload) {
+      const rpcResult = await deps.callRpc(rpcPayload);
+      data = { ...(rpcResult.data ?? {}) };
+    }
   }
 
   if (includesBalance) {
@@ -78,6 +139,7 @@ export async function runExecuteReport(
       dateRange,
       payload.groupBy,
       payload.filters?.balance,
+      operationalFilters,
     );
   }
 
