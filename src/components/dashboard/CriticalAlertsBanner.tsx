@@ -4,6 +4,7 @@ import { memo } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { safeMap } from '@/lib/safe-map';
 
 type AlertItem = { id: string; title: string };
 
@@ -31,7 +32,7 @@ export const CriticalAlertsBanner = memo(function CriticalAlertsBanner({ alerts,
           {hasAlerts ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
         </div>
         <p className="dashboard-alerts-compact__text">
-          {hasAlerts ? alerts.map((a) => a.title).join(' · ') : 'Estado operacional nominal — sin alertas críticas'}
+          {hasAlerts ? safeMap(alerts, (a) => a.title).join(' · ') : 'Estado operacional nominal — sin alertas críticas'}
         </p>
         {hasAlerts ? (
           <Link href="/mina/voladuras" className="dashboard-alerts-compact__cta">
@@ -71,7 +72,7 @@ export const CriticalAlertsBanner = memo(function CriticalAlertsBanner({ alerts,
       <div className="dashboard-alerts__body">
         <p className="dashboard-alerts__title">Alertas críticas del sistema</p>
         <ul className="dashboard-alerts__list">
-          {alerts.map((a) => (
+          {safeMap(alerts, (a) => (
             <li key={a.id}>{a.title}</li>
           ))}
         </ul>

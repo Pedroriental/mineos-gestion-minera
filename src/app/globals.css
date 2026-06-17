@@ -3289,6 +3289,10 @@ input, textarea, select {
   padding-bottom: 0.5rem;
 }
 
+.app-page-inner:has(.report-builder-page) {
+  padding-bottom: 0.375rem;
+}
+
 .app-page-inner:has(.biblioteca-variables-page) {
   padding-top: 0.5rem;
   padding-bottom: 0.85rem;
@@ -8807,6 +8811,26 @@ input, textarea, select {
   .reportes-page > .reportes-balance-panel,
   .reportes-page > .report-builder-page {
     margin-top: 0;
+  }
+
+  /* Constructor: llenar altura disponible (sin tabs, menos chrome vertical) */
+  .reportes-balances-page:has(> .report-builder-page) .reportes-page__grid {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+  }
+
+  .reportes-balances-page:has(> .report-builder-page) .reportes-page__sidebar,
+  .reportes-balances-page:has(> .report-builder-page) .reportes-ui__sidebar,
+  .reportes-balances-page:has(> .report-builder-page) .reportes-page__preview-col,
+  .reportes-balances-page:has(> .report-builder-page) .reportes-ui__preview {
+    min-height: 0;
+    align-self: stretch;
+  }
+
+  .app-page-inner:has(.report-builder-page) {
+    padding-bottom: 0.375rem;
   }
 }
 

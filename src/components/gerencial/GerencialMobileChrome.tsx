@@ -3,6 +3,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { safeMap } from '@/lib/safe-map';
 import {
   mineosIcon,
   mineosIconRing,
@@ -33,7 +34,7 @@ export function GerencialMobileKpiStrip({
     <div className={cn('gerencial-mobile-kpi-block space-y-1.5', className)}>
       {items.length > 0 ? (
         <div className="gerencial-mobile-kpi-strip -mx-0.5 flex gap-2 overflow-x-auto px-0.5 pb-0.5 snap-x snap-mandatory scroll-smooth">
-          {items.map((k) => {
+          {safeMap(items, (k) => {
             const Icon = k.icon;
             const tone = k.tone ?? 'general';
             return (

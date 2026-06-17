@@ -255,7 +255,7 @@ export function ReportBuilder() {
   );
 
   return (
-    <div className="reportes-page report-builder-page flex min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden px-4 pb-4 sm:gap-2.5 lg:px-6 lg:pb-6">
+    <div className="reportes-page report-builder-page flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden px-4 pb-1.5 sm:gap-2 lg:px-6 lg:pb-2">
       <MobileFilterTrigger
         label="Filtros del constructor"
         subtitle={`${dateFrom} — ${dateTo}`}
@@ -268,7 +268,7 @@ export function ReportBuilder() {
         <aside
           className={cn(
             ui.sidebar,
-            'reportes-page__sidebar hidden md:flex md:min-h-0 md:min-w-0 md:overflow-y-auto md:overscroll-contain custom-scrollbar',
+            'reportes-page__sidebar hidden md:flex md:min-h-0 md:min-w-0 md:self-stretch md:overflow-y-auto md:overscroll-contain custom-scrollbar',
           )}
         >
           <h3 className={ui.sectionTitle}>Constructor</h3>
@@ -279,8 +279,8 @@ export function ReportBuilder() {
           {filterPanels}
         </aside>
 
-        <div className="reportes-page__preview-col md:col-span-3 flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className={cn(ui.previewPanel, 'min-h-0 flex-1')}>
+        <div className="reportes-page__preview-col md:col-span-3 flex min-h-0 min-w-0 flex-1 flex-col self-stretch">
+          <div className={cn(ui.previewPanel, 'min-h-0 flex-1 self-stretch')}>
             <div className="reportes-ui__preview-head flex shrink-0 flex-col gap-2.5">
               <h2 className={cn(ui.previewTitle, 'flex flex-wrap items-center gap-2')}>
                 Vista previa

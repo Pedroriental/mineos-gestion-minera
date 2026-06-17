@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { fontDisplay } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
+import { safeMap } from '@/lib/safe-map';
 import { MOBILE_HOME_SHORTCUTS } from '@/lib/mobile-nav';
 import { MobileSection, MobileKpi } from './MobileSection';
 import { MobileListItem } from './MobileListItem';
@@ -142,7 +143,7 @@ export function MobileDashboard({ locations, globalData }: MobileDashboardProps)
 
       { (globalData.balancesPlanchas ?? []).length > 0 && (
         <MobileSection title="Planchas" tight>
-          {globalData.balancesPlanchas.map((p) => (
+          {safeMap(globalData.balancesPlanchas, (p) => (
             <MobileListItem
               key={p.id}
               label={p.label}
