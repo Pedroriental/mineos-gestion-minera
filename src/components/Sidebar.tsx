@@ -686,7 +686,7 @@ export default function Sidebar({
           'py-3 px-3 shadow-[0_24px_80px_rgba(0,0,0,0.55)]',
           'backdrop-blur-2xl backdrop-saturate-150',
           'transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
-          mobileOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)]',
+          mobileOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)] pointer-events-none',
         )}
       >
         {dockContent({ showClose: true, onClose: onMobileClose })}
