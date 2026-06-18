@@ -2045,14 +2045,25 @@ input, textarea, select {
 [data-theme="light"] .text-yellow-400 { color: var(--mineos-general-bright) !important; }
 
 /* Topbar — títulos e íconos de sección en modo diurno */
-[data-theme="light"] .app-topbar-context__title,
 [data-theme="light"] [data-topbar] h1,
-[data-theme="light"] [data-topbar] .app-topbar-context__heading * {
-  color: var(--dashboard-text) !important;
+[data-theme="light"] [data-topbar] .app-topbar-context__title {
+  color: #18181b !important;
 }
-[data-theme="light"] .app-topbar-context__icon,
-[data-theme="light"] [data-topbar] .app-topbar-context__heading svg {
+[data-theme="light"] [data-topbar] svg {
   color: var(--dashboard-accent) !important;
+}
+
+/* Quitar cajas de botones de theme toggle y campana */
+[data-theme="light"] [data-topbar] button[aria-label*="modo"],
+[data-theme="light"] [data-topbar] button[aria-label*="notificacion"],
+[data-theme="light"] [data-topbar] button[aria-label*="Notificacion"] {
+  border-color: transparent !important;
+  background: transparent !important;
+}
+[data-theme="light"] [data-topbar] button[aria-label*="modo"]:hover,
+[data-theme="light"] [data-topbar] button[aria-label*="notificacion"]:hover,
+[data-theme="light"] [data-topbar] button[aria-label*="Notificacion"]:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
 }
 
 /* Nómina — headings con text-white puro (sin opacidad) en modo diurno */
@@ -3023,6 +3034,59 @@ input, textarea, select {
 }
 
 [data-theme="light"] .nomina-mobile-worker {
+  background: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+}
+
+/* ── Reportes y Balances — light mode overrides ── */
+[data-theme="light"] .reportes-balances-page [class*="bg-zinc-9"],
+[data-theme="light"] .reportes-balances-page [class*="bg-zinc-8"],
+[data-theme="light"] .reportes-page [class*="bg-zinc-9"],
+[data-theme="light"] .reportes-page [class*="bg-zinc-8"] {
+  background: var(--card-bg) !important;
+}
+[data-theme="light"] .reportes-balances-page [class*="bg-zinc-950"],
+[data-theme="light"] .reportes-balances-page [class*="bg-zinc-900"],
+[data-theme="light"] .reportes-page [class*="bg-zinc-950"],
+[data-theme="light"] .reportes-page [class*="bg-zinc-900"] {
+  background: var(--card-bg) !important;
+}
+[data-theme="light"] .reportes-balances-page [class*="border-zinc-8"],
+[data-theme="light"] .reportes-balances-page [class*="border-zinc-7"],
+[data-theme="light"] .reportes-balances-page [class*="border-white/"],
+[data-theme="light"] .reportes-page [class*="border-zinc-8"],
+[data-theme="light"] .reportes-page [class*="border-zinc-7"],
+[data-theme="light"] .reportes-page [class*="border-white/"] {
+  border-color: var(--card-border) !important;
+}
+[data-theme="light"] .reportes-balances-page [class*="text-white"],
+[data-theme="light"] .reportes-page [class*="text-white"] {
+  color: var(--text-primary) !important;
+}
+[data-theme="light"] .reportes-balances-page [class*="text-zinc-5"],
+[data-theme="light"] .reportes-balances-page [class*="text-zinc-4"],
+[data-theme="light"] .reportes-page [class*="text-zinc-5"],
+[data-theme="light"] .reportes-page [class*="text-zinc-4"] {
+  color: var(--text-secondary) !important;
+}
+[data-theme="light"] .reportes-balances-page [class*="bg-black/"],
+[data-theme="light"] .reportes-page [class*="bg-black/"] {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+[data-theme="light"] .reportes-balances-page [class*="divide-white/"],
+[data-theme="light"] .reportes-page [class*="divide-white/"] {
+  --tw-divide-opacity: 1;
+  border-color: var(--card-border) !important;
+}
+/* Reportes tabs — override dark active state */
+[data-theme="light"] .reportes-tabs__btn--active {
+  background: var(--mineos-general-soft) !important;
+  color: var(--mineos-general-deep) !important;
+  border-color: var(--mineos-general-border) !important;
+}
+/* Reconciliación panels */
+[data-theme="light"] .reconciliacion-macro-kpis,
+[data-theme="light"] .reconciliacion-panel__subview-toggle {
   background: var(--card-bg) !important;
   border-color: var(--card-border) !important;
 }
