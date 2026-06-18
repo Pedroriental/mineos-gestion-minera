@@ -9577,27 +9577,27 @@ input, textarea, select {
   -webkit-backdrop-filter: blur(10px);
   padding-inline: var(--ms-pad-x);
   padding-top: var(--ms-hotbar-pad);
-  padding-bottom: max(var(--ms-hotbar-pad), env(safe-area-inset-bottom));
+  padding-bottom: var(--ms-hotbar-pad);
 }
 
 .mobile-hotbar__dock {
   border: 1px solid var(--dashboard-border);
-  border-radius: clamp(0.625rem, 2.2vw, 0.75rem);
+  border-radius: clamp(0.7188rem, 2.5vw, 0.8625rem);
   background: color-mix(in srgb, var(--dashboard-card-bg) 82%, transparent);
   box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--dashboard-text) 3%, transparent);
-  min-height: clamp(2.75rem, 8vw, 3.25rem);
+  min-height: clamp(3.1625rem, 9.2vw, 3.7375rem);
 }
 
 .mobile-hotbar__item {
   color: var(--dashboard-text-muted);
-  min-height: clamp(2.75rem, 8vw, 3.25rem);
-  padding-block: 0.375rem;
+  min-height: clamp(3.1625rem, 9.2vw, 3.7375rem);
+  padding-block: 0.4375rem;
 }
 
 .mobile-hotbar__icon-wrap {
   position: relative;
-  width: clamp(1.5rem, 5vw, 1.75rem);
-  height: clamp(1.5rem, 5vw, 1.75rem);
+  width: clamp(1.725rem, 5.75vw, 2.0125rem);
+  height: clamp(1.725rem, 5.75vw, 2.0125rem);
   color: inherit;
   background: transparent;
   border-radius: 999px;
@@ -9638,7 +9638,7 @@ input, textarea, select {
 
 .mobile-hotbar__label {
   color: inherit;
-  font-size: clamp(0.5625rem, 2.6vw, 0.6875rem);
+  font-size: clamp(0.6469rem, 2.99vw, 0.7906rem);
   line-height: 1.25;
   padding-bottom: 0.0625rem;
 }
