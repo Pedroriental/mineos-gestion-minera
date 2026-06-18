@@ -338,9 +338,7 @@ export default function AppLayoutClient({
                     </h1>
                   </div>
                 </div>
-              ) : (
-                <div style={{ color: 'red', fontSize: '12px' }}>DEBUG: sectionMeta=null ({pathname})</div>
-              )}
+              ) : null}
             </div>
 
             <div className="flex shrink-0 items-center gap-2">

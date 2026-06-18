@@ -242,5 +242,6 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
 };
 
 export function getAppSectionMeta(pathname: string): AppSectionMeta | null {
-  return SECTION_BY_PATH[pathname] ?? null;
+  const normalized = pathname.replace(/\/+$/, '') || '/';
+  return SECTION_BY_PATH[normalized] ?? null;
 }
