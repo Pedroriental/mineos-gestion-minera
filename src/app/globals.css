@@ -1990,8 +1990,8 @@ input, textarea, select {
 
 /* ── Topbar & overlays in light mode ── */
 [data-theme="light"] header[data-topbar] {
-  background: rgba(255, 255, 255, 0.70);
-  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
 }
 [data-theme="light"] .light-topbar-btn {
   background: rgba(0, 0, 0, 0.05) !important;
@@ -2045,10 +2045,13 @@ input, textarea, select {
 [data-theme="light"] .text-yellow-400 { color: var(--mineos-general-bright) !important; }
 
 /* Topbar — títulos e íconos de sección en modo diurno */
-[data-theme="light"] .app-topbar-context__title {
+[data-theme="light"] .app-topbar-context__title,
+[data-theme="light"] [data-topbar] h1,
+[data-theme="light"] [data-topbar] .app-topbar-context__heading * {
   color: var(--dashboard-text) !important;
 }
-[data-theme="light"] .app-topbar-context__icon {
+[data-theme="light"] .app-topbar-context__icon,
+[data-theme="light"] [data-topbar] .app-topbar-context__heading svg {
   color: var(--dashboard-accent) !important;
 }
 
@@ -2058,7 +2061,7 @@ input, textarea, select {
   color: var(--text-primary) !important;
 }
 
-/* Pickers (fecha, hora, select) — modo diurno */
+/* Pickers (fecha, hora, select, mes) — modo diurno */
 [data-theme="light"] .app-date-picker__menu,
 [data-theme="light"] div[id$="-menu"] {
   background: #ffffff !important;
@@ -2076,10 +2079,57 @@ input, textarea, select {
 }
 [data-theme="light"] .app-date-picker__trigger,
 [data-theme="light"] .app-time-picker__trigger,
-[data-theme="light"] .app-select__trigger {
+[data-theme="light"] .app-select__trigger,
+[data-theme="light"] .app-month-picker__trigger {
   background: rgba(255, 255, 255, 0.92) !important;
   border-color: rgba(0, 0, 0, 0.08) !important;
   color: #1e293b !important;
+}
+/* AppMonthPicker — override dark hardcoded classes */
+[data-theme="light"] .app-month-picker button,
+[data-theme="light"] div[class*="relative w-full"] button {
+  color: #475569 !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+[data-theme="light"] div[id$="-menu"] .text-zinc-200,
+[data-theme="light"] div[id$="-menu"] .text-zinc-300,
+[data-theme="light"] div[id$="-menu"] span {
+  color: #1e293b !important;
+}
+[data-theme="light"] div[id$="-menu"] .text-zinc-500 {
+  color: #64748b !important;
+}
+[data-theme="light"] div[id$="-menu"] .text-amber-400,
+[data-theme="light"] div[id$="-menu"] .text-amber-500 {
+  color: var(--mineos-general) !important;
+}
+[data-theme="light"] div[id$="-menu"] .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+[data-theme="light"] div[id$="-menu"] .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+}
+[data-theme="light"] div[id$="-menu"] .bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+}
+[data-theme="light"] div[id$="-menu"] .hover\:bg-white\/10:hover {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+}
+[data-theme="light"] div[id$="-menu"] .hover\:text-white:hover {
+  color: #0f172a !important;
+}
+[data-theme="light"] div[id$="-menu"] .hover\:text-zinc-100:hover {
+  color: #0f172a !important;
+}
+[data-theme="light"] div[id$="-menu"] .hover\:text-zinc-300:hover {
+  color: #334155 !important;
+}
+[data-theme="light"] div[id$="-menu"] .bg-amber-500\/20 {
+  background-color: var(--mineos-general-soft) !important;
+}
+[data-theme="light"] div[id$="-menu"] .border-amber-500\/30 {
+  border-color: var(--mineos-general-border) !important;
 }
 
 /* ═══════════════════════════════════════════════════ */
@@ -4518,6 +4568,27 @@ input, textarea, select {
 
 .nomina-page .nomina-table-action-btn {
   line-height: 0;
+}
+
+/* ── Nómina — light mode: override hardcoded dark backgrounds ── */
+[data-theme="light"] .nomina-cargo-group > .overflow-x-auto,
+[data-theme="light"] .nomina-cargo-group__subtotal-row,
+[data-theme="light"] .nomina-cargo-group__subtotal-cell {
+  background-color: var(--card-bg) !important;
+}
+[data-theme="light"] .nomina-cargo-group__subtotal-row {
+  border-top: 1px solid var(--card-border);
+}
+[data-theme="light"] .nomina-cargo-group__subtotal-cell {
+  color: var(--text-primary) !important;
+}
+[data-theme="light"] .nomina-page__table-scroll {
+  background: var(--card-bg) !important;
+}
+[data-theme="light"] .nomina-page .produccion-table-td,
+[data-theme="light"] .nomina-page .produccion-table-th {
+  border-color: var(--card-border) !important;
+  color: var(--text-primary) !important;
 }
 
 .produccion-page__table-body {

@@ -76,7 +76,7 @@ export default function RootLayout({
           __html: `!function(){try{var t=(typeof localStorage!=='undefined'&&localStorage.getItem('mineos-theme'))||'light';var l=document.getElementById('splash-logo');if(l){l.src='/brand/mineos-logotipo-'+(t==='dark'?'dark':'light')+'.svg'}}catch(e){}}()`,
         }} />
         <div id="splash-screen">
-          <img id="splash-logo" src="/brand/mineos-logotipo-dark.svg" alt="MineOS" decoding="async" fetchpriority="high" />
+          <img id="splash-logo" src="/brand/mineos-logotipo-light.svg" alt="MineOS" decoding="async" fetchpriority="high" />
           <p>Sistema de Gestión Minera</p>
           <div className="sp" />
         </div>
