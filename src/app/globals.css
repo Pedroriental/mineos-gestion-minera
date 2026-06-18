@@ -1380,7 +1380,7 @@ button, a, [role="button"] {
 [data-theme="light"] {
   --background: transparent;
   --foreground: #1E293B;
-  --card-bg: rgba(250, 245, 238, 0.85);
+  --card-bg: rgba(255, 255, 255, 0.88);
   --card-border: rgba(0, 0, 0, 0.09);
   --card-hover-border: rgba(0, 0, 0, 0.16);
   --sidebar-bg: rgba(9, 24, 35, 0.96);
@@ -1415,7 +1415,7 @@ button, a, [role="button"] {
   --text-muted: #71717a;
   --border: rgba(0, 0, 0, 0.07);
   --inner-border: rgba(0, 0, 0, 0.08);
-  --surface-elevated: rgba(250, 246, 240, 0.95);
+  --surface-elevated: rgba(255, 255, 255, 0.95);
   --surface-sunken: rgba(0, 0, 0, 0.05);
   /* Chart tokens */
   --chart-grid: rgba(0, 0, 0, 0.06);
@@ -1426,7 +1426,7 @@ button, a, [role="button"] {
 }
 
 [data-theme="light"] body {
-  background: #f5efe5;
+  background: #ffffff;
   color: #1e293b;
 }
 
@@ -1451,13 +1451,27 @@ button, a, [role="button"] {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.10), 0 1px 0 rgba(255,255,255,0.95) inset;
 }
 [data-theme="light"] .btn-secondary {
-  background: var(--mineos-general-soft);
+  background: color-mix(in srgb, var(--mineos-general-soft) 180%, transparent);
   border-color: var(--mineos-general-border);
-  color: var(--mineos-general-deep);
+  color: #1E293B;
 }
 [data-theme="light"] .btn-secondary:hover {
-  background: color-mix(in srgb, var(--mineos-general-soft) 200%, transparent);
+  background: var(--mineos-general-soft);
   border-color: var(--mineos-general);
+  color: var(--mineos-general-deep);
+}
+[data-theme="light"] .btn-primary {
+  background: var(--mineos-general) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(212, 175, 55, 0.35), 0 4px 12px rgba(212, 175, 55, 0.18) !important;
+}
+[data-theme="light"] .btn-primary:hover:not(:disabled) {
+  background: var(--mineos-general-bright) !important;
+  box-shadow: 0 2px 6px rgba(212, 175, 55, 0.45), 0 6px 16px rgba(212, 175, 55, 0.25) !important;
+}
+[data-theme="light"] .btn-primary:active:not(:disabled) {
+  filter: brightness(0.9);
 }
 [data-theme="light"] .btn-danger {
   background: rgba(220, 38, 38, 0.10);
@@ -1749,9 +1763,14 @@ button, a, [role="button"] {
 }
 
 [data-theme='light'] .page-form-modal-backdrop .btn-secondary {
-  color: #334155;
-  border-color: rgba(0, 0, 0, 0.1);
-  background: rgba(0, 0, 0, 0.04);
+  color: #1E293B;
+  border-color: var(--mineos-general-border);
+  background: var(--mineos-general-soft);
+}
+[data-theme='light'] .page-form-modal-backdrop .btn-secondary:hover {
+  border-color: var(--mineos-general);
+  background: color-mix(in srgb, var(--mineos-general-soft) 200%, transparent);
+  color: var(--mineos-general-deep);
 }
 
 [data-theme='light'] .page-form-modal-backdrop h2.text-white\/90,
@@ -1771,7 +1790,7 @@ button, a, [role="button"] {
   box-shadow: 0 0 0 3px var(--mineos-general-soft);
 }
 [data-theme="light"] .table-container {
-  background: rgba(255, 255, 255, 0.78);
+  background: #ffffff;
   border-color: rgba(0, 0, 0, 0.09);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
 }
@@ -2853,10 +2872,10 @@ input, textarea, select {
   --mineos-gradient-pill-expense: linear-gradient(180deg, #fca5a5, #ef4444 55%, #b91c1c);
 
   /* Superficies neutras (sin crema/terracota); login conserva su paleta propia */
-  --dashboard-bg: #f2ece3;
-  --dashboard-header-bg: rgba(250, 246, 240, 0.9);
-  --dashboard-card-bg: #faf6f0;
-  --dashboard-card-muted: #f0ebe3;
+  --dashboard-bg: #ffffff;
+  --dashboard-header-bg: rgba(255, 255, 255, 0.9);
+  --dashboard-card-bg: #ffffff;
+  --dashboard-card-muted: #f8f8f8;
   --dashboard-border: rgba(0, 0, 0, 0.08);
   --dashboard-text: #18181b;
   --dashboard-text-muted: #52525b;
@@ -2866,8 +2885,8 @@ input, textarea, select {
   --dashboard-danger-soft: var(--mineos-expense-soft);
   --dashboard-success: var(--mineos-benefit);
   --dashboard-success-soft: var(--mineos-benefit-soft);
-  --app-chrome-bg: #f2e8da;
-  --app-chrome-glow: var(--mineos-general);
+  --app-chrome-bg: #ffffff;
+  --app-chrome-glow: var(--mineos-general-soft);
   --app-chrome-grid: rgba(0, 0, 0, 0.04);
   --mineos-grain-opacity: 0.03;
 }
@@ -3129,20 +3148,30 @@ input, textarea, select {
   border-radius: inherit;
 }
 
-/* Fondo exterior (una sola capa — menos coste de pintado que pseudo-elementos) */
+/* Fondo exterior con glows dorados animados */
 [data-app-shell] {
   position: relative;
   isolation: isolate;
   background-color: var(--app-chrome-bg);
   background-image:
-    radial-gradient(ellipse 85% 55% at 8% -5%, var(--app-chrome-glow) 0%, transparent 58%),
-    radial-gradient(ellipse 70% 45% at 100% 100%, var(--app-chrome-glow) 0%, transparent 52%),
     linear-gradient(
       165deg,
       color-mix(in srgb, var(--app-chrome-bg) 88%, #000) 0%,
       var(--app-chrome-bg) 42%,
       color-mix(in srgb, var(--app-chrome-bg) 92%, var(--dashboard-accent)) 100%
     );
+}
+
+[data-app-shell]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(ellipse 85% 55% at 8% -5%, var(--app-chrome-glow) 0%, transparent 58%),
+    radial-gradient(ellipse 70% 45% at 100% 100%, var(--app-chrome-glow) 0%, transparent 52%);
+  animation: goldBreath 6s ease-in-out infinite;
 }
 
 [data-app-shell] > * {
@@ -3152,6 +3181,11 @@ input, textarea, select {
 
 [data-app-shell] > [data-sidebar] {
   z-index: 40;
+}
+
+@keyframes goldBreath {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.85; }
 }
 
 .app-main-panel {
