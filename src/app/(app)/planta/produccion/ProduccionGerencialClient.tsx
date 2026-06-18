@@ -662,19 +662,19 @@ export default function ProduccionGerencialClient({
                             <stop offset="95%" stopColor="#DAA520" stopOpacity={0}/>
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                        <XAxis dataKey="fecha" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} 
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+                        <XAxis dataKey="fecha" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} tickLine={false} axisLine={false} 
                                tickFormatter={(val) => {
                                   const d = new Date(val + 'T12:00:00');
                                   return `${d.getDate()}`;
                                }} />
-                        <YAxis yAxisId="left" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <YAxis yAxisId="left" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} tickLine={false} axisLine={false} />
                         
                         <RechartsTooltip content={<CustomTooltip />} />
                         
                         <Area yAxisId="left" type="monotone" dataKey="oroAcumulado" name="Prod. Acumulada" fill="url(#goldGradient)" stroke="#DAA520" strokeWidth={2} />
                         <Line yAxisId="left" type="monotone" dataKey="metaDiaria" name="Meta Diaria" stroke="#DAA520" strokeWidth={1} dot={false} activeDot={false} />
-                        <Line yAxisId="left" type="monotone" dataKey="metaAcumulada" name="Meta Acumulada" stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" strokeWidth={1.5} dot={false} />
+                        <Line yAxisId="left" type="monotone" dataKey="metaAcumulada" name="Meta Acumulada" stroke="var(--chart-line-muted)" strokeDasharray="4 4" strokeWidth={1.5} dot={false} />
                      </ComposedChart>
                   </ResponsiveContainer>
                </div>

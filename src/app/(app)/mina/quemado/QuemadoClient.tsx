@@ -464,10 +464,10 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                         <stop offset="100%" stopColor="#b45309" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
                     <XAxis
                       dataKey="fecha"
-                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 9 }}
+                      tick={{ fill: 'var(--chart-tick)', fontSize: 9 }}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(val) => {
@@ -476,7 +476,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                       }}
                     />
                     <YAxis
-                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 9 }}
+                      tick={{ fill: 'var(--chart-tick)', fontSize: 9 }}
                       tickLine={false}
                       axisLine={false}
                       allowDecimals
@@ -690,10 +690,10 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                       <stop offset="100%" stopColor="#b45309" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
                   <XAxis
                     dataKey="fecha"
-                    tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 8 }}
+                    tick={{ fill: 'var(--chart-tick)', fontSize: 8 }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(val) => {
@@ -701,7 +701,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
                       return `${d.getDate()}/${d.getMonth() + 1}`;
                     }}
                   />
-                  <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 8 }} tickLine={false} axisLine={false} allowDecimals />
+                  <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 8 }} tickLine={false} axisLine={false} allowDecimals />
                   <RechartsTooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(245,158,11,0.45)', strokeWidth: 1 }} />
                   <Area
                     type="monotone"

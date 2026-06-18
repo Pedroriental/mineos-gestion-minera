@@ -51,14 +51,14 @@ const variantValueClass: Record<MetricVariant, string> = {
   gold:     'text-[var(--mineos-general-bright)]',
   positive: 'text-[var(--mineos-benefit)]',
   negative: 'text-[var(--mineos-expense)]',
-  neutral:  'text-white/90',
+  neutral:  'text-[var(--text-primary)]',
 };
 
 const variantIconBg: Record<MetricVariant, string> = {
   gold:     'bg-[var(--mineos-general-soft)] text-[var(--mineos-general-bright)]',
   positive: 'bg-[var(--mineos-benefit-soft)] text-[var(--mineos-benefit)]',
   negative: 'bg-[var(--mineos-expense-soft)] text-[var(--mineos-expense)]',
-  neutral:  'bg-zinc-800 text-zinc-400',
+  neutral:  'bg-black/[0.06] text-[var(--text-muted)]',
 };
 
 const variantDeltaClass = (delta: number): string =>
@@ -66,14 +66,14 @@ const variantDeltaClass = (delta: number): string =>
     ? 'text-[var(--mineos-benefit)] bg-[var(--mineos-benefit-soft)]'
     : delta < 0
     ? 'text-[var(--mineos-expense)] bg-[var(--mineos-expense-soft)]'
-    : 'text-zinc-400 bg-zinc-800';
+    : 'text-[var(--text-muted)] bg-black/[0.06]';
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
 function SkeletonLine({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'rounded bg-zinc-800 animate-pulse',
+        'rounded bg-[var(--card-border)] animate-pulse',
         className,
       )}
     />
@@ -99,16 +99,16 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        // Base card — black with ultra-subtle 1px border (zinc-800)
-        'relative rounded-2xl border border-zinc-800 bg-zinc-950 p-5 overflow-hidden',
+        // Base card — uses semantic tokens
+        'relative rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 overflow-hidden',
         // Hover elevation — only moves border, no color change
-        'hover:border-zinc-700 transition-colors duration-200',
+        'hover:border-[var(--card-hover-border)] transition-colors duration-200',
         className,
       )}
     >
       {/* Top row: label + optional icon */}
       <div className="flex items-start justify-between gap-2 mb-3">
-        <span className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 leading-none">
+        <span className="text-[10px] font-bold tracking-widest uppercase text-[var(--text-muted)] leading-none">
           {label}
         </span>
         {icon && (
@@ -137,7 +137,7 @@ export function MetricCard({
             {formattedValue}
           </span>
           {unit && (
-            <span className="text-sm font-medium text-zinc-500 leading-none">
+            <span className="text-sm font-medium text-[var(--text-secondary)] leading-none">
               {unit}
             </span>
           )}
@@ -152,11 +152,11 @@ export function MetricCard({
           ) : (
             <>
               {subLabel && (
-                <span className="text-[10px] text-zinc-600 font-medium">
+                <span className="text-[10px] text-[var(--text-muted)] font-medium">
                   {subLabel}
                 </span>
               )}
-              <span className="text-[12px] text-zinc-400 font-semibold tabular-nums">
+              <span className="text-[12px] text-[var(--text-secondary)] font-semibold tabular-nums">
                 {subValue}
               </span>
             </>
@@ -182,7 +182,7 @@ export function MetricCard({
             )}
             {formatDelta(delta)}
           </span>
-          <span className="text-[10px] text-zinc-600">vs. período anterior</span>
+          <span className="text-[10px] text-[var(--text-muted)]">vs. período anterior</span>
         </div>
       )}
     </div>

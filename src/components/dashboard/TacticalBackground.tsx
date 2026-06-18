@@ -4,7 +4,7 @@ import React from 'react';
 
 export default function TacticalBackground() {
   return (
-    <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#030304]" style={{ zIndex: 0 }}>
+    <div data-tactical-bg className="absolute inset-0 w-full h-full overflow-hidden bg-[#030304]" style={{ zIndex: 0 }}>
       {/* 1. Capa del Mapa Satelital de Bolívar (Generado táctico) */}
       <div
         className="absolute inset-0 w-full h-full"
@@ -58,6 +58,7 @@ export default function TacticalBackground() {
 
       {/* 6. Viñeta (Oscurecimiento de bordes para legibilidad del HUD) */}
       <div
+        data-tactical-vignette
         className="absolute inset-0 pointer-events-none"
         style={{
           background: 'radial-gradient(circle at center, transparent 20%, rgba(3, 3, 4, 0.85) 95%)',

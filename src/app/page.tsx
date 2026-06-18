@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 
 const LoginPage = dynamic(() => import('@/components/LoginPage'), {
   loading: () => (
-    <div className="min-h-screen flex items-center justify-center bg-[#0B1E27]">
+    <div className="min-h-screen flex items-center justify-center bg-[#faf9f6]">
       <div className="h-8 w-8 rounded-full border-2 border-amber-400/25 border-t-amber-400 animate-spin" />
     </div>
   ),
@@ -17,7 +17,7 @@ const MobileLoginPage = dynamic(
   () => import('@/components/mobile/MobileLoginPage').then((m) => ({ default: m.MobileLoginPage })),
   {
     loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-[#121212]">
         <div className="h-8 w-8 rounded-full border-2 border-amber-400/25 border-t-amber-400 animate-spin" />
       </div>
     ),

@@ -291,7 +291,7 @@ export function AcarreoRecordDetail({ record }: { record: ReporteAcarreo }) {
 
   return (
     <>
-      <div className="mb-4 rounded-xl border border-white/8 bg-white/[0.03] p-4">
+      <div className="mb-4 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
         <p className="gastos-detail-eyebrow text-[9px] font-bold uppercase tracking-wider">
           {formatServicioTurno(record.turno)}
         </p>
@@ -313,7 +313,7 @@ export function AcarreoRecordDetail({ record }: { record: ReporteAcarreo }) {
         <div className="space-y-2">
           {lineas.map((linea, index) => (
             <div key={index} className="app-detail-panel rounded-xl p-3">
-              <p className="text-[12px] leading-snug text-white/75">{formatLineaAcarreo(linea)}</p>
+              <p className="text-[12px] leading-snug text-[var(--text-secondary)]">{formatLineaAcarreo(linea)}</p>
             </div>
           ))}
         </div>
@@ -340,7 +340,7 @@ export function AcarreoRecordDetail({ record }: { record: ReporteAcarreo }) {
                 href={resolveReportPhotoUrl(url)}
                 target="_blank"
                 rel="noreferrer"
-                className="block overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                className="block overflow-hidden rounded-xl border border-[var(--card-border)] bg-black/[0.06]"
               >
                 <ReportPhotoImage url={url} />
               </a>

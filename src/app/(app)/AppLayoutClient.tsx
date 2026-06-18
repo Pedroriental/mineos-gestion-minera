@@ -39,12 +39,12 @@ function BellPanel({
   return (
     <div className="app-popover bell-panel w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl shadow-2xl">
       <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">
+        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
           Centro de Notificaciones
         </span>
         <button
           onClick={onClose}
-          className="text-lg leading-none text-zinc-600 hover:text-zinc-400"
+          className="text-lg leading-none text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
         >
           &times;
         </button>
@@ -64,19 +64,19 @@ function BellPanel({
                 <BellRing className="h-4 w-4" />
               </span>
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-zinc-200">{alert.title}</p>
-                <p className="truncate text-[11px] text-zinc-500">Atención requerida</p>
+                <p className="text-[13px] font-semibold text-[var(--text-primary)]">{alert.title}</p>
+                <p className="truncate text-[11px] text-[var(--text-muted)]">Atención requerida</p>
               </div>
-              <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-zinc-700" />
+              <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
             </button>
           ))
         ) : (
           <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
-            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800/50 text-zinc-600">
+            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-black/[0.06] text-[var(--text-muted)]">
               <BellRing className="h-5 w-5" />
             </span>
-            <p className="text-[13px] font-medium text-zinc-400">Todo está en orden</p>
-            <p className="text-[11px] text-zinc-600">No tienes notificaciones pendientes</p>
+            <p className="text-[13px] font-medium text-[var(--text-secondary)]">Todo está en orden</p>
+            <p className="text-[11px] text-[var(--text-muted)]">No tienes notificaciones pendientes</p>
           </div>
         )}
       </div>
@@ -316,7 +316,7 @@ export default function AppLayoutClient({
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 onClick={() => setMobileMenuOpen(true)}
-                className="shrink-0 rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-white md:hidden"
+                className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-black/[0.06] hover:text-[var(--text-primary)] md:hidden"
                 aria-label="Abrir menú"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

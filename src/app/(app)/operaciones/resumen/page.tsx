@@ -106,7 +106,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
           </defs>
           {[0.25, 0.5, 0.75, 1].map((t) => (
             <line key={t} x1={0} y1={toY(maxOro * t)} x2={totalW} y2={toY(maxOro * t)}
-              stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
+              stroke="var(--chart-grid)" strokeWidth={1} />
           ))}
           <path d={areaPath} fill="url(#goldGrad)" />
           <polyline
@@ -121,7 +121,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
             return (
               <g key={i}>
                 <circle cx={i * W + W / 2} cy={toY(oro)} r={3}
-                  fill="#F59E0B" stroke="#09090b" strokeWidth={1.5} />
+                  fill="#F59E0B" stroke="var(--card-bg)" strokeWidth={1.5} />
                 {oro > 0 && (
                   <text x={i * W + W / 2} y={toY(oro) - 7} textAnchor="middle"
                     fontSize={prodDiaria.length > 15 ? 7 : 9}
@@ -131,7 +131,7 @@ export default async function ResumenEjecutivoPage({ searchParams }: PageProps) 
                 )}
                 <text x={i * W + W / 2} y={H + 16} textAnchor="middle"
                   fontSize={prodDiaria.length > 20 ? 6 : 8}
-                  fill="rgba(255,255,255,0.25)" fontWeight="500">
+                  fill="var(--chart-tick)" fontWeight="500">
                   {label}
                 </text>
               </g>

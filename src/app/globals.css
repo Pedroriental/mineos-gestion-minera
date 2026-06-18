@@ -111,6 +111,12 @@
   --inner-border: #27272a;
   --surface-elevated: rgba(24, 24, 27, 0.97); /* zinc-900 */
   --surface-sunken: rgba(0, 0, 0, 0.35);
+  /* Chart tokens */
+  --chart-grid: rgba(255, 255, 255, 0.05);
+  --chart-tick: rgba(255, 255, 255, 0.30);
+  --chart-line-muted: rgba(255, 255, 255, 0.20);
+  --chart-cursor: rgba(255, 255, 255, 0.05);
+  --chart-area-gold: linear-gradient(180deg, rgba(218, 165, 32, 0.40) 0%, rgba(218, 165, 32, 0) 95%);
   /* Ancho de diseño: evita estirar el layout en monitores muy anchos */
   --app-canvas-max-width: 1360px;
 }
@@ -1406,11 +1412,17 @@ button, a, [role="button"] {
   --negative-bg: var(--mineos-expense-soft);
   --text-primary: #1E293B;
   --text-secondary: #64748B;
-  --text-muted: #94A3B8;
+  --text-muted: #71717a;
   --border: rgba(0, 0, 0, 0.07);
   --inner-border: rgba(0, 0, 0, 0.08);
   --surface-elevated: rgba(255, 255, 255, 0.95);
   --surface-sunken: rgba(0, 0, 0, 0.05);
+  /* Chart tokens */
+  --chart-grid: rgba(0, 0, 0, 0.06);
+  --chart-tick: rgba(0, 0, 0, 0.30);
+  --chart-line-muted: rgba(0, 0, 0, 0.15);
+  --chart-cursor: rgba(0, 0, 0, 0.04);
+  --chart-area-gold: linear-gradient(180deg, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0) 95%);
 }
 
 [data-theme="light"] body {
@@ -1952,8 +1964,9 @@ input, textarea, select {
 
 /* ── Sidebar rail stays dark in light mode (icons legible on dark bg) ── */
 [data-theme="light"] [data-sidebar-rail] {
-  background: #09090b !important;     /* sidebar stays dark in light mode */
+  background: #09090b !important;
   border-color: #27272a !important;
+  box-shadow: 1px 0 0 var(--mineos-general-border);
 }
 
 /* ── Topbar & overlays in light mode ── */
@@ -2857,6 +2870,157 @@ input, textarea, select {
   --app-chrome-glow: var(--mineos-general-soft);
   --app-chrome-grid: rgba(0, 0, 0, 0.04);
   --mineos-grain-opacity: 0.03;
+}
+
+/* ── Light mode: override nómina & gerencial dark-bound classes ── */
+[data-theme="light"] .nomina-page {
+  --nomina-bg-surface: var(--surface-elevated);
+  --nomina-bg-card: var(--card-bg);
+  --nomina-text-primary: var(--text-primary);
+  --nomina-text-secondary: var(--text-secondary);
+  --nomina-text-muted: var(--text-muted);
+}
+
+[data-theme="light"] .nomina-page [class*="bg-zinc-9"]:not(.btn):not([class*="btn-"]),
+[data-theme="light"] .nomina-page [class*="bg-zinc-8"]:not(.btn):not([class*="btn-"]) {
+  background: var(--card-bg) !important;
+}
+
+[data-theme="light"] .nomina-page [class*="bg-zinc-950"],
+[data-theme="light"] .nomina-page [class*="bg-zinc-900"] {
+  background: var(--card-bg) !important;
+}
+
+[data-theme="light"] .nomina-page [class*="border-zinc-8"],
+[data-theme="light"] .nomina-page [class*="border-zinc-7"] {
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .nomina-page [class*="text-white/9"],
+[data-theme="light"] .nomina-page [class*="text-white/8"],
+[data-theme="light"] .nomina-page [class*="text-white/7"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .nomina-page [class*="text-white/6"],
+[data-theme="light"] .nomina-page [class*="text-white/5"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="light"] .nomina-page [class*="text-white/4"],
+[data-theme="light"] .nomina-page [class*="text-white/3"],
+[data-theme="light"] .nomina-page [class*="text-white/2"] {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="light"] .nomina-mobile-worker {
+  background: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .nomina-mobile-chrome {
+  background: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .nomina-mobile-action-bar__glass {
+  background: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .nomina-mobile-dock__inner {
+  background: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .nomina-mobile-chrome__search {
+  background: var(--surface-sunken) !important;
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .nomina-mobile-sheet {
+  background: var(--card-bg) !important;
+}
+
+[data-theme="light"] .biblioteca-variables-page [class*="text-white/"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .biblioteca-variables-page [class*="border-white/"] {
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .biblioteca-variables-page [class*="bg-white/"] {
+  background-color: var(--surface-sunken) !important;
+}
+
+[data-theme="light"] .biblioteca-variables-page thead {
+  background: var(--surface-elevated) !important;
+}
+
+[data-theme="light"] .biblioteca-variables-page tbody tr {
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .biblioteca-variables-page tbody tr:hover {
+  background-color: var(--surface-sunken) !important;
+}
+
+[data-theme="light"] .biblioteca-variables-page table {
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .gastos-page [class*="text-white/"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .gastos-footer-bar,
+[data-theme="light"] .gastos-page__table-footer {
+  background: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .gastos-page__register-btn {
+  background: var(--mineos-general) !important;
+  color: black !important;
+}
+
+[data-theme="light"] .produccion-page .produccion-surface--input input,
+[data-theme="light"] .produccion-page .produccion-surface--input svg {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .produccion-page .produccion-surface--input {
+  border-color: var(--card-border) !important;
+}
+
+[data-theme="light"] .produccion-page .produccion-surface--panel [class*="text-white/"] {
+  color: var(--text-primary) !important;
+}
+
+/* ── TacticalBackground adapts to light mode ── */
+[data-theme="light"] [data-tactical-bg] {
+  background-color: #f4f4f5 !important;
+}
+
+[data-theme="light"] [data-tactical-vignette] {
+  background: radial-gradient(circle at center, transparent 20%, rgba(244, 244, 245, 0.93) 95%) !important;
+}
+
+[data-theme="light"] nav.fixed.bottom-0.inset-x-0.z-40 {
+  border-top-color: var(--card-border) !important;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="light"] .card-glass [class*="text-white/"],
+[data-theme="light"] .card-glass [class*="text-\[var\(--text-white"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .card-glass .text-amber-400 {
+  color: var(--mineos-general-bright) !important;
 }
 
 [data-theme='dark'] {

@@ -646,14 +646,14 @@ export default function ExtraccionGerencialClient({ data, selectedDateStr }: { d
                <div className="relative w-full flex-1">
                   <ResponsiveContainer width="100%" height="100%" className="absolute inset-0">
                      <BarChart data={diariaChart} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                        <XAxis dataKey="fecha" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false}
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+                        <XAxis dataKey="fecha" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} tickLine={false} axisLine={false}
                                tickFormatter={(val) => {
                                   const d = new Date(val + 'T12:00:00');
                                   return `${d.getDate()}`;
                                }} />
-                        <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} tickLine={false} axisLine={false} />
-                        <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                        <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--chart-cursor)' }} />
                         <Bar dataKey="sacos" name="Sacos" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                      </BarChart>
                   </ResponsiveContainer>

@@ -483,7 +483,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                         <stop offset="100%" stopColor="#b45309" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
                     <XAxis
                       dataKey="fecha"
                       tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 9 }}
@@ -495,7 +495,7 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                       }}
                     />
                     <YAxis
-                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 9 }}
+                      tick={{ fill: 'var(--chart-tick)', fontSize: 9 }}
                       tickLine={false}
                       axisLine={false}
                       allowDecimals
@@ -751,10 +751,10 @@ export default function VoladurasClient({ data: initialData }: VoladurasClientPr
                         <stop offset="100%" stopColor="#b45309" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
                     <XAxis
                       dataKey="fecha"
-                      tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 8 }}
+tick={{ fill: 'var(--chart-tick)', fontSize: 8 }}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(val) => {

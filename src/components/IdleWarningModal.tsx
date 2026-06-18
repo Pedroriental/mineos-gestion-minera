@@ -22,7 +22,7 @@ export default function IdleWarningModal({
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm mx-4 overflow-hidden">
+      <div className="bg-[var(--card-bg)] rounded-2xl shadow-2xl border border-[var(--card-border)] w-full max-w-sm mx-4 overflow-hidden">
 
         {/* Top accent — turns red when urgent */}
         <div className={`h-[3px] transition-colors duration-500 ${urgent ? 'bg-red-500' : 'bg-amber-700'}`} />
@@ -39,12 +39,12 @@ export default function IdleWarningModal({
             </span>
           </div>
 
-          <h3 className="text-lg font-bold text-stone-800 text-center mb-2">
+          <h3 className="text-lg font-bold text-[var(--text-primary)] text-center mb-2">
             Sesión por expirar
           </h3>
-          <p className="text-sm text-stone-400 text-center mb-8 leading-relaxed">
+          <p className="text-sm text-[var(--text-muted)] text-center mb-8 leading-relaxed">
             Su sesión se cerrará automáticamente por inactividad.
-            Haga clic en <span className="font-semibold text-stone-500">Continuar</span> para seguir trabajando.
+            Haga clic en <span className="font-semibold text-[var(--text-primary)]">Continuar</span> para seguir trabajando.
           </p>
 
           <div className="space-y-3">
@@ -57,7 +57,7 @@ export default function IdleWarningModal({
             </button>
             <button
               onClick={onSignOut}
-              className="w-full rounded-xl border border-gray-200 py-3 text-sm font-medium text-stone-500 hover:bg-gray-50 active:bg-gray-100 transition-colors flex items-center justify-center gap-2"
+              className="w-full rounded-xl border border-[var(--card-border)] py-3 text-sm font-medium text-[var(--text-secondary)] hover:bg-black/[0.04] active:bg-black/[0.08] transition-colors flex items-center justify-center gap-2"
             >
               <LogOut className="w-4 h-4" />
               Cerrar sesión ahora

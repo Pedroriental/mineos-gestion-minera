@@ -173,7 +173,7 @@ function NavTooltip({ label, show, children }: { label: string; show: boolean; c
         ? createPortal(
             <div
               role="tooltip"
-              className="pointer-events-none fixed z-[250] -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl"
+              className="pointer-events-none fixed z-[250] -translate-y-1/2 whitespace-nowrap rounded-lg border border-[var(--card-border)] bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl"
               style={{ left: pos.x, top: pos.y }}
             >
               {label}
