@@ -2008,7 +2008,7 @@ input, textarea, select {
   .text-white,
   [class*="text-white\/"]
 ) {
-  color: rgb(15 23 42 / 0.85) !important;
+  color: rgb(15 23 42) !important;
 }
 
 /* Fine-tune specific opacity steps */
@@ -2040,7 +2040,47 @@ input, textarea, select {
 /* Acentos Tailwind amber → oro MineOS (mismo patrón que noche) */
 [data-theme="light"] .text-amber-400 { color: var(--mineos-general-bright) !important; }
 [data-theme="light"] .text-amber-300 { color: var(--mineos-general) !important; }
+[data-theme="light"] .text-amber-500 { color: var(--mineos-general) !important; }
+[data-theme="light"] .text-amber-700 { color: var(--mineos-general-deep) !important; }
 [data-theme="light"] .text-yellow-400 { color: var(--mineos-general-bright) !important; }
+
+/* Topbar — títulos e íconos de sección en modo diurno */
+[data-theme="light"] .app-topbar-context__title {
+  color: var(--dashboard-text) !important;
+}
+[data-theme="light"] .app-topbar-context__icon {
+  color: var(--dashboard-accent) !important;
+}
+
+/* Nómina — headings con text-white puro (sin opacidad) en modo diurno */
+[data-theme="light"] .nomina-page :where(h1, h2, h3, h4).text-white,
+[data-theme="light"] [class*="nomina"] :where(h1, h2, h3, h4).text-white {
+  color: var(--text-primary) !important;
+}
+
+/* Pickers (fecha, hora, select) — modo diurno */
+[data-theme="light"] .app-date-picker__menu,
+[data-theme="light"] div[id$="-menu"] {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+[data-theme="light"] .app-date-picker__menu button,
+[data-theme="light"] div[id$="-menu"] button {
+  color: #475569 !important;
+}
+[data-theme="light"] .app-date-picker__menu button:hover,
+[data-theme="light"] div[id$="-menu"] button:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: #0f172a !important;
+}
+[data-theme="light"] .app-date-picker__trigger,
+[data-theme="light"] .app-time-picker__trigger,
+[data-theme="light"] .app-select__trigger {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: #1e293b !important;
+}
 
 /* ═══════════════════════════════════════════════════ */
 /* PRINT STYLES — PDF / Imprimir                      */
@@ -3156,9 +3196,9 @@ input, textarea, select {
   background-image:
     linear-gradient(
       165deg,
-      color-mix(in srgb, var(--app-chrome-bg) 88%, #000) 0%,
+      color-mix(in srgb, var(--app-chrome-bg) 88%, var(--mineos-general)) 0%,
       var(--app-chrome-bg) 42%,
-      color-mix(in srgb, var(--app-chrome-bg) 92%, var(--dashboard-accent)) 100%
+      color-mix(in srgb, var(--app-chrome-bg) 82%, var(--dashboard-accent)) 100%
     );
 }
 

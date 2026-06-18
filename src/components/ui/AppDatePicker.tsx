@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { computeFixedMenuPosition } from '@/lib/popover-position';
+import { useTheme } from '@/lib/theme-context';
 import {
   format,
   parse,
@@ -49,8 +50,10 @@ export function AppDatePicker({
   className,
   disabled,
   id: idProp,
-  theme = 'dark',
+  theme: themeProp,
 }: AppDatePickerProps) {
+  const { theme: contextTheme } = useTheme();
+  const theme = themeProp ?? contextTheme;
   const autoId = useId();
   const id = idProp ?? autoId;
   const rootRef = useRef<HTMLDivElement>(null);
