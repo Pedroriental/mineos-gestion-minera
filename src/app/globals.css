@@ -7648,6 +7648,9 @@ input, textarea, select {
   min-width: 0;
   flex-shrink: 1;
   padding: 0 0.4375rem;
+  border: none;
+  background: transparent;
+  border-radius: 0.5rem;
 }
 
 .global-date-trigger {
@@ -7661,6 +7664,10 @@ input, textarea, select {
   border: 1px solid var(--dashboard-border);
   background: var(--dashboard-card-muted);
   color: var(--dashboard-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease,
@@ -7686,6 +7693,45 @@ input, textarea, select {
   border-color: color-mix(in srgb, var(--dashboard-accent) 35%, var(--dashboard-border));
   background: var(--dashboard-accent-soft);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--dashboard-accent) 18%, transparent);
+}
+
+/* Elegante: versión sin caja para la topbar — desktop */
+.topbar-date-trigger.global-date-trigger {
+  border-color: transparent;
+  background: transparent;
+  color: var(--dashboard-text-muted);
+  height: auto;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+}
+
+.topbar-date-trigger.global-date-trigger:hover {
+  background: var(--dashboard-card-muted);
+  border-color: var(--dashboard-border);
+  color: var(--dashboard-text);
+}
+
+.topbar-date-trigger.global-date-trigger--active,
+.topbar-date-trigger.global-date-trigger--open {
+  border-color: transparent;
+}
+
+.topbar-date-trigger .global-date-trigger__icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--dashboard-accent);
+}
+
+.topbar-date-trigger .global-date-trigger__chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--dashboard-text-muted);
+  opacity: 0.5;
+  transition: transform 0.2s ease;
+}
+
+.topbar-date-trigger--open .global-date-trigger__chevron {
+  transform: rotate(180deg);
 }
 
 .global-date-trigger__icon {
@@ -9128,19 +9174,19 @@ input, textarea, select {
   border-radius: clamp(0.625rem, 2.2vw, 0.75rem);
   background: color-mix(in srgb, var(--dashboard-card-bg) 82%, transparent);
   box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--dashboard-text) 3%, transparent);
-  min-height: clamp(2.375rem, 6.8vw, 2.875rem);
+  min-height: clamp(2.75rem, 8vw, 3.25rem);
 }
 
 .mobile-hotbar__item {
   color: var(--dashboard-text-muted);
-  min-height: clamp(2.375rem, 6.8vw, 2.875rem);
-  padding-block: 0.3125rem;
+  min-height: clamp(2.75rem, 8vw, 3.25rem);
+  padding-block: 0.375rem;
 }
 
 .mobile-hotbar__icon-wrap {
   position: relative;
-  width: clamp(1.3125rem, 4.4vw, 1.5rem);
-  height: clamp(1.3125rem, 4.4vw, 1.5rem);
+  width: clamp(1.5rem, 5vw, 1.75rem);
+  height: clamp(1.5rem, 5vw, 1.75rem);
   color: inherit;
   background: transparent;
   border-radius: 999px;
@@ -9181,7 +9227,7 @@ input, textarea, select {
 
 .mobile-hotbar__label {
   color: inherit;
-  font-size: clamp(0.5rem, 2.35vw, 0.625rem);
+  font-size: clamp(0.5625rem, 2.6vw, 0.6875rem);
   line-height: 1.25;
   padding-bottom: 0.0625rem;
 }
@@ -9198,6 +9244,65 @@ input, textarea, select {
   .mobile-shell {
     --ms-pad-x: clamp(0.625rem, 3vw, 1rem);
   }
+}
+
+/* Capacitor WebView — status bar, selección de texto, overscroll */
+body[data-capacitor] {
+  padding-top: env(safe-area-inset-top);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+body[data-capacitor] input,
+body[data-capacitor] textarea,
+body[data-capacitor] [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+body[data-capacitor] .mobile-shell {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+body[data-capacitor] .mobile-shell__header {
+  padding-top: max(env(safe-area-inset-top), 0.5rem);
+}
+
+/* Tablets en Capacitor — centrado horizontal con ancho máximo */
+@media (min-width: 600px) and (max-width: 1024px) {
+  body[data-capacitor] .mobile-shell {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: min(100%, 520px);
+    border-left: 1px solid var(--dashboard-border);
+    border-right: 1px solid var(--dashboard-border);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Touch targets mínimos universales */
+.mobile-hotbar__item,
+.mobile-shell button,
+.mobile-shell a[role="button"] {
+  min-height: 44px;
+}
+
+/* Modals en Capacitor — respetan la barra de estado */
+/* Solo overlays con z-index >= 9000 (alta prioridad) */
+body[data-capacitor] .fixed.inset-0 {
+  box-sizing: border-box;
+}
+
+body[data-capacitor] .fixed.inset-0[class*="z-[9"],
+body[data-capacitor] .fixed.inset-0[class*="z-9"] {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* El backdrop del modal solo colorea, el padding debe estar en el contenedor hijo */
+body[data-capacitor] .fixed.inset-0 > .flex-1,
+body[data-capacitor] .fixed.inset-0 > * {
+  margin-top: 0;
 }
 
 /* Hero KPI — inicio móvil */
@@ -9890,18 +9995,51 @@ input, textarea, select {
 .mobile-shell .gastos-resumen-page__grid {
   display: flex;
   flex-direction: column;
-  flex: none !important;
+  flex: 1 !important;
   min-height: min-content;
   overflow: visible !important;
   gap: 0.75rem;
-  padding-bottom: 0.75rem;
+  padding-bottom: 3rem;
 }
 
-.mobile-shell .gastos-resumen-page__filters,
+.mobile-shell .gastos-resumen-page__filters {
+  flex: none;
+  min-height: min-content;
+  overflow: visible;
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  margin-bottom: 0;
+}
+
+.mobile-shell .gastos-resumen-page__filters > p:first-child {
+  margin-bottom: 0.25rem;
+}
+
 .mobile-shell .gastos-resumen-page__main {
   flex: none;
   min-height: min-content;
   overflow: visible;
+  width: 100%;
+}
+
+/* Period selector full-width on mobile */
+.mobile-shell .gastos-resumen-page__filters > div {
+  width: 100%;
+}
+
+/* Day pills scroll horizontal */
+.mobile-shell .gastos-page__filter-scroll--months {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-shell .gastos-page__filter-scroll-inner--months {
+  display: flex;
+  gap: 0.375rem;
+  min-width: max-content;
+  padding-bottom: 0.125rem;
 }
 
 .mobile-shell .gastos-resumen-page .gastos-resumen-page__table-scroll {
@@ -11345,4 +11483,12 @@ input, textarea, select {
     height: auto;
     max-height: none;
   }
+}
+
+/* ─── Splash Screen ─────────────────────────────── */
+@keyframes splash-spin {
+  to { transform: rotate(360deg); }
+}
+.splash-spinner {
+  animation: splash-spin 0.8s linear infinite;
 }

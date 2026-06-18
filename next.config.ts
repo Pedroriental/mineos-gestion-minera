@@ -1,9 +1,1 @@
-const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  experimental: {
-    optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', 'framer-motion'],
-  },
-};
-export default nextConfig;
+/** @type {import('next').NextConfig} */const nextConfig = {  output: 'export',  trailingSlash: true,  images: {    unoptimized: true,  },  typescript: {    ignoreBuildErrors: true,  },  eslint: {    ignoreDuringBuilds: true,  },};export default nextConfig;

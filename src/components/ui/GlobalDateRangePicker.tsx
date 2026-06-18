@@ -157,9 +157,12 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
 
   const triggerClassName = cn(
     'global-date-trigger',
+    'topbar-date-trigger',
     variant === 'mobile' && 'mobile-shell__header-date',
     (isOpen || hasCustomRange) && 'global-date-trigger--active',
+    (isOpen || hasCustomRange) && 'topbar-date-trigger--active',
     isOpen && 'global-date-trigger--open',
+    isOpen && 'topbar-date-trigger--open',
   );
 
   const triggerButton = (

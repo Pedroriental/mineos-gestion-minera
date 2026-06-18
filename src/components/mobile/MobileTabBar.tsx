@@ -59,7 +59,7 @@ export function MobileTabBar({ onMorePress }: MobileTabBarProps) {
                 router.push(tab.href);
               }
             }}
-            className="flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 outline-none transition-all active:scale-90"
+            className="flex flex-1 flex-col items-center justify-center gap-1 py-[7px] outline-none transition-all active:scale-90"
             style={{ WebkitTapHighlightColor: 'transparent' }}
             aria-label={tab.label}
           >
@@ -69,7 +69,7 @@ export function MobileTabBar({ onMorePress }: MobileTabBarProps) {
             <div className="relative">
               <Icon
                 className={cn(
-                  'h-5 w-5 transition-colors',
+                  'h-[22px] w-[22px] transition-colors',
                   active ? 'mobile-tab-bar__icon--active' : 'mobile-tab-bar__icon',
                 )}
               />
@@ -81,7 +81,7 @@ export function MobileTabBar({ onMorePress }: MobileTabBarProps) {
             </div>
             <span
               className={cn(
-                'mobile-tab-bar__label text-[9px] font-bold uppercase tracking-widest transition-colors',
+                'mobile-tab-bar__label text-[10px] font-bold uppercase tracking-widest transition-colors',
                 active && 'mobile-tab-bar__label--active',
               )}
             >

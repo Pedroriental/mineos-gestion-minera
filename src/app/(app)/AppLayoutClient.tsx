@@ -5,13 +5,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
 import {
-  Loader2, Eye, Search, BellRing, ChevronRight, Sun, Moon,
+  Eye, Search, BellRing, ChevronRight, Sun, Moon,
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import Sidebar from '@/components/Sidebar';
 import { RouteTransitionGuard } from '@/components/app/RouteTransitionGuard';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useCapacitor } from '@/hooks/useCapacitor';
 import IdleWarningModal from '@/components/IdleWarningModal';
 import { MobileShell, MobileRouteContent, MobileAppHeader } from '@/components/mobile';
 import { cn } from '@/lib/utils';
@@ -114,6 +115,7 @@ export default function AppLayoutClient({
     try { localStorage.setItem('mineos-sidebar-expanded', String(v)); } catch {}
   }, []);
   const isMobile = useIsMobile();
+  useCapacitor();
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
   const sectionMeta = getAppSectionMeta(pathname);
@@ -166,14 +168,6 @@ export default function AppLayoutClient({
     setSearchOpen(false);
     setBellOpen(false);
   }, [pathname]);
-
-  if (loading) {
-    return (
-      <div className="flex h-[100dvh] w-full items-center justify-center bg-[var(--app-chrome-bg)]">
-        <Loader2 className="h-8 w-8 animate-spin text-[var(--dashboard-accent)]" />
-      </div>
-    );
-  }
 
   if (!user && !isGuest) return null;
 
