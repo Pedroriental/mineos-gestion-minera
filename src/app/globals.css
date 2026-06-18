@@ -2053,23 +2053,30 @@ input, textarea, select {
   color: var(--dashboard-accent) !important;
 }
 
-/* Quitar cajas de botones de theme toggle y campana */
-[data-theme="light"] [data-topbar] button[aria-label*="modo"],
-[data-theme="light"] [data-topbar] button[aria-label*="notificacion"],
-[data-theme="light"] [data-topbar] button[aria-label*="Notificacion"] {
+/* Quitar cajas de botones de theme toggle y campana — ambos temas */
+[data-topbar] button[aria-label*="modo"],
+[data-topbar] button[aria-label*="notificacion"],
+[data-topbar] button[aria-label*="Notificacion"] {
   border-color: transparent !important;
   background: transparent !important;
 }
-[data-theme="light"] [data-topbar] button[aria-label*="modo"]:hover,
-[data-theme="light"] [data-topbar] button[aria-label*="notificacion"]:hover,
-[data-theme="light"] [data-topbar] button[aria-label*="Notificacion"]:hover {
-  background: rgba(0, 0, 0, 0.06) !important;
+[data-topbar] button[aria-label*="modo"]:hover,
+[data-topbar] button[aria-label*="notificacion"]:hover,
+[data-topbar] button[aria-label*="Notificacion"]:hover {
+  background: rgba(128, 128, 128, 0.12) !important;
 }
 
 /* Nómina — headings con text-white puro (sin opacidad) en modo diurno */
 [data-theme="light"] .nomina-page :where(h1, h2, h3, h4).text-white,
 [data-theme="light"] [class*="nomina"] :where(h1, h2, h3, h4).text-white {
   color: var(--text-primary) !important;
+}
+[data-theme="light"] .nomina-page__title-text {
+  color: var(--text-primary) !important;
+}
+[data-theme="light"] .nomina-page__title-icon {
+  color: var(--mineos-general) !important;
+  filter: none !important;
 }
 
 /* Pickers (fecha, hora, select, mes) — modo diurno */

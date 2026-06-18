@@ -332,10 +332,7 @@ export default function AppLayoutClient({
                       aria-hidden
                     />
                     <h1
-                      className={cn(
-                        'app-topbar-context__title',
-                        sectionMeta.titleClassName ?? 'text-[var(--dashboard-text)]',
-                      )}
+                      className="app-topbar-context__title"
                     >
                       {sectionMeta.title}
                     </h1>
