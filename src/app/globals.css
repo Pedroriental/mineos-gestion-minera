@@ -51,7 +51,7 @@
   /* Identidad MineOS — oro (general) · verde (beneficio) · rojo (egreso) */
   --mineos-general: #d4af37;
   --mineos-general-bright: #fbbf24;
-  --mineos-general-deep: #b8860b;
+  --mineos-general-deep: #c9951e;
   --mineos-general-soft: rgba(212, 175, 55, 0.14);
   --mineos-general-border: rgba(212, 175, 55, 0.24);
   --mineos-benefit: #34d399;
@@ -1380,7 +1380,7 @@ button, a, [role="button"] {
 [data-theme="light"] {
   --background: transparent;
   --foreground: #1E293B;
-  --card-bg: rgba(255, 255, 255, 0.78);
+  --card-bg: rgba(250, 245, 238, 0.85);
   --card-border: rgba(0, 0, 0, 0.09);
   --card-hover-border: rgba(0, 0, 0, 0.16);
   --sidebar-bg: rgba(9, 24, 35, 0.96);
@@ -1388,7 +1388,7 @@ button, a, [role="button"] {
   /* Mismos acentos que modo nocturno (oro · verde · rojo) */
   --mineos-general: #d4af37;
   --mineos-general-bright: #fbbf24;
-  --mineos-general-deep: #b8860b;
+  --mineos-general-deep: #c9951e;
   --mineos-general-soft: rgba(212, 175, 55, 0.14);
   --mineos-general-border: rgba(212, 175, 55, 0.24);
   --mineos-benefit: #34d399;
@@ -1415,7 +1415,7 @@ button, a, [role="button"] {
   --text-muted: #71717a;
   --border: rgba(0, 0, 0, 0.07);
   --inner-border: rgba(0, 0, 0, 0.08);
-  --surface-elevated: rgba(255, 255, 255, 0.95);
+  --surface-elevated: rgba(250, 246, 240, 0.95);
   --surface-sunken: rgba(0, 0, 0, 0.05);
   /* Chart tokens */
   --chart-grid: rgba(0, 0, 0, 0.06);
@@ -1426,13 +1426,13 @@ button, a, [role="button"] {
 }
 
 [data-theme="light"] body {
-  background: #f4f4f5;
+  background: #f5efe5;
   color: #1e293b;
 }
 
 /* ── Component overrides ── */
 [data-theme="light"] .card-glass {
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--card-bg);
   border-color: rgba(0, 0, 0, 0.09);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 0 rgba(255,255,255,0.95) inset;
 }
@@ -1442,7 +1442,7 @@ button, a, [role="button"] {
   transform: translateY(-1px);
 }
 [data-theme="light"] .kpi-card {
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--card-bg);
   border-color: rgba(0, 0, 0, 0.09);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 0 rgba(255,255,255,0.95) inset;
 }
@@ -1451,13 +1451,13 @@ button, a, [role="button"] {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.10), 0 1px 0 rgba(255,255,255,0.95) inset;
 }
 [data-theme="light"] .btn-secondary {
-  background: rgba(0, 0, 0, 0.06);
-  border-color: rgba(0, 0, 0, 0.13);
-  color: #1E293B;
+  background: var(--mineos-general-soft);
+  border-color: var(--mineos-general-border);
+  color: var(--mineos-general-deep);
 }
 [data-theme="light"] .btn-secondary:hover {
-  background: rgba(0, 0, 0, 0.10);
-  border-color: rgba(0, 0, 0, 0.20);
+  background: color-mix(in srgb, var(--mineos-general-soft) 200%, transparent);
+  border-color: var(--mineos-general);
 }
 [data-theme="light"] .btn-danger {
   background: rgba(220, 38, 38, 0.10);
@@ -2853,10 +2853,10 @@ input, textarea, select {
   --mineos-gradient-pill-expense: linear-gradient(180deg, #fca5a5, #ef4444 55%, #b91c1c);
 
   /* Superficies neutras (sin crema/terracota); login conserva su paleta propia */
-  --dashboard-bg: #f4f4f5;
-  --dashboard-header-bg: rgba(255, 255, 255, 0.9);
-  --dashboard-card-bg: #ffffff;
-  --dashboard-card-muted: #f4f4f5;
+  --dashboard-bg: #f2ece3;
+  --dashboard-header-bg: rgba(250, 246, 240, 0.9);
+  --dashboard-card-bg: #faf6f0;
+  --dashboard-card-muted: #f0ebe3;
   --dashboard-border: rgba(0, 0, 0, 0.08);
   --dashboard-text: #18181b;
   --dashboard-text-muted: #52525b;
@@ -2866,8 +2866,8 @@ input, textarea, select {
   --dashboard-danger-soft: var(--mineos-expense-soft);
   --dashboard-success: var(--mineos-benefit);
   --dashboard-success-soft: var(--mineos-benefit-soft);
-  --app-chrome-bg: #e4e4e7;
-  --app-chrome-glow: var(--mineos-general-soft);
+  --app-chrome-bg: #f2e8da;
+  --app-chrome-glow: var(--mineos-general);
   --app-chrome-grid: rgba(0, 0, 0, 0.04);
   --mineos-grain-opacity: 0.03;
 }
@@ -4586,7 +4586,7 @@ input, textarea, select {
 [data-theme='light'] .produccion-page__balance-btn {
   background-color: var(--mineos-general-soft);
   border-color: var(--mineos-general-border);
-  color: var(--mineos-general-deep);
+  color: var(--mineos-general);
 }
 
 [data-theme='light'] .produccion-page__balance-btn:hover:not(:disabled) {

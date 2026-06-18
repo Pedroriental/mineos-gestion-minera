@@ -25,16 +25,16 @@ export default function IdleWarningModal({
       <div className="bg-[var(--card-bg)] rounded-2xl shadow-2xl border border-[var(--card-border)] w-full max-w-sm mx-4 overflow-hidden">
 
         {/* Top accent — turns red when urgent */}
-        <div className={`h-[3px] transition-colors duration-500 ${urgent ? 'bg-red-500' : 'bg-amber-700'}`} />
+        <div className={`h-[3px] transition-colors duration-500 ${urgent ? 'bg-red-500' : 'bg-[var(--mineos-general)]'}`} />
 
         <div className="px-8 py-8">
 
           {/* Icon + countdown ring */}
           <div className="flex flex-col items-center mb-6">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-colors duration-500 ${urgent ? 'bg-red-50' : 'bg-amber-50'}`}>
-              <Clock className={`w-7 h-7 transition-colors duration-500 ${urgent ? 'text-red-500' : 'text-amber-700'}`} />
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-colors duration-500 ${urgent ? 'bg-red-50' : 'bg-[var(--mineos-general-soft)]'}`}>
+              <Clock className={`w-7 h-7 transition-colors duration-500 ${urgent ? 'text-red-500' : 'text-[var(--mineos-general)]'}`} />
             </div>
-            <span className={`text-4xl font-black tabular-nums transition-colors duration-500 ${urgent ? 'text-red-500' : 'text-amber-700'}`}>
+            <span className={`text-4xl font-black tabular-nums transition-colors duration-500 ${urgent ? 'text-red-500' : 'text-[var(--mineos-general)]'}`}>
               {display}
             </span>
           </div>
@@ -50,7 +50,7 @@ export default function IdleWarningModal({
           <div className="space-y-3">
             <button
               onClick={onStayActive}
-              className="w-full rounded-xl bg-amber-700 py-3 text-sm font-semibold text-white hover:bg-amber-800 active:bg-amber-900 transition-colors flex items-center justify-center gap-2"
+              className="w-full rounded-xl bg-[var(--mineos-general)] py-3 text-sm font-semibold text-white hover:bg-[var(--mineos-general-bright)] active:brightness-90 transition-colors flex items-center justify-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
               Continuar sesión
