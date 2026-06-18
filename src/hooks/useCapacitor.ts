@@ -21,6 +21,15 @@ export function useCapacitor() {
         const { SplashScreen } = await import('@capacitor/splash-screen');
         await SplashScreen.hide();
       } catch {}
+
+      try {
+        const { App } = await import('@capacitor/app');
+        await App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            window.location.reload();
+          }
+        });
+      } catch {}
     })();
   }, []);
 }
