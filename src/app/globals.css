@@ -6281,6 +6281,21 @@ input, textarea, select {
   overflow: visible;
 }
 
+/* Reportes tabs — base styles (dark mode defaults) */
+.reportes-tabs__btn {
+  color: var(--text-muted);
+}
+.reportes-tabs__btn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+.reportes-tabs__btn--active,
+.reportes-tabs__btn[aria-selected='true'] {
+  background: rgba(39, 39, 42, 0.8);
+  border-color: rgba(82, 82, 91, 0.4);
+  color: rgb(244, 244, 245);
+}
+
 .dashboard-scroll {
   flex: 1;
   min-height: 0;
@@ -8995,6 +9010,22 @@ input, textarea, select {
     color: rgb(244 244 245) !important;
     box-shadow: none !important;
   }
+
+/* Light-mode: must come AFTER the @media block to override its !important by source order */
+[data-theme="light"] .reportes-tabs__btn--active,
+[data-theme="light"] .reportes-tabs__btn[aria-selected='true'] {
+  background: var(--mineos-general-soft) !important;
+  color: var(--mineos-general-deep) !important;
+  border-color: var(--mineos-general-border) !important;
+  box-shadow: none !important;
+}
+[data-theme="light"] .reportes-tabs__btn:not(.reportes-tabs__btn--active):not([aria-selected='true']):hover {
+  color: var(--text-secondary) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+[data-theme="light"] .reportes-tabs__btn:not(.reportes-tabs__btn--active):not([aria-selected='true']) {
+  color: var(--text-muted) !important;
+}
 
   .reportes-page__sidebar,
   .reportes-ui__sidebar {

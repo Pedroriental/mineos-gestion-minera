@@ -28,8 +28,8 @@ export function ReportesTabs({
             className={cn(
               'reportes-tabs__btn flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition-colors border border-transparent',
               activeTab === tab.id
-                ? 'reportes-tabs__btn--active md:bg-zinc-800/80 md:text-zinc-100 md:border-zinc-600/40 md:font-semibold md:shadow-none'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03]',
+                ? 'reportes-tabs__btn--active md:font-semibold md:shadow-none'
+                : '',
             )}
           >
             {tab.icon}
