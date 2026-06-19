@@ -9577,7 +9577,7 @@ input, textarea, select {
   -webkit-backdrop-filter: blur(10px);
   padding-inline: var(--ms-pad-x);
   padding-top: var(--ms-hotbar-pad);
-  padding-bottom: var(--ms-hotbar-pad);
+  padding-bottom: max(var(--ms-hotbar-pad), env(safe-area-inset-bottom));
 }
 
 .mobile-hotbar__dock {
