@@ -66,7 +66,7 @@ export function MobileDashboard({ locations, globalData }: MobileDashboardProps)
     <div className="mobile-home flex flex-col gap-2.5 px-2 pb-1">
       <header className="mobile-section-lead mobile-section-lead--inline">
         <h1 className={cn('mobile-section-lead__title font-display', fontDisplay.className)}>
-          Command Center
+          Centro de Comando
         </h1>
       </header>
 

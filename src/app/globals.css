@@ -1,10 +1,11 @@
 @import "tailwindcss";
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@700,500,400&display=swap');
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-family-sans), system-ui, -apple-system, sans-serif;
-  --font-display: var(--font-family-display), var(--font-family-sans), system-ui, sans-serif;
+  --font-display: 'Satoshi', var(--font-family-sans), system-ui, sans-serif;
   --font-mono: var(--font-family-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Tremor Light Theme Mappings */
