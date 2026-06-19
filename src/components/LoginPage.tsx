@@ -44,12 +44,12 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: signInError } = await signIn(email, password);
+    const { error: signInError, role } = await signIn(email, password);
     if (signInError) {
       setError('Credenciales inválidas. Contacte al administrador.');
       setLoading(false);
     } else {
-      router.push('/dashboard');
+      router.push(role === 'admin_developer' ? '/admin-dev' : '/dashboard');
     }
   };
 

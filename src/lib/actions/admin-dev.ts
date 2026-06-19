@@ -127,6 +127,17 @@ export async function createUser(params: {
     },
   });
   if (error) throw new Error(error.message);
+
+  // Ensure user_profiles row exists with correct data
+  // (trigger may have created it, but we ensure consistency)
+  await supabaseAdmin.from('user_profiles').upsert({
+    id: data.user.id,
+    display_name: params.display_name,
+    role: params.role,
+    complex_id: params.complex_id ?? null,
+    active: true,
+  }, { onConflict: 'id' });
+
   return data.user;
 }
 
@@ -137,11 +148,28 @@ export async function updateUserProfile(userId: string, patch: {
   active?: boolean;
 }) {
   await requireRole('admin_developer');
+
+  // Update user_profiles
   const { error } = await supabaseAdmin
     .from('user_profiles')
     .update(patch)
     .eq('id', userId);
   if (error) throw new Error(error.message);
+
+  // Sync raw_user_meta_data in auth.users so JWT has correct role
+  const metadataPatch: Record<string, unknown> = {};
+  if (patch.role !== undefined) metadataPatch.role = patch.role;
+  if (patch.display_name !== undefined) metadataPatch.display_name = patch.display_name;
+  if (patch.complex_id !== undefined) metadataPatch.complex_id = patch.complex_id;
+
+  if (Object.keys(metadataPatch).length > 0) {
+    // Get current metadata first
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const currentMeta = authUser?.user?.user_metadata ?? {};
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      user_metadata: { ...currentMeta, ...metadataPatch },
+    });
+  }
 }
 
 export async function deleteUser(userId: string) {
