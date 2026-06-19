@@ -5,6 +5,8 @@ import { createServerClient } from '@/lib/supabase-server';
 import { ProduccionSchema, ProduccionUpdateSchema } from '@/lib/validations/produccion';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { z } from 'zod';
+import { getServerUser } from '@/lib/rbac';
+import { notifyAdmins } from '@/lib/notify-admins';
 
 export type ActionResult =
   | { ok: true;  message: string }
@@ -62,6 +64,20 @@ export async function createProduccion(raw: unknown): Promise<ActionResult> {
   if (error) {
     console.error('[Action] createProduccion:', error.message);
     return { ok: false, message: `Error al guardar: ${error.message}` };
+  }
+
+  // Notify admins if a supervisor submitted the report
+  const user = await getServerUser();
+  if (user?.complexId) {
+    await notifyAdmins({
+      complexId: user.complexId,
+      type: 'report_submitted',
+      title: 'Nuevo reporte de producción',
+      body: `${user.email} envió un reporte de producción`,
+      href: '/planta/produccion',
+      actorId: user.id,
+      actorRole: user.role,
+    });
   }
 
   revalidateAll();

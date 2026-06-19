@@ -8,12 +8,14 @@ import type { LocationData, GlobalData } from '@/components/dashboard/types';
 export default function DashboardMobileWrapper({
   locations,
   globalData,
+  role,
 }: {
   locations: LocationData[];
   globalData: GlobalData;
+  role: string;
 }) {
   const mobile = useIsMobile();
 
-  if (mobile) return <MobileDashboard locations={locations} globalData={globalData} />;
-  return <SatelliteCommandClient locations={locations} globalData={globalData} />;
+  if (mobile) return <MobileDashboard locations={locations} globalData={globalData} role={role} />;
+  return <SatelliteCommandClient locations={locations} globalData={globalData} role={role} />;
 }

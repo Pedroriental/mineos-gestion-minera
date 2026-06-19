@@ -16,6 +16,8 @@ import { createServerClient } from '@/lib/supabase-server';
 import { VoladuraSchema, VoladuraUpdateSchema } from '@/lib/validations/voladuras';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { z } from 'zod';
+import { getServerUser } from '@/lib/rbac';
+import { notifyAdmins } from '@/lib/notify-admins';
 
 // ── Tipo de respuesta estándar (igual al módulo de Gastos) ────
 export type ActionResult =
@@ -107,6 +109,20 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
   if (error) {
     console.error('[Action] createVoladura:', error.message);
     return { ok: false, message: `Error al guardar: ${error.message}` };
+  }
+
+  // Notify admins if a supervisor submitted the report
+  const user = await getServerUser();
+  if (user?.complexId) {
+    await notifyAdmins({
+      complexId: user.complexId,
+      type: 'report_submitted',
+      title: 'Nuevo reporte de voladura',
+      body: `${user.email} envió un reporte de voladura`,
+      href: '/mina/voladuras',
+      actorId: user.id,
+      actorRole: user.role,
+    });
   }
 
   // 3) Purgar caché → Next.js inyecta el nuevo RSC payload

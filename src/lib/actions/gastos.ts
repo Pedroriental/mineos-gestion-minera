@@ -19,6 +19,8 @@ import { checkGastoDuplicatesForSave } from '@/lib/actions/gastos-audit';
 import { applyGastoOroConversion } from '@/lib/actions/gastos-oro';
 import { formatDuplicateMatches, type GastoDuplicateMatch } from '@/lib/gastos-audit';
 import { z } from 'zod';
+import { getServerUser } from '@/lib/rbac';
+import { notifyAdmins } from '@/lib/notify-admins';
 
 // ── Tipo de respuesta estándar ────────────────────────────────
 export type ActionResult =
@@ -112,6 +114,20 @@ export async function createGasto(raw: unknown, options?: SaveOptions): Promise<
     if (!inserted || inserted.length === 0) {
       console.error('[Action] createGasto: RLS silently blocked insert');
       return { ok: false, message: 'Error de permisos: no se pudo guardar el gasto.' };
+    }
+
+    // Notify admins if a supervisor submitted the report
+    const user = await getServerUser();
+    if (user?.complexId) {
+      await notifyAdmins({
+        complexId: user.complexId,
+        type: 'report_submitted',
+        title: 'Nuevo gasto registrado',
+        body: `${user.email} registró un gasto de $${enriched.monto}`,
+        href: '/admin/gastos',
+        actorId: user.id,
+        actorRole: user.role,
+      });
     }
 
     // 3) Purgar caché y actualizar UI sin reload

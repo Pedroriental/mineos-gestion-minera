@@ -785,6 +785,24 @@ export interface BibliotecaCategoriaCompleta extends BibliotecaCategoria {
   variables: BibliotecaVariable[];
 }
 
+// --- RBAC ---
+export type UserRole = 'admin_developer' | 'admin' | 'mining_supervisor' | 'mill_supervisor' | 'guest';
+
+export interface UserProfile {
+  id: string;
+  display_name: string;
+  role: UserRole;
+  complex_id: string | null;
+  active: boolean;
+}
+
+export interface Complex {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+}
+
 // --- Sidebar Navigation ---
 export interface NavItem {
   label: string;

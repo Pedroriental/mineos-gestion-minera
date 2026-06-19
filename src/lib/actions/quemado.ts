@@ -5,6 +5,8 @@ import { createServerClient } from '@/lib/supabase-server';
 import { QuemadoSchema, QuemadoUpdateSchema } from '@/lib/validations/quemado';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { z } from 'zod';
+import { getServerUser } from '@/lib/rbac';
+import { notifyAdmins } from '@/lib/notify-admins';
 
 export type ActionResult =
   | { ok: true;  message: string }
@@ -57,6 +59,20 @@ export async function createQuemado(raw: unknown): Promise<ActionResult> {
   if (error) {
     console.error('[Action] createQuemado:', error.message);
     return { ok: false, message: `Error al guardar: ${error.message}` };
+  }
+
+  // Notify admins if a supervisor submitted the report
+  const user = await getServerUser();
+  if (user?.complexId) {
+    await notifyAdmins({
+      complexId: user.complexId,
+      type: 'report_submitted',
+      title: 'Nuevo reporte de quemado',
+      body: `${user.email} envió un reporte de quemado`,
+      href: '/mina/quemado',
+      actorId: user.id,
+      actorRole: user.role,
+    });
   }
 
   revalidateAll();

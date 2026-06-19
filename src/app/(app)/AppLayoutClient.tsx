@@ -20,69 +20,16 @@ import { Suspense } from 'react';
 import GlobalDateRangePicker from '@/components/ui/GlobalDateRangePicker';
 import { getAppSectionMeta } from '@/lib/app-section-meta';
 import { isNominaWorkspacePath } from '@/lib/mobile-nav';
+import ComplexSwitcher from '@/components/ComplexSwitcher';
+import { NotificationPanel } from '@/components/NotificationPanel';
+import { AdminDevBanner } from '@/components/auth/AdminDevBanner';
+import { useNotifications } from '@/hooks/use-notifications';
 import type { DashboardAlert } from '@/lib/dashboard-alerts';
 
 const AppSearchModal = dynamic(
   () => import('@/components/app/AppSearchModal').then((m) => m.AppSearchModal),
   { ssr: false },
 );
-
-function BellPanel({
-  onClose,
-  onNavigate,
-  alerts,
-}: {
-  onClose: () => void;
-  onNavigate: (href: string) => void;
-  alerts: DashboardAlert[];
-}) {
-  return (
-    <div className="app-popover bell-panel w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl shadow-2xl">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-          Centro de Notificaciones
-        </span>
-        <button
-          onClick={onClose}
-          className="text-lg leading-none text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-        >
-          &times;
-        </button>
-      </div>
-      <div className="max-h-[300px] overflow-y-auto p-1.5">
-        {alerts.length > 0 ? (
-          alerts.map((alert) => (
-            <button
-              key={alert.id}
-              onClick={() => {
-                onNavigate(alert.href);
-                onClose();
-              }}
-              className="app-popover-item flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-400">
-                <BellRing className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-[var(--text-primary)]">{alert.title}</p>
-                <p className="truncate text-[11px] text-[var(--text-muted)]">Atención requerida</p>
-              </div>
-              <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
-            </button>
-          ))
-        ) : (
-          <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
-            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-black/[0.06] text-[var(--text-muted)]">
-              <BellRing className="h-5 w-5" />
-            </span>
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">Todo está en orden</p>
-            <p className="text-[11px] text-[var(--text-muted)]">No tienes notificaciones pendientes</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export default function AppLayoutClient({
   children,
@@ -116,6 +63,7 @@ export default function AppLayoutClient({
   }, []);
   const isMobile = useIsMobile();
   useCapacitor();
+  const { unreadCount } = useNotifications();
 
   const bellBtnRef = useRef<HTMLButtonElement>(null);
   const sectionMeta = getAppSectionMeta(pathname);
@@ -217,6 +165,7 @@ export default function AppLayoutClient({
               </button>
             </div>
           )}
+          <AdminDevBanner />
           <MobileRouteContent
             sectionMeta={sectionMeta}
             pathname={pathname}
@@ -247,7 +196,7 @@ export default function AppLayoutClient({
             aria-label="Centro de notificaciones"
             className="bell-panel-host fixed inset-x-0 top-[calc(2.75rem+env(safe-area-inset-top)+0.5rem)] z-[9000] flex justify-center px-3"
           >
-            <BellPanel onClose={() => setBellOpen(false)} onNavigate={handleNav} alerts={alerts} />
+            <NotificationPanel onClose={() => setBellOpen(false)} />
           </div>
         )}
 
@@ -307,6 +256,9 @@ export default function AppLayoutClient({
             </div>
           )}
 
+          {/* ── Admin Developer Mode Banner ── */}
+          <AdminDevBanner />
+
           {/* ── Topbar ── */}
           <header
             data-topbar
@@ -342,6 +294,8 @@ export default function AppLayoutClient({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <ComplexSwitcher />
+
               <button
                 onClick={() => setSearchOpen(true)}
                 className="group hidden w-[27.5rem] max-w-[42vw] cursor-pointer items-center gap-2 rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card-muted)] px-3 py-2 transition-colors hover:border-[var(--dashboard-accent)]/35 lg:flex"
@@ -378,8 +332,10 @@ export default function AppLayoutClient({
                 )}
               >
                 <BellRing className="w-4 h-4" />
-                {alerts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 border-2 border-[var(--dashboard-header-bg)]" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 min-w-[0.75rem] items-center justify-center rounded-full bg-red-500 border-2 border-[var(--dashboard-header-bg)] px-0.5 text-[8px] font-bold text-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
               </button>
             </div>
@@ -414,7 +370,7 @@ export default function AppLayoutClient({
               aria-label="Centro de notificaciones"
               style={{ position: 'fixed', top: bellCoords.top, right: bellCoords.right, zIndex: 9000 }}
             >
-              <BellPanel onClose={() => setBellOpen(false)} onNavigate={handleNav} alerts={alerts} />
+            <NotificationPanel onClose={() => setBellOpen(false)} />
             </div>
           )}
           </div>

@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { Home, BookOpen, CircleDollarSign } from 'lucide-react';
+import type { UserRole } from './types';
 
 export type MobileHotbarId = 'home' | 'resumen' | 'reportes';
 
@@ -10,10 +11,11 @@ export type MobileHotbarItem = {
   href: string;
   Icon: LucideIcon;
   match: (pathname: string) => boolean;
+  roles?: UserRole[];  // undefined = all roles
 };
 
 /** Destinos prioritarios en la hotbar móvil */
-export const MOBILE_HOTBAR: MobileHotbarItem[] = [
+export const ALL_MOBILE_HOTBAR: MobileHotbarItem[] = [
   {
     id: 'home',
     label: 'Inicio',
@@ -29,6 +31,7 @@ export const MOBILE_HOTBAR: MobileHotbarItem[] = [
     href: '/operaciones/resumen',
     Icon: BookOpen,
     match: (pathname) => pathname.startsWith('/operaciones/resumen'),
+    roles: ['admin_developer', 'admin'],
   },
   {
     id: 'reportes',
@@ -37,11 +40,20 @@ export const MOBILE_HOTBAR: MobileHotbarItem[] = [
     href: '/reportes-balances',
     Icon: CircleDollarSign,
     match: (pathname) => pathname.startsWith('/reportes-balances'),
+    roles: ['admin_developer', 'admin', 'guest'],
   },
 ];
 
-export function getActiveMobileHotbarId(pathname: string): MobileHotbarId | null {
-  const hit = MOBILE_HOTBAR.find((item) => item.match(pathname));
+/** Filter hotbar by role */
+export function getMobileHotbar(role: UserRole): MobileHotbarItem[] {
+  return ALL_MOBILE_HOTBAR.filter(
+    (item) => !item.roles || item.roles.includes(role),
+  );
+}
+
+export function getActiveMobileHotbarId(pathname: string, role: UserRole): MobileHotbarId | null {
+  const hotbar = getMobileHotbar(role);
+  const hit = hotbar.find((item) => item.match(pathname));
   return hit?.id ?? null;
 }
 
@@ -54,12 +66,26 @@ export function isNominaWorkspacePath(pathname: string): boolean {
   );
 }
 
+export type MobileHomeShortcut = {
+  label: string;
+  href: string;
+  tone: 'general' | 'expense' | 'benefit' | 'neutral';
+  roles?: UserRole[];
+};
+
 /** Accesos rápidos desde el inicio móvil */
-export const MOBILE_HOME_SHORTCUTS = [
-  { label: 'Voladuras', href: '/mina/voladuras', tone: 'general' as const },
-  { label: 'Extracción', href: '/mina/extraccion', tone: 'general' as const },
-  { label: 'Producción', href: '/planta/produccion', tone: 'general' as const },
-  { label: 'Gastos', href: '/admin/gastos', tone: 'expense' as const },
-  { label: 'Nómina Mina', href: '/mina/nomina', tone: 'benefit' as const },
-  { label: 'Inventario', href: '/admin/inventario', tone: 'neutral' as const },
-] as const;
+export const ALL_MOBILE_HOME_SHORTCUTS: MobileHomeShortcut[] = [
+  { label: 'Voladuras', href: '/mina/voladuras', tone: 'general', roles: ['admin_developer', 'admin', 'mining_supervisor'] },
+  { label: 'Extracción', href: '/mina/extraccion', tone: 'general', roles: ['admin_developer', 'admin', 'mining_supervisor'] },
+  { label: 'Producción', href: '/planta/produccion', tone: 'general', roles: ['admin_developer', 'admin', 'mill_supervisor'] },
+  { label: 'Gastos', href: '/admin/gastos', tone: 'expense', roles: ['admin_developer', 'admin'] },
+  { label: 'Nómina Mina', href: '/mina/nomina', tone: 'benefit', roles: ['admin_developer', 'admin', 'mining_supervisor'] },
+  { label: 'Inventario', href: '/admin/inventario', tone: 'neutral', roles: ['admin_developer', 'admin', 'mill_supervisor'] },
+];
+
+/** Filter shortcuts by role */
+export function getMobileHomeShortcuts(role: UserRole): MobileHomeShortcut[] {
+  return ALL_MOBILE_HOME_SHORTCUTS.filter(
+    (item) => !item.roles || item.roles.includes(role),
+  );
+}

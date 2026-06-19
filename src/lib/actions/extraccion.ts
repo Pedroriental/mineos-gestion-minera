@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { ExtraccionSchema, ExtraccionUpdateSchema } from '@/lib/validations/extraccion';
 import type { ReporteExtraccion } from '@/lib/types';
+import { getServerUser } from '@/lib/rbac';
+import { notifyAdmins } from '@/lib/notify-admins';
 
 export async function createExtraccion(raw: Partial<ReporteExtraccion>) {
   try {
@@ -15,6 +17,8 @@ export async function createExtraccion(raw: Partial<ReporteExtraccion>) {
     }
 
     const supabase = await createServerClient();
+    const user = await getServerUser();
+
     const { error } = await supabase
       .from('reportes_extraccion')
       .insert(parsed.data);
@@ -22,6 +26,19 @@ export async function createExtraccion(raw: Partial<ReporteExtraccion>) {
     if (error) {
       console.error('Error creating extraccion:', error);
       return { ok: false, message: error.message, error };
+    }
+
+    // Notify admins if a supervisor submitted the report
+    if (user?.complexId) {
+      await notifyAdmins({
+        complexId: user.complexId,
+        type: 'report_submitted',
+        title: 'Nuevo reporte de extracción',
+        body: `${user.email} envió un reporte de extracción`,
+        href: '/mina/extraccion',
+        actorId: user.id,
+        actorRole: user.role,
+      });
     }
 
     revalidatePath('/mina/extraccion');

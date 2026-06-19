@@ -2,12 +2,15 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { getActiveMobileHotbarId, MOBILE_HOTBAR } from '@/lib/mobile-nav';
+import { getActiveMobileHotbarId, getMobileHotbar } from '@/lib/mobile-nav';
+import { useAuth } from '@/lib/auth-context';
 
 export function MobileHotbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const activeId = getActiveMobileHotbarId(pathname);
+  const { role } = useAuth();
+  const activeId = getActiveMobileHotbarId(pathname, role);
+  const items = getMobileHotbar(role);
 
   return (
     <nav
@@ -15,7 +18,7 @@ export function MobileHotbar() {
       aria-label="Navegación principal"
     >
       <div className="mobile-hotbar__dock grid grid-cols-3 gap-px p-px">
-        {MOBILE_HOTBAR.map((item) => {
+        {items.map((item) => {
           const Icon = item.Icon;
           const active = activeId === item.id;
 

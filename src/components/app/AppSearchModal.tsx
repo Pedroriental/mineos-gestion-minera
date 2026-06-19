@@ -15,24 +15,28 @@ import {
   BarChart2,
   CircleDollarSign,
   Database,
+  FileSearch,
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import type { UserRole } from '@/lib/types';
 
 const ALL_ROUTES = [
-  { label: 'Dashboard', href: '/dashboard', section: 'Principal', icon: LayoutGrid },
-  { label: 'Reporte y Balances', href: '/reportes-balances', section: 'Principal', icon: CircleDollarSign },
-  { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', section: 'Administración', icon: BookOpen },
-  { label: 'Base de Trabajadores', href: '/admin/trabajadores', section: 'Administración', icon: Users },
-  { label: 'Nómina Molino', href: '/planta/nomina', section: 'Administración', icon: Users },
-  { label: 'Nómina Mina', href: '/mina/nomina', section: 'Administración', icon: Users },
-  { label: 'Gastos', href: '/admin/gastos', section: 'Administración', icon: Receipt },
-  { label: 'Inventario', href: '/admin/inventario', section: 'Administración', icon: Package },
-  { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables', section: 'Administración', icon: Database },
-  { label: 'Voladuras', href: '/mina/voladuras', section: 'Mina', icon: Zap },
-  { label: 'Extracción', href: '/mina/extraccion', section: 'Mina', icon: Wrench },
-  { label: 'Quemado de Planchas', href: '/mina/quemado', section: 'Molino', icon: Flame },
-  { label: 'Equipos', href: '/mina/equipos', section: 'Mina', icon: Wrench },
-  { label: 'Producción', href: '/planta/produccion', section: 'Molino', icon: BarChart2 },
-  { label: 'Acarreo', href: '/planta/acarreo', section: 'Molino', icon: Package },
+  { label: 'Dashboard', href: '/dashboard', section: 'Principal', icon: LayoutGrid, roles: ['admin_developer', 'admin', 'mining_supervisor', 'mill_supervisor'] as UserRole[] },
+  { label: 'Reporte y Balances', href: '/reportes-balances', section: 'Principal', icon: CircleDollarSign, roles: ['admin_developer', 'admin', 'mining_supervisor', 'mill_supervisor'] as UserRole[] },
+  { label: 'Constructor de Reportes', href: '/reportes/constructor', section: 'Principal', icon: FileSearch, roles: ['admin_developer', 'admin', 'mining_supervisor', 'mill_supervisor'] as UserRole[] },
+  { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', section: 'Administración', icon: BookOpen, roles: ['admin_developer', 'admin'] as UserRole[] },
+  { label: 'Base de Trabajadores', href: '/admin/trabajadores', section: 'Administración', icon: Users, roles: ['admin_developer', 'admin'] as UserRole[] },
+  { label: 'Nómina Molino', href: '/planta/nomina', section: 'Administración', icon: Users, roles: ['admin_developer', 'admin', 'mill_supervisor'] as UserRole[] },
+  { label: 'Nómina Mina', href: '/mina/nomina', section: 'Administración', icon: Users, roles: ['admin_developer', 'admin', 'mining_supervisor'] as UserRole[] },
+  { label: 'Gastos', href: '/admin/gastos', section: 'Administración', icon: Receipt, roles: ['admin_developer', 'admin'] as UserRole[] },
+  { label: 'Inventario', href: '/admin/inventario', section: 'Administración', icon: Package, roles: ['admin_developer', 'admin'] as UserRole[] },
+  { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables', section: 'Administración', icon: Database, roles: ['admin_developer'] as UserRole[] },
+  { label: 'Voladuras', href: '/mina/voladuras', section: 'Mina', icon: Zap, roles: ['admin_developer', 'admin', 'mining_supervisor'] as UserRole[] },
+  { label: 'Extracción', href: '/mina/extraccion', section: 'Mina', icon: Wrench, roles: ['admin_developer', 'admin', 'mining_supervisor'] as UserRole[] },
+  { label: 'Quemado de Planchas', href: '/mina/quemado', section: 'Molino', icon: Flame, roles: ['admin_developer', 'admin', 'mining_supervisor'] as UserRole[] },
+  { label: 'Equipos', href: '/mina/equipos', section: 'Mina', icon: Wrench, roles: ['admin_developer', 'admin', 'mining_supervisor'] as UserRole[] },
+  { label: 'Producción', href: '/planta/produccion', section: 'Molino', icon: BarChart2, roles: ['admin_developer', 'admin', 'mill_supervisor'] as UserRole[] },
+  { label: 'Acarreo', href: '/planta/acarreo', section: 'Molino', icon: Package, roles: ['admin_developer', 'admin', 'mill_supervisor'] as UserRole[] },
 ] as const;
 
 export function AppSearchModal({
@@ -44,6 +48,7 @@ export function AppSearchModal({
 }) {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const { role } = useAuth();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -57,10 +62,11 @@ export function AppSearchModal({
   const filtered = query.trim()
     ? ALL_ROUTES.filter(
         (r) =>
-          r.label.toLowerCase().includes(query.toLowerCase()) ||
-          r.section.toLowerCase().includes(query.toLowerCase()),
+          r.roles.includes(role) &&
+          (r.label.toLowerCase().includes(query.toLowerCase()) ||
+           r.section.toLowerCase().includes(query.toLowerCase())),
       )
-    : ALL_ROUTES;
+    : ALL_ROUTES.filter((r) => r.roles.includes(role));
 
   const grouped: Record<string, any[]> = {};
   filtered.forEach((r) => {

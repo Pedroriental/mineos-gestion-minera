@@ -17,10 +17,12 @@ import {
 import { fontDisplay } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 import { safeMap } from '@/lib/safe-map';
-import { MOBILE_HOME_SHORTCUTS } from '@/lib/mobile-nav';
+import { getMobileHomeShortcuts } from '@/lib/mobile-nav';
+import { useAuth } from '@/lib/auth-context';
 import { MobileSection, MobileKpi } from './MobileSection';
 import { MobileListItem } from './MobileListItem';
 import { MobileQuickTile } from './MobileQuickTile';
+import { ActiveSupervisorsPanel } from '@/components/dashboard/ActiveSupervisorsPanel';
 import type { GlobalData, LocationData } from '@/components/dashboard/types';
 
 const SHORTCUT_ICONS = {
@@ -35,10 +37,17 @@ const SHORTCUT_ICONS = {
 type MobileDashboardProps = {
   locations: LocationData[];
   globalData: GlobalData;
+  role?: string;
 };
 
-export function MobileDashboard({ locations, globalData }: MobileDashboardProps) {
+export function MobileDashboard({ locations, globalData, role }: MobileDashboardProps) {
   const router = useRouter();
+  const { role: authRole } = useAuth();
+  const effectiveRole = role ?? authRole;
+  const isMiningSupervisor = effectiveRole === 'mining_supervisor';
+  const isMillSupervisor = effectiveRole === 'mill_supervisor';
+  const isSupervisor = isMiningSupervisor || isMillSupervisor;
+  const shortcuts = getMobileHomeShortcuts(authRole);
 
   const activeNodes = useMemo(
     () => locations.filter((l) => l.status === 'Activo').length,
@@ -68,6 +77,11 @@ export function MobileDashboard({ locations, globalData }: MobileDashboardProps)
         <h1 className={cn('mobile-section-lead__title font-display', fontDisplay.className)}>
           Centro de Comando
         </h1>
+        {isSupervisor && (
+          <p className="text-[11px] font-medium text-[var(--dashboard-text-muted)]">
+            {isMiningSupervisor ? 'Vista: Mina' : 'Vista: Molino'}
+          </p>
+        )}
       </header>
 
       <div className="mobile-hero-card relative overflow-hidden rounded-2xl border p-3.5">
@@ -126,7 +140,7 @@ export function MobileDashboard({ locations, globalData }: MobileDashboardProps)
 
       <MobileSection title="Acceso rápido" tight>
         <div className="mobile-quick-grid grid grid-cols-2 gap-px p-px">
-          {MOBILE_HOME_SHORTCUTS.map((item) => {
+          {shortcuts.map((item) => {
             const Icon = SHORTCUT_ICONS[item.label as keyof typeof SHORTCUT_ICONS];
             return (
               <MobileQuickTile
@@ -168,6 +182,10 @@ export function MobileDashboard({ locations, globalData }: MobileDashboardProps)
             />
           ))}
         </MobileSection>
+      )}
+
+      {!isSupervisor && (
+        <ActiveSupervisorsPanel />
       )}
     </div>
   );

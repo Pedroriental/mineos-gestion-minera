@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -25,10 +25,14 @@ import {
   X,
   PanelLeftClose,
   PanelLeft,
+  ShieldCheck,
+  Building2,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MineosLogo, sidebarIconSurface } from '@/components/brand/MineosLogo';
 import { useTheme } from '@/lib/theme-context';
+import type { UserRole } from '@/lib/types';
 
 type SidebarVariant = 'default' | 'dashboard';
 
@@ -36,7 +40,8 @@ interface NavItemData {
   label: string;
   href: string;
   icon: React.ReactNode;
-  subItems?: { label: string; href: string }[];
+  subItems?: { label: string; href: string; roles?: UserRole[] }[];
+  roles?: UserRole[];
 }
 interface NavSection {
   id: string;
@@ -44,32 +49,46 @@ interface NavSection {
   items: NavItemData[];
 }
 
-const standaloneItems: NavItemData[] = [
+// Role → visible section IDs
+const SECTION_ROLES: Record<string, UserRole[]> = {
+  'admin-dev': ['admin_developer'],
+  admin:   ['admin_developer', 'admin'],
+  mina:    ['admin_developer', 'admin', 'mining_supervisor'],
+  planta:  ['admin_developer', 'admin', 'mill_supervisor'],
+};
+
+// Role → visible standalone item hrefs
+const STANDALONE_ROLES: Record<string, UserRole[]> = {
+  '/dashboard':            ['admin_developer', 'admin', 'mining_supervisor', 'mill_supervisor', 'guest'],
+  '/reportes-balances':    ['admin_developer', 'admin', 'mining_supervisor', 'mill_supervisor', 'guest'],
+  '/reportes/constructor': ['admin_developer', 'admin', 'mining_supervisor', 'mill_supervisor'],
+};
+
+const allStandaloneItems: NavItemData[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutGrid className="w-4 h-4" /> },
   { label: 'Reporte y Balances', href: '/reportes-balances', icon: <CircleDollarSign className="w-4 h-4" /> },
   { label: 'Constructor de Reportes', href: '/reportes/constructor', icon: <FileSearch className="w-4 h-4" /> },
 ];
 
-const navigation: NavSection[] = [
+const allNavigation: NavSection[] = [
   {
     id: 'admin',
     title: 'Administración',
     items: [
-      { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', icon: <BookOpen className="w-4 h-4" /> },
+      { label: 'Resumen Ejecutivo', href: '/operaciones/resumen', icon: <BookOpen className="w-4 h-4" />, roles: ['admin_developer', 'admin'] },
       {
-        label: 'Gastos', href: '#', icon: <Receipt className="w-4 h-4" />,
+        label: 'Gastos', href: '#', icon: <Receipt className="w-4 h-4" />, roles: ['admin_developer', 'admin'],
         subItems: [
           { label: 'Registros de Gastos', href: '/admin/gastos' },
           { label: 'Resumen de Gastos', href: '/admin/gastos/resumen' },
           { label: 'Catálogo', href: '/admin/gastos/conceptos' },
         ],
       },
-      { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" /> },
-      { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables', icon: <Database className="w-4 h-4" /> },
+      { label: 'Inventario', href: '/admin/inventario', icon: <Package className="w-4 h-4" />, roles: ['admin_developer', 'admin'] },
       {
-        label: 'Nómina de Personal', href: '#', icon: <Users className="w-4 h-4" />,
+        label: 'Nómina de Personal', href: '#', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'admin'],
         subItems: [
-          { label: 'Base de Trabajadores', href: '/admin/trabajadores' },
+          { label: 'Base de Trabajadores', href: '/admin/trabajadores', roles: ['admin_developer', 'admin'] },
           { label: 'Nómina Mina', href: '/mina/nomina' },
           { label: 'Nómina Molinos', href: '/planta/nomina' },
         ],
@@ -83,6 +102,7 @@ const navigation: NavSection[] = [
       { label: 'Voladuras', href: '/mina/voladuras', icon: <Zap className="w-4 h-4" /> },
       { label: 'Extracción', href: '/mina/extraccion', icon: <HardHat className="w-4 h-4" /> },
       { label: 'Equipos', href: '/mina/equipos', icon: <Wrench className="w-4 h-4" /> },
+      { label: 'Nómina Mina', href: '/mina/nomina', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'admin', 'mining_supervisor'] },
     ],
   },
   {
@@ -92,9 +112,28 @@ const navigation: NavSection[] = [
       { label: 'Producción', href: '/planta/produccion', icon: <FlaskConical className="w-4 h-4" /> },
       { label: 'Acarreo', href: '/planta/acarreo', icon: <Truck className="w-4 h-4" /> },
       { label: 'Quemado', href: '/mina/quemado', icon: <Flame className="w-4 h-4" /> },
+      { label: 'Nómina Molinos', href: '/planta/nomina', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'admin', 'mill_supervisor'] },
+    ],
+  },
+  {
+    id: 'admin-dev',
+    title: 'Panel Admin',
+    items: [
+      { label: 'Dashboard Admin', href: '/admin-dev', icon: <ShieldCheck className="w-4 h-4" /> },
+      { label: 'Complejos', href: '/admin-dev/complexes', icon: <Building2 className="w-4 h-4" /> },
+      { label: 'Admin Developers', href: '/admin-dev/users/developers', icon: <Users className="w-4 h-4" /> },
+      { label: 'Auditoría', href: '/admin-dev/audit', icon: <Activity className="w-4 h-4" /> },
     ],
   },
 ];
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin_developer: 'Desarrollador',
+  admin: 'Administrador',
+  mining_supervisor: 'Supervisor de Mina',
+  mill_supervisor: 'Supervisor de Molino',
+  guest: 'Observador',
+};
 
 /* ── Visual language ──
    Active   → hairline gold indicator + soft gold wash fading right
@@ -449,10 +488,41 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signOut, user } = useAuth();
+  const { signOut, user, role } = useAuth();
   const { theme } = useTheme();
 
   const isExpanded = expanded ?? true;
+
+  // Filter navigation by role
+  const standaloneItems = useMemo(
+    () => allStandaloneItems.filter((item) => {
+      const allowed = STANDALONE_ROLES[item.href];
+      return allowed ? allowed.includes(role) : true;
+    }),
+    [role],
+  );
+
+  const navigation = useMemo(
+    () => allNavigation
+      .filter((section) => {
+        const allowed = SECTION_ROLES[section.id];
+        return allowed ? allowed.includes(role) : true;
+      })
+      .map((section) => ({
+        ...section,
+        items: section.items
+          .filter((item) => !item.roles || item.roles.includes(role))
+          .map((item) => ({
+            ...item,
+            subItems: item.subItems?.filter(
+              (sub) => !sub.roles || sub.roles.includes(role),
+            ),
+          })),
+      })),
+    [role],
+  );
+
+  const roleLabel = ROLE_LABELS[role] ?? 'Operaciones';
 
   const resolveSubItemHref = useCallback((item: NavItemData) => {
     const subItems = item.subItems ?? [];
@@ -576,27 +646,16 @@ export default function Sidebar({
       {/* Sections */}
       <nav className="sidebar-nav-scroll scroll-y-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-1">
         <div className="space-y-0.5 px-2">
-          <NavItem
-            item={standaloneItems[0]}
-            active={pathname === '/dashboard'}
-            expanded={isExpanded}
-            onNav={handleNav}
-            navHref={getNavHref('/dashboard')}
-          />
-          <NavItem
-            item={standaloneItems[1]}
-            active={pathname === '/reportes-balances' || pathname.startsWith('/reportes-balances/')}
-            expanded={isExpanded}
-            onNav={handleNav}
-            navHref={getNavHref('/reportes-balances')}
-          />
-          <NavItem
-            item={standaloneItems[2]}
-            active={pathname === '/reportes/constructor' || pathname.startsWith('/reportes/constructor')}
-            expanded={isExpanded}
-            onNav={handleNav}
-            navHref={getNavHref('/reportes/constructor')}
-          />
+          {standaloneItems.map((item) => (
+            <NavItem
+              key={item.href}
+              item={item}
+              active={pathname === item.href || pathname.startsWith(item.href + '/')}
+              expanded={isExpanded}
+              onNav={handleNav}
+              navHref={getNavHref(item.href)}
+            />
+          ))}
         </div>
 
         {navigation.map((section) => (
@@ -614,6 +673,27 @@ export default function Sidebar({
 
       {/* Footer */}
       <div className="mt-auto shrink-0 border-t border-[var(--dashboard-border)] px-2 pt-2">
+        {role === 'admin_developer' && (
+          isExpanded ? (
+            <button
+              onClick={() => router.push(getNavHref('/dashboard'))}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-[var(--dashboard-text-muted)] transition-colors hover:bg-[var(--dashboard-accent)]/10 hover:text-[var(--dashboard-accent)]"
+            >
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              <span className="truncate text-[11px] font-semibold">Volver a Panel Admin</span>
+            </button>
+          ) : (
+            <NavTooltip label="Volver a Panel Admin" show>
+              <button
+                onClick={() => router.push(getNavHref('/dashboard'))}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--dashboard-text-muted)] transition-colors hover:bg-[var(--dashboard-accent)]/10 hover:text-[var(--dashboard-accent)]"
+              >
+                <ShieldCheck className="h-4 w-4" />
+              </button>
+            </NavTooltip>
+          )
+        )}
+
         {isExpanded ? (
           <div className="group flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/25 to-amber-600/10 ring-1 ring-amber-500/30">
@@ -621,7 +701,7 @@ export default function Sidebar({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[11px] font-semibold text-[var(--dashboard-text)]">{user?.email}</p>
-              <p className="text-[9px] uppercase tracking-wider text-[var(--dashboard-text-muted)]">Operaciones</p>
+              <p className="text-[9px] uppercase tracking-wider text-[var(--dashboard-text-muted)]">{roleLabel}</p>
             </div>
             <button
               onClick={handleSignOut}

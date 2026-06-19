@@ -12,6 +12,8 @@ import {
   parsePhotoKeepList,
   saveReportPhotos,
 } from '@/lib/report-photo-upload';
+import { getServerUser } from '@/lib/rbac';
+import { notifyAdmins } from '@/lib/notify-admins';
 
 const ACARREO_PATH = '/planta/acarreo';
 
@@ -89,6 +91,20 @@ export async function createAcarreoForm(formData: FormData) {
     if (error) {
       console.error('Error creating acarreo:', error);
       return { ok: false, message: error.message, error };
+    }
+
+    // Notify admins if a supervisor submitted the report
+    const user = await getServerUser();
+    if (user?.complexId) {
+      await notifyAdmins({
+        complexId: user.complexId,
+        type: 'report_submitted',
+        title: 'Nuevo informe de acarreo',
+        body: `${user.email} envió un informe de acarreo`,
+        href: '/planta/acarreo',
+        actorId: user.id,
+        actorRole: user.role,
+      });
     }
 
     revalidatePath(ACARREO_PATH);

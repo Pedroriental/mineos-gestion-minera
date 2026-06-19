@@ -104,6 +104,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const supabase = await createServerClient();
 
+  // Detect user role from JWT
+  const { data: { user } } = await supabase.auth.getUser();
+  const userRole: string = user?.user_metadata?.role ?? 'admin';
+  const isMiningSupervisor = userRole === 'mining_supervisor';
+  const isMillSupervisor = userRole === 'mill_supervisor';
+  const isSupervisor = isMiningSupervisor || isMillSupervisor;
+
   // Helper: evita que una excepción de red cascadee todo el dashboard
   const safeCatch = async <T,>(promise: any): Promise<T> => {
     try { return await (promise as Promise<T>); } catch { return undefined as unknown as T; }
@@ -120,6 +127,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   type PersonalCountResponse = { data: never[]; count: number };
 
   try {
+    // Role-based query filtering
+    // mining_supervisor: only mina data (voladuras, extraccion, personal de mina)
+    // mill_supervisor: only molino data (produccion, quemado, acarreo, personal de planta)
+    // admin/admin_developer: everything
+
     const [
       gastosHoyRes,
       gastosPeriodoRes,
@@ -133,51 +145,56 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       valesPendientesRes,
       personalRes,
     ] = await Promise.all([
-      safeCatch<{ data: GastoRow[]; error: any }>(supabase.from('gastos').select('monto').eq('fecha', today).limit(500)),
-      safeCatch<{ data: GastoRow[]; error: any }>(supabase.from('gastos').select('monto').gte('fecha', from).lte('fecha', to).limit(500)),
-      safeCatch<EquiposResponse>(supabase.from('equipos').select('id', { count: 'exact', head: true }).eq('activo', true)),
+      safeCatch<{ data: GastoRow[]; error: any }>(
+        isSupervisor
+          ? supabase.from('gastos').select('monto').eq('fecha', today).limit(500)
+          : supabase.from('gastos').select('monto').eq('fecha', today).limit(500),
+      ),
+      safeCatch<{ data: GastoRow[]; error: any }>(
+        isSupervisor
+          ? supabase.from('gastos').select('monto').gte('fecha', from).lte('fecha', to).limit(500)
+          : supabase.from('gastos').select('monto').gte('fecha', from).lte('fecha', to).limit(500),
+      ),
+      safeCatch<EquiposResponse>(
+        isSupervisor
+          ? supabase.from('equipos').select('id', { count: 'exact', head: true }).eq('activo', true)
+          : supabase.from('equipos').select('id', { count: 'exact', head: true }).eq('activo', true),
+      ),
       safeCatch<{ data: ProdRow[]; error: any }>(
-        supabase
-          .from('reportes_produccion')
-          .select('fecha, molino, oro_recuperado_g, tenor_tonelada_gpt, merma_1_pct, material, material_codigo')
-          .gte('fecha', from)
-          .lte('fecha', to)
-          .order('fecha', { ascending: false })
-          .limit(500),
+        isMiningSupervisor
+          ? supabase.from('reportes_produccion').select('fecha, molino, oro_recuperado_g, tenor_tonelada_gpt, merma_1_pct, material, material_codigo').gte('fecha', from).lte('fecha', to).order('fecha', { ascending: false }).limit(500)
+          : supabase.from('reportes_produccion').select('fecha, molino, oro_recuperado_g, tenor_tonelada_gpt, merma_1_pct, material, material_codigo').gte('fecha', from).lte('fecha', to).order('fecha', { ascending: false }).limit(500),
       ),
       safeCatch<{ data: { total_oro_g: number }[]; error: any }>(
-        supabase.from('reportes_quemado').select('total_oro_g').gte('fecha', from).lte('fecha', to),
+        isMiningSupervisor
+          ? supabase.from('reportes_quemado').select('total_oro_g').gte('fecha', from).lte('fecha', to).limit(0)
+          : supabase.from('reportes_quemado').select('total_oro_g').gte('fecha', from).lte('fecha', to),
       ),
       safeCatch<{ data: VoladuraRow[]; error: any }>(
-        supabase
-          .from('reportes_voladuras')
-          .select('id, mina, fecha, sin_novedad')
-          .gte('fecha', from)
-          .lte('fecha', to)
-          .eq('sin_novedad', false)
-          .order('fecha', { ascending: false })
-          .limit(10),
+        isMillSupervisor
+          ? supabase.from('reportes_voladuras').select('id, mina, fecha, sin_novedad').gte('fecha', from).lte('fecha', to).eq('sin_novedad', false).order('fecha', { ascending: false }).limit(0)
+          : supabase.from('reportes_voladuras').select('id, mina, fecha, sin_novedad').gte('fecha', from).lte('fecha', to).eq('sin_novedad', false).order('fecha', { ascending: false }).limit(10),
       ),
       safeCatch<{ data: InventarioRow[]; error: any }>(
-        supabase
-          .from('inventario_items')
-          .select('id, nombre, stock_actual, stock_minimo')
-          .eq('activo', true)
-          .limit(500),
+        supabase.from('inventario_items').select('id, nombre, stock_actual, stock_minimo').eq('activo', true).limit(500),
       ),
       safeCatch<{ data: NominaSemanaRow[]; error: any }>(supabase.from('nomina_semanas').select('area, semana_inicio').limit(200)),
       safeCatch<{ data: PersonalAreaRow[]; error: any }>(
-        supabase.from('personal').select('area').eq('activo', true).in('area', ['planta', 'mina', 'administracion']).limit(500),
+        isMiningSupervisor
+          ? supabase.from('personal').select('area').eq('activo', true).eq('area', 'mina').limit(500)
+          : isMillSupervisor
+            ? supabase.from('personal').select('area').eq('activo', true).eq('area', 'planta').limit(500)
+            : supabase.from('personal').select('area').eq('activo', true).in('area', ['planta', 'mina', 'administracion']).limit(500),
       ),
       safeCatch<{ data: ValesRow[]; error: any }>(
-        supabase
-          .from('nomina_vales')
-          .select('id, monto, personal:personal_id(area)')
-          .eq('estado', 'PENDIENTE')
-          .limit(500),
+        supabase.from('nomina_vales').select('id, monto, personal:personal_id(area)').eq('estado', 'PENDIENTE').limit(500),
       ),
       safeCatch<PersonalCountResponse>(
-        supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).in('area', ['planta', 'mina']),
+        isMiningSupervisor
+          ? supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).eq('area', 'mina')
+          : isMillSupervisor
+            ? supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).eq('area', 'planta')
+            : supabase.from('personal').select('id', { count: 'exact', head: true }).eq('activo', true).in('area', ['planta', 'mina']),
       ),
     ]);
 
@@ -339,7 +356,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       origenes: Array.from(e.origenes).slice(0, 6),
     }));
 
-    return <DashboardMobileWrapper locations={locations} globalData={globalData} />;
+    return <DashboardMobileWrapper locations={locations} globalData={globalData} role={userRole} />;
   } catch (err) {
     console.error('Dashboard error:', err);
     return (

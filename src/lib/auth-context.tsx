@@ -1,19 +1,21 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import type { UserProfile, UserRole } from './types';
 
 const GUEST_KEY = 'mineos_guest_mode';
 
-// Dedicated read-only guest account in Supabase Auth.
-// These are intentionally public — the account has no write permissions at the app level.
 const GUEST_EMAIL = process.env.NEXT_PUBLIC_GUEST_EMAIL ?? '';
 const GUEST_PASSWORD = process.env.NEXT_PUBLIC_GUEST_PASSWORD ?? '';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  profile: UserProfile | null;
+  role: UserRole;
+  complexId: string | null;
   loading: boolean;
   isGuest: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -26,8 +28,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('id, display_name, role, complex_id, active')
+      .eq('id', userId)
+      .single();
+    setProfile(data ?? null);
+  }, []);
 
   useEffect(() => {
     const guestStored = sessionStorage.getItem(GUEST_KEY);
@@ -35,11 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsGuest(true);
     }
 
-    // Una sola fuente: sesión en caché vía INITIAL_SESSION (sin getSession extra = menos espera en local)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
     });
 
     const slowNetworkGuard = window.setTimeout(() => {
@@ -50,10 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(slowNetworkGuard);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
-    // Reset guest flag if a real user signs in
     sessionStorage.removeItem(GUEST_KEY);
     setIsGuest(false);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -64,8 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!GUEST_EMAIL || !GUEST_PASSWORD) {
       return { error: 'Las credenciales de invitado no están configuradas. Contacte al administrador.' };
     }
-    // Sign in with the dedicated read-only guest Supabase account.
-    // This gives a real JWT so RLS policies allow data reads.
     const { error } = await supabase.auth.signInWithPassword({
       email: GUEST_EMAIL,
       password: GUEST_PASSWORD,
@@ -84,10 +98,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    setProfile(null);
   };
 
+  const role: UserRole = profile?.role ?? (isGuest ? 'guest' : 'admin');
+  const complexId = profile?.complex_id ?? null;
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, isGuest, signIn, signInAsGuest, signOut }}>
+    <AuthContext.Provider value={{
+      user, session, profile, role, complexId,
+      loading, isGuest, signIn, signInAsGuest, signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );
