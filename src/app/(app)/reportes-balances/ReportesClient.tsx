@@ -1281,6 +1281,37 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
 
                         </tr>
                       ))}
+                      {activeTab === 'quemado' && groupByQuem !== 'plancha' && aggregated && (
+                        <>
+                          <tr className="gastos-table__row gastos-tr bg-[var(--mineos-general-soft)]/50 border-t border-[var(--mineos-general-border)]">
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-bold text-[var(--mineos-general)]">Manto Amalgama</td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold text-[var(--mineos-general-bright)]">
+                              {(aggregated.kpis.mantoAmalgamaTotalG ?? 0).toLocaleString()} g
+                            </td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                          </tr>
+                          <tr className="gastos-table__row gastos-tr bg-[var(--mineos-general-soft)]/50">
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-bold text-[var(--mineos-general)]">Manto Oro</td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold text-[var(--mineos-benefit)]">
+                              {(aggregated.kpis.mantoOroTotalG ?? 0).toLocaleString()} g
+                            </td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                          </tr>
+                          <tr className="gastos-table__row gastos-tr bg-[var(--mineos-general-soft)]/50 border-b border-[var(--mineos-general-border)]">
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-bold text-[var(--mineos-expense)]">Retorta Oro</td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold text-[var(--mineos-expense)]">
+                              {(aggregated.kpis.retortaOroTotalG ?? 0).toLocaleString()} g
+                            </td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                            <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right"></td>
+                          </tr>
+                        </>
+                      )}
                       <ReportesTableRowPadding
                         colSpan={reportesTableColSpan(activeTab, showNominaSplit ? nominaSplitCols.length : 0)}
                         count={emptyRowSlots}
