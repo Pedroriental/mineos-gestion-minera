@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, use } from 'react';
 import { ArrowLeft, Plus, Check, X, Trash2, Key, UserPlus, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getComplex, getUsersByComplex, createUser, deleteUser, resetUserPassword } from '@/lib/actions/admin-dev';
+import { mineosPanel, MINEOS_BTN_PRIMARY } from '@/lib/mineos-visual';
 import type { UserProfile, UserRole } from '@/lib/types';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -31,7 +32,7 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
   const [newRole, setNewRole] = useState<UserRole>('admin');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resetUserId, setResetUserId] = useState<string | null>(null);
   const [newResetPass, setNewResetPass] = useState('');
 
   const load = useCallback(async () => {
@@ -60,11 +61,10 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
         role: newRole,
         complex_id: id,
       });
-      setSuccess(`Usuario "${newName}" creado. Email: ${newEmail}`);
+      setSuccess(`Usuario "${newName}" creado`);
       setNewEmail('');
       setNewPassword('');
       setNewName('');
-      setNewRole('admin');
       setShowCreate(false);
       await load();
     } catch (e: any) {
@@ -73,7 +73,7 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleDelete = async (userId: string, name: string) => {
-    if (!confirm(`¿Eliminar al usuario "${name}"? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar al usuario "${name}"?`)) return;
     setError('');
     setSuccess('');
     try {
@@ -90,8 +90,8 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
     setSuccess('');
     try {
       await resetUserPassword(userId, newResetPass);
-      setSuccess('Contraseña actualizada.');
-      setResettingId(null);
+      setSuccess('Contraseña actualizada');
+      setResetUserId(null);
       setNewResetPass('');
     } catch (e: any) {
       setError(e.message);
@@ -99,20 +99,23 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="app-viewport-canvas mx-auto px-4 py-6 sm:px-6 lg:px-8">
       <button
         onClick={() => router.push('/admin-dev/complexes')}
-        className="mb-4 flex items-center gap-1.5 text-sm text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)]"
+        className="mb-4 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--mineos-general-bright)]"
       >
-        <ArrowLeft className="h-4 w-4" /> Volver a Complejos
+        <ArrowLeft className="h-3.5 w-3.5" /> Volver a Complejos
       </button>
 
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--dashboard-text)]">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--mineos-general-bright)]/70">
+            Desarrollo
+          </p>
+          <h1 className="text-2xl font-black tracking-tight text-[var(--text-primary)]">
             {complex?.name ?? 'Cargando...'}
           </h1>
-          <p className="text-sm text-[var(--dashboard-text-muted)]">
+          <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
             Usuarios asignados a este complejo
           </p>
         </div>
@@ -122,14 +125,14 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
               localStorage.setItem('mineos_active_complex', id);
               router.push('/dashboard');
             }}
-            className="flex items-center gap-2 rounded-xl bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25"
+            className="flex items-center gap-2 rounded-lg bg-[var(--mineos-general-soft)] px-4 py-2 text-sm font-semibold text-[var(--mineos-general-bright)] transition-colors hover:bg-[var(--mineos-general-border)]"
           >
             <ArrowRight className="h-4 w-4" />
-            Entrar al Complejo
+            Entrar
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 rounded-xl bg-[var(--dashboard-accent)] px-4 py-2 text-sm font-semibold text-white"
+            className={MINEOS_BTN_PRIMARY + ' flex items-center gap-2 px-4 py-2 text-sm'}
           >
             <UserPlus className="h-4 w-4" />
             Crear Usuario
@@ -138,52 +141,35 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
       </header>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>
+        <div className="mb-4 rounded-xl border border-[var(--mineos-expense-border)] bg-[var(--mineos-expense-soft)] px-4 py-3 text-sm text-[var(--mineos-expense)]">{error}</div>
       )}
       {success && (
-        <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">{success}</div>
+        <div className="mb-4 rounded-xl border border-[var(--mineos-benefit-border)] bg-[var(--mineos-benefit-soft)] px-4 py-3 text-sm text-[var(--mineos-benefit)]">{success}</div>
       )}
 
       {showCreate && (
-        <div className="mb-6 rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5">
-          <h3 className="mb-3 font-semibold text-[var(--dashboard-text)]">Crear Usuario</h3>
+        <div className="mb-6 rounded-xl border border-[var(--mineos-general-border)] bg-[var(--card-bg)] p-5">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Crear Usuario</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--dashboard-text-muted)]">Nombre completo</label>
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Juan Pérez"
-                className="w-full rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] px-3 py-2 text-sm text-[var(--dashboard-text)] outline-none focus:border-[var(--dashboard-accent)]"
-              />
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Nombre</label>
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre completo"
+                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--mineos-general)]" />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--dashboard-text-muted)]">Email</label>
-              <input
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                type="email"
-                placeholder="juan@mineos.local"
-                className="w-full rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] px-3 py-2 text-sm text-[var(--dashboard-text)] outline-none focus:border-[var(--dashboard-accent)]"
-              />
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Email</label>
+              <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} type="email" placeholder="usuario@mineos.local"
+                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--mineos-general)]" />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--dashboard-text-muted)]">Contraseña</label>
-              <input
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                type="password"
-                placeholder="Mínimo 8 caracteres"
-                className="w-full rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] px-3 py-2 text-sm text-[var(--dashboard-text)] outline-none focus:border-[var(--dashboard-accent)]"
-              />
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Contraseña</label>
+              <input value={newPassword} onChange={(e) => setNewPassword(e.target.value)} type="password" placeholder="Mínimo 8 caracteres"
+                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--mineos-general)]" />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--dashboard-text-muted)]">Rol</label>
-              <select
-                value={newRole}
-                onChange={(e) => setNewRole(e.target.value as UserRole)}
-                className="w-full rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] px-3 py-2 text-sm text-[var(--dashboard-text)] outline-none focus:border-[var(--dashboard-accent)]"
-              >
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Rol</label>
+              <select value={newRole} onChange={(e) => setNewRole(e.target.value as UserRole)}
+                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--mineos-general)]">
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
@@ -191,10 +177,10 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
           <div className="mt-3 flex gap-2">
-            <button onClick={handleCreate} className="flex items-center gap-1.5 rounded-lg bg-[var(--dashboard-accent)] px-3 py-1.5 text-sm font-semibold text-white">
+            <button onClick={handleCreate} className="flex items-center gap-1.5 rounded-lg bg-[var(--mineos-general)] px-3 py-1.5 text-xs font-bold text-black hover:bg-[var(--mineos-general-bright)]">
               <Check className="h-3.5 w-3.5" /> Crear
             </button>
-            <button onClick={() => { setShowCreate(false); setError(''); }} className="flex items-center gap-1.5 rounded-lg bg-[var(--dashboard-card-muted)] px-3 py-1.5 text-sm text-[var(--dashboard-text-muted)]">
+            <button onClick={() => setShowCreate(false)} className="flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] px-3 py-1.5 text-xs text-[var(--text-secondary)]">
               <X className="h-3.5 w-3.5" /> Cancelar
             </button>
           </div>
@@ -202,65 +188,49 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-xl bg-[var(--dashboard-card-muted)]" />
-          ))}
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-[var(--surface-sunken)]" />)}
         </div>
       ) : users.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--dashboard-border)] p-12 text-center">
-          <UserPlus className="mx-auto mb-3 h-8 w-8 text-[var(--dashboard-text-muted)]" />
-          <p className="text-sm text-[var(--dashboard-text-muted)]">No hay usuarios asignados a este complejo</p>
+        <div className={mineosPanel('general') + ' py-16 text-center'}>
+          <UserPlus className="mx-auto mb-3 h-8 w-8 text-[var(--mineos-neutral-muted)]" />
+          <p className="text-sm text-[var(--text-secondary)]">No hay usuarios en este complejo</p>
         </div>
       ) : (
         <div className="space-y-2">
           {users.map((u) => (
-            <div
-              key={u.id}
-              className="flex items-center justify-between gap-4 rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] px-4 py-3"
-            >
+            <div key={u.id} className="flex items-center justify-between gap-4 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3 transition-colors hover:border-[var(--mineos-general-border)]">
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[var(--dashboard-text)]">{u.display_name}</p>
-                <p className="text-xs text-[var(--dashboard-text-muted)]">
+                <p className="text-sm font-bold text-[var(--text-primary)]">{(u as any).display_name}</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">
                   {ROLE_LABELS[u.role] ?? u.role}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {resettingId === u.id ? (
+                {resetUserId === u.id ? (
                   <div className="flex items-center gap-1">
                     <input
                       value={newResetPass}
                       onChange={(e) => setNewResetPass(e.target.value)}
                       type="password"
                       placeholder="Nueva contraseña"
-                      className="w-36 rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-bg)] px-2 py-1 text-xs text-[var(--dashboard-text)] outline-none"
-                      autoFocus
+                      className="w-36 rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--mineos-general)]"
                     />
-                    <button onClick={() => handleResetPassword(u.id)} className="rounded p-1 text-emerald-400 hover:bg-emerald-500/10">
+                    <button onClick={() => handleResetPassword(u.id)} className="rounded p-1.5 text-[var(--mineos-benefit)] hover:bg-[var(--mineos-benefit-soft)]">
                       <Check className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => { setResettingId(null); setNewResetPass(''); }} className="rounded p-1 text-[var(--dashboard-text-muted)] hover:bg-[var(--dashboard-card-muted)]">
+                    <button onClick={() => { setResetUserId(null); setNewResetPass(''); }} className="rounded p-1.5 text-[var(--text-muted)] hover:bg-[var(--surface-sunken)]">
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ) : (
-                  <>
-                    <button
-                      onClick={() => { setResettingId(u.id); setNewResetPass(''); }}
-                      className="rounded-lg p-2 text-[var(--dashboard-text-muted)] hover:bg-amber-500/10 hover:text-amber-400"
-                      title="Restablecer contraseña"
-                    >
-                      <Key className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(u.id, u.display_name)}
-                      className="rounded-lg p-2 text-[var(--dashboard-text-muted)] hover:bg-red-500/10 hover:text-red-400"
-                      title="Eliminar usuario"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </>
+                  <button onClick={() => setResetUserId(u.id)} className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--mineos-general-soft)] hover:text-[var(--mineos-general-bright)]" title="Restablecer contraseña">
+                    <Key className="h-4 w-4" />
+                  </button>
                 )}
+                <button onClick={() => handleDelete(u.id, (u as any).display_name)} className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--mineos-expense-soft)] hover:text-[var(--mineos-expense)]" title="Eliminar">
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             </div>
           ))}
