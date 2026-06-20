@@ -1023,6 +1023,12 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                         <p className={ui.kpiValue}>{aggregated.kpis.oroTotalG.toLocaleString()} g</p>
                       </div>
                       <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Total General Recuperado</p>
+                        <p className={ui.kpiValue}>
+                          {(aggregated.kpis.amalgamaTotalG + aggregated.kpis.oroTotalG + aggregated.kpis.mantoAmalgamaTotalG + aggregated.kpis.mantoOroTotalG + aggregated.kpis.retortaOroTotalG).toLocaleString()} g
+                        </p>
+                      </div>
+                      <div className={ui.kpiCard}>
                         <p className={ui.kpiLabel}>Rendimiento Global</p>
                         <p className={ui.kpiValue}>{aggregated.kpis.rendimientoGlobalPct.toFixed(2)}%</p>
                       </div>
