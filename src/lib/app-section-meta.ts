@@ -16,6 +16,9 @@ import {
   Package,
   Pickaxe,
   ShieldCheck,
+  Shield,
+  Building2,
+  Activity,
   ShoppingCart,
   TrendingDown,
   Users,
@@ -238,6 +241,30 @@ const SECTION_BY_PATH: Record<string, AppSectionMeta> = {
     description: 'Catálogo central de parámetros reutilizables para toda la plataforma.',
     Icon: Library,
     iconClassName: 'text-amber-400',
+  },
+  '/admin-dev': {
+    title: 'Panel Admin Developer',
+    description: 'Gestión global del sistema MineOS.',
+    Icon: Shield,
+    iconClassName: 'text-purple-400',
+  },
+  '/admin-dev/complexes': {
+    title: 'Complejos',
+    description: 'Gestionar complejos mineros.',
+    Icon: Building2,
+    iconClassName: 'text-amber-400',
+  },
+  '/admin-dev/users/developers': {
+    title: 'Admin Developers',
+    description: 'Gestionar cuentas de desarrollador.',
+    Icon: Shield,
+    iconClassName: 'text-purple-400',
+  },
+  '/admin-dev/audit': {
+    title: 'Auditoría',
+    description: 'Registro de actividad del sistema.',
+    Icon: Activity,
+    iconClassName: 'text-emerald-400',
   },
 };
 

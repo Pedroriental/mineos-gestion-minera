@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, use } from 'react';
-import { ArrowLeft, Plus, Check, X, Trash2, Key, UserPlus } from 'lucide-react';
+import { ArrowLeft, Plus, Check, X, Trash2, Key, UserPlus, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getComplex, getUsersByComplex, createUser, deleteUser, resetUserPassword } from '@/lib/actions/admin-dev';
 import type { UserProfile, UserRole } from '@/lib/types';
@@ -116,13 +116,25 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
             Usuarios asignados a este complejo
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-xl bg-[var(--dashboard-accent)] px-4 py-2 text-sm font-semibold text-white"
-        >
-          <UserPlus className="h-4 w-4" />
-          Crear Usuario
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              localStorage.setItem('mineos_active_complex', id);
+              router.push('/admin');
+            }}
+            className="flex items-center gap-2 rounded-xl bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25"
+          >
+            <ArrowRight className="h-4 w-4" />
+            Entrar al Complejo
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-xl bg-[var(--dashboard-accent)] px-4 py-2 text-sm font-semibold text-white"
+          >
+            <UserPlus className="h-4 w-4" />
+            Crear Usuario
+          </button>
+        </div>
       </header>
 
       {error && (

@@ -38,7 +38,7 @@ export default function AppLayoutClient({
   children: React.ReactNode;
   alerts?: DashboardAlert[];
 }) {
-  const { user, loading, isGuest, signOut } = useAuth();
+  const { user, loading, isGuest, signOut, role } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const router   = useRouter();
   const pathname = usePathname();
@@ -294,7 +294,7 @@ export default function AppLayoutClient({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <ComplexSwitcher />
+              {role !== 'admin_developer' && <ComplexSwitcher />}
 
               <button
                 onClick={() => setSearchOpen(true)}

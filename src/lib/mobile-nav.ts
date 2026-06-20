@@ -44,11 +44,23 @@ export const ALL_MOBILE_HOTBAR: MobileHotbarItem[] = [
   },
 ];
 
+/** Check if admin_developer is inside a complex */
+function isDevInComplex(): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem('mineos_active_complex') !== null;
+}
+
 /** Filter hotbar by role */
 export function getMobileHotbar(role: UserRole): MobileHotbarItem[] {
   return ALL_MOBILE_HOTBAR.filter(
     (item) => !item.roles || item.roles.includes(role),
-  );
+  ).filter((item) => {
+    // admin_developer in system mode: only show home
+    if (role === 'admin_developer' && !isDevInComplex() && item.id !== 'home') {
+      return false;
+    }
+    return true;
+  });
 }
 
 export function getActiveMobileHotbarId(pathname: string, role: UserRole): MobileHotbarId | null {
@@ -87,5 +99,11 @@ export const ALL_MOBILE_HOME_SHORTCUTS: MobileHomeShortcut[] = [
 export function getMobileHomeShortcuts(role: UserRole): MobileHomeShortcut[] {
   return ALL_MOBILE_HOME_SHORTCUTS.filter(
     (item) => !item.roles || item.roles.includes(role),
-  );
+  ).filter((item) => {
+    // admin_developer in system mode: no operational shortcuts
+    if (role === 'admin_developer' && !isDevInComplex()) {
+      return false;
+    }
+    return true;
+  });
 }

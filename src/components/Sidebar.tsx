@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -493,33 +493,89 @@ export default function Sidebar({
 
   const isExpanded = expanded ?? true;
 
-  // Filter navigation by role
+  // Track active complex for admin_developer from localStorage
+  const [activeComplex, setActiveComplex] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('mineos_active_complex');
+  });
+
+  useEffect(() => {
+    const check = () => {
+      setActiveComplex(localStorage.getItem('mineos_active_complex'));
+    };
+    window.addEventListener('storage', check);
+    // Also poll for changes from same-tab navigation
+    const interval = setInterval(check, 500);
+    return () => {
+      window.removeEventListener('storage', check);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const isInComplex = role === 'admin_developer' && activeComplex !== null;
+
   const standaloneItems = useMemo(
     () => allStandaloneItems.filter((item) => {
       const allowed = STANDALONE_ROLES[item.href];
       return allowed ? allowed.includes(role) : true;
+    }).filter((item) => {
+      // admin_developer in system mode: no dashboard/reportes standalone
+      if (role === 'admin_developer' && !isInComplex) {
+        return false;
+      }
+      return true;
     }),
-    [role],
+    [role, isInComplex],
   );
 
   const navigation = useMemo(
-    () => allNavigation
-      .filter((section) => {
-        const allowed = SECTION_ROLES[section.id];
-        return allowed ? allowed.includes(role) : true;
-      })
-      .map((section) => ({
-        ...section,
-        items: section.items
-          .filter((item) => !item.roles || item.roles.includes(role))
-          .map((item) => ({
-            ...item,
-            subItems: item.subItems?.filter(
-              (sub) => !sub.roles || sub.roles.includes(role),
-            ),
-          })),
-      })),
-    [role],
+    () => {
+      const nav = allNavigation
+        .filter((section) => {
+          const allowed = SECTION_ROLES[section.id];
+          if (!allowed) return true;
+          if (!allowed.includes(role)) return false;
+          // admin_developer in system mode: only show admin-dev section
+          if (role === 'admin_developer' && !isInComplex && section.id !== 'admin-dev') {
+            return false;
+          }
+          return true;
+        })
+        .map((section) => ({
+          ...section,
+          items: section.items
+            .filter((item) => !item.roles || item.roles.includes(role))
+            .map((item) => ({
+              ...item,
+              subItems: item.subItems?.filter(
+                (sub) => !sub.roles || sub.roles.includes(role),
+              ),
+            })),
+        }));
+
+      // admin_developer in complex mode: add Plataforma submenu to admin section
+      if (role === 'admin_developer' && isInComplex) {
+        const adminSection = nav.find((s) => s.id === 'admin');
+        if (adminSection) {
+          const hasPlataforma = adminSection.items.some((i) => i.label === 'Plataforma');
+          if (!hasPlataforma) {
+            adminSection.items.push({
+              label: 'Plataforma',
+              href: '#',
+              icon: <Database className="w-4 h-4" />,
+              subItems: [
+                { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables' },
+                { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales' },
+                { label: 'Diccionario de Variables', href: '/plataforma/diccionario-variables' },
+              ],
+            });
+          }
+        }
+      }
+
+      return nav;
+    },
+    [role, isInComplex],
   );
 
   const roleLabel = ROLE_LABELS[role] ?? 'Operaciones';
@@ -673,10 +729,13 @@ export default function Sidebar({
 
       {/* Footer */}
       <div className="mt-auto shrink-0 border-t border-[var(--dashboard-border)] px-2 pt-2">
-        {role === 'admin_developer' && (
+        {role === 'admin_developer' && isInComplex && (
           isExpanded ? (
             <button
-              onClick={() => router.push(getNavHref('/dashboard'))}
+              onClick={() => {
+                localStorage.removeItem('mineos_active_complex');
+                router.push(getNavHref('/admin-dev'));
+              }}
               className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-[var(--dashboard-text-muted)] transition-colors hover:bg-[var(--dashboard-accent)]/10 hover:text-[var(--dashboard-accent)]"
             >
               <ShieldCheck className="h-4 w-4 shrink-0" />
@@ -685,7 +744,10 @@ export default function Sidebar({
           ) : (
             <NavTooltip label="Volver a Panel Admin" show>
               <button
-                onClick={() => router.push(getNavHref('/dashboard'))}
+                onClick={() => {
+                  localStorage.removeItem('mineos_active_complex');
+                  router.push(getNavHref('/admin-dev'));
+                }}
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--dashboard-text-muted)] transition-colors hover:bg-[var(--dashboard-accent)]/10 hover:text-[var(--dashboard-accent)]"
               >
                 <ShieldCheck className="h-4 w-4" />

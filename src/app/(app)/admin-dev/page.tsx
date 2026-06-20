@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Users, Shield, Activity, FileDown, ChevronRight, Circle } from 'lucide-react';
-import { getAdminDevStats, getAllUsersWithEmails, getComplexCredentials } from '@/lib/actions/admin-dev';
-import { downloadCredentialPDF } from '@/lib/credential-pdf';
+import {
+  Building2, Users, Shield, Activity, Plus, ChevronRight, Circle, ArrowRight,
+} from 'lucide-react';
+import { getAdminDevStats, getAllUsersWithEmails, getComplexes } from '@/lib/actions/admin-dev';
 
 const ROLE_LABELS: Record<string, string> = {
   admin_developer: 'Desarrollador',
@@ -30,18 +31,26 @@ interface UserWithEmail {
   complex_name: string | null;
 }
 
+interface Complex {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+}
+
 export default function AdminDevDashboard() {
   const router = useRouter();
   const [stats, setStats] = useState<{ totalComplexes: number; totalUsers: number; totalDevelopers: number } | null>(null);
+  const [complexes, setComplexes] = useState<Complex[]>([]);
   const [users, setUsers] = useState<UserWithEmail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [s, u] = await Promise.all([getAdminDevStats(), getAllUsersWithEmails()]);
+      const [s, u, c] = await Promise.all([getAdminDevStats(), getAllUsersWithEmails(), getComplexes()]);
       setStats(s);
       setUsers(u as any);
+      setComplexes(c);
     } catch (e) {
       console.error(e);
     } finally {
@@ -51,33 +60,11 @@ export default function AdminDevDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Group users by complex
-  const complexGroups = new Map<string, UserWithEmail[]>();
-  const developers: UserWithEmail[] = [];
-  const unassigned: UserWithEmail[] = [];
+  const developers = users.filter((u) => u.role === 'admin_developer');
 
-  for (const u of users) {
-    if (u.role === 'admin_developer') {
-      developers.push(u);
-    } else if (u.complex_id) {
-      const key = u.complex_name ?? '(sin complejo)';
-      if (!complexGroups.has(key)) complexGroups.set(key, []);
-      complexGroups.get(key)!.push(u);
-    } else {
-      unassigned.push(u);
-    }
-  }
-
-  const handleGeneratePDF = async (complexId: string) => {
-    setGeneratingPdf(complexId);
-    try {
-      const data = await getComplexCredentials(complexId);
-      downloadCredentialPDF(data);
-    } catch (e: any) {
-      console.error(e);
-    } finally {
-      setGeneratingPdf(null);
-    }
+  const handleEnterComplex = (complexId: string) => {
+    localStorage.setItem('mineos_active_complex', complexId);
+    router.push('/admin');
   };
 
   return (
@@ -125,103 +112,57 @@ export default function AdminDevDashboard() {
           ))}
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Admin Developers List */}
+        <div className="space-y-8">
+          {/* Complexes as Cards */}
           <section>
-            <div className="mb-3 flex items-center gap-2">
-              <Shield className="h-4 w-4 text-purple-400" />
-              <h2 className="font-semibold text-[var(--dashboard-text)]">Admin Developers</h2>
-              <span className="rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-bold text-purple-400">
-                {developers.length}
-              </span>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-amber-400" />
+                <h2 className="font-semibold text-[var(--dashboard-text)]">Complejos</h2>
+                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                  {complexes.length}
+                </span>
+              </div>
+              <button
+                onClick={() => router.push('/admin-dev/complexes')}
+                className="flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/25 transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Agregar Complejo
+              </button>
             </div>
-            {developers.length === 0 ? (
-              <p className="text-sm text-[var(--dashboard-text-muted)]">No hay admin developers registrados</p>
+            {complexes.length === 0 ? (
+              <p className="text-sm text-[var(--dashboard-text-muted)]">No hay complejos registrados</p>
             ) : (
-              <div className="space-y-1.5">
-                {developers.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] px-4 py-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Circle className="h-2 w-2 shrink-0 fill-purple-400 text-purple-400" />
-                      <div className="min-w-0">
-                        <p className="font-medium text-[var(--dashboard-text)]">{d.display_name}</p>
-                        <p className="text-xs text-[var(--dashboard-text-muted)]">{d.email}</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {complexes.map((c) => {
+                  const userCount = users.filter((u) => u.complex_id === c.id).length;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => handleEnterComplex(c.id)}
+                      className="group flex flex-col items-start rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5 text-left transition-all hover:border-amber-500/40 hover:bg-[var(--dashboard-card)]/80"
+                    >
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/15">
+                        <Building2 className="h-5 w-5 text-amber-400" />
                       </div>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-purple-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-400">
-                      Global
-                    </span>
-                  </div>
-                ))}
+                      <h3 className="mb-1 font-semibold text-[var(--dashboard-text)]">{c.name}</h3>
+                      <p className="mb-3 text-xs text-[var(--dashboard-text-muted)]">
+                        {userCount} usuario{userCount !== 1 ? 's' : ''} · {c.active ? 'Activo' : 'Inactivo'}
+                      </p>
+                      <div className="mt-auto flex items-center gap-1 text-xs font-semibold text-amber-400 opacity-0 transition-opacity group-hover:opacity-100">
+                        Entrar al complejo
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </section>
 
-          {/* Credentials per Complex */}
-          <section>
-            <div className="mb-3 flex items-center gap-2">
-              <FileDown className="h-4 w-4 text-amber-400" />
-              <h2 className="font-semibold text-[var(--dashboard-text)]">Credenciales por Complejo</h2>
-            </div>
-            {complexGroups.size === 0 ? (
-              <p className="text-sm text-[var(--dashboard-text-muted)]">No hay complejos con usuarios</p>
-            ) : (
-              <div className="space-y-3">
-                {Array.from(complexGroups.entries()).map(([complexName, complexUsers]) => (
-                  <div key={complexName} className="rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] overflow-hidden">
-                    <div className="flex items-center justify-between border-b border-[var(--dashboard-border)] bg-[var(--dashboard-card-muted)] px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-[var(--dashboard-text-muted)]" />
-                        <span className="font-semibold text-[var(--dashboard-text)]">{complexName}</span>
-                        <span className="rounded-full bg-[var(--dashboard-bg)] px-2 py-0.5 text-[10px] font-bold text-[var(--dashboard-text-muted)]">
-                          {complexUsers.length} usuarios
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const cid = complexUsers[0]?.complex_id;
-                          if (cid) handleGeneratePDF(cid);
-                        }}
-                        disabled={generatingPdf === complexUsers[0]?.complex_id}
-                        className="flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
-                      >
-                        <FileDown className="h-3.5 w-3.5" />
-                        PDF
-                      </button>
-                    </div>
-                    <div className="divide-y divide-[var(--dashboard-border)]">
-                      {complexUsers.map((u) => (
-                        <div key={u.id} className="flex items-center justify-between px-4 py-2.5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-[var(--dashboard-text)]">{u.display_name}</p>
-                            <p className="text-xs text-[var(--dashboard-text-muted)]">{u.email}</p>
-                          </div>
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${ROLE_COLORS[u.role] ?? ''}`}>
-                            {ROLE_LABELS[u.role] ?? u.role}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Navigation Cards */}
+          {/* Quick Links */}
           <section className="grid gap-3 sm:grid-cols-2">
-            <button
-              onClick={() => router.push('/admin-dev/complexes')}
-              className="group flex items-center justify-between rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-4 transition-all hover:border-amber-500/30"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/15">
-                  <Building2 className="h-4 w-4 text-amber-400" />
-                </div>
-                <span className="font-semibold text-[var(--dashboard-text)]">Gestionar Complejos</span>
-              </div>
-              <ChevronRight className="h-4 w-4 text-[var(--dashboard-text-muted)] transition-transform group-hover:translate-x-0.5" />
-            </button>
             <button
               onClick={() => router.push('/admin-dev/users/developers')}
               className="group flex items-center justify-between rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-4 transition-all hover:border-purple-500/30"
@@ -230,7 +171,22 @@ export default function AdminDevDashboard() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/15">
                   <Shield className="h-4 w-4 text-purple-400" />
                 </div>
-                <span className="font-semibold text-[var(--dashboard-text)]">Crear Admin Developers</span>
+                <div>
+                  <span className="font-semibold text-[var(--dashboard-text)]">Admin Developers</span>
+                  <p className="text-[11px] text-[var(--dashboard-text-muted)]">{developers.length} registrados</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-[var(--dashboard-text-muted)] transition-transform group-hover:translate-x-0.5" />
+            </button>
+            <button
+              onClick={() => router.push('/admin-dev/audit')}
+              className="group flex items-center justify-between rounded-xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-4 transition-all hover:border-emerald-500/30"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15">
+                  <Activity className="h-4 w-4 text-emerald-400" />
+                </div>
+                <span className="font-semibold text-[var(--dashboard-text)]">Auditoría</span>
               </div>
               <ChevronRight className="h-4 w-4 text-[var(--dashboard-text-muted)] transition-transform group-hover:translate-x-0.5" />
             </button>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Plus, Check, X, Trash2, Edit2, Users, FileDown } from 'lucide-react';
+import { Building2, Plus, Check, X, Trash2, Edit2, Users, FileDown, ArrowRight } from 'lucide-react';
 import { getComplexes, createComplex, updateComplex, deleteComplex, getUsersByComplex, getComplexCredentials } from '@/lib/actions/admin-dev';
 import { downloadCredentialPDF } from '@/lib/credential-pdf';
 import type { Complex } from '@/lib/types';
@@ -212,6 +212,17 @@ export default function ComplexesPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('mineos_active_complex', c.id);
+                        router.push('/admin');
+                      }}
+                      className="flex items-center gap-1 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/25"
+                      title="Entrar al complejo"
+                    >
+                      <ArrowRight className="h-3.5 w-3.5" />
+                      Entrar
+                    </button>
                     <button
                       onClick={() => router.push(`/admin-dev/complexes/${c.id}`)}
                       className="rounded-lg p-2 text-[var(--dashboard-text-muted)] hover:bg-[var(--dashboard-accent)]/10 hover:text-[var(--dashboard-accent)]"
