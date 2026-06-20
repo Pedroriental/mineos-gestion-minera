@@ -27,8 +27,10 @@ export function AppSplashScreen({ onFinish, minDuration = 1200 }: AppSplashScree
   const onFinishRef = useRef(onFinish);
   onFinishRef.current = onFinish;
 
-  // Listen for theme changes via MutationObserver
+  // Sync theme on mount + listen for changes
   useEffect(() => {
+    setIsDark(readIsDark());
+
     const observer = new MutationObserver(() => {
       setIsDark(readIsDark());
     });
@@ -54,8 +56,8 @@ export function AppSplashScreen({ onFinish, minDuration = 1200 }: AppSplashScree
   if (phase === 'hidden') return null;
 
   const logoSrc = isDark
-    ? '/brand/mineos-logotipo-dark.svg?v=14'
-    : '/brand/mineos-logotipo-light.svg?v=14';
+    ? '/brand/mineos-logotipo-dark.svg?v=15'
+    : '/brand/mineos-logotipo-light.svg?v=15';
 
   return (
     <div
