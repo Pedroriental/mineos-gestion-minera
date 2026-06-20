@@ -102,7 +102,7 @@ const allNavigation: NavSection[] = [
       { label: 'Voladuras', href: '/mina/voladuras', icon: <Zap className="w-4 h-4" /> },
       { label: 'Extracción', href: '/mina/extraccion', icon: <HardHat className="w-4 h-4" /> },
       { label: 'Equipos', href: '/mina/equipos', icon: <Wrench className="w-4 h-4" /> },
-      { label: 'Nómina Mina', href: '/mina/nomina', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'admin', 'mining_supervisor'] },
+      { label: 'Nómina Mina', href: '/mina/nomina', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'mining_supervisor'] },
     ],
   },
   {
@@ -112,7 +112,7 @@ const allNavigation: NavSection[] = [
       { label: 'Producción', href: '/planta/produccion', icon: <FlaskConical className="w-4 h-4" /> },
       { label: 'Acarreo', href: '/planta/acarreo', icon: <Truck className="w-4 h-4" /> },
       { label: 'Quemado', href: '/mina/quemado', icon: <Flame className="w-4 h-4" /> },
-      { label: 'Nómina Molinos', href: '/planta/nomina', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'admin', 'mill_supervisor'] },
+      { label: 'Nómina Molinos', href: '/planta/nomina', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'mill_supervisor'] },
     ],
   },
   {

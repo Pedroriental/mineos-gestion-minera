@@ -215,7 +215,7 @@ export default function ComplexesPage() {
                     <button
                       onClick={() => {
                         localStorage.setItem('mineos_active_complex', c.id);
-                        router.push('/admin');
+                        router.push('/dashboard');
                       }}
                       className="flex items-center gap-1 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/25"
                       title="Entrar al complejo"

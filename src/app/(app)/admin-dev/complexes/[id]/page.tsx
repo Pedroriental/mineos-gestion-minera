@@ -120,7 +120,7 @@ export default function ComplexDetailPage({ params }: { params: Promise<{ id: st
           <button
             onClick={() => {
               localStorage.setItem('mineos_active_complex', id);
-              router.push('/admin');
+              router.push('/dashboard');
             }}
             className="flex items-center gap-2 rounded-xl bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25"
           >

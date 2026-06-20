@@ -64,7 +64,7 @@ export default function AdminDevDashboard() {
 
   const handleEnterComplex = (complexId: string) => {
     localStorage.setItem('mineos_active_complex', complexId);
-    router.push('/admin');
+    router.push('/dashboard');
   };
 
   return (

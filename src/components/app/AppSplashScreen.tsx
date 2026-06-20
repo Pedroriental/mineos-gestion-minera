@@ -15,7 +15,11 @@ export function AppSplashScreen({ onFinish, minDuration = 1200 }: AppSplashScree
   const startTime = useRef(Date.now());
   const onFinishRef = useRef(onFinish);
   onFinishRef.current = onFinish;
-  const isDark = theme === 'dark';
+
+  // Read actual theme from localStorage synchronously to avoid flash
+  const isDark = (() => {
+    try { return localStorage.getItem('mineos-theme') === 'dark'; } catch { return false; }
+  })();
 
   useEffect(() => {
     const elapsed = Date.now() - startTime.current;
@@ -56,7 +60,10 @@ export function AppSplashScreen({ onFinish, minDuration = 1200 }: AppSplashScree
         />
 
         <p
-          className="text-center text-sm font-semibold leading-relaxed text-[var(--dashboard-text-muted)] font-display"
+          className={cn(
+            "text-center text-sm font-semibold leading-relaxed font-display",
+            isDark ? "text-white/70" : "text-[var(--dashboard-text-muted)]"
+          )}
         >
           Sistema de Gestión Minera
         </p>
