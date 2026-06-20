@@ -74,7 +74,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsGuest(false);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message, role: undefined };
-    const role: UserRole = (data.user?.user_metadata?.role as UserRole) ?? 'admin';
+
+    // Force refresh the session to update the JWT cookie with latest user_metadata
+    await supabase.auth.getUser();
+
+    // JWT metadata role (may be stale if DB was updated)
+    const jwtRole = data.user?.user_metadata?.role as UserRole | undefined;
+
+    // Always fetch fresh role from DB to avoid stale JWT issues
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', data.user!.id)
+      .single();
+
+    const role: UserRole = profile?.role ?? jwtRole ?? 'admin';
     return { error: null, role };
   };
 

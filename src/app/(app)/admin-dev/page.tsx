@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Building2, Users, Shield, Activity, Plus, ChevronRight, ArrowRight,
+  Building2, Users, Shield, Activity, Plus, ChevronRight, ArrowRight, Sparkles,
 } from 'lucide-react';
 import { getAdminDevStats, getAllUsersWithEmails, getComplexes } from '@/lib/actions/admin-dev';
-import { mineosPanel, mineosKpiValue, mineosKpiGlow } from '@/lib/mineos-visual';
+import { mineosPanel, mineosKpiValue, mineosKpiGlow, MINEOS_BTN_PRIMARY } from '@/lib/mineos-visual';
 
 interface UserWithEmail {
   id: string;
@@ -63,12 +63,15 @@ export default function AdminDevDashboard() {
   };
 
   return (
-    <div className="app-viewport-canvas mx-auto px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
       {/* Header */}
       <header className="mb-8">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--mineos-general-bright)]/70">
-          Panel de Control
-        </p>
+        <div className="flex items-center gap-2 mb-1">
+          <Sparkles className="h-4 w-4 text-[var(--mineos-general)]" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--mineos-general)]">
+            Panel de Control
+          </p>
+        </div>
         <h1 className="text-3xl font-black tracking-tight text-[var(--text-primary)]">
           Desarrollo
         </h1>
@@ -88,11 +91,11 @@ export default function AdminDevDashboard() {
           return (
             <div
               key={s.label}
-              className={`relative overflow-hidden rounded-xl border border-[var(--mineos-general-border)] bg-[var(--card-bg)] p-5`}
+              className="group relative overflow-hidden rounded-2xl border border-[var(--mineos-general-border)] bg-[var(--card-bg)] p-5 transition-all duration-300 hover:border-[var(--mineos-general)]/40 hover:shadow-lg hover:shadow-[var(--mineos-general)]/5"
             >
               {/* Gold gradient wash */}
               <div
-                className="pointer-events-none absolute inset-0 opacity-60"
+                className="pointer-events-none absolute inset-0 opacity-40 transition-opacity duration-500 group-hover:opacity-70"
                 style={{ background: 'var(--mineos-gradient-kpi-general)' }}
               />
               <div className="relative flex items-center gap-4">
@@ -112,7 +115,7 @@ export default function AdminDevDashboard() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-xl bg-[var(--surface-sunken)]" />
+            <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface-sunken)]" />
           ))}
         </div>
       ) : (
@@ -121,49 +124,51 @@ export default function AdminDevDashboard() {
           <section>
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-[var(--mineos-general-bright)]" />
-                <h2 className="text-sm font-semibold text-[var(--text-primary)]">Complejos</h2>
-                <span className="rounded-full bg-[var(--mineos-general-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--mineos-general-bright)]">
+                <Building2 className="h-4 w-4 text-[var(--mineos-general)]" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)]">Complejos</h2>
+                <span className="rounded-full bg-[var(--mineos-general)] px-2 py-0.5 text-[10px] font-bold text-black">
                   {complexes.length}
                 </span>
               </div>
               <button
                 onClick={() => router.push('/admin-dev/complexes')}
-                className="flex items-center gap-1.5 rounded-lg bg-[var(--mineos-general-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--mineos-general-bright)] transition-colors hover:bg-[var(--mineos-general-border)]"
+                className={MINEOS_BTN_PRIMARY + ' flex items-center gap-1.5 px-3 py-1.5 text-xs'}
               >
                 <Plus className="h-3.5 w-3.5" />
                 Agregar
               </button>
             </div>
             {complexes.length === 0 ? (
-              <div className={mineosPanel('general')}>
+              <div className={mineosPanel('general') + ' py-12 text-center'}>
+                <Building2 className="mx-auto mb-3 h-8 w-8 text-[var(--mineos-neutral-muted)]" />
                 <p className="text-sm text-[var(--text-secondary)]">No hay complejos registrados</p>
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {complexes.map((c) => {
                   const userCount = users.filter((u) => u.complex_id === c.id).length;
                   return (
                     <button
                       key={c.id}
                       onClick={() => handleEnterComplex(c.id)}
-                      className="group relative overflow-hidden rounded-xl border border-[var(--mineos-general-border)] bg-[var(--card-bg)] p-5 text-left transition-all hover:border-[var(--mineos-general-bright)]/40"
+                      className="group relative overflow-hidden rounded-2xl border border-[var(--mineos-general-border)] bg-[var(--card-bg)] p-6 text-left transition-all duration-300 hover:border-[var(--mineos-general)]/50 hover:shadow-xl hover:shadow-[var(--mineos-general)]/8"
                     >
+                      {/* Hover gradient wash */}
                       <div
-                        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-50"
                         style={{ background: 'var(--mineos-gradient-kpi-general)' }}
                       />
                       <div className="relative">
-                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--mineos-general-soft)]">
-                          <Building2 className="h-5 w-5 text-[var(--mineos-general-bright)]" />
+                        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--mineos-general-soft)] border border-[var(--mineos-general-border)] transition-colors group-hover:bg-[var(--mineos-general)]/20">
+                          <Building2 className="h-6 w-6 text-[var(--mineos-general-bright)]" />
                         </div>
-                        <h3 className="mb-1 text-sm font-bold text-[var(--text-primary)]">{c.name}</h3>
-                        <p className="mb-3 text-[11px] text-[var(--text-secondary)]">
+                        <h3 className="mb-1 text-base font-bold text-[var(--text-primary)]">{c.name}</h3>
+                        <p className="mb-4 text-xs text-[var(--text-secondary)]">
                           {userCount} usuario{userCount !== 1 ? 's' : ''} · {c.active ? 'Activo' : 'Inactivo'}
                         </p>
-                        <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--mineos-general-bright)] opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                          Entrar
-                          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--mineos-general-bright)] opacity-0 transition-all duration-300 group-hover:opacity-100">
+                          Entrar al complejo
+                          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                         </div>
                       </div>
                     </button>
@@ -174,37 +179,43 @@ export default function AdminDevDashboard() {
           </section>
 
           {/* Quick Links */}
-          <section className="grid gap-3 sm:grid-cols-2">
-            <button
-              onClick={() => router.push('/admin-dev/users/developers')}
-              className="group flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 transition-all hover:border-[var(--mineos-general-border)]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--mineos-general-soft)]">
-                  <Shield className="h-4 w-4 text-[var(--mineos-general-bright)]" />
+          <section>
+            <div className="mb-4 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-[var(--mineos-general)]" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-primary)]">Accesos Rápidos</h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <button
+                onClick={() => router.push('/admin-dev/users/developers')}
+                className="group flex items-center justify-between rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 transition-all duration-300 hover:border-[var(--mineos-general-border)] hover:shadow-lg hover:shadow-[var(--mineos-general)]/5"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--mineos-general-soft)] border border-[var(--mineos-general-border)]">
+                    <Shield className="h-5 w-5 text-[var(--mineos-general-bright)]" />
+                  </div>
+                  <div className="text-left">
+                    <span className="text-sm font-bold text-[var(--text-primary)]">Admin Developers</span>
+                    <p className="text-xs text-[var(--text-secondary)]">{developers.length} registrados</p>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">Admin Developers</span>
-                  <p className="text-[11px] text-[var(--text-secondary)]">{developers.length} registrados</p>
+                <ChevronRight className="h-4 w-4 text-[var(--text-muted)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--mineos-general-bright)]" />
+              </button>
+              <button
+                onClick={() => router.push('/admin-dev/audit')}
+                className="group flex items-center justify-between rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 transition-all duration-300 hover:border-[var(--mineos-general-border)] hover:shadow-lg hover:shadow-[var(--mineos-general)]/5"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--mineos-general-soft)] border border-[var(--mineos-general-border)]">
+                    <Activity className="h-5 w-5 text-[var(--mineos-general-bright)]" />
+                  </div>
+                  <div className="text-left">
+                    <span className="text-sm font-bold text-[var(--text-primary)]">Auditoría</span>
+                    <p className="text-xs text-[var(--text-secondary)]">Registro de actividad</p>
+                  </div>
                 </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
-            </button>
-            <button
-              onClick={() => router.push('/admin-dev/audit')}
-              className="group flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 transition-all hover:border-[var(--mineos-general-border)]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--mineos-general-soft)]">
-                  <Activity className="h-4 w-4 text-[var(--mineos-general-bright)]" />
-                </div>
-                <div className="text-left">
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">Auditoría</span>
-                  <p className="text-[11px] text-[var(--text-secondary)]">Registro de actividad</p>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
-            </button>
+                <ChevronRight className="h-4 w-4 text-[var(--text-muted)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--mineos-general-bright)]" />
+              </button>
+            </div>
           </section>
         </div>
       )}

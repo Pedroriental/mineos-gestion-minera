@@ -40,8 +40,8 @@ export function AppSplashScreen({ onFinish, minDuration = 1200 }: AppSplashScree
   if (phase === 'hidden') return null;
 
   const logoSrc = isDark
-    ? '/brand/mineos-logotipo-dark.svg?v=12'
-    : '/brand/mineos-logotipo-light.svg?v=12';
+    ? '/brand/mineos-logotipo-light.svg?v=12'
+    : '/brand/mineos-logotipo-dark.svg?v=12';
 
   return (
     <div
