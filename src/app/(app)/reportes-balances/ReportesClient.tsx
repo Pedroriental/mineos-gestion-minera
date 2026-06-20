@@ -1024,9 +1024,10 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                       </div>
                       <div className={ui.kpiCard}>
                         <p className={ui.kpiLabel}>Manto / Retorta</p>
-                        <p className={cn(ui.kpiValueSmall, 'mt-2 text-xs font-bold')}>
-                          M:{aggregated.kpis.mantoOroTotalG.toFixed(0)}g | R:{aggregated.kpis.retortaOroTotalG.toFixed(0)}g
-                        </p>
+                        <div className={cn(ui.kpiValueSmall, 'mt-1 space-y-1 text-xs font-bold')}>
+                          <p>Manto: A <span className="text-[var(--mineos-general)]">{aggregated.kpis.mantoAmalgamaTotalG.toFixed(0)}</span> g · Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.mantoOroTotalG.toFixed(0)}</span> g</p>
+                          <p>Retorta: Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.retortaOroTotalG.toFixed(0)}</span> g</p>
+                        </div>
                       </div>
                     </>
                   )}
@@ -1046,9 +1047,10 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                       </div>
                       <div className={ui.kpiCard}>
                         <p className={ui.kpiLabel}>Manto / Retorta</p>
-                        <p className={cn(ui.kpiValueSmall, 'mt-2 text-xs font-bold')}>
-                          M:{aggregated.kpis.mantoOroTotalG.toFixed(0)}g | R:{aggregated.kpis.retortaOroTotalG.toFixed(0)}g
-                        </p>
+                        <div className={cn(ui.kpiValueSmall, 'mt-1 space-y-1 text-xs font-bold')}>
+                          <p>Manto: A <span className="text-[var(--mineos-general)]">{aggregated.kpis.mantoAmalgamaTotalG.toFixed(0)}</span> g · Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.mantoOroTotalG.toFixed(0)}</span> g</p>
+                          <p>Retorta: Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.retortaOroTotalG.toFixed(0)}</span> g</p>
+                        </div>
                       </div>
                     </>
                   )}
