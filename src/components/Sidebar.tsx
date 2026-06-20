@@ -498,6 +498,7 @@ export default function Sidebar({
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('mineos_active_complex');
   });
+  const [complexName, setComplexName] = useState<string | null>(null);
 
   useEffect(() => {
     const check = () => {
@@ -511,6 +512,15 @@ export default function Sidebar({
       clearInterval(interval);
     };
   }, []);
+
+  // Fetch complex name: admin_developer uses activeComplex, others use user's complex_id
+  useEffect(() => {
+    const cid = role === 'admin_developer' ? activeComplex : (user as any)?.user_metadata?.complex_id;
+    if (!cid) { setComplexName(null); return; }
+    import('@/lib/supabase').then(({ supabase }) =>
+      supabase.from('complexes').select('name').eq('id', cid).single()
+    ).then(({ data }) => setComplexName(data?.name ?? null)).catch(() => setComplexName(null));
+  }, [activeComplex, role, user]);
 
   const isInComplex = role === 'admin_developer' && activeComplex !== null;
 
@@ -653,7 +663,9 @@ export default function Sidebar({
           <>
             <div className="flex min-w-0 flex-1 flex-col gap-px leading-snug">
               <span className="text-[14px] font-extrabold tracking-tight text-[var(--dashboard-text)]">
-                La Fe
+                {role === 'admin_developer'
+                  ? (isInComplex ? (complexName ?? '...') : 'Desarrollo')
+                  : (complexName ?? 'MineOS')}
               </span>
               <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-400/70">
                 MineOS
