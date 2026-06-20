@@ -1025,8 +1025,8 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                       <div className={ui.kpiCard}>
                         <p className={ui.kpiLabel}>Manto / Retorta</p>
                         <div className={cn(ui.kpiValueSmall, 'mt-1 space-y-1 text-xs font-bold')}>
-                          <p>Manto: A <span className="text-[var(--mineos-general)]">{aggregated.kpis.mantoAmalgamaTotalG.toFixed(0)}</span> g · Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.mantoOroTotalG.toFixed(0)}</span> g</p>
-                          <p>Retorta: Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.retortaOroTotalG.toFixed(0)}</span> g</p>
+                          <p>Manto: A <span className="text-[var(--mineos-general)]">{aggregated.kpis.mantoAmalgamaTotalG.toFixed(2)}</span> g · Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.mantoOroTotalG.toFixed(2)}</span> g</p>
+                          <p>Retorta: Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.retortaOroTotalG.toFixed(2)}</span> g</p>
                         </div>
                       </div>
                     </>
@@ -1048,8 +1048,8 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                       <div className={ui.kpiCard}>
                         <p className={ui.kpiLabel}>Manto / Retorta</p>
                         <div className={cn(ui.kpiValueSmall, 'mt-1 space-y-1 text-xs font-bold')}>
-                          <p>Manto: A <span className="text-[var(--mineos-general)]">{aggregated.kpis.mantoAmalgamaTotalG.toFixed(0)}</span> g · Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.mantoOroTotalG.toFixed(0)}</span> g</p>
-                          <p>Retorta: Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.retortaOroTotalG.toFixed(0)}</span> g</p>
+                          <p>Manto: A <span className="text-[var(--mineos-general)]">{aggregated.kpis.mantoAmalgamaTotalG.toFixed(2)}</span> g · Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.mantoOroTotalG.toFixed(2)}</span> g</p>
+                          <p>Retorta: Au <span className="text-[var(--mineos-benefit)]">{aggregated.kpis.retortaOroTotalG.toFixed(2)}</span> g</p>
                         </div>
                       </div>
                     </>
