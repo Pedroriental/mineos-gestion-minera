@@ -768,12 +768,12 @@ export function aggregateQuemadoByPlancha(
   });
 
   // Build rows sorted by plancha number
-  const totalGeneral = amalgamaTotalG + oroTotalG + mantoAmalgamaTotalG + mantoOroTotalG + retortaOroTotalG;
+  const totalGeneral = oroTotalG;
   
   const rows = Array.from(planchaTotals.entries())
     .sort(([a], [b]) => a - b)
     .map(([idx, stats]) => {
-      const totalPlancha = stats.amalgamaG + stats.oroG;
+      const totalPlancha = stats.oroG;
       const pctTotal = totalGeneral > 0 ? (totalPlancha / totalGeneral) * 100 : 0;
       const fechasArray = Array.from(stats.fechas).sort();
       return {

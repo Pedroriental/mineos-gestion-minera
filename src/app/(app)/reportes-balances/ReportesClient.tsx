@@ -1015,18 +1015,8 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                         <p className={ui.kpiValue}>{aggregated.kpis.totalPlanchas}</p>
                       </div>
                       <div className={ui.kpiCard}>
-                        <p className={ui.kpiLabel}>Total Amalgama</p>
-                        <p className={ui.kpiValueSmall}>{aggregated.kpis.amalgamaTotalG.toLocaleString()} g</p>
-                      </div>
-                      <div className={ui.kpiCard}>
-                        <p className={ui.kpiLabel}>Total Oro (Planchas)</p>
+                        <p className={ui.kpiLabel}>Total Oro Recuperado</p>
                         <p className={ui.kpiValue}>{aggregated.kpis.oroTotalG.toLocaleString()} g</p>
-                      </div>
-                      <div className={ui.kpiCard}>
-                        <p className={ui.kpiLabel}>Total General Recuperado</p>
-                        <p className={ui.kpiValue}>
-                          {(aggregated.kpis.amalgamaTotalG + aggregated.kpis.oroTotalG + aggregated.kpis.mantoAmalgamaTotalG + aggregated.kpis.mantoOroTotalG + aggregated.kpis.retortaOroTotalG).toLocaleString()} g
-                        </p>
                       </div>
                       <div className={ui.kpiCard}>
                         <p className={ui.kpiLabel}>Rendimiento Global</p>
@@ -1035,7 +1025,7 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                       <div className={ui.kpiCard}>
                         <p className={ui.kpiLabel}>Manto / Retorta</p>
                         <p className={cn(ui.kpiValueSmall, 'mt-2 text-xs font-bold')}>
-                          M:{aggregated.kpis.mantoAmalgamaTotalG.toFixed(0)}g | R:{aggregated.kpis.retortaOroTotalG.toFixed(0)}g
+                          M:{aggregated.kpis.mantoOroTotalG.toFixed(0)}g | R:{aggregated.kpis.retortaOroTotalG.toFixed(0)}g
                         </p>
                       </div>
                     </>
