@@ -692,6 +692,111 @@ export function aggregateQuemado(
   };
 }
 
+// ── 4b. Módulo: Quemado — Agrupación por Plancha ─────────────
+// Explota el JSONB planchas y agrega por índice (Plancha 1, 2, 3...)
+
+export interface QuemadoPlanchaSummary {
+  kpis: {
+    totalQuemadas: number;
+    totalPlanchas: number;
+    amalgamaTotalG: number;
+    oroTotalG: number;
+    mantoAmalgamaTotalG: number;
+    mantoOroTotalG: number;
+    retortaOroTotalG: number;
+    rendimientoGlobalPct: number;
+  };
+  rows: {
+    plancha: number;
+    label: string;
+    amalgamaG: number;
+    oroG: number;
+    totalG: number;
+    pctTotal: number;
+    quemadasConDatos: number;
+  }[];
+}
+
+export function aggregateQuemadoByPlancha(
+  data: ReporteQuemado[]
+): QuemadoPlanchaSummary {
+  // Acumuladores por índice de plancha (0-based = Plancha 1, 2, 3...)
+  const planchaTotals = new Map<number, {
+    amalgamaG: number;
+    oroG: number;
+    count: number;
+  }>();
+
+  let totalQuemadas = 0;
+  let amalgamaTotalG = 0;
+  let oroTotalG = 0;
+  let mantoAmalgamaTotalG = 0;
+  let mantoOroTotalG = 0;
+  let retortaOroTotalG = 0;
+
+  data.forEach((r) => {
+    totalQuemadas++;
+    const amal = Number(r.total_amalgama_g ?? 0);
+    const oro = Number(r.total_oro_g ?? 0);
+    const mantoAmal = Number(r.manto_amalgama_g ?? 0);
+    const mantoOro = Number(r.manto_oro_g ?? 0);
+    const retortaOro = Number(r.retorta_oro_g ?? 0);
+
+    amalgamaTotalG += amal;
+    oroTotalG += oro;
+    mantoAmalgamaTotalG += mantoAmal;
+    mantoOroTotalG += mantoOro;
+    retortaOroTotalG += retortaOro;
+
+    // Explode planchas array by index
+    const planchas = r.planchas ?? [];
+    planchas.forEach((p, idx) => {
+      const pAmal = Number(p.amalgama_g ?? 0);
+      const pOro = Number(p.oro_recuperado_g ?? 0);
+      const current = planchaTotals.get(idx) || { amalgamaG: 0, oroG: 0, count: 0 };
+      current.amalgamaG += pAmal;
+      current.oroG += pOro;
+      current.count += 1;
+      planchaTotals.set(idx, current);
+    });
+  });
+
+  // Build rows sorted by plancha number
+  const totalGeneral = amalgamaTotalG + oroTotalG + mantoAmalgamaTotalG + mantoOroTotalG + retortaOroTotalG;
+  
+  const rows = Array.from(planchaTotals.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([idx, stats]) => {
+      const totalPlancha = stats.amalgamaG + stats.oroG;
+      const pctTotal = totalGeneral > 0 ? (totalPlancha / totalGeneral) * 100 : 0;
+      return {
+        plancha: idx + 1,
+        label: `Plancha ${idx + 1}`,
+        amalgamaG: Number(stats.amalgamaG.toFixed(2)),
+        oroG: Number(stats.oroG.toFixed(2)),
+        totalG: Number(totalPlancha.toFixed(2)),
+        pctTotal: Number(pctTotal.toFixed(2)),
+        quemadasConDatos: stats.count,
+      };
+    });
+
+  const rendimientoGlobalPct = amalgamaTotalG > 0 ? (oroTotalG / amalgamaTotalG) * 100 : 0;
+
+  return {
+    kpis: {
+      totalQuemadas,
+      totalPlanchas: planchaTotals.size,
+      amalgamaTotalG: Number(amalgamaTotalG.toFixed(2)),
+      oroTotalG: Number(oroTotalG.toFixed(2)),
+      mantoAmalgamaTotalG: Number(mantoAmalgamaTotalG.toFixed(2)),
+      mantoOroTotalG: Number(mantoOroTotalG.toFixed(2)),
+      retortaOroTotalG: Number(retortaOroTotalG.toFixed(2)),
+      rendimientoGlobalPct: Number(rendimientoGlobalPct.toFixed(2)),
+    },
+    rows,
+  };
+}
+
 // ── 5. Módulo: Extracción ───────────────────────────────────
 
 export interface ExtraccionSummary {

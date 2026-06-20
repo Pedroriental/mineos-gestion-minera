@@ -12,6 +12,7 @@ import {
   aggregateNomina,
   aggregateVoladuras,
   aggregateQuemado,
+  aggregateQuemadoByPlancha,
   aggregateExtraccion,
   aggregateGastos,
 } from '@/lib/reports/report-engine';
@@ -41,7 +42,7 @@ export type ReportTabFilters = {
   };
   quemado: {
     turnos: string[];
-    groupBy: 'dia' | 'semana' | 'mes';
+    groupBy: 'dia' | 'semana' | 'mes' | 'plancha';
   };
   extraccion: {
     minas: string[];
@@ -126,6 +127,9 @@ export function aggregateOperationalTab(
     case 'voladuras':
       return aggregateVoladuras(rawData, filters.groupBy);
     case 'quemado':
+      if (filters.groupBy === 'plancha') {
+        return aggregateQuemadoByPlancha(rawData as any);
+      }
       return aggregateQuemado(rawData, filters.groupBy);
     case 'extraccion':
       return aggregateExtraccion(rawData, filters.groupBy);

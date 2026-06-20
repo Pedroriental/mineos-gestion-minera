@@ -99,7 +99,7 @@ export interface VoladurasReportFilters {
 export interface QuemadoReportFilters {
   dateRange: DateRange;
   turnos?: ('dia' | 'noche' | 'completo')[];
-  agruparPor?: 'dia' | 'semana' | 'mes';
+  agruparPor?: 'dia' | 'semana' | 'mes' | 'plancha';
 }
 
 export interface ExtraccionReportFilters {

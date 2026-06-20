@@ -81,7 +81,7 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
 
   // Quemado
   const [selectedTurnosQuem, setSelectedTurnosQuem] = useState<string[]>([]);
-  const [groupByQuem, setGroupByQuem] = useState<'dia' | 'semana' | 'mes'>('dia');
+  const [groupByQuem, setGroupByQuem] = useState<'dia' | 'semana' | 'mes' | 'plancha'>('dia');
 
   // Extracción
   const [selectedMinasExt, setSelectedMinasExt] = useState<string[]>([]);
@@ -255,10 +255,17 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
         };
         break;
       case 'quemado':
-        tabMeta = {
-          summaryLabel: 'Oro puro',
-          summaryValue: `${fmtNum(kpis.oroTotalG)} g`,
-        };
+        if (groupByQuem === 'plancha' && kpis.totalPlanchas !== undefined) {
+          tabMeta = {
+            summaryLabel: 'Planchas analizadas',
+            summaryValue: `${fmtNum(kpis.totalPlanchas)} planchas · ${fmtNum(kpis.oroTotalG)} g Oro`,
+          };
+        } else {
+          tabMeta = {
+            summaryLabel: 'Oro puro',
+            summaryValue: `${fmtNum(kpis.oroTotalG)} g`,
+          };
+        }
         break;
       case 'extraccion':
         tabMeta = {
@@ -283,7 +290,7 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
       ...tabMeta,
       countLabel: rangeWithUnit,
     };
-  }, [activeTab, aggregated, pageRows.length, rangeLabel, tableRows.length]);
+  }, [activeTab, aggregated, pageRows.length, rangeLabel, tableRows.length, groupByQuem]);
 
   // ── 6. Download Handlers ──────────────────────────────────
   const handleDownloadPDF = () => {
@@ -656,6 +663,7 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                       { value: 'dia', label: 'Por Día' },
                       { value: 'semana', label: 'Por Semana' },
                       { value: 'mes', label: 'Por Mes' },
+                      { value: 'plancha', label: 'Por Plancha' },
                     ]}
                   />
                 </div>
@@ -995,7 +1003,37 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                     </>
                   )}
 
-                  {activeTab === 'quemado' && (
+                  {activeTab === 'quemado' && groupByQuem === 'plancha' && aggregated.kpis.totalPlanchas !== undefined && (
+                    <>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Total Quemadas</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.totalQuemadas}</p>
+                      </div>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Planchas con Datos</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.totalPlanchas}</p>
+                      </div>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Total Amalgama</p>
+                        <p className={ui.kpiValueSmall}>{aggregated.kpis.amalgamaTotalG.toLocaleString()} g</p>
+                      </div>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Total Oro (Planchas)</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.oroTotalG.toLocaleString()} g</p>
+                      </div>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Rendimiento Global</p>
+                        <p className={ui.kpiValue}>{aggregated.kpis.rendimientoGlobalPct.toFixed(2)}%</p>
+                      </div>
+                      <div className={ui.kpiCard}>
+                        <p className={ui.kpiLabel}>Manto / Retorta</p>
+                        <p className={cn(ui.kpiValueSmall, 'mt-2 text-xs font-bold')}>
+                          M:{aggregated.kpis.mantoAmalgamaTotalG.toFixed(0)}g | R:{aggregated.kpis.retortaOroTotalG.toFixed(0)}g
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  {activeTab === 'quemado' && groupByQuem !== 'plancha' && (
                     <>
                       <div className={ui.kpiCard}>
                         <p className={ui.kpiLabel}>Total Amalgama</p>
@@ -1114,7 +1152,17 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Ratio H/C</th>
                           </>
                         )}
-                        {activeTab === 'quemado' && (
+                        {activeTab === 'quemado' && groupByQuem === 'plancha' && (
+                          <>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Plancha</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Amalgama (g)</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Oro (g)</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Total (g)</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--mineos-general)]">% del Total</th>
+                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Quemadas c/ Datos</th>
+                          </>
+                        )}
+                        {activeTab === 'quemado' && groupByQuem !== 'plancha' && (
                           <>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Procesos</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Amalgama (g)</th>
@@ -1189,7 +1237,17 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                             </>
                           )}
 
-                          {activeTab === 'quemado' && (
+                          {activeTab === 'quemado' && groupByQuem === 'plancha' && (
+                            <>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-bold text-[var(--mineos-general)]">{row.label}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.amalgamaG.toLocaleString()} g</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold text-[var(--mineos-benefit)]">{row.oroG.toLocaleString()} g</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold">{row.totalG.toLocaleString()} g</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold text-[var(--mineos-general)]">{row.pctTotal.toFixed(2)}%</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.quemadasConDatos}</td>
+                            </>
+                          )}
+                          {activeTab === 'quemado' && groupByQuem !== 'plancha' && (
                             <>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.quemadas}</td>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.amalgamaG.toLocaleString()} g</td>
