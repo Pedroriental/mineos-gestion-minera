@@ -9,6 +9,7 @@ type AppSplashScreenProps = {
 };
 
 function readIsDark(): boolean {
+  if (typeof document === 'undefined') return false;
   try {
     const attr = document.documentElement.getAttribute('data-theme');
     if (attr) return attr === 'dark';
@@ -21,15 +22,13 @@ function readIsDark(): boolean {
 
 export function AppSplashScreen({ onFinish, minDuration = 1200 }: AppSplashScreenProps) {
   const [phase, setPhase] = useState<'enter' | 'visible' | 'exit' | 'hidden'>('enter');
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(readIsDark);
   const startTime = useRef(Date.now());
   const onFinishRef = useRef(onFinish);
   onFinishRef.current = onFinish;
 
-  // Detect theme + listen for changes via MutationObserver
+  // Listen for theme changes via MutationObserver
   useEffect(() => {
-    setIsDark(readIsDark());
-
     const observer = new MutationObserver(() => {
       setIsDark(readIsDark());
     });
