@@ -714,6 +714,9 @@ export interface QuemadoPlanchaSummary {
     totalG: number;
     pctTotal: number;
     quemadasConDatos: number;
+    fechaInicio: string;      // Primera fecha con datos en esta plancha
+    fechaFin: string;         // Última fecha con datos en esta plancha
+    fechasConDatos: string[]; // Fechas únicas (para filtro)
   }[];
 }
 
@@ -725,6 +728,7 @@ export function aggregateQuemadoByPlancha(
     amalgamaG: number;
     oroG: number;
     count: number;
+    fechas: Set<string>; // Fechas únicas donde esta plancha tiene datos
   }>();
 
   let totalQuemadas = 0;
@@ -750,13 +754,15 @@ export function aggregateQuemadoByPlancha(
 
     // Explode planchas array by index
     const planchas = r.planchas ?? [];
+    const fecha = r.fecha; // fecha del registro
     planchas.forEach((p, idx) => {
       const pAmal = Number(p.amalgama_g ?? 0);
       const pOro = Number(p.oro_recuperado_g ?? 0);
-      const current = planchaTotals.get(idx) || { amalgamaG: 0, oroG: 0, count: 0 };
+      const current = planchaTotals.get(idx) || { amalgamaG: 0, oroG: 0, count: 0, fechas: new Set<string>() };
       current.amalgamaG += pAmal;
       current.oroG += pOro;
       current.count += 1;
+      current.fechas.add(fecha);
       planchaTotals.set(idx, current);
     });
   });
@@ -769,6 +775,7 @@ export function aggregateQuemadoByPlancha(
     .map(([idx, stats]) => {
       const totalPlancha = stats.amalgamaG + stats.oroG;
       const pctTotal = totalGeneral > 0 ? (totalPlancha / totalGeneral) * 100 : 0;
+      const fechasArray = Array.from(stats.fechas).sort();
       return {
         plancha: idx + 1,
         label: `Plancha ${idx + 1}`,
@@ -777,6 +784,9 @@ export function aggregateQuemadoByPlancha(
         totalG: Number(totalPlancha.toFixed(2)),
         pctTotal: Number(pctTotal.toFixed(2)),
         quemadasConDatos: stats.count,
+        fechaInicio: fechasArray[0] ?? '',
+        fechaFin: fechasArray[fechasArray.length - 1] ?? '',
+        fechasConDatos: fechasArray,
       };
     });
 

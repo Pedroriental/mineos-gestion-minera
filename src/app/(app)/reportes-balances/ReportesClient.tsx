@@ -23,7 +23,8 @@ import {
   AlertCircle,
   HelpCircle,
 } from 'lucide-react';
-import { format, subDays } from 'date-fns';
+import { format, parseISO, subDays } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { AppDateRangeFields } from '@/components/ui/AppDateRangeFields';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { ReportesTabs } from '@/components/reportes/ReportesTabs';
@@ -1160,6 +1161,8 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Total (g)</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--mineos-general)]">% del Total</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Quemadas c/ Datos</th>
+                            <th className="gastos-th px-2.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Fecha Inicio</th>
+                            <th className="gastos-th px-2.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Fecha Fin</th>
                           </>
                         )}
                         {activeTab === 'quemado' && groupByQuem !== 'plancha' && (
@@ -1245,6 +1248,8 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold">{row.totalG.toLocaleString()} g</td>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold text-[var(--mineos-general)]">{row.pctTotal.toFixed(2)}%</td>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.quemadasConDatos}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-medium text-[var(--text-secondary)]">{row.fechaInicio ? format(parseISO(row.fechaInicio), 'dd/MM/yyyy', { locale: es }) : '—'}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-medium text-[var(--text-secondary)]">{row.fechaFin ? format(parseISO(row.fechaFin), 'dd/MM/yyyy', { locale: es }) : '—'}</td>
                             </>
                           )}
                           {activeTab === 'quemado' && groupByQuem !== 'plancha' && (
