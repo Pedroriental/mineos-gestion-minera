@@ -1152,13 +1152,11 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                         {activeTab === 'quemado' && groupByQuem === 'plancha' && (
                           <>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Plancha</th>
+                            <th className="gastos-th px-2.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Fecha</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Amalgama (g)</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Oro (g)</th>
-                            <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Total (g)</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--mineos-general)]">% del Total</th>
                             <th className="gastos-th px-2.5 py-1 text-right text-[10px] font-semibold uppercase tracking-wider">Quemadas c/ Datos</th>
-                            <th className="gastos-th px-2.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Fecha Inicio</th>
-                            <th className="gastos-th px-2.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider">Fecha Fin</th>
                           </>
                         )}
                         {activeTab === 'quemado' && groupByQuem !== 'plancha' && (
@@ -1239,13 +1237,15 @@ export default function ReportesClient({ initialOptions: rawOptions }: ReportesC
                           {activeTab === 'quemado' && groupByQuem === 'plancha' && (
                             <>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-bold text-[var(--mineos-general)]">{row.label}</td>
+                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                                {row.fechaInicio === row.fechaFin
+                                  ? (row.fechaInicio ? format(parseISO(row.fechaInicio), 'dd/MM/yyyy', { locale: es }) : '—')
+                                  : `${row.fechaInicio ? format(parseISO(row.fechaInicio), 'dd/MM/yy', { locale: es }) : '?'} – ${row.fechaFin ? format(parseISO(row.fechaFin), 'dd/MM/yy', { locale: es }) : '?'}`}
+                              </td>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.amalgamaG.toLocaleString()} g</td>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-semibold text-[var(--mineos-benefit)]">{row.oroG.toLocaleString()} g</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold">{row.totalG.toLocaleString()} g</td>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right font-bold text-[var(--mineos-general)]">{row.pctTotal.toFixed(2)}%</td>
                               <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] text-right">{row.quemadasConDatos}</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-medium text-[var(--text-secondary)]">{row.fechaInicio ? format(parseISO(row.fechaInicio), 'dd/MM/yyyy', { locale: es }) : '—'}</td>
-                              <td className="gastos-table__cell gastos-td max-w-0 truncate px-2.5 text-[11px] font-medium text-[var(--text-secondary)]">{row.fechaFin ? format(parseISO(row.fechaFin), 'dd/MM/yyyy', { locale: es }) : '—'}</td>
                             </>
                           )}
                           {activeTab === 'quemado' && groupByQuem !== 'plancha' && (
