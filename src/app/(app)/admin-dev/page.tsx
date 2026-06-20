@@ -6,7 +6,7 @@ import {
   Building2, Users, Shield, Activity, Plus, ChevronRight, ArrowRight, Sparkles,
 } from 'lucide-react';
 import { getAdminDevStats, getAllUsersWithEmails, getComplexes } from '@/lib/actions/admin-dev';
-import { mineosPanel, mineosKpiValue, mineosKpiGlow, MINEOS_BTN_PRIMARY } from '@/lib/mineos-visual';
+import { MINEOS_BTN_PRIMARY } from '@/lib/mineos-visual';
 
 interface UserWithEmail {
   id: string;
@@ -83,9 +83,9 @@ export default function AdminDevDashboard() {
       {/* KPI Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         {[
-          { label: 'Complejos', value: stats?.totalComplexes ?? 0, icon: Building2, tone: 'general' as const },
-          { label: 'Usuarios', value: stats?.totalUsers ?? 0, icon: Users, tone: 'benefit' as const },
-          { label: 'Desarrolladores', value: stats?.totalDevelopers ?? 0, icon: Shield, tone: 'neutral' as const },
+          { label: 'Complejos', value: stats?.totalComplexes ?? 0, icon: Building2 },
+          { label: 'Usuarios', value: stats?.totalUsers ?? 0, icon: Users },
+          { label: 'Desarrolladores', value: stats?.totalDevelopers ?? 0, icon: Shield },
         ].map((s) => {
           const Icon = s.icon;
           return (
@@ -93,17 +93,18 @@ export default function AdminDevDashboard() {
               key={s.label}
               className="group relative overflow-hidden rounded-2xl border border-[var(--mineos-general-border)] bg-[var(--card-bg)] p-5 transition-all duration-300 hover:border-[var(--mineos-general)]/40 hover:shadow-lg hover:shadow-[var(--mineos-general)]/5"
             >
-              {/* Gold gradient wash */}
               <div
                 className="pointer-events-none absolute inset-0 opacity-40 transition-opacity duration-500 group-hover:opacity-70"
                 style={{ background: 'var(--mineos-gradient-kpi-general)' }}
               />
               <div className="relative flex items-center gap-4">
-                <div className={mineosKpiGlow(s.tone)}>
-                  <Icon className={`h-5 w-5 ${s.tone === 'neutral' ? 'text-[var(--mineos-neutral-muted)]' : 'text-[var(--mineos-general-bright)]'}`} />
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--mineos-general-soft)] border border-[var(--mineos-general-border)]">
+                  <Icon className="h-5 w-5 text-[var(--mineos-general-bright)]" />
                 </div>
                 <div>
-                  <p className={mineosKpiValue(s.tone)}>{s.value}</p>
+                  <p className="text-2xl font-black tracking-tight text-[var(--text-primary)]">
+                    {s.value}
+                  </p>
                   <p className="text-[11px] font-medium text-[var(--text-secondary)]">{s.label}</p>
                 </div>
               </div>
@@ -139,7 +140,7 @@ export default function AdminDevDashboard() {
               </button>
             </div>
             {complexes.length === 0 ? (
-              <div className={mineosPanel('general') + ' py-12 text-center'}>
+              <div className="rounded-2xl border border-[var(--mineos-general-border)] bg-[var(--card-bg)] py-12 text-center">
                 <Building2 className="mx-auto mb-3 h-8 w-8 text-[var(--mineos-neutral-muted)]" />
                 <p className="text-sm text-[var(--text-secondary)]">No hay complejos registrados</p>
               </div>
@@ -153,7 +154,6 @@ export default function AdminDevDashboard() {
                       onClick={() => handleEnterComplex(c.id)}
                       className="group relative overflow-hidden rounded-2xl border border-[var(--mineos-general-border)] bg-[var(--card-bg)] p-6 text-left transition-all duration-300 hover:border-[var(--mineos-general)]/50 hover:shadow-xl hover:shadow-[var(--mineos-general)]/8"
                     >
-                      {/* Hover gradient wash */}
                       <div
                         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-50"
                         style={{ background: 'var(--mineos-gradient-kpi-general)' }}

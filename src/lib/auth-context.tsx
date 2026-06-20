@@ -75,21 +75,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message, role: undefined };
 
-    // Force refresh the session to update the JWT cookie with latest user_metadata
-    await supabase.auth.getUser();
-
-    // JWT metadata role (may be stale if DB was updated)
-    const jwtRole = data.user?.user_metadata?.role as UserRole | undefined;
-
-    // Always fetch fresh role from DB to avoid stale JWT issues
+    // Force JWT refresh by updating user_metadata (triggers new token issuance)
+    // This ensures the middleware gets the correct role from the JWT
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', data.user!.id)
       .single();
 
-    const role: UserRole = profile?.role ?? jwtRole ?? 'admin';
-    return { error: null, role };
+    const dbRole: UserRole = profile?.role ?? 'admin';
+
+    // Sync JWT user_metadata with DB role if they differ
+    if (data.user?.user_metadata?.role !== dbRole) {
+      await supabase.auth.updateUser({
+        data: { role: dbRole },
+      });
+    }
+
+    return { error: null, role: dbRole };
   };
 
   const signInAsGuest = async () => {
