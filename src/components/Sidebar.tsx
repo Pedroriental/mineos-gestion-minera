@@ -533,8 +533,8 @@ export default function Sidebar({
       const allowed = STANDALONE_ROLES[item.href];
       return allowed ? allowed.includes(role) : true;
     }).filter((item) => {
-      // admin_developer in system mode: no dashboard/reportes standalone
-      if (role === 'admin_developer' && !isInComplex) {
+      // admin_developer: no dashboard/reportes standalone (data views, not config)
+      if (role === 'admin_developer') {
         return false;
       }
       return true;
@@ -571,12 +571,12 @@ export default function Sidebar({
             })),
         }));
 
-      // admin_developer in complex mode: strip admin section items, keep only Plataforma
+      // admin_developer in complex mode: only Configuración y Soporte — no data
       if (role === 'admin_developer' && isInComplex) {
-        nav = nav.map((section) => {
-          if (section.id !== 'admin') return section;
-          return {
-            ...section,
+        nav = [
+          {
+            id: 'admin',
+            title: 'Configuración y Soporte',
             items: [
               {
                 label: 'Plataforma',
@@ -589,8 +589,8 @@ export default function Sidebar({
                 ],
               },
             ],
-          };
-        });
+          },
+        ];
       }
 
       return nav;
