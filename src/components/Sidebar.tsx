@@ -102,7 +102,7 @@ const allNavigation: NavSection[] = [
       { label: 'Voladuras', href: '/mina/voladuras', icon: <Zap className="w-4 h-4" /> },
       { label: 'Extracción', href: '/mina/extraccion', icon: <HardHat className="w-4 h-4" /> },
       { label: 'Equipos', href: '/mina/equipos', icon: <Wrench className="w-4 h-4" /> },
-      { label: 'Nómina Mina', href: '/mina/nomina', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'mining_supervisor'] },
+      { label: 'Nómina Mina', href: '/mina/nomina', icon: <Users className="w-4 h-4" />, roles: ['mining_supervisor'] },
     ],
   },
   {
@@ -112,7 +112,7 @@ const allNavigation: NavSection[] = [
       { label: 'Producción', href: '/planta/produccion', icon: <FlaskConical className="w-4 h-4" /> },
       { label: 'Acarreo', href: '/planta/acarreo', icon: <Truck className="w-4 h-4" /> },
       { label: 'Quemado', href: '/mina/quemado', icon: <Flame className="w-4 h-4" /> },
-      { label: 'Nómina Molinos', href: '/planta/nomina', icon: <Users className="w-4 h-4" />, roles: ['admin_developer', 'mill_supervisor'] },
+      { label: 'Nómina Molinos', href: '/planta/nomina', icon: <Users className="w-4 h-4" />, roles: ['mill_supervisor'] },
     ],
   },
   {
@@ -417,7 +417,9 @@ function Section({
                 </NavTooltip>
               );
             }
-            const active = pathname === item.href || pathname.startsWith(item.href + '/');
+            const active = item.href === '/admin-dev'
+              ? pathname === '/admin-dev'
+              : pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <NavItem
                 key={item.href}
@@ -453,7 +455,9 @@ function Section({
               />
             );
           }
-          const active = pathname === item.href || pathname.startsWith(item.href + '/');
+          const active = item.href === '/admin-dev'
+            ? pathname === '/admin-dev'
+            : pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <NavItem
               key={item.href}
@@ -540,13 +544,17 @@ export default function Sidebar({
 
   const navigation = useMemo(
     () => {
-      const nav = allNavigation
+      let nav = allNavigation
         .filter((section) => {
           const allowed = SECTION_ROLES[section.id];
           if (!allowed) return true;
           if (!allowed.includes(role)) return false;
           // admin_developer in system mode: only show admin-dev section
           if (role === 'admin_developer' && !isInComplex && section.id !== 'admin-dev') {
+            return false;
+          }
+          // admin_developer in complex mode: hide admin-dev section
+          if (role === 'admin_developer' && isInComplex && section.id === 'admin-dev') {
             return false;
           }
           return true;
@@ -563,24 +571,26 @@ export default function Sidebar({
             })),
         }));
 
-      // admin_developer in complex mode: add Plataforma submenu to admin section
+      // admin_developer in complex mode: strip admin section items, keep only Plataforma
       if (role === 'admin_developer' && isInComplex) {
-        const adminSection = nav.find((s) => s.id === 'admin');
-        if (adminSection) {
-          const hasPlataforma = adminSection.items.some((i) => i.label === 'Plataforma');
-          if (!hasPlataforma) {
-            adminSection.items.push({
-              label: 'Plataforma',
-              href: '#',
-              icon: <Database className="w-4 h-4" />,
-              subItems: [
-                { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables' },
-                { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales' },
-                { label: 'Diccionario de Variables', href: '/plataforma/diccionario-variables' },
-              ],
-            });
-          }
-        }
+        nav = nav.map((section) => {
+          if (section.id !== 'admin') return section;
+          return {
+            ...section,
+            items: [
+              {
+                label: 'Plataforma',
+                href: '#',
+                icon: <Database className="w-4 h-4" />,
+                subItems: [
+                  { label: 'Biblioteca de Variables', href: '/plataforma/biblioteca-variables' },
+                  { label: 'Datos Fiscales', href: '/plataforma/datos-fiscales' },
+                  { label: 'Diccionario de Variables', href: '/plataforma/diccionario-variables' },
+                ],
+              },
+            ],
+          };
+        });
       }
 
       return nav;
