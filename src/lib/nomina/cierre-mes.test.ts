@@ -17,6 +17,6 @@ describe('cierre-mes', () => {
       rangeEnd: '2026-05-10',
     });
     assert.equal(totalUsdDesdeCiclos(ciclos), 1940);
-    assert.match(sugerirEtiquetaMes(ciclos), /Abril 2026/);
+    assert.match(sugerirEtiquetaMes(ciclos), /Mayo 2026/);
   });
 });

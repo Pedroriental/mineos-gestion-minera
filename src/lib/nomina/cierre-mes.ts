@@ -63,7 +63,7 @@ export function sugerirEtiquetaMes(
 ): string {
   const rango = rangoDesdeCiclos(ciclos);
   if (!rango) return 'Cierre de mes';
-  const mid = ciclos.length === 1 ? ciclos[0]!.rangeStart : rango.rangeStart;
+  const mid = ciclos.length === 1 ? ciclos[0]!.rangeEnd : rango.rangeEnd;
   const [y, m] = mid.split('-');
   const meses = [
     'Enero',
