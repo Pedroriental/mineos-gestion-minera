@@ -91,8 +91,7 @@ export const ALL_MOBILE_HOME_SHORTCUTS: MobileHomeShortcut[] = [
   { label: 'Extracción', href: '/mina/extraccion', tone: 'general', roles: ['admin_developer', 'admin', 'mining_supervisor'] },
   { label: 'Producción', href: '/planta/produccion', tone: 'general', roles: ['admin_developer', 'admin', 'mill_supervisor'] },
   { label: 'Gastos', href: '/admin/gastos', tone: 'expense', roles: ['admin_developer', 'admin'] },
-  { label: 'Nómina Mina', href: '/mina/nomina', tone: 'benefit', roles: ['admin', 'mining_supervisor'] },
-  { label: 'Nómina Molino', href: '/planta/nomina', tone: 'benefit', roles: ['admin', 'mill_supervisor'] },
+  { label: 'Nómina Mina', href: '/mina/nomina', tone: 'benefit', roles: ['mining_supervisor'] },
   { label: 'Inventario', href: '/admin/inventario', tone: 'neutral', roles: ['admin_developer', 'admin', 'mill_supervisor'] },
 ];
 
