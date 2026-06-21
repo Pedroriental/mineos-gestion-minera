@@ -95,6 +95,7 @@ import {
   mergeManualWeekRosterIds,
   readManualWeekRosterEntries,
   removeFromManualWeekRoster,
+  writeManualWeekRosterEntries,
 } from '@/lib/nomina/manual-period-roster';
 import {
   carryManualWeekToNext,
@@ -1350,19 +1351,57 @@ export default function NominaClient({
       const operationalEmptied =
         !manualPeriodForView && isOperationalWeekEmptied(area, currentWeekStart);
 
+      // Carryover: si no hay roster guardado y la semana no fue vaciada,
+      // arrastrar el roster de la semana anterior cerrada en vez de cargar
+      // TODO el personal del área.
+      let operationalCarryoverIds: string[] | null = null;
+      if (!operationalEmptied && !weekRoster.length && !manualPeriodForView) {
+        try {
+          const prevWeekStart = getWeekStart(
+            new Date(Date.parse(currentWeekStart) - 7 * 86400000),
+          );
+          const prevClosed = semanas.find(
+            (s) =>
+              s.area === area &&
+              s.semana_inicio === prevWeekStart &&
+              s.id,
+          );
+          if (prevClosed) {
+            const prevRes = await getSemanaRegistrosAction(prevClosed.id);
+            if (prevRes.ok && prevRes.data?.length) {
+              operationalCarryoverIds = prevRes.data
+                .map((r) => r.personal_id)
+                .filter(Boolean);
+            }
+          }
+        } catch {
+          /* silent — fallback a cargar todos */
+        }
+      }
+
       const activeWorkersMap = new Map<string, Personal>();
       if (!operationalEmptied) {
-        for (const p of personalCatalog) {
-          if (p.estatus && p.estatus !== 'ACTIVO') continue;
-          if (
-            p.fecha_ingreso &&
-            currentWeekEnd &&
-            p.fecha_ingreso > currentWeekEnd &&
-            !weekRosterSet.has(p.id)
-          ) {
-            continue;
+        if (operationalCarryoverIds) {
+          // Carryover: solo cargar los trabajadores de la semana anterior
+          for (const id of operationalCarryoverIds) {
+            const p = personalCatalogMerged.find((row) => row.id === id);
+            if (!p) continue;
+            if (p.estatus && p.estatus !== 'ACTIVO') continue;
+            activeWorkersMap.set(p.id, p);
           }
-          activeWorkersMap.set(p.id, p);
+        } else {
+          for (const p of personalCatalog) {
+            if (p.estatus && p.estatus !== 'ACTIVO') continue;
+            if (
+              p.fecha_ingreso &&
+              currentWeekEnd &&
+              p.fecha_ingreso > currentWeekEnd &&
+              !weekRosterSet.has(p.id)
+            ) {
+              continue;
+            }
+            activeWorkersMap.set(p.id, p);
+          }
         }
       }
       for (const personalId of weekRoster) {
@@ -2233,6 +2272,40 @@ export default function NominaClient({
     }
     startTransition(async () => {
       if (manualPeriodId) {
+        // Si hay plantilla activa, conservar sus trabajadores y solo quitar
+        // los agregados manualmente. Esto preserva la estructura del ciclo.
+        if (manualPlantillaActiva && manualPeriodForView?.plantillaId) {
+          const plantillaIds = manualPlantillaActiva.cuadrillas.flatMap((c) =>
+            c.filas.map((f) => f.personalId),
+          );
+          const keptIds = [...new Set(plantillaIds)];
+          if (keptIds.length > 0) {
+            writeManualWeekRosterEntries(
+              area,
+              weekRange.inicio,
+              keptIds.map((id) => ({ id })),
+              manualPeriodId,
+            );
+            // Recargar filas con solo los de la plantilla
+            const keptPersonal = personalCatalogMerged.filter((p) => keptIds.includes(p.id));
+            const novedadDraft = readNominaNovedadDraft(
+              nominaNovedadDraftKey(area, weekRange.inicio, manualPeriodId),
+            );
+            const rows = keptPersonal.map((p) =>
+              applyWeekDraft(
+                buildOperationalNominaRow(p, weekRange.inicio, {}),
+                weekRange.inicio,
+                novedadDraft[p.id],
+              ),
+            );
+            setPreNominaRows(rows);
+            setManualRosterTick((t) => t + 1);
+            setShowBorrarModal(false);
+            toast.success(`Semana vaciada. Se conservan ${keptIds.length} trabajadores de la plantilla.`);
+            return;
+          }
+        }
+        // Sin plantilla: vaciar todo
         clearManualWeekRoster(area, weekRange.inicio, manualPeriodId);
       } else {
         markOperationalWeekEmptied(area, weekRange.inicio, true);
