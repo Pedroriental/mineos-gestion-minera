@@ -174,6 +174,9 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
 
     const supabase = await createServerClient();
 
+    const { data: { user } } = await supabase.auth.getUser();
+    const complexId = (user?.user_metadata?.complex_id as string | null) ?? null;
+
     const { data: perfil, error: perfilError } = await supabase
       .from('perfiles_compensacion')
       .select('id, esquema_rotacion_default')
@@ -262,6 +265,7 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
         : null;
 
     const payloadBase = {
+      complex_id: complexId,
       cedula,
       nombre_completo: nombre,
       cargo: cargo || '',
