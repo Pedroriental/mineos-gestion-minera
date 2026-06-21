@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { getComplexNameById } from '@/lib/actions/complex';
 import Link from 'next/link';
 import {
   LayoutGrid,
@@ -522,9 +523,7 @@ export default function Sidebar({
     let cancelled = false;
     const cid = role === 'admin_developer' ? activeComplex : (user as any)?.user_metadata?.complex_id;
     if (!cid) { setComplexName(null); return; }
-    import('@/lib/actions/complex').then(({ getComplexNameById }) =>
-      getComplexNameById(cid).then((name) => { if (!cancelled) setComplexName(name ?? null); })
-    ).catch(() => { if (!cancelled) setComplexName(null); });
+    getComplexNameById(cid).then((name) => { if (!cancelled) setComplexName(name ?? null); }).catch(() => { if (!cancelled) setComplexName(null); });
     return () => { cancelled = true; };
   }, [activeComplex, role, user]);
 
