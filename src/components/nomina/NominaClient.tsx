@@ -787,6 +787,12 @@ export default function NominaClient({
   );
   const manualPeriodId = manualPeriodForView?.id ?? null;
 
+  const manuallyAddedIdsSet = useMemo(() => {
+    const entries = readManualWeekRosterEntries(area, weekRange.inicio, manualPeriodId);
+    return new Set(entries.map((e) => e.id));
+  }, [area, weekRange.inicio, manualPeriodId, manualRosterTick]);
+
+
   const novedadDraftKeyForWeek = useCallback(
     (weekStart: string) => nominaNovedadDraftKey(area, weekStart, manualPeriodId),
     [area, manualPeriodId],
@@ -1946,17 +1952,32 @@ export default function NominaClient({
   }
 
   async function handleDelete(id: string) {
+    const isManuallyAdded = manuallyAddedIdsSet.has(id);
+
+    if (isManuallyAdded) {
+      if (!(await confirmDialog({
+        title: 'Quitar de la semana',
+        message: '¿Quitar este trabajador de la planilla de esta semana? (Seguirá activo en la base de datos)',
+        variant: 'warning'
+      }))) return;
+
+      setPreNominaRows(prev => prev.filter(row => row.personal.id !== id));
+      removeFromManualWeekRoster(area, weekRange.inicio, id, manualPeriodId);
+      setManualRosterTick(t => t + 1);
+      toast.success('Trabajador removido de esta semana.');
+      return;
+    }
+
     if (!(await confirmDialog({
       title: 'Desactivar trabajador',
-      message: '¿Desactivar este trabajador del sistema?',
+      message: '¿Desactivar este trabajador del sistema? (Baja definitiva)',
       variant: 'danger'
     }))) return;
     
     // Optimistic update: remover fila inmediatamente del estado local
     setPreNominaRows(prev => prev.filter(row => row.personal.id !== id));
-    if (isManualPeriodWeek && manualPeriodId) {
-      removeFromManualWeekRoster(area, weekRange.inicio, id, manualPeriodId);
-    }
+    removeFromManualWeekRoster(area, weekRange.inicio, id, manualPeriodId);
+    setManualRosterTick(t => t + 1);
     
     startTransition(async () => {
       await updatePersonalEstatusAction(id, 'INACTIVO');
@@ -2054,6 +2075,7 @@ export default function NominaClient({
         if (res.ok) {
           try {
             localStorage.removeItem(novedadDraftKeyForWeek(weekRange.inicio));
+            clearManualWeekRoster(area, weekRange.inicio, manualPeriodId);
             if (isManualPeriodWeek && manualPeriodForView) {
               const closeData = res.data as { semanaId?: string; periodoId?: string } | undefined;
               const closedSemanaId = closeData?.semanaId ?? semanaActualCerrada?.id;
@@ -2895,7 +2917,17 @@ export default function NominaClient({
                                       {canEdit && !semanaActualProcesada && (
                                         <>
                                           <button onClick={() => openEdit(p)} title="Editar" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-amber-500 transition-colors"><Edit2 className="w-4 h-4" /></button>
-                                          <button onClick={() => handleDelete(p.id)} title="Baja" className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                          <button
+                                            onClick={() => handleDelete(p.id)}
+                                            title={manuallyAddedIdsSet.has(p.id) ? "Quitar de esta semana" : "Baja"}
+                                            className={`p-1.5 rounded-lg transition-colors ${
+                                              manuallyAddedIdsSet.has(p.id)
+                                                ? 'hover:bg-amber-500/10 text-white/40 hover:text-amber-400'
+                                                : 'hover:bg-red-500/10 text-white/40 hover:text-red-400'
+                                            }`}
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
                                         </>
                                       )}
                                     </div>
@@ -3116,15 +3148,13 @@ export default function NominaClient({
           assignedIds={assignedIds}
           onAssigned={(personalId, areaDetalle) => {
             markOperationalWeekEmptied(area, weekRange.inicio, false);
-            if (manualPeriodId) {
-              addToManualWeekRoster(
-                area,
-                weekRange.inicio,
-                personalId,
-                areaDetalle,
-                manualPeriodId,
-              );
-            }
+            addToManualWeekRoster(
+              area,
+              weekRange.inicio,
+              personalId,
+              areaDetalle,
+              manualPeriodId,
+            );
             appendAssignedWorker(personalId, areaDetalle);
             setManualRosterTick((t) => t + 1);
           }}
