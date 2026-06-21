@@ -493,7 +493,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signOut, user, role } = useAuth();
+  const { signOut, user, role, complexId } = useAuth();
   const { theme } = useTheme();
 
   const isExpanded = expanded ?? true;
@@ -521,11 +521,11 @@ export default function Sidebar({
   // Fetch complex name: admin_developer uses activeComplex, others use user's complex_id
   useEffect(() => {
     let cancelled = false;
-    const cid = role === 'admin_developer' ? activeComplex : (user as any)?.user_metadata?.complex_id;
+    const cid = role === 'admin_developer' ? activeComplex : complexId;
     if (!cid) { setComplexName(null); return; }
     getComplexNameById(cid).then((name) => { if (!cancelled) setComplexName(name ?? null); }).catch(() => { if (!cancelled) setComplexName(null); });
     return () => { cancelled = true; };
-  }, [activeComplex, role, user]);
+  }, [activeComplex, role, user, complexId]);
 
   const isInComplex = role === 'admin_developer' && activeComplex !== null;
 
