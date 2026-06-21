@@ -21,7 +21,7 @@ export async function createExtraccion(raw: Partial<ReporteExtraccion>) {
 
     const { error } = await supabase
       .from('reportes_extraccion')
-      .insert(parsed.data);
+      .insert({ ...parsed.data, complex_id: user?.complexId ?? null });
 
     if (error) {
       console.error('Error creating extraccion:', error);

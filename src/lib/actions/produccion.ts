@@ -40,8 +40,10 @@ export async function createProduccion(raw: unknown): Promise<ActionResult> {
   }
 
   const supabase = await createServerClient();
+  const user = await getServerUser();
 
   const { error } = await supabase.from('reportes_produccion').insert({
+    complex_id: user?.complexId ?? null,
     fecha: data.fecha,
     turno: data.turno,
     molino: data.molino,
@@ -67,7 +69,6 @@ export async function createProduccion(raw: unknown): Promise<ActionResult> {
   }
 
   // Notify admins if a supervisor submitted the report
-  const user = await getServerUser();
   if (user?.complexId) {
     await notifyAdmins({
       complexId: user.complexId,

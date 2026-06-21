@@ -93,7 +93,9 @@ export async function createGasto(raw: unknown, options?: SaveOptions): Promise<
 
   // 2) Insertar en Supabase y verificar que RLS no bloquee
   const supabase = await createServerClient();
+  const user = await getServerUser();
   const { data: inserted, error } = await supabase.from('gastos').insert({
+    complex_id:           user?.complexId ?? null,
     fecha:               enriched.fecha,
     categoria_id:        enriched.categoria_id,
     descripcion:         enriched.descripcion,
@@ -117,7 +119,6 @@ export async function createGasto(raw: unknown, options?: SaveOptions): Promise<
     }
 
     // Notify admins if a supervisor submitted the report
-    const user = await getServerUser();
     if (user?.complexId) {
       await notifyAdmins({
         complexId: user.complexId,
@@ -161,7 +162,9 @@ export async function createGastosBulk(raws: unknown[], options?: SaveOptions): 
     if (duplicateBlock) return duplicateBlock;
 
     const supabase = await createServerClient();
+    const bulkUser = await getServerUser();
     const rowsToInsert = enrichedRows.map((g) => ({
+      complex_id:           bulkUser?.complexId ?? null,
       fecha:               g.fecha,
       categoria_id:        g.categoria_id,
       descripcion:         g.descripcion,

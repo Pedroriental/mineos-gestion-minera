@@ -80,8 +80,10 @@ export async function createAcarreoForm(formData: FormData) {
     }
 
     const supabase = await createServerClient();
+    const user = await getServerUser();
     const { error } = await supabase.from('reportes_acarreo').insert({
       ...data,
+      complex_id: user?.complexId ?? null,
       mina: validatedMina,
       molino: validatedMolino,
       lineas: normalizeLineas(data.lineas),
@@ -94,7 +96,6 @@ export async function createAcarreoForm(formData: FormData) {
     }
 
     // Notify admins if a supervisor submitted the report
-    const user = await getServerUser();
     if (user?.complexId) {
       await notifyAdmins({
         complexId: user.complexId,

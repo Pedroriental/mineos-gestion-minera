@@ -75,7 +75,9 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
 
   // 2) Insertar en Supabase
   const supabase = await createServerClient();
+  const user = await getServerUser();
   const { error } = await supabase.from('reportes_voladuras').insert({
+    complex_id:             user?.complexId ?? null,
     fecha:                 data.fecha,
     turno:                 validatedTurno,
     mina:                  validatedMina                  ?? null,
@@ -112,7 +114,6 @@ export async function createVoladura(raw: unknown): Promise<ActionResult> {
   }
 
   // Notify admins if a supervisor submitted the report
-  const user = await getServerUser();
   if (user?.complexId) {
     await notifyAdmins({
       complexId: user.complexId,
