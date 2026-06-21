@@ -68,6 +68,7 @@ import {
   weekInManualPeriod,
   clearLocalDraftsForPeriod,
   computeManualPeriodProgress,
+  manualPeriodFromPeriodoSummary,
   resolveClosedSemanaForManualPeriod,
   resolveClosedSemanaForWeekView,
   isHistoricalManualPeriodWeek,
@@ -153,6 +154,8 @@ import type { Personal, NominaRegistro, NominaSemana, NominaVale, HistorialPagoR
 import { 
   revertirSemanaAction,
 } from '@/lib/actions/nomina';
+
+import { findConsolidatedPeriodForWeekAction } from '@/lib/actions/nomina-actions';
 
 import {
   getGrupoMixtoHistoryWeeksAction,
@@ -651,6 +654,52 @@ export default function NominaClient({
     setManualPeriodSession(loadManualPeriodsSession(area));
     setManualSessionHydrated(true);
   }, [area]);
+
+  // ── Auto-hidratar período consolidado de la DB ───────────────────────────
+  // Si localStorage no tiene un período para la semana actual, busca en la DB
+  // un período consolidado manual que cubra esa semana y lo inyecta.
+  const dbHydrateAttemptedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!manualSessionHydrated) return;
+    // Solo buscar si la sesión local no tiene un período para esta semana
+    const localResolved = resolveManualPeriodForWeek(
+      manualPeriodSession,
+      weekRange.inicio,
+      temporalCtx.workingWeekStart,
+    );
+    if (localResolved) return;
+    // Evitar búsquedas repetidas para la misma semana+área
+    const attemptKey = `${area}:${weekRange.inicio}`;
+    if (dbHydrateAttemptedRef.current === attemptKey) return;
+    dbHydrateAttemptedRef.current = attemptKey;
+
+    void findConsolidatedPeriodForWeekAction(area, weekRange.inicio).then((res) => {
+      if (!res.ok || !res.periodo) return;
+      const dbPeriod = manualPeriodFromPeriodoSummary(res.periodo);
+      if (!dbPeriod) return;
+      setManualPeriodSession((prev) => {
+        // Re-check: otro efecto pudo haber inyectado mientras esperábamos
+        const already = resolveManualPeriodForWeek(
+          prev,
+          weekRange.inicio,
+          temporalCtx.workingWeekStart,
+        );
+        if (already) return prev;
+        const next = upsertPeriodInSession(prev, dbPeriod);
+        return {
+          ...next,
+          editorPeriodId: next.editorPeriodId ?? dbPeriod.id,
+          historicalPeriodId: dbPeriod.id,
+        };
+      });
+    });
+  }, [
+    manualSessionHydrated,
+    manualPeriodSession,
+    weekRange.inicio,
+    temporalCtx.workingWeekStart,
+    area,
+  ]);
 
   useEffect(() => {
     if (!manualSessionHydrated) return;

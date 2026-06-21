@@ -1259,3 +1259,66 @@ export async function saveNominaDivisionesConfigAction(
     };
   }
 }
+
+/**
+ * Busca un período consolidado manual en la DB cuyo rango cubra la semana dada
+ * para el área indicada. Devuelve el período más reciente o null.
+ *
+ * Usado para auto-hidratar la sesión local cuando el localStorage no tiene
+ * el período y la vista semanal cae al cálculo legacy individual.
+ */
+export async function findConsolidatedPeriodForWeekAction(
+  area: string,
+  weekStart: string,
+): Promise<{ ok: boolean; periodo: NominaPeriodoSummary | null; message?: string }> {
+  try {
+    const supabase = await createServerClient();
+
+    const { data, error } = await supabase
+      .from('nomina_periodos')
+      .select(
+        `
+        id, label, range_start, range_end, total_usd, origen, metadata, created_at,
+        nomina_periodo_semanas ( semana_id )
+      `,
+      )
+      .eq('origen', 'consolidacion_manual')
+      .lte('range_start', weekStart)
+      .gte('range_end', weekStart)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { ok: false, periodo: null, message: error.message };
+    }
+
+    // Filtrar por área en metadata
+    const matching = (data ?? []).filter((row) => {
+      const meta = row.metadata as Record<string, unknown> | null;
+      return meta && meta.area === area;
+    });
+
+    if (!matching.length) {
+      return { ok: true, periodo: null };
+    }
+
+    const best = matching[0];
+    const semanaIds = best.nomina_periodo_semanas
+      ?.map((link: { semana_id: string }) => link.semana_id)
+      .filter((id: string): id is string => typeof id === 'string') ?? [];
+
+    const periodo = mapPeriodoRow({
+      ...best,
+      metadata: best.metadata as Record<string, unknown> | null,
+      semana_count: semanaIds.length,
+      semana_ids: semanaIds,
+    });
+
+    return { ok: true, periodo };
+  } catch (e) {
+    return {
+      ok: false,
+      periodo: null,
+      message: e instanceof Error ? e.message : 'Error buscando periodo consolidado',
+    };
+  }
+}
