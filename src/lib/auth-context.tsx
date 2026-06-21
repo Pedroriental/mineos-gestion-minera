@@ -75,20 +75,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message, role: undefined };
 
-    // Force JWT refresh by updating user_metadata (triggers new token issuance)
-    // This ensures the middleware gets the correct role from the JWT
+    // Sync JWT user_metadata with DB profile (role + complex_id)
+    // RLS reads both from JWT — if missing, policies silently reject rows
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('role')
+      .select('role, complex_id')
       .eq('id', data.user!.id)
       .single();
 
     const dbRole: UserRole = profile?.role ?? 'admin';
+    const dbComplexId: string | null = profile?.complex_id ?? null;
 
-    // Sync JWT user_metadata with DB role if they differ
-    if (data.user?.user_metadata?.role !== dbRole) {
+    const needsRoleSync = data.user?.user_metadata?.role !== dbRole;
+    const needsComplexSync = data.user?.user_metadata?.complex_id !== dbComplexId;
+
+    if (needsRoleSync || needsComplexSync) {
       await supabase.auth.updateUser({
-        data: { role: dbRole },
+        data: { role: dbRole, complex_id: dbComplexId },
       });
     }
 
