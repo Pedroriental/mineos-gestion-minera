@@ -519,11 +519,13 @@ export default function Sidebar({
 
   // Fetch complex name: admin_developer uses activeComplex, others use user's complex_id
   useEffect(() => {
+    let cancelled = false;
     const cid = role === 'admin_developer' ? activeComplex : (user as any)?.user_metadata?.complex_id;
     if (!cid) { setComplexName(null); return; }
-    import('@/lib/supabase').then(({ supabase }) =>
-      supabase.from('complexes').select('name').eq('id', cid).single()
-    ).then(({ data }) => setComplexName(data?.name ?? null)).catch(() => setComplexName(null));
+    import('@/lib/actions/complex').then(({ getComplexNameById }) =>
+      getComplexNameById(cid).then((name) => { if (!cancelled) setComplexName(name ?? null); })
+    ).catch(() => { if (!cancelled) setComplexName(null); });
+    return () => { cancelled = true; };
   }, [activeComplex, role, user]);
 
   const isInComplex = role === 'admin_developer' && activeComplex !== null;
