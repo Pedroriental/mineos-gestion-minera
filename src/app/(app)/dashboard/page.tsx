@@ -139,6 +139,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       prodRes,
       quemadoRes,
       volRes,
+      extraccionRes,
+      acarreoRes,
       inventarioRes,
       nominaSemanasRes,
       personalAreasRes,
@@ -171,9 +173,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           : supabase.from('reportes_quemado').select('total_oro_g').gte('fecha', from).lte('fecha', to),
       ),
       safeCatch<{ data: VoladuraRow[]; error: any }>(
+        isMiningSupervisor
+          ? supabase.from('reportes_voladuras').select('id, mina, fecha, sin_novedad').gte('fecha', from).lte('fecha', to).order('fecha', { ascending: false }).limit(500)
+          : isMillSupervisor
+            ? supabase.from('reportes_voladuras').select('id, mina, fecha, sin_novedad').gte('fecha', from).lte('fecha', to).limit(0)
+            : supabase.from('reportes_voladuras').select('id, mina, fecha, sin_novedad').gte('fecha', from).lte('fecha', to).eq('sin_novedad', false).order('fecha', { ascending: false }).limit(10),
+      ),
+      safeCatch<{ data: { sacos_extraidos: number; fecha: string; vertical?: string; mina?: string }[]; error: any }>(
+        isMiningSupervisor
+          ? supabase.from('reportes_extraccion').select('sacos_extraidos, fecha, vertical, mina').gte('fecha', from).lte('fecha', to).order('fecha', { ascending: false }).limit(500)
+          : supabase.from('reportes_extraccion').select('sacos_extraidos').limit(0),
+      ),
+      safeCatch<{ data: { carga_total: number; fecha: string }[]; error: any }>(
         isMillSupervisor
-          ? supabase.from('reportes_voladuras').select('id, mina, fecha, sin_novedad').gte('fecha', from).lte('fecha', to).eq('sin_novedad', false).order('fecha', { ascending: false }).limit(0)
-          : supabase.from('reportes_voladuras').select('id, mina, fecha, sin_novedad').gte('fecha', from).lte('fecha', to).eq('sin_novedad', false).order('fecha', { ascending: false }).limit(10),
+          ? supabase.from('reportes_acarreo').select('carga_total, fecha').gte('fecha', from).lte('fecha', to).order('fecha', { ascending: false }).limit(500)
+          : supabase.from('reportes_acarreo').select('carga_total').limit(0),
       ),
       safeCatch<{ data: InventarioRow[]; error: any }>(
         supabase.from('inventario_items').select('id, nombre, stock_actual, stock_minimo').eq('activo', true).limit(500),
@@ -222,6 +236,47 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       if (!area) continue;
       personalCountByArea[area] = (personalCountByArea[area] ?? 0) + 1;
     }
+
+    // ── Mining Supervisor: Extracción breakdown ──
+    const extraccionRows = (extraccionRes?.data ?? []) as { sacos_extraidos: number; fecha: string; vertical?: string; mina?: string }[];
+    const sacosExtraidosPeriodo = extraccionRows.reduce((s, r) => s + Number(r.sacos_extraidos ?? 0), 0);
+    const sacosExtraidosHoy = extraccionRows
+      .filter((r) => r.fecha === today)
+      .reduce((s, r) => s + Number(r.sacos_extraidos ?? 0), 0);
+    const extraccionesPeriodo = extraccionRows.length;
+    const verticalMap = new Map<string, number>();
+    for (const r of extraccionRows) {
+      const v = String(r.vertical ?? r.mina ?? '').trim();
+      if (!v) continue;
+      verticalMap.set(v, (verticalMap.get(v) ?? 0) + Number(r.sacos_extraidos ?? 0));
+    }
+    const miningVerticales = Array.from(verticalMap.entries())
+      .map(([name, sacos]) => ({ name, sacos }))
+      .sort((a, b) => b.sacos - a.sacos)
+      .slice(0, 6);
+
+    // ── Mining Supervisor: Voladuras breakdown ──
+    const voladurasRows = (volRes?.data ?? []) as VoladuraRow[];
+    const voladurasPeriodo = voladurasRows.length;
+    const voladurasConNovedad = voladurasRows.filter((v) => !v.sin_novedad).length;
+    const minaMap = new Map<string, { voladuras: number; sinNovedad: boolean }>();
+    for (const v of voladurasRows) {
+      const m = String(v.mina ?? '').trim();
+      if (!m) continue;
+      const entry = minaMap.get(m) ?? { voladuras: 0, sinNovedad: true };
+      entry.voladuras += 1;
+      if (!v.sin_novedad) entry.sinNovedad = false;
+      minaMap.set(m, entry);
+    }
+    const miningMinas = Array.from(minaMap.entries())
+      .map(([name, data]) => ({ name, voladuras: data.voladuras, sinNovedad: data.sinNovedad }))
+      .sort((a, b) => b.voladuras - a.voladuras)
+      .slice(0, 6);
+
+    // ── Mill Supervisor: Acarreo breakdown ──
+    const acarreoRows = (acarreoRes?.data ?? []) as { carga_total: number; fecha: string }[];
+    const cargaAcarreadaPeriodo = acarreoRows.reduce((s, r) => s + Number(r.carga_total ?? 0), 0);
+    const acarreosPeriodo = acarreoRows.length;
 
     // Removed alerts fetching
 
@@ -279,6 +334,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     // ── Oro Total Recuperado (KPI Principal) ──
     const oroTotalRecuperado = produccionMensual + oroQuemadoMensual;
 
+    const balancesPlanchasArr =
+        balancePlancha1 > 0
+          ? [{ id: 'plancha-1', label: 'Balance Plancha 1', grams: balancePlancha1 }]
+          : [];
+
     const globalData: GlobalData = {
       totalGrams,
       eqTotal: equiposRes.count ?? 0,
@@ -289,72 +349,93 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       produccionMensual,
       oroTotalRecuperado,
       balancePlancha1,
-      balancesPlanchas:
-        balancePlancha1 > 0
-          ? [{ id: 'plancha-1', label: 'Balance Plancha 1', grams: balancePlancha1 }]
-          : [],
+      balancesPlanchas: balancesPlanchasArr,
+      // ── Mining ──
+      sacosExtraidosHoy,
+      sacosExtraidosPeriodo,
+      extraccionesPeriodo,
+      voladurasPeriodo,
+      voladurasConNovedad,
+      equiposOperativos: equiposRes.count ?? 0,
+      miningVerticales,
+      miningMinas,
+      // ── Mill ──
+      oroQuemadoPeriodo: oroQuemadoMensual,
+      cargaAcarreadaPeriodo,
+      acarreosPeriodo,
+      produccionesPeriodo: reportesProd.length,
+      planchasBreakdown: balancesPlanchasArr.map((p) => ({
+        id: p.id,
+        label: p.label,
+        oro: p.grams,
+        amalgama: 0,
+      })),
     };
 
-    const accumMap = new Map<string, Accum>();
+    const locations: LocationData[] = isMiningSupervisor
+      ? []
+      : (() => {
+          const accumMap = new Map<string, Accum>();
 
-    for (const name of ALWAYS_PRESENT) {
-      accumMap.set(name, makeAccum(name));
-    }
+          for (const name of ALWAYS_PRESENT) {
+            accumMap.set(name, makeAccum(name));
+          }
 
-    for (const r of reportesProd) {
-      if (!r.molino) continue;
+          for (const r of reportesProd) {
+            if (!r.molino) continue;
 
-      const key = normalizeMolinoName(String(r.molino));
-      const isMant = /mantenimiento/i.test(key);
-      const isCoco = /coco/i.test(key);
-      const isVarios = /varios/i.test(key);
-      if (isVarios) continue;
+            const key = normalizeMolinoName(String(r.molino));
+            const isMant = /mantenimiento/i.test(key);
+            const isCoco = /coco/i.test(key);
+            const isVarios = /varios/i.test(key);
+            if (isVarios) continue;
 
-      if (!accumMap.has(key)) {
-        accumMap.set(key, {
-          name: key,
-          coordinates: NODE_DICT[key] ?? { x: 60, y: 45 },
-          status: isMant ? 'Mantenimiento' : isCoco ? 'Inactivo' : 'Activo',
-          totalOro: 0, sumTenor: 0, sumMerma: 0, count: 0,
-          materiales: new Set<string>(),
-          origenes: new Set<string>(),
-        });
-      }
+            if (!accumMap.has(key)) {
+              accumMap.set(key, {
+                name: key,
+                coordinates: NODE_DICT[key] ?? { x: 60, y: 45 },
+                status: isMant ? 'Mantenimiento' : isCoco ? 'Inactivo' : 'Activo',
+                totalOro: 0, sumTenor: 0, sumMerma: 0, count: 0,
+                materiales: new Set<string>(),
+                origenes: new Set<string>(),
+              });
+            }
 
-      const ent = accumMap.get(key)!;
-      const oro = Number(r.oro_recuperado_g ?? 0);
+            const ent = accumMap.get(key)!;
+            const oro = Number(r.oro_recuperado_g ?? 0);
 
-      if (oro > 0 && ent.status === 'Inactivo' && !isMant && !isCoco) {
-        ent.status = 'Activo';
-      }
+            if (oro > 0 && ent.status === 'Inactivo' && !isMant && !isCoco) {
+              ent.status = 'Activo';
+            }
 
-      ent.totalOro += oro;
-      ent.sumTenor += Number(r.tenor_tonelada_gpt ?? 0);
-      ent.sumMerma += Number(r.merma_1_pct ?? 0);
-      ent.count += 1;
+            ent.totalOro += oro;
+            ent.sumTenor += Number(r.tenor_tonelada_gpt ?? 0);
+            ent.sumMerma += Number(r.merma_1_pct ?? 0);
+            ent.count += 1;
 
-      const mat = String(r.material ?? '').trim();
-      if (mat) ent.materiales.add(mat);
+            const mat = String(r.material ?? '').trim();
+            if (mat) ent.materiales.add(mat);
 
-      const code = String(r.material_codigo ?? r.material ?? '').trim();
-      const vm = code.match(/[Vv](\d+)[Dd](\d+)/);
-      if (vm) ent.origenes.add(`V${vm[1]}D${vm[2]}`);
-    }
+            const code = String(r.material_codigo ?? r.material ?? '').trim();
+            const vm = code.match(/[Vv](\d+)[Dd](\d+)/);
+            if (vm) ent.origenes.add(`V${vm[1]}D${vm[2]}`);
+          }
 
-    const locations: LocationData[] = Array.from(accumMap.values()).map((e) => ({
-      id: e.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-      name: e.name,
-      type: 'molino' as const,
-      coordinates: e.coordinates,
-      status: e.status,
-      kpis: {
-        produccion: Math.round(e.totalOro * 100) / 100,
-        tenor: e.count > 0 ? Math.round((e.sumTenor / e.count) * 100) / 100 : 0,
-        merma: e.count > 0 ? Math.round(e.sumMerma / e.count) : 0,
-      },
-      materiales: Array.from(e.materiales).slice(0, 5),
-      origenes: Array.from(e.origenes).slice(0, 6),
-    }));
+          return Array.from(accumMap.values()).map((e) => ({
+            id: e.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+            name: e.name,
+            type: 'molino' as const,
+            coordinates: e.coordinates,
+            status: e.status,
+            kpis: {
+              produccion: Math.round(e.totalOro * 100) / 100,
+              tenor: e.count > 0 ? Math.round((e.sumTenor / e.count) * 100) / 100 : 0,
+              merma: e.count > 0 ? Math.round(e.sumMerma / e.count) : 0,
+            },
+            materiales: Array.from(e.materiales).slice(0, 5),
+            origenes: Array.from(e.origenes).slice(0, 6),
+          }));
+        })();
 
     return <DashboardMobileWrapper locations={locations} globalData={globalData} role={userRole} />;
   } catch (err) {
