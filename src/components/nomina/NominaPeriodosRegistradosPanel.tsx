@@ -119,7 +119,7 @@ export function NominaPeriodosRegistradosPanel({
             : manual.plantillaNombre || '—';
         const firstOpen = firstOpenWeekInPeriod(manual, semanas, area);
         const displayLabel = stripPeriodoLabelPrefix(periodo.label);
-        const monthKey = format(parseISO(periodo.rangeStart), 'yyyy-MM');
+        const monthKey = format(parseISO(periodo.rangeEnd), 'yyyy-MM');
         return { periodo, manual, progress, plantillaNombre, firstOpen, displayLabel, monthKey };
       }),
     [periodos, semanas, area],
