@@ -408,15 +408,118 @@ export default function NominaVistaPreviaContent({
   }
 
   function handlePrintPreview() {
-    document.body.classList.add('nomina-preview-print-mode');
-    // Inyectar @page landscape dinámicamente para no conflictar con el @page portrait global
-    const pageStyle = document.createElement('style');
-    pageStyle.id = 'nomina-print-page-override';
-    pageStyle.textContent = '@page { size: landscape; margin: 8mm 6mm; }';
-    document.head.appendChild(pageStyle);
+    const report = document.querySelector('.nomina-preview-report');
+    if (!report) return;
+
+    // 1. Clonar el reporte fuera del DOM del modal/app para eliminar espacio fantasma
+    const container = document.createElement('div');
+    container.id = 'nomina-print-container';
+    const clone = report.cloneNode(true) as HTMLElement;
+    container.appendChild(clone);
+    document.body.appendChild(container);
+
+    // 2. Inyectar estilos de impresión
+    const printStyle = document.createElement('style');
+    printStyle.id = 'nomina-print-style';
+    printStyle.textContent = `
+      @media print {
+        @page {
+          size: landscape;
+          margin: 6mm 5mm;
+        }
+
+        /* Ocultar TODO excepto nuestro contenedor */
+        body > *:not(#nomina-print-container):not(#nomina-print-style) {
+          display: none !important;
+        }
+
+        /* El contenedor ocupa todo */
+        #nomina-print-container {
+          display: block !important;
+          position: static !important;
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background: white !important;
+        }
+
+        /* Reporte: flujo normal, tamaño reducido para caber al 100% */
+        #nomina-print-container .nomina-preview-report {
+          font-size: 10px !important;
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          gap: 10px !important;
+        }
+
+        /* Tablas: caben en la página sin scroll */
+        #nomina-print-container table {
+          width: 100% !important;
+          min-width: 0 !important;
+          border-collapse: collapse !important;
+          table-layout: auto !important;
+          page-break-inside: auto !important;
+        }
+
+        /* Eliminar overflow wrappers */
+        #nomina-print-container .overflow-x-auto {
+          overflow: visible !important;
+          min-width: 0 !important;
+        }
+
+        /* Celdas compactas */
+        #nomina-print-container td,
+        #nomina-print-container th {
+          padding: 2px 4px !important;
+          font-size: 10px !important;
+          white-space: nowrap !important;
+        }
+
+        /* Observaciones sí pueden wrappear */
+        #nomina-print-container td:nth-last-child(2) {
+          white-space: normal !important;
+          max-width: 10rem !important;
+          font-size: 9px !important;
+        }
+
+        /* Repetir encabezados en cada página */
+        #nomina-print-container thead {
+          display: table-header-group !important;
+        }
+
+        /* Evitar cortar filas entre páginas */
+        #nomina-print-container tr {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+
+        /* Preservar colores */
+        #nomina-print-container * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          visibility: visible !important;
+        }
+
+        /* Ocultar la leyenda en impresión */
+        #nomina-print-container details {
+          display: none !important;
+        }
+
+        html, body {
+          background: white !important;
+          height: auto !important;
+          overflow: visible !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+      }
+    `;
+    document.head.appendChild(printStyle);
+
+    // 3. Imprimir
     const cleanup = () => {
-      document.body.classList.remove('nomina-preview-print-mode');
-      pageStyle.remove();
+      container.remove();
+      printStyle.remove();
       window.removeEventListener('afterprint', cleanup);
     };
     window.addEventListener('afterprint', cleanup);

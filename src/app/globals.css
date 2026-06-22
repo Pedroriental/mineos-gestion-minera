@@ -3758,8 +3758,13 @@ input, textarea, select {
 }
 
 @media print {
-  /* ── Nómina Preview: landscape se inyecta dinámicamente via JS ── */
-
+  /*
+   * Nómina Preview: los estilos de impresión se inyectan dinámicamente via JS
+   * en handlePrintPreview() → NominaVistaPreviaContent.tsx
+   *
+   * Las reglas de abajo son solo fallback por si se imprime con Ctrl+P
+   * desde la vista previa (sin pasar por el botón "Imprimir").
+   */
   .page-form-modal-backdrop {
     background: white !important;
     position: static !important;
@@ -3798,82 +3803,6 @@ input, textarea, select {
   }
   .nomina-vista-previa-content__toolbar {
     display: none !important;
-  }
-
-  /* ── Oculta todo excepto el reporte ── */
-  body.nomina-preview-print-mode * {
-    visibility: hidden !important;
-  }
-  body.nomina-preview-print-mode .nomina-preview-report,
-  body.nomina-preview-print-mode .nomina-preview-report *,
-  body.nomina-preview-print-mode .nomina-vista-previa-content,
-  body.nomina-preview-print-mode .nomina-vista-previa-content__body,
-  body.nomina-preview-print-mode .nomina-vista-previa-content__zoom-root {
-    visibility: visible !important;
-  }
-
-  /* ── Posicionamiento: static para flujo multi-página correcto ── */
-  body.nomina-preview-print-mode .nomina-preview-report {
-    position: static !important;
-    width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: white !important;
-    font-size: 11px !important;
-  }
-
-  /* Todos los ancestros deben ser visibles y con flujo normal */
-  body.nomina-preview-print-mode,
-  body.nomina-preview-print-mode [data-main-content],
-  body.nomina-preview-print-mode main,
-  body.nomina-preview-print-mode [data-app-shell],
-  body.nomina-preview-print-mode [data-app-shell] > div {
-    visibility: visible !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow: visible !important;
-    height: auto !important;
-    display: block !important;
-    position: static !important;
-    background: white !important;
-  }
-
-  /* ── Evitar cortes de tablas entre páginas ── */
-  body.nomina-preview-print-mode .nomina-preview-report table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    page-break-inside: auto !important;
-  }
-  body.nomina-preview-print-mode .nomina-preview-report thead {
-    display: table-header-group !important;
-  }
-  body.nomina-preview-print-mode .nomina-preview-report tr {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  body.nomina-preview-print-mode .nomina-preview-report .overflow-x-auto {
-    break-inside: avoid-page !important;
-    page-break-inside: auto !important;
-    overflow: visible !important;
-    margin-bottom: 8px !important;
-  }
-
-  /* El contenedor de cada sección debería intentar no romperse,
-     pero si es muy largo, permitir que la tabla fluya */
-  body.nomina-preview-print-mode .nomina-preview-report > div {
-    break-inside: auto !important;
-  }
-
-  /* Asegurar que los colores se preserven en PDF */
-  body.nomina-preview-print-mode .nomina-preview-report * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* Reducir padding de celdas para ahorrar espacio */
-  body.nomina-preview-print-mode .nomina-preview-report td,
-  body.nomina-preview-print-mode .nomina-preview-report th {
-    padding: 3px 5px !important;
   }
 }
 
