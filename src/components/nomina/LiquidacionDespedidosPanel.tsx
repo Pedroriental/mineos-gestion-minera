@@ -40,6 +40,7 @@ type LiquidacionItem = {
   cobraSemanaLibre: boolean;
   diasTrabajadosOverride: number | null;
   cerrada: boolean;
+  importedFromPersonal: boolean;
 };
 
 export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes, onRefresh }: Props) {
@@ -59,7 +60,16 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
   const itemsList: LiquidacionItem[] = useMemo(() => {
     return despedidos.map((p) => {
       const despidoFecha = p.despido_fecha ?? p.estado_fin_fecha ?? new Date().toISOString().split('T')[0];
-      const ov = overrides[p.id] ?? DEFAULT_OVERRIDE;
+
+      // Defaults: leer de personal si no hay override del usuario
+      const defaults = {
+        bonificaciones: Number(p.liquidacion_bonificaciones) || 0,
+        montoEditado: null as number | null,
+        cobraSemanaLibre: !!p.liquidacion_cobra_semana_libre,
+        diasTrabajadosOverride: p.liquidacion_dias_trabajados ?? null,
+        cerrada: false,
+      };
+      const ov = overrides[p.id] ?? defaults;
       const liquidacion = calcularLiquidacionPendiente(
         p,
         despidoFecha,
@@ -74,6 +84,9 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
         cobraSemanaLibre: ov.cobraSemanaLibre,
         diasTrabajadosOverride: ov.diasTrabajadosOverride,
         cerrada: ov.cerrada,
+        importedFromPersonal: !overrides[p.id] && (
+          p.liquidacion_dias_trabajados !== null && p.liquidacion_dias_trabajados !== undefined
+        ),
       };
     });
   }, [despedidos, overrides]);
@@ -437,6 +450,11 @@ function LiquidacionCard({
             onChange={(e) => onDiasTrabajados(e.target.value ? Number(e.target.value) : null)}
             className="w-16 rounded-md border border-white/5 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-white outline-none focus:border-zinc-500/40"
           />
+          {item.importedFromPersonal && (
+            <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
+              importado
+            </span>
+          )}
           <label className="text-[10px] text-zinc-500">Bono:</label>
           <input
             type="number"

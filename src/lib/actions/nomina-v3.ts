@@ -1121,6 +1121,16 @@ export async function procesarLiquidacionDespedidosAction(
 
       totalProcesado += liq.montoLiquidacion;
 
+      // Persistir los valores finales en personal (para futuras referencias / PDF)
+      await supabase
+        .from('personal')
+        .update({
+          liquidacion_dias_trabajados: liq.diasTrabajados,
+          liquidacion_bonificaciones: liq.bonificaciones,
+          liquidacion_cobra_semana_libre: liq.cobraSemanaLibre,
+        })
+        .eq('id', liq.personalId);
+
       await registrarAuditAction(
         'LIQUIDACION_DESPEDIDO',
         'personal',

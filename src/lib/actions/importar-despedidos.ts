@@ -70,6 +70,9 @@ export async function importarDespedidosLoteAction(
           despido_causa: row.despidoCausa || 'Despido',
           observacion_estado: row.despidoCausa || 'Despido',
           estado_inicio_fecha: row.despidoFecha || null,
+          liquidacion_dias_trabajados: row.diasTrabajados || null,
+          liquidacion_bonificaciones: row.bonificaciones || 0,
+          liquidacion_cobra_semana_libre: row.cobraSemanaLibre,
           estado_manual_override: true,
           ultimo_update_estado_at: new Date().toISOString(),
         })
