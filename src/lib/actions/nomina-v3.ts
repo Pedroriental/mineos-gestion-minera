@@ -1029,22 +1029,28 @@ export type LiquidacionDespedidoItem = {
   montoLiquidacion: number;
   bonificaciones: number;
   cobraSemanaLibre: boolean;
+  diasTrabajados: number | null;
   observacion: string;
   despidoFecha: string;
 };
 
 export async function procesarLiquidacionDespedidosAction(
-  payload: { area: string; liquidaciones: LiquidacionDespedidoItem[] },
+  payload: {
+    area: string;
+    liquidaciones: LiquidacionDespedidoItem[];
+    distribucion?: { nombre: string; porcentaje: number; pagoDirecto: number }[];
+  },
 ): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { ok: false, message: 'No autenticado' };
 
-    const { area, liquidaciones } = payload;
+    const { area, liquidaciones, distribucion } = payload;
     if (!liquidaciones.length) return { ok: false, message: 'Sin liquidaciones' };
 
     let totalProcesado = 0;
+    const semanasProcesadas = new Set<string>();
 
     for (const liq of liquidaciones) {
       const weekStart = getWeekStart(liq.despidoFecha);
@@ -1056,8 +1062,10 @@ export async function procesarLiquidacionDespedidosAction(
         semanaInicio: weekStart,
         semanaFin: weekEnd,
         area,
-        totalTrabajadores: 1,
-        totalPagado: liq.montoLiquidacion,
+        totalTrabajadores: liquidaciones.filter((l) => l.despidoFecha === liq.despidoFecha).length,
+        totalPagado: liquidaciones
+          .filter((l) => l.despidoFecha === liq.despidoFecha)
+          .reduce((sum, l) => sum + l.montoLiquidacion, 0),
         registradoPor: user.id,
         origen: 'cierre_v3',
       });
@@ -1120,6 +1128,48 @@ export async function procesarLiquidacionDespedidosAction(
         `Liquidación procesada: $${liq.montoLiquidacion} (bono: $${liq.bonificaciones}${liq.cobraSemanaLibre ? ', incluye semana libre' : ''})`,
         user.id,
       );
+    }
+
+    // Distribución de pagos (Pedro / Darinel / La Fe) — igual que el cierre de nómina semanal
+    if (distribucion && distribucion.length > 0) {
+      for (const semanaId of semanasProcesadas) {
+        const { data: semanaRow } = await supabase
+          .from('nomina_semanas')
+          .select('total_pagado')
+          .eq('id', semanaId)
+          .maybeSingle();
+
+        const totalPagado = Number(semanaRow?.total_pagado) || totalProcesado;
+        const distribucionPayload = distribucion.map((d) => ({
+          id: d.nombre.toLowerCase().replace(/\s+/g, '-'),
+          nombre: d.nombre,
+          porcentaje: d.porcentaje,
+          pagoDirecto: d.pagoDirecto,
+        }));
+        const montoPedro = parseFloat(((totalPagado * (distribucion[0]?.porcentaje ?? 0)) / 100).toFixed(2));
+        const montoDarinel = parseFloat(((totalPagado * (distribucion[1]?.porcentaje ?? 0)) / 100).toFixed(2));
+        const montoLaFe = parseFloat(((totalPagado * (distribucion[2]?.porcentaje ?? 0)) / 100).toFixed(2));
+
+        const { error: errCierre } = await supabase
+          .from('nomina_cierres')
+          .upsert(
+            {
+              semana_id: semanaId,
+              total_nomina_usd: totalPagado,
+              pct_pedro: distribucion[0]?.porcentaje ?? 0,
+              pct_darinel: distribucion[1]?.porcentaje ?? 0,
+              pct_la_fe: distribucion[2]?.porcentaje ?? 0,
+              monto_pedro: montoPedro,
+              monto_darinel: montoDarinel,
+              monto_la_fe: montoLaFe,
+              distribucion: distribucionPayload,
+            },
+            { onConflict: 'semana_id' },
+          );
+        if (errCierre) {
+          console.error('Error al guardar distribucion:', errCierre.message);
+        }
+      }
     }
 
     const paths = ['/admin/trabajadores', '/admin/nomina', '/mina/nomina', '/planta/nomina', '/operaciones/resumen', '/dashboard'];

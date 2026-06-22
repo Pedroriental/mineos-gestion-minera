@@ -2698,6 +2698,7 @@ export default function NominaClient({
                     <LiquidacionDespedidosPanel
                       area={area}
                       personal={personalCatalogMerged}
+                      distribucionPartes={distribucion.partes}
                       onRefresh={() => router.refresh()}
                     />
                   ) : (

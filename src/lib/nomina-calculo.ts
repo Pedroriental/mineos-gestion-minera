@@ -411,15 +411,19 @@ export type LiquidacionResultado = {
  * Calcula la liquidación de un trabajador despedido.
  * NO depende del esquema de rotación — es generalizada.
  * - Días trabajados: lunes de la semana del despido hasta el día ANTERIOR al despido
- *   (no se cuenta el día del despido, p.ej. lunes-jueves = 3 días)
+ *   (no se cuenta el día del despido, p.ej. lunes-jueves = 3 días).
+ *   Si se pasa `diasTrabajadosOverride`, se usa ese valor en su lugar.
  * - Semana libre: solo si cobraSemanaLibre === true
- *   (el usuario decide manualmente si el trabajador llegó a cobrarla)
+ *   (el usuario decide manualmente si el trabajador llegó a cobrarla).
+ *   El monto de la semana libre es `salario_libre || salario_base`
+ *   (puede variar por trabajador según su $/Semana).
  * - Bono extra: se agrega aparte en el panel
  */
 export function calcularLiquidacionPendiente(
   personal: Pick<Personal, 'salario_base' | 'salario_libre' | 'bono_transporte'>,
   despidoFechaISO: string,
   cobraSemanaLibre: boolean,
+  diasTrabajadosOverride?: number | null,
 ): LiquidacionResultado {
   const salarioBase = Number(personal.salario_base) || 0;
   const salarioLibre = Number(personal.salario_libre) || salarioBase;
@@ -434,11 +438,17 @@ export function calcularLiquidacionPendiente(
   const despidoWeekStart = getWeekStart(despidoFecha);
   const despidoWeekStartDate = new Date(`${despidoWeekStart}T00:00:00`);
 
-  // Días trabajados: lunes hasta día ANTERIOR al despido (no contar día del despido)
-  const diasTrabajados = Math.max(
-    0,
-    Math.min(7, Math.ceil((despidoFecha.getTime() - despidoWeekStartDate.getTime()) / (24 * 60 * 60 * 1000)))
-  );
+  // Días trabajados: override manual o auto-cálculo
+  let diasTrabajados: number;
+  if (diasTrabajadosOverride !== undefined && diasTrabajadosOverride !== null) {
+    diasTrabajados = Math.max(0, Math.min(14, Math.round(diasTrabajadosOverride)));
+  } else {
+    // Auto: lunes hasta día ANTERIOR al despido (no contar día del despido)
+    diasTrabajados = Math.max(
+      0,
+      Math.min(7, Math.ceil((despidoFecha.getTime() - despidoWeekStartDate.getTime()) / (24 * 60 * 60 * 1000)))
+    );
+  }
 
   if (diasTrabajados > 0) {
     const montoDias = applyProportionalWeeklyPay(salarioBase, diasTrabajados);
@@ -462,7 +472,7 @@ export function calcularLiquidacionPendiente(
       estado: 'libre',
       dias: 0,
       monto: parseFloat(salarioLibre.toFixed(2)),
-      descripcion: 'Semana libre pagada',
+      descripcion: `Semana libre ($${salarioLibre.toFixed(2)})`,
     });
     montoTotal += parseFloat(salarioLibre.toFixed(2));
   }
