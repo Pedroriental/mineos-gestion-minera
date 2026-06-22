@@ -40,7 +40,16 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
         const wb = XLSX.read(buffer, { type: 'array' });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-        parsed = json.map((row) => rowToImportRow(row));
+        // Normalize keys: lowercase + trim + remove accents to make lookup case/accent-insensitive
+        const normalized = json.map((row) => {
+          const obj: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(row)) {
+            const normKey = removeAccents(k.toLowerCase().trim());
+            obj[normKey] = v;
+          }
+          return obj;
+        });
+        parsed = normalized.map((row) => rowToImportRow(row));
       } else {
         throw new Error('Formato no soportado. Use .csv, .xlsx o .xls');
       }
@@ -48,7 +57,14 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
       parsed = parsed.filter((r) => r.cedula);
       setRows(parsed);
       if (parsed.length === 0) {
-        setError('No se encontraron filas válidas. Verifica que el archivo tenga columna "Cédula".');
+        setError(
+          'No se encontraron filas válidas. Verifica que el archivo tenga una columna de cédula (Cédula, Cedula, CI, etc.) con valores no vacíos.',
+        );
+        if (typeof window !== 'undefined') {
+          console.warn('[ImportarDespedidos] Filas parseadas pero sin cédula. Revisa los encabezados del archivo.');
+        }
+      } else if (typeof window !== 'undefined') {
+        console.info(`[ImportarDespedidos] ${parsed.length} fila(s) parseada(s) correctamente.`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al parsear el archivo';
@@ -182,7 +198,7 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
 function parseCSV(text: string): ImportarDespedidosRow[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/['"]/g, ''));
+  const headers = lines[0].split(',').map((h) => removeAccents(h.trim().toLowerCase().replace(/['"]/g, '')));
   return lines.slice(1).map((line) => {
     const cols = parseCSVLine(line);
     const obj: Record<string, string> = {};
@@ -191,6 +207,10 @@ function parseCSV(text: string): ImportarDespedidosRow[] {
     });
     return rowToImportRow(obj);
   });
+}
+
+function removeAccents(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 function parseCSVLine(line: string): string[] {
@@ -214,27 +234,27 @@ function parseCSVLine(line: string): string[] {
 
 function rowToImportRow(row: Record<string, unknown>): ImportarDespedidosRow {
   const get = (...keys: string[]): string => {
+    const norm = (s: string) => removeAccents(s.toLowerCase().trim());
     for (const k of keys) {
-      const norm = k.toLowerCase().replace(/['"]/g, '').trim();
-      const v = row[norm] ?? row[k] ?? row[Object.keys(row).find((rk) => rk.toLowerCase() === norm) ?? ''];
+      const kNorm = norm(k);
+      const v = row[kNorm] ?? row[k];
       if (v !== undefined && v !== null && v !== '') return String(v).trim();
     }
     return '';
   };
 
-  const cobraLibre = ['CobraSemanaLibre', 'cobra_semana_libre', 'cobra semana libre', 'semana libre', 'libre']
-    .map((k) => k.toLowerCase())
-    .some((k) => {
-      const v = get(k);
-      return v && /^(si|sí|yes|true|1|x)$/i.test(v);
-    });
+  const cobraLibre = (() => {
+    const v = get('cobra semana libre', 'cobra_semanalibre', 'semana libre', 'libre');
+    if (!v) return false;
+    return /^(si|sí|yes|true|1|x)$/i.test(v);
+  })();
 
   return {
-    cedula: get('Cédula', 'Cedula', 'cedula', 'CI', 'ci'),
-    despidoFecha: get('DespidoFecha', 'Despido Fecha', 'despido_fecha', 'Fecha Despido', 'fecha_despido', 'Fecha'),
-    despidoCausa: get('Causa', 'causa', 'despido_causa', 'Motivo') || 'Despido',
-    diasTrabajados: Number(get('DiasTrabajados', 'Dias Trabajados', 'dias_trabajados', 'Días', 'dias', 'Dias Trab', 'DiasTrabajados')) || 0,
+    cedula: get('cedula', 'ci', 'cédula'),
+    despidoFecha: get('despido fecha', 'despido_fecha', 'despidofecha', 'fecha despido', 'fecha_despido', 'fecha'),
+    despidoCausa: get('causa', 'despido_causa', 'motivo') || 'Despido',
+    diasTrabajados: Number(get('dias trabajados', 'dias_trabajados', 'diastrabajados', 'dias', 'días', 'dias trab')) || 0,
     cobraSemanaLibre: cobraLibre,
-    bonificaciones: Number(get('Bonificaciones', 'bonificaciones', 'Bono', 'bono')) || 0,
+    bonificaciones: Number(get('bonificaciones', 'bono', 'bono extra')) || 0,
   };
 }
