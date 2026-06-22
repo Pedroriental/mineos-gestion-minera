@@ -3758,12 +3758,15 @@ input, textarea, select {
 }
 
 @media print {
+  /* ── Nómina Preview: landscape se inyecta dinámicamente via JS ── */
+
   .page-form-modal-backdrop {
     background: white !important;
     position: static !important;
     overflow: visible !important;
     height: auto !important;
     inset: auto !important;
+    z-index: auto !important;
   }
   .page-form-modal-panel--excel-preview {
     max-height: none !important;
@@ -3772,6 +3775,9 @@ input, textarea, select {
     box-shadow: none !important;
     position: static !important;
     width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    border-radius: 0 !important;
   }
   .nomina-vista-previa-content,
   .nomina-vista-previa-content__body {
@@ -3780,10 +3786,12 @@ input, textarea, select {
     height: auto !important;
     min-height: 0 !important;
     flex: none !important;
+    display: block !important;
   }
   .nomina-vista-previa-content__zoom-root {
     zoom: 1 !important;
     transform: none !important;
+    padding: 0 !important;
   }
   .nomina-preview-report .overflow-x-auto {
     overflow: visible !important;
@@ -3792,30 +3800,80 @@ input, textarea, select {
     display: none !important;
   }
 
-  /* Solo la planilla reconstruida — oculta nómina operativa detrás del modal */
+  /* ── Oculta todo excepto el reporte ── */
   body.nomina-preview-print-mode * {
     visibility: hidden !important;
   }
   body.nomina-preview-print-mode .nomina-preview-report,
-  body.nomina-preview-print-mode .nomina-preview-report * {
+  body.nomina-preview-print-mode .nomina-preview-report *,
+  body.nomina-preview-print-mode .nomina-vista-previa-content,
+  body.nomina-preview-print-mode .nomina-vista-previa-content__body,
+  body.nomina-preview-print-mode .nomina-vista-previa-content__zoom-root {
     visibility: visible !important;
   }
+
+  /* ── Posicionamiento: static para flujo multi-página correcto ── */
   body.nomina-preview-print-mode .nomina-preview-report {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
     background: white !important;
+    font-size: 11px !important;
   }
+
+  /* Todos los ancestros deben ser visibles y con flujo normal */
+  body.nomina-preview-print-mode,
   body.nomina-preview-print-mode [data-main-content],
   body.nomina-preview-print-mode main,
-  body.nomina-preview-print-mode [data-app-shell] {
+  body.nomina-preview-print-mode [data-app-shell],
+  body.nomina-preview-print-mode [data-app-shell] > div {
+    visibility: visible !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
     height: auto !important;
+    display: block !important;
+    position: static !important;
+    background: white !important;
+  }
+
+  /* ── Evitar cortes de tablas entre páginas ── */
+  body.nomina-preview-print-mode .nomina-preview-report table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+  body.nomina-preview-print-mode .nomina-preview-report thead {
+    display: table-header-group !important;
+  }
+  body.nomina-preview-print-mode .nomina-preview-report tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  body.nomina-preview-print-mode .nomina-preview-report .overflow-x-auto {
+    break-inside: avoid-page !important;
+    page-break-inside: auto !important;
+    overflow: visible !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* El contenedor de cada sección debería intentar no romperse,
+     pero si es muy largo, permitir que la tabla fluya */
+  body.nomina-preview-print-mode .nomina-preview-report > div {
+    break-inside: auto !important;
+  }
+
+  /* Asegurar que los colores se preserven en PDF */
+  body.nomina-preview-print-mode .nomina-preview-report * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Reducir padding de celdas para ahorrar espacio */
+  body.nomina-preview-print-mode .nomina-preview-report td,
+  body.nomina-preview-print-mode .nomina-preview-report th {
+    padding: 3px 5px !important;
   }
 }
 

@@ -409,8 +409,14 @@ export default function NominaVistaPreviaContent({
 
   function handlePrintPreview() {
     document.body.classList.add('nomina-preview-print-mode');
+    // Inyectar @page landscape dinámicamente para no conflictar con el @page portrait global
+    const pageStyle = document.createElement('style');
+    pageStyle.id = 'nomina-print-page-override';
+    pageStyle.textContent = '@page { size: landscape; margin: 8mm 6mm; }';
+    document.head.appendChild(pageStyle);
     const cleanup = () => {
       document.body.classList.remove('nomina-preview-print-mode');
+      pageStyle.remove();
       window.removeEventListener('afterprint', cleanup);
     };
     window.addEventListener('afterprint', cleanup);
