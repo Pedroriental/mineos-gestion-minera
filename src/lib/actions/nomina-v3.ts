@@ -613,6 +613,7 @@ async function procesarCierreHistoricoManualV3(
       personal_snapshot: snapshotFromCierreRow(personal, r, area),
       origen: origenRegistro,
       periodo_id: periodoId,
+      posicion_en_ciclo: r.posicionCiclo ?? null,
     };
   });
   const { error: regError } = await supabase.from('nomina_registros').insert(registros);
@@ -814,6 +815,17 @@ export async function procesarCierreNominaV3Action(
     const semanaId = String((rpcData as { semana_id?: string } | null)?.semana_id ?? '');
     if (!semanaId) {
       return { ok: false, message: 'El cierre no devolvió la semana procesada.' };
+    }
+
+    // Guardar posicion_en_ciclo en registros
+    for (const r of rows) {
+      if (r.posicionCiclo !== undefined && r.posicionCiclo !== null) {
+        await supabase
+          .from('nomina_registros')
+          .update({ posicion_en_ciclo: r.posicionCiclo })
+          .eq('semana_id', semanaId)
+          .eq('personal_id', r.personalId);
+      }
     }
 
     // 6. Auditar ajustes manuales aceptados por el checksum (si los hubo)

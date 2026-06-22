@@ -691,6 +691,7 @@ export default function NominaClient({
           ...next,
           editorPeriodId: next.editorPeriodId ?? dbPeriod.id,
           historicalPeriodId: dbPeriod.id,
+          workingWeekPeriodId: next.workingWeekPeriodId ?? dbPeriod.id,
         };
       });
     });
@@ -1150,6 +1151,11 @@ export default function NominaClient({
                 reposoCondicion: reposoParsed.reposoCondicion ?? null,
                 reposoDiasPagados: reposoParsed.reposoDiasPagados ?? 0,
                 reposoCompensacionMonto: reposoParsed.reposoCompensacionMonto ?? 0,
+                cuadrillaNombre: snap?.cuadrilla_nombre || undefined,
+                rotacionFuente: reg.periodo_id ? 'plantilla' : 'legacy',
+                cicloPosicion: reg.posicion_en_ciclo ?? null,
+                estatusPlantillaLabel: reg.es_semana_libre ? (Number(reg.monto_pagado) === 0 ? 'Libre $0' : 'Libre Pagada') : 'Labor',
+                estatusPlantilla: reg.es_semana_libre ? (Number(reg.monto_pagado) === 0 ? 'libre_sin_pago' : 'libre_paga') : 'trabajada_paga',
               };
             });
             if (runGen !== initRowsGenRef.current) return;
@@ -2141,6 +2147,7 @@ export default function NominaClient({
               (c) => c.nombre === r.cuadrillaNombre,
             )?.id,
             cuadrillaNombre: r.cuadrillaNombre?.trim() || undefined,
+            posicionCiclo: r.cicloPosicion ?? null,
           };
         });
         const res = await procesarCierreNominaV3Action({
