@@ -12,12 +12,12 @@ if (!PASSWORD) {
   process.exit(1);
 }
 
-// Pooler session mode
+// Try pooler first, fallback to direct
 const pool = new Pool({
-  host: `aws-0-us-east-1.pooler.supabase.com`,
+  host: `db.${PROJECT_REF}.supabase.co`,
   port: 5432,
   database: 'postgres',
-  user: `postgres.${PROJECT_REF}`,
+  user: 'postgres',
   password: PASSWORD,
   ssl: { rejectUnauthorized: false },
   connectionTimeoutMillis: 15000,
