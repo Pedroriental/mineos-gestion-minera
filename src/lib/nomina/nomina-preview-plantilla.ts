@@ -390,10 +390,12 @@ export function plantillaSummaryLabel(title: string, plantilla?: RotacionPlantil
 
 import type { NominaPreviewSection, NominaPreviewWorkerRow, NominaPreviewWeekCell } from '@/lib/nomina-preview';
 import { calcularLiquidacionPendiente } from '@/lib/nomina-calculo';
+
 export function buildDespedidosPreviewSection(
   despedidos: Personal[],
   weekColumns: { weekStart: string }[],
   filterArea?: string,
+  cobraSemanaLibre = false,
 ): NominaPreviewSection | null {
   if (despedidos.length === 0) return null;
 
@@ -404,15 +406,7 @@ export function buildDespedidosPreviewSection(
 
     const despidoFecha = p.despido_fecha ?? p.estado_fin_fecha ?? new Date().toISOString().split('T')[0];
 
-    const ultimaSemanaPagada = weekColumns.length > 0
-      ? weekColumns[0].weekStart
-      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    const liquidacion = calcularLiquidacionPendiente(
-      p,
-      ultimaSemanaPagada,
-      despidoFecha,
-    );
+    const liquidacion = calcularLiquidacionPendiente(p, despidoFecha, cobraSemanaLibre);
 
     const weeks: Record<string, NominaPreviewWeekCell> = {};
     let total = liquidacion.montoTotal;
@@ -433,7 +427,7 @@ export function buildDespedidosPreviewSection(
       personal: p,
       weeks,
       total,
-      observaciones: `Liquidación: ${liquidacion.semanas.length} semanas, ${liquidacion.diasParciales} días parciales${liquidacion.semanaLibreGanada ? ' + semana libre' : ''}`,
+      observaciones: `Liquidación: ${liquidacion.diasParciales} días trabajados${liquidacion.semanaLibreGanada ? ' + semana libre' : ''}`,
       saleLibre: false,
     });
   }

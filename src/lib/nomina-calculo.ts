@@ -408,23 +408,22 @@ export type LiquidacionResultado = {
 };
 
 /**
- * Calcula la liquidación pendiente de un trabajador despedido.
- * Itera desde la última semana pagada hasta la fecha de despido,
- * respetando el ciclo de rotación y los días parciales.
+ * Calcula la liquidación de un trabajador despedido.
+ * NO depende del esquema de rotación — es generalizada.
+ * - Días trabajados: lunes de la semana del despido hasta el día ANTERIOR al despido
+ *   (no se cuenta el día del despido, p.ej. lunes-jueves = 3 días)
+ * - Semana libre: solo si cobraSemanaLibre === true
+ *   (el usuario decide manualmente si el trabajador llegó a cobrarla)
+ * - Bono extra: se agrega aparte en el panel
  */
 export function calcularLiquidacionPendiente(
-  personal: Pick<
-    Personal,
-    'esquema_rotacion' | 'rotacion_inicio_fecha' | 'salario_base' | 'salario_libre' | 'bono_transporte'
-  >,
-  ultimaSemanaPagadaISO: string,
+  personal: Pick<Personal, 'salario_base' | 'salario_libre' | 'bono_transporte'>,
   despidoFechaISO: string,
+  cobraSemanaLibre: boolean,
 ): LiquidacionResultado {
-  const totalCiclo = totalSemanasEsquema(personal.esquema_rotacion);
   const salarioBase = Number(personal.salario_base) || 0;
-  const salarioLibre = Number(personal.salario_libre) || 0;
+  const salarioLibre = Number(personal.salario_libre) || salarioBase;
   const bonoTransporte = Number(personal.bono_transporte) || 0;
-  const rotacionInicio = personal.rotacion_inicio_fecha;
 
   const desglose: LiquidacionDesglose[] = [];
   let montoTotal = 0;
@@ -435,132 +434,44 @@ export function calcularLiquidacionPendiente(
   const despidoWeekStart = getWeekStart(despidoFecha);
   const despidoWeekStartDate = new Date(`${despidoWeekStart}T00:00:00`);
 
-  // Días trabajados en la semana del despido (desde el lunes hasta la fecha de despido, inclusive)
-  const diasEnSemanaDespido = Math.max(
+  // Días trabajados: lunes hasta día ANTERIOR al despido (no contar día del despido)
+  const diasTrabajados = Math.max(
     0,
-    Math.min(7, Math.ceil((despidoFecha.getTime() - despidoWeekStartDate.getTime()) / (24 * 60 * 60 * 1000)) + 1)
+    Math.min(7, Math.ceil((despidoFecha.getTime() - despidoWeekStartDate.getTime()) / (24 * 60 * 60 * 1000)))
   );
 
-  if (diasEnSemanaDespido <= 0) {
-    return { semanas: [], montoTotal: 0, diasParciales: 0, semanaLibreGanada: false };
-  }
-
-  // Si no hay fecha de inicio de rotación: solo pagar días parciales
-  if (!rotacionInicio) {
-    const monto = applyProportionalWeeklyPay(salarioBase, diasEnSemanaDespido);
-    const bono = applyProportionalWeeklyPay(bonoTransporte, diasEnSemanaDespido);
-    const total = parseFloat((monto + bono).toFixed(2));
+  if (diasTrabajados > 0) {
+    const montoDias = applyProportionalWeeklyPay(salarioBase, diasTrabajados);
+    const montoBono = applyProportionalWeeklyPay(bonoTransporte, diasTrabajados);
+    const total = parseFloat((montoDias + montoBono).toFixed(2));
     desglose.push({
       semanaInicio: despidoWeekStart,
       posicionCiclo: 0,
       estado: 'trabajada',
-      dias: diasEnSemanaDespido,
+      dias: diasTrabajados,
       monto: total,
-      descripcion: `Días trabajados (${diasEnSemanaDespido} de 7 días)`,
+      descripcion: `${diasTrabajados} días trabajados`,
     });
     montoTotal += total;
-    return {
-      semanas: desglose,
-      montoTotal: parseFloat(montoTotal.toFixed(2)),
-      diasParciales: diasEnSemanaDespido,
-      semanaLibreGanada: false,
-    };
   }
 
-  const fechaInicioCalculo = new Date(`${rotacionInicio}T00:00:00`);
-
-  // Si el despido es ANTES del inicio de rotación: solo pagar días parciales
-  if (despidoFecha < fechaInicioCalculo) {
-    const monto = applyProportionalWeeklyPay(salarioBase, diasEnSemanaDespido);
-    const bono = applyProportionalWeeklyPay(bonoTransporte, diasEnSemanaDespido);
-    const total = parseFloat((monto + bono).toFixed(2));
+  if (cobraSemanaLibre) {
     desglose.push({
       semanaInicio: despidoWeekStart,
-      posicionCiclo: 0,
-      estado: 'trabajada',
-      dias: diasEnSemanaDespido,
-      monto: total,
-      descripcion: `Días trabajados (${diasEnSemanaDespido} de 7 días)`,
+      posicionCiclo: -1,
+      estado: 'libre',
+      dias: 0,
+      monto: parseFloat(salarioLibre.toFixed(2)),
+      descripcion: 'Semana libre pagada',
     });
-    montoTotal += total;
-    return {
-      semanas: desglose,
-      montoTotal: parseFloat(montoTotal.toFixed(2)),
-      diasParciales: diasEnSemanaDespido,
-      semanaLibreGanada: false,
-    };
-  }
-
-  // Iterar desde la semana del inicio de rotación hasta la semana del despido
-  let semanaCursor = new Date(fechaInicioCalculo);
-  let semanaLibreGanada = false;
-
-  while (semanaCursor <= despidoWeekStartDate) {
-    const semanaISO = semanaCursor.toISOString().split('T')[0];
-    const posicion = posicionEnCicloDesdeSemana(rotacionInicio, semanaISO, totalCiclo);
-    const rol = rolEnCiclo(personal.esquema_rotacion, posicion, totalCiclo);
-
-    if (semanaCursor.getTime() === despidoWeekStartDate.getTime()) {
-      // Última semana: pago parcial por días trabajados
-      const monto = applyProportionalWeeklyPay(salarioBase, diasEnSemanaDespido);
-      const bono = applyProportionalWeeklyPay(bonoTransporte, diasEnSemanaDespido);
-      const total = parseFloat((monto + bono).toFixed(2));
-      desglose.push({
-        semanaInicio: semanaISO,
-        posicionCiclo: posicion,
-        estado: 'trabajada',
-        dias: diasEnSemanaDespido,
-        monto: total,
-        descripcion: `Días trabajados (${diasEnSemanaDespido} de 7 días)`,
-      });
-      montoTotal += total;
-      if (rol === 'libre') semanaLibreGanada = true;
-    } else {
-      // Semana completa anterior al despido
-      if (rol === 'trabajada') {
-        const monto = parseFloat((salarioBase + bonoTransporte).toFixed(2));
-        desglose.push({
-          semanaInicio: semanaISO,
-          posicionCiclo: posicion,
-          estado: 'trabajada',
-          dias: 7,
-          monto,
-          descripcion: 'Semana trabajada completa',
-        });
-        montoTotal += monto;
-      } else if (rol === 'libre') {
-        const tarifaLibre = salarioLibre || salarioBase;
-        const total = parseFloat(tarifaLibre.toFixed(2));
-        desglose.push({
-          semanaInicio: semanaISO,
-          posicionCiclo: posicion,
-          estado: 'libre',
-          dias: 0,
-          monto: total,
-          descripcion: 'Semana libre pagada',
-        });
-        montoTotal += total;
-        semanaLibreGanada = true;
-      } else {
-        desglose.push({
-          semanaInicio: semanaISO,
-          posicionCiclo: posicion,
-          estado: 'no_laborado',
-          dias: 0,
-          monto: 0,
-          descripcion: 'Semana no laborada',
-        });
-      }
-    }
-
-    semanaCursor.setDate(semanaCursor.getDate() + 7);
+    montoTotal += parseFloat(salarioLibre.toFixed(2));
   }
 
   return {
     semanas: desglose,
     montoTotal: parseFloat(montoTotal.toFixed(2)),
-    diasParciales: diasEnSemanaDespido,
-    semanaLibreGanada,
+    diasParciales: diasTrabajados,
+    semanaLibreGanada: cobraSemanaLibre,
   };
 }
 

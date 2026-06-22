@@ -1028,6 +1028,7 @@ export type LiquidacionDespedidoItem = {
   personalId: string;
   montoLiquidacion: number;
   bonificaciones: number;
+  cobraSemanaLibre: boolean;
   observacion: string;
   despidoFecha: string;
 };
@@ -1116,7 +1117,7 @@ export async function procesarLiquidacionDespedidosAction(
         'LIQUIDACION_DESPEDIDO',
         'personal',
         liq.personalId,
-        `Liquidación procesada: $${liq.montoLiquidacion} (bono: $${liq.bonificaciones})`,
+        `Liquidación procesada: $${liq.montoLiquidacion} (bono: $${liq.bonificaciones}${liq.cobraSemanaLibre ? ', incluye semana libre' : ''})`,
         user.id,
       );
     }

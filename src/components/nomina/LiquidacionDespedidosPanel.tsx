@@ -4,7 +4,6 @@ import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { Personal } from '@/lib/types';
 import { calcularLiquidacionPendiente, type LiquidacionResultado } from '@/lib/nomina-calculo';
-import { totalSemanasEsquema } from '@/lib/nomina/perfil-ciclo-reglas';
 import { procesarLiquidacionDespedidosAction } from '@/lib/actions/nomina-v3';
 
 type Props = {
@@ -13,27 +12,31 @@ type Props = {
   onRefresh?: () => void;
 };
 
+type LiquidacionOverride = {
+  bonificaciones: number;
+  montoEditado: number | null;
+  cobraSemanaLibre: boolean;
+  cerrada: boolean;
+};
+
+const DEFAULT_OVERRIDE: LiquidacionOverride = {
+  bonificaciones: 0,
+  montoEditado: null,
+  cobraSemanaLibre: false,
+  cerrada: false,
+};
+
 type LiquidacionItem = {
   personal: Personal;
   liquidacion: LiquidacionResultado;
   bonificaciones: number;
   montoEditado: number | null;
+  cobraSemanaLibre: boolean;
   cerrada: boolean;
 };
 
-function calcularUltimaPagada(p: Personal, despidoFecha: string): string {
-  const totalCiclo = totalSemanasEsquema(p.esquema_rotacion);
-  const cicloSemanas = Math.max(1, totalCiclo);
-  const despido = new Date(`${despidoFecha}T00:00:00`);
-  despido.setDate(despido.getDate() - cicloSemanas * 7);
-  const y = despido.getFullYear();
-  const m = String(despido.getMonth() + 1).padStart(2, '0');
-  const d = String(despido.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
 export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props) {
-  const [overrides, setOverrides] = useState<Record<string, { bonificaciones: number; montoEditado: number | null; cerrada: boolean }>>({});
+  const [overrides, setOverrides] = useState<Record<string, LiquidacionOverride>>({});
   const [processing, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -48,15 +51,15 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
   const itemsList: LiquidacionItem[] = useMemo(() => {
     return despedidos.map((p) => {
       const despidoFecha = p.despido_fecha ?? p.estado_fin_fecha ?? new Date().toISOString().split('T')[0];
-      const ultimaPagada = calcularUltimaPagada(p, despidoFecha);
-      const liquidacion = calcularLiquidacionPendiente(p, ultimaPagada, despidoFecha);
-      const ov = overrides[p.id];
+      const ov = overrides[p.id] ?? DEFAULT_OVERRIDE;
+      const liquidacion = calcularLiquidacionPendiente(p, despidoFecha, ov.cobraSemanaLibre);
       return {
         personal: p,
         liquidacion,
-        bonificaciones: ov?.bonificaciones ?? 0,
-        montoEditado: ov?.montoEditado ?? null,
-        cerrada: ov?.cerrada ?? false,
+        bonificaciones: ov.bonificaciones,
+        montoEditado: ov.montoEditado,
+        cobraSemanaLibre: ov.cobraSemanaLibre,
+        cerrada: ov.cerrada,
       };
     });
   }, [despedidos, overrides]);
@@ -68,7 +71,7 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
   const handleBonificacion = useCallback((personalId: string, valor: number) => {
     setOverrides((prev) => {
       const next = { ...prev };
-      const existing = next[personalId] ?? { bonificaciones: 0, montoEditado: null, cerrada: false };
+      const existing = next[personalId] ?? DEFAULT_OVERRIDE;
       next[personalId] = { ...existing, bonificaciones: valor };
       return next;
     });
@@ -77,8 +80,17 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
   const handleMontoEditado = useCallback((personalId: string, valor: number | null) => {
     setOverrides((prev) => {
       const next = { ...prev };
-      const existing = next[personalId] ?? { bonificaciones: 0, montoEditado: null, cerrada: false };
+      const existing = next[personalId] ?? DEFAULT_OVERRIDE;
       next[personalId] = { ...existing, montoEditado: valor };
+      return next;
+    });
+  }, []);
+
+  const handleCobraSemanaLibre = useCallback((personalId: string, valor: boolean) => {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      const existing = next[personalId] ?? DEFAULT_OVERRIDE;
+      next[personalId] = { ...existing, cobraSemanaLibre: valor };
       return next;
     });
   }, []);
@@ -101,9 +113,11 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
         personalId: item.personal.id,
         montoLiquidacion: montoFinal(item),
         bonificaciones: item.bonificaciones,
-        observacion: item.liquidacion.semanas
-          .map((s) => `${s.descripcion}: $${s.monto.toFixed(2)}`)
-          .join('; '),
+        cobraSemanaLibre: item.cobraSemanaLibre,
+        observacion: [
+          ...item.liquidacion.semanas.map((s) => `${s.descripcion}: $${s.monto.toFixed(2)}`),
+          item.cobraSemanaLibre ? 'Incluye semana libre' : 'Sin semana libre',
+        ].join('; '),
         despidoFecha: item.personal.despido_fecha ?? new Date().toISOString().split('T')[0],
       }));
 
@@ -113,7 +127,7 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
         setOverrides((prev) => {
           const next = { ...prev };
           for (const item of pendientes) {
-            const existing = next[item.personal.id] ?? { bonificaciones: 0, montoEditado: null, cerrada: false };
+            const existing = next[item.personal.id] ?? DEFAULT_OVERRIDE;
             next[item.personal.id] = { ...existing, cerrada: true };
           }
           return next;
@@ -180,6 +194,7 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
             montoFinal={montoFinal(item)}
             onBonificacion={(v) => handleBonificacion(item.personal.id, v)}
             onMontoEditado={(v) => handleMontoEditado(item.personal.id, v)}
+            onCobraSemanaLibre={(v) => handleCobraSemanaLibre(item.personal.id, v)}
           />
         ))}
       </div>
@@ -192,13 +207,15 @@ function LiquidacionCard({
   montoFinal,
   onBonificacion,
   onMontoEditado,
+  onCobraSemanaLibre,
 }: {
   item: LiquidacionItem;
   montoFinal: number;
   onBonificacion: (v: number) => void;
   onMontoEditado: (v: number | null) => void;
+  onCobraSemanaLibre: (v: boolean) => void;
 }) {
-  const { personal: p, liquidacion, bonificaciones, cerrada } = item;
+  const { personal: p, liquidacion, bonificaciones, cobraSemanaLibre, cerrada } = item;
   const [editMode, setEditMode] = useState(false);
 
   return (
@@ -253,7 +270,19 @@ function LiquidacionCard({
       )}
 
       {!cerrada && (
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={cobraSemanaLibre}
+              onChange={(e) => onCobraSemanaLibre(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-white/10 bg-zinc-900/60 text-amber-500 focus:ring-1 focus:ring-amber-500/30"
+            />
+            <span className="text-[10px] text-zinc-300">¿Cobró semana libre?</span>
+            <span className="text-[9px] text-zinc-500">
+              (${(Number(p.salario_libre) || Number(p.salario_base) || 0).toFixed(2)})
+            </span>
+          </label>
           <label className="text-[10px] text-zinc-500">Bono extra:</label>
           <input
             type="number"
