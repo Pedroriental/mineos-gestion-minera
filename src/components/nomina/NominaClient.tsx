@@ -212,6 +212,9 @@ const NominaImportModal = dynamic(() =>
 const RotacionPlantillaSandboxModal = dynamic(() =>
   import('@/components/nomina/RotacionPlantillaSandboxModal').then((mod) => mod.RotacionPlantillaSandboxModal),
 );
+const LiquidacionDespedidosPanel = dynamic(() =>
+  import('@/components/nomina/LiquidacionDespedidosPanel').then((mod) => mod.LiquidacionDespedidosPanel),
+);
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -564,7 +567,7 @@ export default function NominaClient({
   const [newValeMonto, setNewValeMonto] = useState('');
   const [newValeMotivo, setNewValeMotivo] = useState('');
   // Vista activa: Semanal (tradicional), Ciclos (21 días) o Plantillas rotación
-  const [viewMode, setViewMode] = useState<'semanal' | 'ciclos' | 'cierre_mes' | 'plantillas'>('semanal');
+  const [viewMode, setViewMode] = useState<'semanal' | 'ciclos' | 'cierre_mes' | 'plantillas' | 'despedidos'>('semanal');
 
   // Pre-Nómina
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
@@ -2563,7 +2566,7 @@ export default function NominaClient({
           <div className="nomina-page__main nomina-page__table-stack flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/30 lg:border lg:bg-zinc-900/30">
             {/* Tabs de Vista */}
             <div className="shrink-0 border-b border-zinc-800/80 bg-zinc-950/40 px-2 py-1">
-              <div className="grid w-full grid-cols-2 gap-1 sm:grid-cols-4">
+              <div className="grid w-full grid-cols-3 gap-1 sm:grid-cols-5">
                 <button
                   type="button"
                   onClick={() => setViewMode('semanal')}
@@ -2607,6 +2610,17 @@ export default function NominaClient({
                   }`}
                 >
                   Plantillas Rotación
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('despedidos')}
+                  className={`rounded-md px-2 py-1 text-center text-[10px] font-bold uppercase transition-all ${
+                    viewMode === 'despedidos'
+                      ? 'border border-amber-500/30 bg-amber-500/10 text-amber-400'
+                      : 'border border-transparent text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  Despedidos
                 </button>
               </div>
             </div>
@@ -2679,6 +2693,12 @@ export default function NominaClient({
                         setArchivoRefreshKey((k) => k + 1);
                       }}
                       periodosRefreshKey={archivoRefreshKey}
+                    />
+                  ) : viewMode === 'despedidos' ? (
+                    <LiquidacionDespedidosPanel
+                      area={area}
+                      personal={personalCatalogMerged}
+                      onRefresh={() => router.refresh()}
                     />
                   ) : (
                     <RotacionInstanciaPanel

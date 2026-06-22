@@ -27,6 +27,7 @@ import {
   aggregatePlantillaSectionTotalsFromRegistros,
   buildPlantillaPreviewSectionOrder,
   buildPlantillaPreviewSectionOrderForPeriod,
+  buildDespedidosPreviewSection,
   plantillaSummaryLabel,
   resolveWorkerPlantillaPreviewSection,
   resolveWorkerPlantillaPreviewSectionFromRegistros,
@@ -1058,6 +1059,15 @@ export function buildNominaPreviewReport(input: {
   );
   if (filterArea) {
     novedades = novedades.filter((n) => n.area === filterArea);
+  }
+
+  const despedidosSection = buildDespedidosPreviewSection(
+    personalForCatalog.filter((p) => p.estado_laboral === 'DESPEDIDO'),
+    weekColumns,
+    filterArea,
+  );
+  if (despedidosSection) {
+    sections.push(despedidosSection);
   }
 
   return {

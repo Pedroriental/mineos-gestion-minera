@@ -1,6 +1,7 @@
 import {
   calcularBonoTransportePorPosicion,
   calcularSalarioPorPosicionCiclo,
+  posicionEnCicloDesdeSemana,
   posicionEsquemaPersonal,
   tarifaPlanaSemanaLibre,
   totalSemanasEsquema,
@@ -386,4 +387,159 @@ export function predictWeekPay(
     diasTrabajados,
     source: 'calculada',
   };
+}
+
+// ── LIQUIDACION DE DESPEDIDOS ──────────────────────────────────
+
+export type LiquidacionDesglose = {
+  semanaInicio: string;
+  posicionCiclo: number;
+  estado: EstadoAsistenciaNomina;
+  dias: number;
+  monto: number;
+  descripcion: string;
+};
+
+export type LiquidacionResultado = {
+  semanas: LiquidacionDesglose[];
+  montoTotal: number;
+  diasParciales: number;
+  semanaLibreGanada: boolean;
+};
+
+/**
+ * Calcula la liquidación pendiente de un trabajador despedido.
+ * Itera desde la última semana pagada hasta la fecha de despido,
+ * respetando el ciclo de rotación y los días parciales.
+ */
+export function calcularLiquidacionPendiente(
+  personal: Pick<
+    Personal,
+    'esquema_rotacion' | 'rotacion_inicio_fecha' | 'salario_base' | 'salario_libre' | 'bono_transporte'
+  >,
+  ultimaSemanaPagadaISO: string,
+  despidoFechaISO: string,
+): LiquidacionResultado {
+  const totalCiclo = totalSemanasEsquema(personal.esquema_rotacion);
+  const salarioBase = Number(personal.salario_base) || 0;
+  const salarioLibre = Number(personal.salario_libre) || 0;
+  const bonoTransporte = Number(personal.bono_transporte) || 0;
+  const rotacionInicio = personal.rotacion_inicio_fecha;
+
+  if (!rotacionInicio) {
+    return { semanas: [], montoTotal: 0, diasParciales: 0, semanaLibreGanada: false };
+  }
+
+  const desglose: LiquidacionDesglose[] = [];
+  let montoTotal = 0;
+
+  const ultimaPagada = new Date(`${ultimaSemanaPagadaISO}T00:00:00`);
+  const despidoFecha = new Date(`${despidoFechaISO}T00:00:00`);
+
+  if (despidoFecha <= ultimaPagada) {
+    return { semanas: [], montoTotal: 0, diasParciales: 0, semanaLibreGanada: false };
+  }
+
+  let semanaCursor = new Date(ultimaPagada);
+  semanaCursor.setDate(semanaCursor.getDate() + 7);
+
+  let semanaLibreGanada = false;
+  let diasParciales = 0;
+
+  while (semanaCursor <= despidoFecha) {
+    const semanaISO = semanaCursor.toISOString().split('T')[0];
+    const posicion = posicionEnCicloDesdeSemana(rotacionInicio, semanaISO, totalCiclo);
+
+    const rol = rolEnCiclo(personal.esquema_rotacion, posicion, totalCiclo);
+
+    if (rol === 'trabajada') {
+      const esUltimaSemana = semanaCursor.getTime() + 7 * 24 * 60 * 60 * 1000 > despidoFecha.getTime();
+      if (esUltimaSemana) {
+        const diasEnSemana = Math.min(
+          7,
+          Math.max(0, Math.ceil((despidoFecha.getTime() - semanaCursor.getTime()) / (24 * 60 * 60 * 1000))),
+        );
+        diasParciales = diasEnSemana;
+        if (diasEnSemana > 0) {
+          const monto = applyProportionalWeeklyPay(salarioBase, diasEnSemana);
+          const bono = applyProportionalWeeklyPay(bonoTransporte, diasEnSemana);
+          const total = parseFloat((monto + bono).toFixed(2));
+          desglose.push({
+            semanaInicio: semanaISO,
+            posicionCiclo: posicion,
+            estado: 'trabajada',
+            dias: diasEnSemana,
+            monto: total,
+            descripcion: `Semana trabajada (${diasEnSemana} días de 7)`,
+          });
+          montoTotal += total;
+        }
+      } else {
+        const monto = salarioBase + bonoTransporte;
+        const total = parseFloat(monto.toFixed(2));
+        desglose.push({
+          semanaInicio: semanaISO,
+          posicionCiclo: posicion,
+          estado: 'trabajada',
+          dias: 7,
+          monto: total,
+          descripcion: 'Semana trabajada completa',
+        });
+        montoTotal += total;
+      }
+    } else if (rol === 'libre') {
+      const tarifaLibre = salarioLibre || salarioBase;
+      const total = parseFloat(tarifaLibre.toFixed(2));
+      desglose.push({
+        semanaInicio: semanaISO,
+        posicionCiclo: posicion,
+        estado: 'libre',
+        dias: 0,
+        monto: total,
+        descripcion: 'Semana libre pagada',
+      });
+      montoTotal += total;
+      semanaLibreGanada = true;
+    } else {
+      desglose.push({
+        semanaInicio: semanaISO,
+        posicionCiclo: posicion,
+        estado: 'no_laborado',
+        dias: 0,
+        monto: 0,
+        descripcion: 'Semana no laborada',
+      });
+    }
+
+    semanaCursor.setDate(semanaCursor.getDate() + 7);
+  }
+
+  return {
+    semanas: desglose,
+    montoTotal: parseFloat(montoTotal.toFixed(2)),
+    diasParciales,
+    semanaLibreGanada,
+  };
+}
+
+function rolEnCiclo(
+  esquema: string,
+  posicion: number,
+  totalSemanas: number,
+): 'trabajada' | 'libre' | 'no_laborada' {
+  if (totalSemanas <= 1) return 'trabajada';
+  switch (esquema) {
+    case 'MINA_2X1':
+    case 'MINA_ROTATIVA_3G':
+      return posicion === 2 ? 'libre' : 'trabajada';
+    case 'MOLINO_ROTATIVO':
+      return posicion === 1 ? 'libre' : 'trabajada';
+    case 'MOLINO_15X15':
+    case 'MOLINO_14X14':
+      if (posicion === 2) return 'libre';
+      if (posicion === 3) return 'no_laborada';
+      return 'trabajada';
+    default:
+      return 'trabajada';
+  }
 }

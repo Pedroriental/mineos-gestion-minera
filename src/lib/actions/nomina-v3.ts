@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { deriveAsignacionNominaFields, isAsignacionNominaValid, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
-import { AUTO_ROTACION_OBS, tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
+import { AUTO_ROTACION_OBS, tieneEsquemaConRotacion, getWeekStart } from '@/lib/rotacion-personal';
 import {
   distribucionToCierrePayload,
   validateDistribucion,
@@ -1019,5 +1019,132 @@ export async function registrarAuditAction(
   } catch {
     // Silent — audit logging should never break the app
     console.error('[Audit] Failed to log:', accion, entidad);
+  }
+}
+
+// ── LIQUIDACION DE DESPEDIDOS ──────────────────────────────────
+
+export type LiquidacionDespedidoItem = {
+  personalId: string;
+  montoLiquidacion: number;
+  bonificaciones: number;
+  observacion: string;
+  despidoFecha: string;
+};
+
+export async function procesarLiquidacionDespedidosAction(
+  payload: { area: string; liquidaciones: LiquidacionDespedidoItem[] },
+): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { ok: false, message: 'No autenticado' };
+
+    const { area, liquidaciones } = payload;
+    if (!liquidaciones.length) return { ok: false, message: 'Sin liquidaciones' };
+
+    let totalProcesado = 0;
+
+    for (const liq of liquidaciones) {
+      const weekStart = getWeekStart(liq.despidoFecha);
+
+      const { data: semanaExist } = await supabase
+        .from('nomina_semanas')
+        .select('id')
+        .eq('semana_inicio', weekStart)
+        .eq('area', area)
+        .maybeSingle();
+
+      let semanaId: string;
+
+      if (semanaExist?.id) {
+        semanaId = semanaExist.id;
+      } else {
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        const { data: newSemana, error: errSem } = await supabase
+          .from('nomina_semanas')
+          .insert({
+            semana_inicio: weekStart,
+            semana_fin: weekEnd.toISOString().split('T')[0],
+            area,
+            total_trabajadores: 1,
+            total_pagado: liq.montoLiquidacion,
+            origen: 'cierre_v3',
+            registrado_por: user.id,
+          })
+          .select()
+          .single();
+        if (errSem) throw new Error(errSem.message);
+        semanaId = newSemana.id;
+      }
+
+      const { data: regExist } = await supabase
+        .from('nomina_registros')
+        .select('id')
+        .eq('semana_id', semanaId)
+        .eq('personal_id', liq.personalId)
+        .maybeSingle();
+
+      if (regExist?.id) {
+        const { error: errUpd } = await supabase
+          .from('nomina_registros')
+          .update({
+            monto_pagado: liq.montoLiquidacion,
+            bonificaciones: liq.bonificaciones,
+            es_finiquito: true,
+            estado_asistencia: 'no_laborado',
+            dias_trabajados: 0,
+            salario_base_calculado: liq.montoLiquidacion - liq.bonificaciones,
+            novedad_turno: 'LIQUIDACION',
+            novedad_turno_obs: liq.observacion,
+            origen: 'cierre_v3',
+          })
+          .eq('id', regExist.id);
+        if (errUpd) throw new Error(errUpd.message);
+      } else {
+        const { error: errIns } = await supabase
+          .from('nomina_registros')
+          .insert({
+            semana_id: semanaId,
+            personal_id: liq.personalId,
+            monto_pagado: liq.montoLiquidacion,
+            bonificaciones: liq.bonificaciones,
+            total_vales: 0,
+            es_semana_libre: false,
+            es_finiquito: true,
+            estado_asistencia: 'no_laborado',
+            dias_trabajados: 0,
+            salario_base_calculado: liq.montoLiquidacion - liq.bonificaciones,
+            novedad_turno: 'LIQUIDACION',
+            novedad_turno_obs: liq.observacion,
+            origen: 'cierre_v3',
+          });
+        if (errIns) throw new Error(errIns.message);
+      }
+
+      totalProcesado += liq.montoLiquidacion;
+
+      await registrarAuditAction(
+        'LIQUIDACION_DESPEDIDO',
+        'personal',
+        liq.personalId,
+        `Liquidación procesada: $${liq.montoLiquidacion} (bono: $${liq.bonificaciones})`,
+        user.id,
+      );
+    }
+
+    const paths = ['/admin/trabajadores', '/admin/nomina', '/mina/nomina', '/planta/nomina', '/operaciones/resumen', '/dashboard'];
+    for (const p of paths) {
+      try { await revalidatePath(p); } catch {}
+    }
+
+    return {
+      ok: true,
+      message: `${liquidaciones.length} liquidacion(es) procesada(s). Total: $${totalProcesado.toFixed(2)}`,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al procesar liquidaciones';
+    return { ok: false, message };
   }
 }
