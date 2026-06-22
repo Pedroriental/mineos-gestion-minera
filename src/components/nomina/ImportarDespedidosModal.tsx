@@ -31,6 +31,7 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
       const ext = file.name.toLowerCase().split('.').pop();
       let parsed: ImportarDespedidosRow[] = [];
 
+      let json: Record<string, unknown>[] = [];
       if (ext === 'csv' || ext === 'txt') {
         const text = await file.text();
         parsed = parseCSV(text);
@@ -39,38 +40,68 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
         const buffer = await file.arrayBuffer();
         const wb = XLSX.read(buffer, { type: 'array' });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+        // Get all rows as arrays to find the actual header row (skip title rows)
+        const allRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+        // Find the row that contains "Cédula" or "Cedula" (the actual headers)
+        const headerRowIdx = allRows.findIndex((row) =>
+          Array.isArray(row) && row.some((cell) => {
+            const c = removeAccents(String(cell ?? '').toLowerCase().trim());
+            return c === 'cedula' || c === 'ci' || c.includes('cedula');
+          }),
+        );
+
+        if (headerRowIdx >= 0) {
+          // Use the detected header row
+          const headerRow = allRows[headerRowIdx] as unknown[];
+          const dataRows = allRows.slice(headerRowIdx + 1);
+          json = dataRows.map((row) => {
+            const arr = Array.isArray(row) ? row : [];
+            const obj: Record<string, unknown> = {};
+            for (let i = 0; i < headerRow.length; i++) {
+              const key = removeAccents(String(headerRow[i] ?? '').toLowerCase().trim());
+              if (key) obj[key] = arr[i] ?? '';
+            }
+            return obj;
+          });
+        } else {
+          // Fallback: assume first row is the header
+          json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+        }
+
         if (typeof window !== 'undefined') {
+          console.info('[ImportarDespedidos] XLSX header row index:', headerRowIdx);
           console.info('[ImportarDespedidos] XLSX keys raw:', json.length > 0 ? Object.keys(json[0]) : 'empty');
-        }
-        // Normalize keys: lowercase + trim + remove accents to make lookup case/accent-insensitive
-        const normalized = json.map((row) => {
-          const obj: Record<string, unknown> = {};
-          for (const [k, v] of Object.entries(row)) {
-            const normKey = removeAccents(k.toLowerCase().trim());
-            obj[normKey] = v;
-          }
-          return obj;
-        });
-        if (typeof window !== 'undefined') {
-          console.info('[ImportarDespedidos] normalized keys:', normalized.length > 0 ? Object.keys(normalized[0]) : 'empty');
-        }
-        parsed = normalized.map((row) => rowToImportRow(row));
-        if (typeof window !== 'undefined') {
-          console.info('[ImportarDespedidos] parsed sample:', parsed[0]);
         }
       } else {
         throw new Error('Formato no soportado. Use .csv, .xlsx o .xls');
       }
 
+      // Normalize keys: lowercase + trim + remove accents to make lookup case/accent-insensitive
+      const normalized = json.map((row) => {
+        const obj: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row)) {
+          const normKey = removeAccents(k.toLowerCase().trim());
+          obj[normKey] = v;
+        }
+        return obj;
+      });
+      if (typeof window !== 'undefined') {
+        console.info('[ImportarDespedidos] normalized keys:', normalized.length > 0 ? Object.keys(normalized[0]) : 'empty');
+      }
+      parsed = normalized.map((row) => rowToImportRow(row));
+      if (typeof window !== 'undefined') {
+        console.info('[ImportarDespedidos] parsed sample:', parsed[0]);
+      }
+
       parsed = parsed.filter((r) => r.cedula);
       setRows(parsed);
       if (parsed.length === 0) {
+        const rawKeys = json.length > 0 ? Object.keys(json[0]).join(', ') : 'ninguna';
         setError(
-          'No se encontraron filas válidas. Verifica que el archivo tenga una columna de cédula (Cédula, Cedula, CI, etc.) con valores no vacíos.',
+          `No se encontraron filas válidas. Encabezados detectados: [${rawKeys}]. Verifica que exista una columna "Cédula" con valores no vacíos.`,
         );
         if (typeof window !== 'undefined') {
-          console.warn('[ImportarDespedidos] Filas parseadas pero sin cédula. Revisa los encabezados del archivo.');
+          console.warn('[ImportarDespedidos] Filas parseadas pero sin cédula. Encabezados:', rawKeys);
         }
       } else if (typeof window !== 'undefined') {
         console.info(`[ImportarDespedidos] ${parsed.length} fila(s) parseada(s) correctamente.`);
