@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useMemo, useTransition, useCallback } from 'react';
-import { Loader2, CheckCircle2, AlertTriangle, Printer } from 'lucide-react';
+import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
+import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { Personal } from '@/lib/types';
 import { calcularLiquidacionPendiente, type LiquidacionResultado } from '@/lib/nomina-calculo';
+import { totalSemanasEsquema } from '@/lib/nomina/perfil-ciclo-reglas';
 import { procesarLiquidacionDespedidosAction } from '@/lib/actions/nomina-v3';
-import { getWeekStart } from '@/lib/rotacion-personal';
 
 type Props = {
   area: string;
@@ -21,8 +21,19 @@ type LiquidacionItem = {
   cerrada: boolean;
 };
 
+function calcularUltimaPagada(p: Personal, despidoFecha: string): string {
+  const totalCiclo = totalSemanasEsquema(p.esquema_rotacion);
+  const cicloSemanas = Math.max(1, totalCiclo);
+  const despido = new Date(`${despidoFecha}T00:00:00`);
+  despido.setDate(despido.getDate() - cicloSemanas * 7);
+  const y = despido.getFullYear();
+  const m = String(despido.getMonth() + 1).padStart(2, '0');
+  const d = String(despido.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props) {
-  const [items, setItems] = useState<Record<string, LiquidacionItem>>({});
+  const [overrides, setOverrides] = useState<Record<string, { bonificaciones: number; montoEditado: number | null; cerrada: boolean }>>({});
   const [processing, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -34,55 +45,43 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
     [personal, area],
   );
 
-  const initItem = useCallback((p: Personal): LiquidacionItem => {
-    const despidoFecha = p.despido_fecha ?? p.estado_fin_fecha ?? new Date().toISOString().split('T')[0];
-    const semanaActual = getWeekStart(new Date().toISOString().split('T')[0]);
-    const ultimaPagada = new Date(semanaActual);
-    ultimaPagada.setDate(ultimaPagada.getDate() - 7);
-    const liquidacion = calcularLiquidacionPendiente(p, ultimaPagada.toISOString().split('T')[0], despidoFecha);
-    return {
-      personal: p,
-      liquidacion,
-      bonificaciones: 0,
-      montoEditado: null,
-      cerrada: false,
-    };
+  const itemsList: LiquidacionItem[] = useMemo(() => {
+    return despedidos.map((p) => {
+      const despidoFecha = p.despido_fecha ?? p.estado_fin_fecha ?? new Date().toISOString().split('T')[0];
+      const ultimaPagada = calcularUltimaPagada(p, despidoFecha);
+      const liquidacion = calcularLiquidacionPendiente(p, ultimaPagada, despidoFecha);
+      const ov = overrides[p.id];
+      return {
+        personal: p,
+        liquidacion,
+        bonificaciones: ov?.bonificaciones ?? 0,
+        montoEditado: ov?.montoEditado ?? null,
+        cerrada: ov?.cerrada ?? false,
+      };
+    });
+  }, [despedidos, overrides]);
+
+  useEffect(() => {
+    setError(null);
+  }, [itemsList.length]);
+
+  const handleBonificacion = useCallback((personalId: string, valor: number) => {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      const existing = next[personalId] ?? { bonificaciones: 0, montoEditado: null, cerrada: false };
+      next[personalId] = { ...existing, bonificaciones: valor };
+      return next;
+    });
   }, []);
 
-  const ensureItem = useCallback((p: Personal) => {
-    setItems((prev) => {
-      if (prev[p.id]) return prev;
-      return { ...prev, [p.id]: initItem(p) };
+  const handleMontoEditado = useCallback((personalId: string, valor: number | null) => {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      const existing = next[personalId] ?? { bonificaciones: 0, montoEditado: null, cerrada: false };
+      next[personalId] = { ...existing, montoEditado: valor };
+      return next;
     });
-  }, [initItem]);
-
-  useMemo(() => {
-    for (const p of despedidos) {
-      ensureItem(p);
-    }
-  }, [despedidos, ensureItem]);
-
-  const itemsList = despedidos.map((p) => items[p.id]).filter(Boolean);
-
-  const handleBonificacion = (personalId: string, valor: number) => {
-    setItems((prev) => ({
-      ...prev,
-      [personalId]: {
-        ...prev[personalId],
-        bonificaciones: valor,
-      },
-    }));
-  };
-
-  const handleMontoEditado = (personalId: string, valor: number | null) => {
-    setItems((prev) => ({
-      ...prev,
-      [personalId]: {
-        ...prev[personalId],
-        montoEditado: valor,
-      },
-    }));
-  };
+  }, []);
 
   const montoFinal = (item: LiquidacionItem): number => {
     if (item.montoEditado !== null) return item.montoEditado;
@@ -103,7 +102,7 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
         montoLiquidacion: montoFinal(item),
         bonificaciones: item.bonificaciones,
         observacion: item.liquidacion.semanas
-          .map((s) => `${s.descripcion}: $${s.monto}`)
+          .map((s) => `${s.descripcion}: $${s.monto.toFixed(2)}`)
           .join('; '),
         despidoFecha: item.personal.despido_fecha ?? new Date().toISOString().split('T')[0],
       }));
@@ -111,10 +110,11 @@ export function LiquidacionDespedidosPanel({ area, personal, onRefresh }: Props)
       const res = await procesarLiquidacionDespedidosAction({ area, liquidaciones: payload });
       if (res.ok) {
         setSuccess(`${pendientes.length} liquidacion(es) procesada(s) correctamente.`);
-        setItems((prev) => {
+        setOverrides((prev) => {
           const next = { ...prev };
           for (const item of pendientes) {
-            next[item.personal.id] = { ...next[item.personal.id], cerrada: true };
+            const existing = next[item.personal.id] ?? { bonificaciones: 0, montoEditado: null, cerrada: false };
+            next[item.personal.id] = { ...existing, cerrada: true };
           }
           return next;
         });
@@ -198,7 +198,7 @@ function LiquidacionCard({
   onBonificacion: (v: number) => void;
   onMontoEditado: (v: number | null) => void;
 }) {
-  const { personal: p, liquidacion, cerrada } = item;
+  const { personal: p, liquidacion, bonificaciones, cerrada } = item;
   const [editMode, setEditMode] = useState(false);
 
   return (
@@ -246,6 +246,12 @@ function LiquidacionCard({
         </div>
       )}
 
+      {liquidacion.semanas.length === 0 && (
+        <div className="mt-2 text-[10px] text-amber-400/80">
+          Sin cálculo automático (sin fecha de inicio de rotación o despido). Ingresa el monto manualmente.
+        </div>
+      )}
+
       {!cerrada && (
         <div className="mt-2 flex items-center gap-2">
           <label className="text-[10px] text-zinc-500">Bono extra:</label>
@@ -253,7 +259,7 @@ function LiquidacionCard({
             type="number"
             step="any"
             placeholder="0"
-            value={item.bonificaciones || ''}
+            value={bonificaciones || ''}
             onChange={(e) => onBonificacion(Number(e.target.value) || 0)}
             className="w-20 rounded-md border border-white/5 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-white outline-none focus:border-zinc-500/40"
           />

@@ -1047,37 +1047,24 @@ export async function procesarLiquidacionDespedidosAction(
 
     for (const liq of liquidaciones) {
       const weekStart = getWeekStart(liq.despidoFecha);
+      const weekEndDate = new Date(`${weekStart}T00:00:00`);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      const weekEnd = weekEndDate.toISOString().split('T')[0];
 
-      const { data: semanaExist } = await supabase
-        .from('nomina_semanas')
-        .select('id')
-        .eq('semana_inicio', weekStart)
-        .eq('area', area)
-        .maybeSingle();
+      const findResult = await findOrCreateNominaSemanaForCierre(supabase, {
+        semanaInicio: weekStart,
+        semanaFin: weekEnd,
+        area,
+        totalTrabajadores: 1,
+        totalPagado: liq.montoLiquidacion,
+        registradoPor: user.id,
+        origen: 'cierre_v3',
+      });
 
-      let semanaId: string;
-
-      if (semanaExist?.id) {
-        semanaId = semanaExist.id;
-      } else {
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        const { data: newSemana, error: errSem } = await supabase
-          .from('nomina_semanas')
-          .insert({
-            semana_inicio: weekStart,
-            semana_fin: weekEnd.toISOString().split('T')[0],
-            area,
-            total_trabajadores: 1,
-            total_pagado: liq.montoLiquidacion,
-            origen: 'cierre_v3',
-            registrado_por: user.id,
-          })
-          .select()
-          .single();
-        if (errSem) throw new Error(errSem.message);
-        semanaId = newSemana.id;
+      if ('error' in findResult) {
+        throw new Error(findResult.error);
       }
+      const semanaId = findResult.semanaId;
 
       const { data: regExist } = await supabase
         .from('nomina_registros')

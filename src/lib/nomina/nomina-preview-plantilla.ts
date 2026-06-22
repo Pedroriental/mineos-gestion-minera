@@ -390,8 +390,6 @@ export function plantillaSummaryLabel(title: string, plantilla?: RotacionPlantil
 
 import type { NominaPreviewSection, NominaPreviewWorkerRow, NominaPreviewWeekCell } from '@/lib/nomina-preview';
 import { calcularLiquidacionPendiente } from '@/lib/nomina-calculo';
-import { getWeekStart } from '@/lib/rotacion-personal';
-
 export function buildDespedidosPreviewSection(
   despedidos: Personal[],
   weekColumns: { weekStart: string }[],
