@@ -40,6 +40,9 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
         const wb = XLSX.read(buffer, { type: 'array' });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+        if (typeof window !== 'undefined') {
+          console.info('[ImportarDespedidos] XLSX keys raw:', json.length > 0 ? Object.keys(json[0]) : 'empty');
+        }
         // Normalize keys: lowercase + trim + remove accents to make lookup case/accent-insensitive
         const normalized = json.map((row) => {
           const obj: Record<string, unknown> = {};
@@ -49,7 +52,13 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
           }
           return obj;
         });
+        if (typeof window !== 'undefined') {
+          console.info('[ImportarDespedidos] normalized keys:', normalized.length > 0 ? Object.keys(normalized[0]) : 'empty');
+        }
         parsed = normalized.map((row) => rowToImportRow(row));
+        if (typeof window !== 'undefined') {
+          console.info('[ImportarDespedidos] parsed sample:', parsed[0]);
+        }
       } else {
         throw new Error('Formato no soportado. Use .csv, .xlsx o .xls');
       }
