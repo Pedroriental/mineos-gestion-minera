@@ -333,6 +333,7 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
                     <td className="px-2 py-1 text-zinc-400">
                       {d.matchedBy === 'cedula' && 'match por cédula'}
                       {d.matchedBy === 'nombre' && 'match por nombre'}
+                      {d.matchedBy === 'fuzzy-name' && 'match fuzzy (nombre similar)'}
                       {d.message && d.message}
                     </td>
                   </tr>

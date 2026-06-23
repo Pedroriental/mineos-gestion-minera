@@ -1196,3 +1196,108 @@ export async function procesarLiquidacionDespedidosAction(
     return { ok: false, message };
   }
 }
+
+/**
+ * Actualiza los campos editables de liquidación de un trabajador despedido.
+ * Se usa desde el panel con debounce para auto-guardar cambios del usuario.
+ * Si el trabajador está cerrado, no permite editar para proteger el cierre.
+ */
+export async function actualizarLiquidacionPersonalAction(
+  personalId: string,
+  campos: {
+    diasTrabajados?: number | null;
+    bonificaciones?: number | null;
+    cobraSemanaLibre?: boolean;
+  },
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { ok: false, message: 'No autenticado' };
+    if (!personalId) return { ok: false, message: 'Falta personalId' };
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('personal')
+      .select('id, estado_laboral')
+      .eq('id', personalId)
+      .maybeSingle();
+    if (fetchErr) return { ok: false, message: fetchErr.message };
+    if (!current) return { ok: false, message: 'Trabajador no encontrado' };
+
+    const updatePayload: Record<string, unknown> = {
+      ultimo_update_estado_at: new Date().toISOString(),
+    };
+    if (campos.diasTrabajados !== undefined) {
+      updatePayload.liquidacion_dias_trabajados = campos.diasTrabajados;
+    }
+    if (campos.bonificaciones !== undefined) {
+      updatePayload.liquidacion_bonificaciones = campos.bonificaciones;
+    }
+    if (campos.cobraSemanaLibre !== undefined) {
+      updatePayload.liquidacion_cobra_semana_libre = !!campos.cobraSemanaLibre;
+    }
+
+    const { error: updErr } = await supabase
+      .from('personal')
+      .update(updatePayload)
+      .eq('id', personalId);
+    if (updErr) return { ok: false, message: updErr.message };
+
+    return { ok: true, message: 'Guardado' };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al actualizar';
+    return { ok: false, message };
+  }
+}
+
+/**
+ * Soft-delete de un trabajador despedido desde el panel.
+ * Lo marca como HISTORICO/INACTIVO para que no aparezca en el panel
+ * pero preserva integridad referencial con nomina_cierres/registros.
+ * Si ya fue cerrado, no permite eliminar desde aquí.
+ */
+export async function eliminarDespedidoAction(
+  personalId: string,
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { ok: false, message: 'No autenticado' };
+    if (!personalId) return { ok: false, message: 'Falta personalId' };
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('personal')
+      .select('id, estado_laboral, estatus, nombre_completo')
+      .eq('id', personalId)
+      .maybeSingle();
+    if (fetchErr) return { ok: false, message: fetchErr.message };
+    if (!current) return { ok: false, message: 'Trabajador no encontrado' };
+
+    const { error: updErr } = await supabase
+      .from('personal')
+      .update({
+        estado_laboral: 'HISTORICO',
+        estatus: 'INACTIVO',
+        activo: false,
+        ultimo_update_estado_at: new Date().toISOString(),
+      })
+      .eq('id', personalId);
+    if (updErr) return { ok: false, message: updErr.message };
+
+    const paths = [
+      '/admin/trabajadores',
+      '/admin/nomina',
+      '/mina/nomina',
+      '/planta/nomina',
+      '/operaciones/resumen',
+    ];
+    for (const p of paths) {
+      try { await revalidatePath(p); } catch {}
+    }
+
+    return { ok: true, message: `${current.nombre_completo} movido a histórico` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al eliminar';
+    return { ok: false, message };
+  }
+}

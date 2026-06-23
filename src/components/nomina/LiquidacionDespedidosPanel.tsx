@@ -1,10 +1,17 @@
 'use client';
 
-import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, AlertTriangle, Printer, Upload } from 'lucide-react';
+import { useState, useMemo, useTransition, useEffect, useCallback, useRef } from 'react';
+import {
+  Loader2, CheckCircle2, AlertTriangle, Printer, Upload, Search, X,
+  Trash2, RotateCcw, Eraser, Save,
+} from 'lucide-react';
 import type { Personal } from '@/lib/types';
 import { calcularLiquidacionPendiente, type LiquidacionResultado } from '@/lib/nomina-calculo';
-import { procesarLiquidacionDespedidosAction } from '@/lib/actions/nomina-v3';
+import {
+  procesarLiquidacionDespedidosAction,
+  actualizarLiquidacionPersonalAction,
+  eliminarDespedidoAction,
+} from '@/lib/actions/nomina-v3';
 import { printLiquidacionPdf, type LiquidacionExportRow, type LiquidacionExportMeta } from '@/lib/nomina/liquidacion-pdf';
 import { ImportarDespedidosModal } from '@/components/nomina/ImportarDespedidosModal';
 import type { DistribucionParte } from '@/lib/nomina-distribucion';
@@ -45,12 +52,36 @@ type LiquidacionItem = {
   importedFromPersonal: boolean;
 };
 
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+function useDebouncedCallback<T extends (...args: never[]) => void>(
+  fn: T,
+  delay: number,
+): T {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fnRef = useRef(fn);
+  useEffect(() => {
+    fnRef.current = fn;
+  }, [fn]);
+  return useCallback((...args: Parameters<T>) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => fnRef.current(...args), delay);
+  }, [delay]) as T;
+}
+
+function removeAccents(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes, onRefresh }: Props) {
   const [overrides, setOverrides] = useState<Record<string, LiquidacionOverride>>({});
   const [processing, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [confirmEliminar, setConfirmEliminar] = useState<Personal | null>(null);
+  const [eliminando, startEliminarTransition] = useTransition();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const despedidos = useMemo(
     () => personal.filter(
@@ -63,7 +94,6 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
     return despedidos.map((p) => {
       const despidoFecha = p.despido_fecha ?? p.estado_fin_fecha ?? new Date().toISOString().split('T')[0];
 
-      // Defaults: leer de personal si no hay override del usuario
       const defaults = {
         bonificaciones: Number(p.liquidacion_bonificaciones) || 0,
         montoEditado: null as number | null,
@@ -92,6 +122,17 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
       };
     });
   }, [despedidos, overrides]);
+
+  const itemsFiltrados = useMemo(() => {
+    if (!searchQuery.trim()) return itemsList;
+    const q = removeAccents(searchQuery.toLowerCase().trim());
+    return itemsList.filter((item) => {
+      const nombre = removeAccents(item.personal.nombre_completo.toLowerCase());
+      const cedula = item.personal.cedula.toLowerCase();
+      const cargo = removeAccents(item.personal.cargo.toLowerCase());
+      return nombre.includes(q) || cedula.includes(q) || cargo.includes(q);
+    });
+  }, [itemsList, searchQuery]);
 
   useEffect(() => {
     setError(null);
@@ -190,6 +231,25 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
     });
   };
 
+  const handleConfirmEliminar = useCallback((p: Personal) => {
+    setConfirmEliminar(p);
+  }, []);
+
+  const handleEjecutarEliminar = useCallback(() => {
+    if (!confirmEliminar) return;
+    setError(null);
+    startEliminarTransition(async () => {
+      const res = await eliminarDespedidoAction(confirmEliminar.id);
+      if (res.ok) {
+        setSuccess(res.message);
+        setConfirmEliminar(null);
+        onRefresh?.();
+      } else {
+        setError(res.message);
+      }
+    });
+  }, [confirmEliminar, onRefresh]);
+
   const handleImprimirPDF = useCallback(() => {
     const pdfRows: LiquidacionExportRow[] = itemsList.map((item) => {
       const salarioBase = Number(item.personal.salario_base) || 0;
@@ -267,14 +327,14 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-zinc-200">Liquidaciones Pendientes</h3>
           <p className="text-[11px] text-zinc-500">
             {despedidos.length} trabajador(es) despedido(s) — {itemsList.filter((i) => !i.cerrada).length} pendiente(s)
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-bold tabular-nums text-amber-400">
             Total: ${totalGeneral.toFixed(2)}
           </span>
@@ -307,6 +367,33 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
         </div>
       </div>
 
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, cédula o cargo…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-md border border-white/10 bg-zinc-900/40 pl-8 pr-8 py-1.5 text-[11px] text-zinc-200 outline-none focus:border-amber-500/40"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <span className="shrink-0 text-[10px] text-zinc-500">
+          {searchQuery
+            ? `${itemsFiltrados.length} de ${itemsList.length}`
+            : `${itemsList.length} total`}
+        </span>
+      </div>
+
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-[11px] text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -320,8 +407,22 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
         </div>
       )}
 
+      {itemsFiltrados.length === 0 && searchQuery && (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-white/5 bg-zinc-900/30 py-10">
+          <Eraser className="h-6 w-6 text-zinc-600" />
+          <p className="text-sm text-zinc-500">Sin coincidencias para &ldquo;{searchQuery}&rdquo;</p>
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="text-[11px] text-amber-400 hover:text-amber-300"
+          >
+            Limpiar búsqueda
+          </button>
+        </div>
+      )}
+
       <div className="space-y-2">
-        {itemsList.map((item) => (
+        {itemsFiltrados.map((item) => (
           <LiquidacionCard
             key={item.personal.id}
             item={item}
@@ -330,6 +431,8 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
             onMontoEditado={(v) => handleMontoEditado(item.personal.id, v)}
             onCobraSemanaLibre={(v) => handleCobraSemanaLibre(item.personal.id, v)}
             onDiasTrabajados={(v) => handleDiasTrabajados(item.personal.id, v)}
+            onEliminar={() => handleConfirmEliminar(item.personal)}
+            eliminando={eliminando}
           />
         ))}
       </div>
@@ -344,6 +447,44 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
           }}
         />
       )}
+
+      {confirmEliminar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-lg border border-white/10 bg-zinc-900/95 p-5 shadow-xl">
+            <div className="mb-3 flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-red-400" />
+              <h2 className="text-sm font-semibold text-zinc-100">Eliminar trabajador</h2>
+            </div>
+            <p className="mb-4 text-[12px] text-zinc-300">
+              ¿Eliminar a <strong>{confirmEliminar.nombre_completo}</strong>{' '}
+              (C.I. {confirmEliminar.cedula})?
+            </p>
+            <p className="mb-4 text-[11px] text-zinc-500">
+              Se moverá a histórico y no volverá a aparecer en este panel.
+              Los registros de nóminas cerradas se preservan.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmEliminar(null)}
+                disabled={eliminando}
+                className="rounded border border-white/10 bg-transparent px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-white/5 disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleEjecutarEliminar}
+                disabled={eliminando}
+                className="flex items-center gap-1.5 rounded bg-red-500/15 border border-red-500/30 px-3 py-1.5 text-[11px] font-semibold text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-40"
+              >
+                {eliminando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -355,6 +496,8 @@ function LiquidacionCard({
   onMontoEditado,
   onCobraSemanaLibre,
   onDiasTrabajados,
+  onEliminar,
+  eliminando,
 }: {
   item: LiquidacionItem;
   montoFinal: number;
@@ -362,9 +505,13 @@ function LiquidacionCard({
   onMontoEditado: (v: number | null) => void;
   onCobraSemanaLibre: (v: boolean) => void;
   onDiasTrabajados: (v: number | null) => void;
+  onEliminar: () => void;
+  eliminando: boolean;
 }) {
   const { personal: p, liquidacion, bonificaciones, cobraSemanaLibre, diasTrabajadosOverride, cerrada } = item;
   const [editMode, setEditMode] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [error, setError] = useState<string | null>(null);
 
   const salarioBase = Number(p.salario_base) || 0;
   const salarioLibre = Number(p.salario_libre) || salarioBase;
@@ -372,6 +519,57 @@ function LiquidacionCard({
   const totalDias = liquidacion.diasParciales;
   const totalDT = totalDias > 0 ? parseFloat((porDia * totalDias).toFixed(2)) : 0;
   const totalLibre = cobraSemanaLibre ? salarioLibre : 0;
+
+  const autoCalculo = useMemo(() => {
+    return calcularLiquidacionPendiente(p, p.despido_fecha ?? '', false, null);
+  }, [p]);
+
+  const diasAuto = autoCalculo.diasParciales;
+  const diasEditado = diasTrabajadosOverride !== null && diasTrabajadosOverride !== diasAuto;
+  const bonoEditado = bonificaciones !== (Number(p.liquidacion_bonificaciones) || 0);
+  const libreEditado = cobraSemanaLibre !== !!p.liquidacion_cobra_semana_libre;
+  const hayCambios = diasEditado || bonoEditado || libreEditado;
+
+  const debouncedSave = useDebouncedCallback(
+    async (campos: { diasTrabajados?: number | null; bonificaciones?: number | null; cobraSemanaLibre?: boolean }) => {
+      setSaveState('saving');
+      setError(null);
+      const res = await actualizarLiquidacionPersonalAction(p.id, campos);
+      if (res.ok) {
+        setSaveState('saved');
+        setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 1500);
+      } else {
+        setSaveState('error');
+        setError(res.message);
+      }
+    },
+    1000,
+  );
+
+  const handleDiasChange = (valor: number | null) => {
+    onDiasTrabajados(valor);
+    if (!cerrada) {
+      debouncedSave({ diasTrabajados: valor });
+    }
+  };
+
+  const handleBonoChange = (valor: number) => {
+    onBonificacion(valor);
+    if (!cerrada) {
+      debouncedSave({ bonificaciones: valor });
+    }
+  };
+
+  const handleLibreChange = (valor: boolean) => {
+    onCobraSemanaLibre(valor);
+    if (!cerrada) {
+      debouncedSave({ cobraSemanaLibre: valor });
+    }
+  };
+
+  const handleResetDias = () => {
+    handleDiasChange(null);
+  };
 
   return (
     <div className={`rounded-lg border p-3 transition-colors ${
@@ -388,6 +586,26 @@ function LiquidacionCard({
                 Cerrada
               </span>
             )}
+            {item.importedFromPersonal && !cerrada && (
+              <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
+                importado
+              </span>
+            )}
+            {!cerrada && saveState === 'saving' && (
+              <span className="flex items-center gap-1 text-[9px] text-zinc-500">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" /> guardando
+              </span>
+            )}
+            {!cerrada && saveState === 'saved' && (
+              <span className="flex items-center gap-1 text-[9px] text-emerald-400">
+                <Save className="h-2.5 w-2.5" /> guardado
+              </span>
+            )}
+            {!cerrada && saveState === 'error' && (
+              <span className="flex items-center gap-1 text-[9px] text-red-400">
+                <AlertTriangle className="h-2.5 w-2.5" /> error
+              </span>
+            )}
           </div>
           <p className="text-[10px] text-zinc-500">
             C.I. {p.cedula} · {p.cargo} · ${salarioBase.toFixed(0)}/sem
@@ -401,7 +619,7 @@ function LiquidacionCard({
             )}
           </p>
         </div>
-        <div className="text-right shrink-0">
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
           <p className="text-base font-bold tabular-nums text-amber-400">
             ${montoFinal.toFixed(2)}
           </p>
@@ -409,10 +627,26 @@ function LiquidacionCard({
             {totalDias}d · ${porDia.toFixed(2)}/día
             {cobraSemanaLibre ? ' +libre' : ''}
           </p>
+          {!cerrada && (
+            <button
+              type="button"
+              onClick={onEliminar}
+              disabled={eliminando}
+              className="flex items-center gap-1 rounded border border-red-500/20 bg-red-500/5 px-2 py-0.5 text-[9px] font-medium text-red-300 hover:bg-red-500/15 transition-colors disabled:opacity-40"
+            >
+              <Trash2 className="h-2.5 w-2.5" />
+              Eliminar
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Desglose tipo Excel */}
+      {error && !cerrada && (
+        <div className="mt-2 flex items-center gap-1 text-[10px] text-red-400">
+          <AlertTriangle className="h-3 w-3" /> {error}
+        </div>
+      )}
+
       <div className="mt-2 grid grid-cols-4 gap-1 rounded-md bg-zinc-900/30 px-2 py-1.5 text-center text-[10px]">
         <div>
           <p className="text-zinc-500">$/día</p>
@@ -433,56 +667,83 @@ function LiquidacionCard({
       </div>
 
       {!cerrada && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <label className="flex cursor-pointer items-center gap-1.5">
-            <input
-              type="checkbox"
-              checked={cobraSemanaLibre}
-              onChange={(e) => onCobraSemanaLibre(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-white/10 bg-zinc-900/60 text-amber-500 focus:ring-1 focus:ring-amber-500/30"
-            />
-            <span className="text-[10px] text-zinc-300">Cobró semana libre</span>
-            <span className="text-[9px] text-zinc-500">(+${salarioLibre.toFixed(2)})</span>
-          </label>
-          <label className="text-[10px] text-zinc-500">Días Trab.:</label>
-          <input
-            type="number"
-            step="any"
-            placeholder="auto"
-            value={diasTrabajadosOverride ?? ''}
-            onChange={(e) => onDiasTrabajados(e.target.value ? Number(e.target.value) : null)}
-            className="w-16 rounded-md border border-white/5 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-white outline-none focus:border-zinc-500/40"
-          />
-          {item.importedFromPersonal && (
-            <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
-              importado
-            </span>
-          )}
-          <label className="text-[10px] text-zinc-500">Bono:</label>
-          <input
-            type="number"
-            step="any"
-            placeholder="0"
-            value={bonificaciones || ''}
-            onChange={(e) => onBonificacion(Number(e.target.value) || 0)}
-            className="w-16 rounded-md border border-white/5 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-white outline-none focus:border-zinc-500/40"
-          />
-          <button
-            type="button"
-            onClick={() => setEditMode(!editMode)}
-            className="text-[10px] text-zinc-500 hover:text-zinc-300"
-          >
-            {editMode ? 'Auto' : 'Total fijo'}
-          </button>
-          {editMode && (
-            <input
-              type="number"
-              step="any"
-              placeholder={montoFinal.toFixed(2)}
-              value={item.montoEditado ?? ''}
-              onChange={(e) => onMontoEditado(e.target.value ? Number(e.target.value) : null)}
-              className="w-24 rounded-md border border-white/5 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-white outline-none focus:border-zinc-500/40"
-            />
+        <div className="mt-2 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={cobraSemanaLibre}
+                onChange={(e) => handleLibreChange(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-white/10 bg-zinc-900/60 text-amber-500 focus:ring-1 focus:ring-amber-500/30"
+              />
+              <span className="text-[10px] text-zinc-300">Cobró semana libre</span>
+              <span className="text-[9px] text-zinc-500">(+${salarioLibre.toFixed(2)})</span>
+            </label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-[10px] font-medium text-zinc-400">Días Trab.:</label>
+              <input
+                type="number"
+                step="any"
+                placeholder={`auto: ${diasAuto}`}
+                value={diasTrabajadosOverride ?? ''}
+                onChange={(e) => handleDiasChange(e.target.value ? Number(e.target.value) : null)}
+                className={`w-20 rounded-md border bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none tabular-nums ${
+                  diasEditado
+                    ? 'border-amber-500/50 focus:border-amber-500'
+                    : 'border-white/5 focus:border-zinc-500/40'
+                }`}
+              />
+              {diasEditado && (
+                <button
+                  type="button"
+                  onClick={handleResetDias}
+                  title={`Reset a auto: ${diasAuto}`}
+                  className="rounded p-0.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </button>
+              )}
+              {diasEditado && (
+                <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
+                  editado
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-[10px] font-medium text-zinc-400">Bono:</label>
+              <input
+                type="number"
+                step="any"
+                placeholder="0"
+                value={bonificaciones || ''}
+                onChange={(e) => handleBonoChange(Number(e.target.value) || 0)}
+                className={`w-20 rounded-md border bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none tabular-nums ${
+                  bonoEditado
+                    ? 'border-amber-500/50 focus:border-amber-500'
+                    : 'border-white/5 focus:border-zinc-500/40'
+                }`}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditMode(!editMode)}
+              className="text-[10px] text-zinc-500 hover:text-zinc-300"
+            >
+              {editMode ? 'Auto' : 'Total fijo'}
+            </button>
+            {editMode && (
+              <input
+                type="number"
+                step="any"
+                placeholder={montoFinal.toFixed(2)}
+                value={item.montoEditado ?? ''}
+                onChange={(e) => onMontoEditado(e.target.value ? Number(e.target.value) : null)}
+                className="w-24 rounded-md border border-white/5 bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none focus:border-zinc-500/40"
+              />
+            )}
+          </div>
+          {hayCambios && saveState === 'idle' && !editMode && (
+            <p className="text-[9px] text-zinc-600">Los cambios se guardan automáticamente</p>
           )}
         </div>
       )}

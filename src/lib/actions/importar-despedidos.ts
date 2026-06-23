@@ -29,6 +29,54 @@ function normalizeName(raw: string): string {
     .trim();
 }
 
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  let curr = new Array<number>(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        curr[j - 1] + 1,
+        prev[j] + 1,
+        prev[j - 1] + cost,
+      );
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[b.length];
+}
+
+function fuzzyNameDistance(a: string, b: string): number {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (!na || !nb) return Infinity;
+  if (na === nb) return 0;
+  // Permitir tolerancia de 1 caracter por cada 10 del nombre más largo (mín 2)
+  const tolerance = Math.max(2, Math.floor(Math.min(na.length, nb.length) / 8));
+  return levenshtein(na, nb) <= tolerance ? levenshtein(na, nb) : Infinity;
+}
+
+function findFuzzyNameMatch(
+  name: string,
+  candidates: ExistingPersonal[],
+): { record: ExistingPersonal; distance: number } | null {
+  const n = normalizeName(name);
+  if (!n) return null;
+  let best: { record: ExistingPersonal; distance: number } | null = null;
+  for (const c of candidates) {
+    const d = fuzzyNameDistance(n, c.nombre_completo);
+    if (d === Infinity) continue;
+    if (!best || d < best.distance) {
+      best = { record: c, distance: d };
+    }
+  }
+  return best;
+}
+
 type ExistingPersonal = {
   id: string;
   nombre_completo: string;
@@ -143,13 +191,22 @@ export async function importarDespedidosLoteAction(
 
       // 1) match por cédula
       let existing = byCedula.get(cedulaNorm) ?? null;
-      let matchedBy: 'cedula' | 'nombre' | undefined;
+      let matchedBy: 'cedula' | 'nombre' | 'fuzzy-name' | undefined;
       if (existing) {
         matchedBy = 'cedula';
       } else {
-        // 2) match por nombre normalizado
+        // 2) match por nombre normalizado exacto
         existing = byName.get(nombreNorm) ?? null;
-        if (existing) matchedBy = 'nombre';
+        if (existing) {
+          matchedBy = 'nombre';
+        } else {
+          // 3) match fuzzy por nombre (Levenshtein <= 2 o ~12% del largo)
+          const fuzzy = findFuzzyNameMatch(row.nombre, personalList);
+          if (fuzzy) {
+            existing = fuzzy.record;
+            matchedBy = 'fuzzy-name';
+          }
+        }
       }
 
       try {
