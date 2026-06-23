@@ -28,12 +28,13 @@ BEGIN
 
   IF guest_uuid IS NOT NULL THEN
     -- Upsert user_profiles entry
-    INSERT INTO public.user_profiles (id, email, full_name, role, complex_id, active)
-    VALUES (guest_uuid, 'invitado@mineos.local', 'Observador', 'guest', NULL, TRUE)
+    INSERT INTO public.user_profiles (id, display_name, role, complex_id, active)
+    VALUES (guest_uuid, 'Observador', 'guest', NULL, TRUE)
     ON CONFLICT (id) DO UPDATE SET
       role = 'guest',
       complex_id = NULL,
-      active = TRUE;
+      active = TRUE,
+      display_name = 'Observador';
 
     -- Sync raw_user_meta_data in auth.users
     UPDATE auth.users

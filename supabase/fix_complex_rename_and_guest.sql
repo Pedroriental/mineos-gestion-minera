@@ -28,9 +28,9 @@ DECLARE
 BEGIN
   SELECT id INTO guest_uuid FROM auth.users WHERE email = 'invitado@mineos.local' LIMIT 1;
   IF guest_uuid IS NOT NULL THEN
-    INSERT INTO public.user_profiles (id, email, full_name, role, complex_id, active)
-    VALUES (guest_uuid, 'invitado@mineos.local', 'Observador', 'guest', NULL, TRUE)
-    ON CONFLICT (id) DO UPDATE SET role = 'guest', complex_id = NULL, active = TRUE;
+    INSERT INTO public.user_profiles (id, display_name, role, complex_id, active)
+    VALUES (guest_uuid, 'Observador', 'guest', NULL, TRUE)
+    ON CONFLICT (id) DO UPDATE SET role = 'guest', complex_id = NULL, active = TRUE, display_name = 'Observador';
     UPDATE auth.users SET raw_user_meta_data = raw_user_meta_data || '{"role": "guest"}'::jsonb WHERE id = guest_uuid;
     RAISE NOTICE 'Guest listo: %', guest_uuid;
   ELSE

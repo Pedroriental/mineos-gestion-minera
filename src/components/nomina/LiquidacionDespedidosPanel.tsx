@@ -23,6 +23,7 @@ type Props = {
   personal: Personal[];
   distribucionPartes?: DistribucionParte[];
   onRefresh?: () => void;
+  canEdit?: boolean;
 };
 
 type LiquidacionOverride = {
@@ -73,7 +74,7 @@ function removeAccents(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes, onRefresh }: Props) {
+export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes, onRefresh, canEdit = true }: Props) {
   const [overrides, setOverrides] = useState<Record<string, LiquidacionOverride>>({});
   const [processing, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -341,7 +342,9 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
           <button
             type="button"
             onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900/40 px-3 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-white/5 transition-colors"
+            disabled={!canEdit}
+            title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900/40 px-3 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Upload className="h-3.5 w-3.5" />
             Importar Excel
@@ -358,8 +361,9 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
           <button
             type="button"
             onClick={handleCerrar}
-            disabled={processing || itemsList.every((i) => i.cerrada)}
-            className="flex items-center gap-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 px-3 py-1.5 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/25 transition-colors disabled:opacity-40"
+            disabled={!canEdit || processing || itemsList.every((i) => i.cerrada)}
+            title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+            className="flex items-center gap-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 px-3 py-1.5 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             Cerrar Liquidación
@@ -475,8 +479,9 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
               <button
                 type="button"
                 onClick={handleEjecutarEliminar}
-                disabled={eliminando}
-                className="flex items-center gap-1.5 rounded bg-red-500/15 border border-red-500/30 px-3 py-1.5 text-[11px] font-semibold text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-40"
+                disabled={!canEdit || eliminando}
+                title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+                className="flex items-center gap-1.5 rounded bg-red-500/15 border border-red-500/30 px-3 py-1.5 text-[11px] font-semibold text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {eliminando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                 Sí, eliminar
@@ -643,8 +648,9 @@ function LiquidacionCard({
             <button
               type="button"
               onClick={onEliminar}
-              disabled={eliminando}
-              className="flex items-center gap-1 rounded border border-red-500/20 bg-red-500/5 px-2 py-0.5 text-[9px] font-medium text-red-300 hover:bg-red-500/15 transition-colors disabled:opacity-40"
+              disabled={!canEdit || eliminando}
+              title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+              className="flex items-center gap-1 rounded border border-red-500/20 bg-red-500/5 px-2 py-0.5 text-[9px] font-medium text-red-300 hover:bg-red-500/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Trash2 className="h-2.5 w-2.5" />
               Eliminar
@@ -681,12 +687,13 @@ function LiquidacionCard({
       {!cerrada && (
         <div className="mt-2 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex cursor-pointer items-center gap-1.5">
+            <label className={`flex items-center gap-1.5 ${canEdit ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
               <input
                 type="checkbox"
                 checked={cobraSemanaLibre}
                 onChange={(e) => handleLibreChange(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-white/10 bg-zinc-900/60 text-amber-500 focus:ring-1 focus:ring-amber-500/30"
+                disabled={!canEdit}
+                className="h-3.5 w-3.5 rounded border-white/10 bg-zinc-900/60 text-amber-500 focus:ring-1 focus:ring-amber-500/30 disabled:cursor-not-allowed"
               />
               <span className="text-[10px] text-zinc-300">Cobró semana libre</span>
               <span className="text-[9px] text-zinc-500">(+${salarioLibre.toFixed(2)})</span>
@@ -699,7 +706,9 @@ function LiquidacionCard({
                 placeholder={`auto: ${diasAuto}`}
                 value={diasTrabajadosOverride ?? ''}
                 onChange={(e) => handleDiasChange(e.target.value ? Number(e.target.value) : null)}
-                className={`w-20 rounded-md border bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none tabular-nums ${
+                disabled={!canEdit}
+                title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+                className={`w-20 rounded-md border bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none tabular-nums disabled:cursor-not-allowed disabled:opacity-60 ${
                   diasEditado
                     ? 'border-amber-500/50 focus:border-amber-500'
                     : 'border-white/5 focus:border-zinc-500/40'
@@ -709,8 +718,9 @@ function LiquidacionCard({
                 <button
                   type="button"
                   onClick={handleResetDias}
-                  title={`Reset a auto: ${diasAuto}`}
-                  className="rounded p-0.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+                  disabled={!canEdit}
+                  title={!canEdit ? 'Modo observador: solo lectura' : `Reset a auto: ${diasAuto}`}
+                  className="rounded p-0.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <RotateCcw className="h-3 w-3" />
                 </button>
@@ -729,7 +739,9 @@ function LiquidacionCard({
                 placeholder="0"
                 value={bonificaciones || ''}
                 onChange={(e) => handleBonoChange(Number(e.target.value) || 0)}
-                className={`w-20 rounded-md border bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none tabular-nums ${
+                disabled={!canEdit}
+                title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+                className={`w-20 rounded-md border bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none tabular-nums disabled:cursor-not-allowed disabled:opacity-60 ${
                   bonoEditado
                     ? 'border-amber-500/50 focus:border-amber-500'
                     : 'border-white/5 focus:border-zinc-500/40'
@@ -739,7 +751,9 @@ function LiquidacionCard({
             <button
               type="button"
               onClick={() => setEditMode(!editMode)}
-              className="text-[10px] text-zinc-500 hover:text-zinc-300"
+              disabled={!canEdit}
+              title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+              className="text-[10px] text-zinc-500 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {editMode ? 'Auto' : 'Total fijo'}
             </button>
@@ -750,7 +764,9 @@ function LiquidacionCard({
                 placeholder={montoFinal.toFixed(2)}
                 value={item.montoEditado ?? ''}
                 onChange={(e) => onMontoEditado(e.target.value ? Number(e.target.value) : null)}
-                className="w-24 rounded-md border border-white/5 bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none focus:border-zinc-500/40"
+                disabled={!canEdit}
+                title={!canEdit ? 'Modo observador: solo lectura' : undefined}
+                className="w-24 rounded-md border border-white/5 bg-zinc-900/60 px-2 py-1 text-[11px] text-white outline-none focus:border-zinc-500/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             )}
           </div>

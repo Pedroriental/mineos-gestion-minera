@@ -93,6 +93,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.updateUser({
         data: { role: dbRole, complex_id: dbComplexId },
       });
+      // Force a fresh JWT so RLS reads the new claims on the very next
+      // server action. Without this, the user keeps the old token until
+      // it expires (default 1h) — and RLS would silently filter rows
+      // against the previous role/complex.
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      if (refreshData.session) {
+        setSession(refreshData.session);
+        setUser(refreshData.session.user);
+      }
     }
 
     return { error: null, role: dbRole };

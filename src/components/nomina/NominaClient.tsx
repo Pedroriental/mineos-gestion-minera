@@ -2710,6 +2710,7 @@ export default function NominaClient({
                       personal={personalCatalogMerged}
                       distribucionPartes={distribucion.partes}
                       onRefresh={() => router.refresh()}
+                      canEdit={canEdit}
                     />
                   ) : (
                     <RotacionInstanciaPanel
