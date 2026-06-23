@@ -533,6 +533,7 @@ export default function NominaClient({
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignModalPreselectedId, setAssignModalPreselectedId] = useState<string | null>(null);
   const [showExcelPreview, setShowExcelPreview] = useState(false);
   // Import modal (roster / planilla semana)
   const [showImport, setShowImport] = useState(false);
@@ -1654,6 +1655,10 @@ export default function NominaClient({
     () => new Set(preNominaRows.map((r) => r.personal.id)),
     [preNominaRows],
   );
+  const currentAssignments = useMemo(
+    () => Object.fromEntries(preNominaRows.map((r) => [r.personal.id, r.personal.area_detalle])),
+    [preNominaRows],
+  );
 
   // Filter & Group
   const filteredRows = useMemo(() => {
@@ -2037,6 +2042,11 @@ export default function NominaClient({
         setShowModal(false); resetForm();
       } else setFormError(res.message);
     });
+  }
+
+  function openAssignForReassign(personalId: string) {
+    setAssignModalPreselectedId(personalId);
+    setShowAssignModal(true);
   }
 
   async function handleDelete(id: string) {
@@ -2832,6 +2842,7 @@ export default function NominaClient({
                             avatarColor={getAvatarColor(p.cargo)}
                             onOpenDrawer={() => openDrawer(p.id)}
                             onOpenReceipt={() => setSelectedReceipt(row)}
+                            onReassign={() => openAssignForReassign(p.id)}
                             onEdit={() => openEdit(p)}
                             onDelete={() => handleDelete(p.id)}
                             onUpdateRow={(fields) => handleUpdateRow(p.id, fields)}
@@ -3038,6 +3049,13 @@ export default function NominaClient({
                                       <button onClick={() => setSelectedReceipt(row)} title="Ficha" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-white transition-colors"><Receipt className="w-4 h-4" /></button>
                                       {canEdit && !semanaActualProcesada && (
                                         <>
+                                          <button
+                                            onClick={() => openAssignForReassign(p.id)}
+                                            title="Cambiar asignación"
+                                            className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-cyan-400 transition-colors"
+                                          >
+                                            <RefreshCw className="w-4 h-4" />
+                                          </button>
                                           <button onClick={() => openEdit(p)} title="Editar" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-amber-500 transition-colors"><Edit2 className="w-4 h-4" /></button>
                                           <button
                                             onClick={() => handleDelete(p.id)}
@@ -3263,11 +3281,16 @@ export default function NominaClient({
       {showAssignModal ? (
         <PersonalQuickAssignModal
           open={showAssignModal}
-          onClose={() => setShowAssignModal(false)}
+          onClose={() => {
+            setShowAssignModal(false);
+            setAssignModalPreselectedId(null);
+          }}
           area={area}
           masterCatalog={baseTrabajadores}
           perfilesCompensacion={perfilesCompensacion}
           assignedIds={assignedIds}
+          currentAssignments={currentAssignments}
+          preselectedPersonalId={assignModalPreselectedId}
           onAssigned={(personalId, areaDetalle) => {
             markOperationalWeekEmptied(area, weekRange.inicio, false);
             addToManualWeekRoster(

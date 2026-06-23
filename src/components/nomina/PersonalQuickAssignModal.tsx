@@ -35,6 +35,9 @@ type Props = {
   perfilesCompensacion: PerfilCompensacion[];
   assignedIds: Set<string>;
   onAssigned: (personalId: string, areaDetalle: string) => void;
+  preselectedPersonalId?: string | null;
+  /** Asignaciones actuales de los trabajadores ya cargados (personalId -> areaDetalle) */
+  currentAssignments?: Record<string, string>;
 };
 
 type Mode = 'search' | 'create';
@@ -85,6 +88,8 @@ export function PersonalQuickAssignModal({
   perfilesCompensacion,
   assignedIds,
   onAssigned,
+  preselectedPersonalId,
+  currentAssignments,
 }: Props) {
   const biblioteca = useBiblioteca();
   const [mode, setMode] = useState<Mode>('search');
@@ -151,14 +156,14 @@ export function PersonalQuickAssignModal({
 
   const asignacionOk = (v: string) => isAsignacionNominaValid(v, biblioteca);
 
-  const assignableCatalog = useMemo(
-    () => masterCatalog.filter((p) => !assignedIds.has(p.id)),
-    [masterCatalog, assignedIds],
-  );
+  const searchableCatalog = useMemo(() => masterCatalog, [masterCatalog]);
 
   const hits = useMemo(
-    () => searchPersonalMaster(query, assignableCatalog, 8),
-    [query, assignableCatalog],
+    () => searchPersonalMaster(query, searchableCatalog, 8).map((h) => ({
+      ...h,
+      isAssigned: assignedIds.has(h.person.id),
+    })),
+    [query, searchableCatalog, assignedIds],
   );
 
   const profileCheck = useMemo(
@@ -201,6 +206,22 @@ export function PersonalQuickAssignModal({
         text: `Viene de ${areaNominaLabel(selected.area)}. Se moverá a ${areaNominaLabel(area)} al confirmar.`,
       };
     }
+    if (assignedIds.has(selected.id)) {
+      if (!asignacionOk(asignacionNomina)) {
+        return { tone: 'idle' as const, text: 'Seleccione la asignación (vertical/sector) para esta semana.' };
+      }
+      const currentDetalle = currentAssignments?.[selected.id];
+      if (currentDetalle && asignacionNomina === currentDetalle) {
+        return {
+          tone: 'here' as const,
+          text: 'Este trabajador ya está en la nómina con esa asignación. Cambie el sector para actualizar.',
+        };
+      }
+      return {
+        tone: 'ready' as const,
+        text: 'Se actualizará la asignación de este trabajador para esta semana.',
+      };
+    }
     if (!asignacionOk(asignacionNomina)) {
       return { tone: 'idle' as const, text: 'Seleccione la asignación (vertical/sector) para esta semana.' };
     }
@@ -227,9 +248,23 @@ export function PersonalQuickAssignModal({
     setShowSuggestions(false);
     setError(null);
     setHighlight(0);
+
+    // Si se abre para reasignar un trabajador ya cargado, preseleccionarlo.
+    if (preselectedPersonalId) {
+      const person = masterCatalog.find((p) => p.id === preselectedPersonalId);
+      if (person) {
+        setSelected(person);
+        setQuery(displayNombrePersonal(person));
+        const currentDetalle = currentAssignments?.[person.id];
+        if (currentDetalle && isAsignacionNominaValid(currentDetalle, biblioteca)) {
+          setAsignacionNomina(currentDetalle);
+        }
+      }
+    }
+
     const t = window.setTimeout(() => searchRef.current?.focus(), 50);
     return () => window.clearTimeout(t);
-  }, [open, area]);
+  }, [open, area, preselectedPersonalId, masterCatalog, currentAssignments, biblioteca]);
 
   useEffect(() => {
     setHighlight(0);
@@ -238,7 +273,12 @@ export function PersonalQuickAssignModal({
   function pickPerson(person: Personal) {
     setSelected(person);
     setQuery(displayNombrePersonal(person));
-    setAsignacionNomina('');
+    const currentDetalle = currentAssignments?.[person.id];
+    if (currentDetalle && isAsignacionNominaValid(currentDetalle, biblioteca)) {
+      setAsignacionNomina(currentDetalle);
+    } else {
+      setAsignacionNomina('');
+    }
     setShowSuggestions(false);
     setError(null);
   }
@@ -257,11 +297,11 @@ export function PersonalQuickAssignModal({
     if (q.length < 3) return;
     const qCed = normalizeCedula(q);
     if (qCed.length < 5) return;
-    const exact = assignableCatalog.find((p) => normalizeCedula(p.cedula || '') === qCed);
+    const exact = searchableCatalog.find((p) => normalizeCedula(p.cedula || '') === qCed);
     if (exact && selected?.id !== exact.id) {
       pickPerson(exact);
     }
-  }, [query, assignableCatalog, selected?.id, mode]);
+  }, [query, searchableCatalog, selected?.id, mode]);
 
   function finishAssign(personalId: string, areaDetalle: string, message: string) {
     toast.success(message);
@@ -275,12 +315,12 @@ export function PersonalQuickAssignModal({
       setError('Selecciona un trabajador de la lista.');
       return;
     }
-    if (assignedIds.has(selected.id)) {
-      setError('Este trabajador ya está en esta nómina.');
-      return;
-    }
     if (!asignacionOk(asignacionNomina)) {
       setError('Selecciona una asignación nómina (vertical/sector).');
+      return;
+    }
+    if (assignedIds.has(selected.id) && asignacionNomina === (currentAssignments?.[selected.id] || '')) {
+      setError('La asignación es igual a la actual. Cambia el sector para actualizar.');
       return;
     }
     const check = workerProfileReady(selected);
@@ -379,9 +419,10 @@ export function PersonalQuickAssignModal({
         )
       : Boolean(
           selected &&
-            !assignedIds.has(selected.id) &&
             profileCheck?.ok &&
-            asignacionOk(asignacionNomina),
+            asignacionOk(asignacionNomina) &&
+            (!assignedIds.has(selected.id) ||
+              asignacionNomina !== (currentAssignments?.[selected.id] || '')),
         );
 
   return (
@@ -484,7 +525,7 @@ export function PersonalQuickAssignModal({
 
               {showSuggestions && query.trim().length >= 2 && hits.length > 0 && (
                 <ul className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 max-h-52 space-y-0.5 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-1 shadow-xl">
-                  {hits.map(({ person, reason }, index) => (
+                  {hits.map(({ person, reason, isAssigned }, index) => (
                     <li key={person.id}>
                       <button
                         type="button"
@@ -493,15 +534,22 @@ export function PersonalQuickAssignModal({
                           pickPerson(person);
                         }}
                         onClick={() => pickPerson(person)}
-                        className={`flex w-full flex-col rounded-md px-3 py-2 text-left ${
+                        className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left ${
                           index === highlight ? 'bg-amber-500/15' : 'hover:bg-white/[0.06]'
                         }`}
                       >
-                        <span className="text-sm font-semibold text-white">{displayNombrePersonal(person)}</span>
-                        <span className="text-[11px] text-white/45">
-                          CI {person.cedula} · {getUbicacionLaboralLabel(person)} · {areaNominaLabel(person.area)}
-                          {reason === 'cedula-exact' && ' · cédula exacta'}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-white">{displayNombrePersonal(person)}</span>
+                          <span className="text-[11px] text-white/45">
+                            CI {person.cedula} · {getUbicacionLaboralLabel(person)} · {areaNominaLabel(person.area)}
+                            {reason === 'cedula-exact' && ' · cédula exacta'}
+                          </span>
+                        </div>
+                        {isAssigned && (
+                          <span className="ml-2 shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200/90">
+                            Ya en esta semana
+                          </span>
+                        )}
                       </button>
                     </li>
                   ))}
@@ -773,7 +821,11 @@ export function PersonalQuickAssignModal({
             className="btn-primary w-full py-3 text-sm disabled:opacity-50"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === 'create' ? 'Crear y agregar a nómina' : 'Asignar a esta nómina'}
+            {mode === 'create'
+              ? 'Crear y agregar a nómina'
+              : selected && assignedIds.has(selected.id)
+                ? 'Actualizar asignación'
+                : 'Asignar a esta nómina'}
           </button>
         </div>
       </div>

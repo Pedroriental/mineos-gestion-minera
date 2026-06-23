@@ -321,6 +321,7 @@ export function NominaMobileWorkerCard({
   avatarColor,
   onOpenDrawer,
   onOpenReceipt,
+  onReassign,
   onEdit,
   onDelete,
   onUpdateRow,
@@ -349,6 +350,7 @@ export function NominaMobileWorkerCard({
   avatarColor: string;
   onOpenDrawer: () => void;
   onOpenReceipt: () => void;
+  onReassign: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onUpdateRow: (fields: Partial<PreNominaRowState>) => void;
@@ -398,6 +400,14 @@ export function NominaMobileWorkerCard({
           </button>
           {canEdit && !locked && (
             <>
+              <button
+                type="button"
+                onClick={onReassign}
+                className="rounded-md p-1.5 text-white/35 hover:bg-white/5 hover:text-cyan-400"
+                aria-label="Cambiar asignación"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
               <button
                 type="button"
                 onClick={onEdit}
