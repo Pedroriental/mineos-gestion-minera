@@ -3758,12 +3758,20 @@ input, textarea, select {
 }
 
 @media print {
+  /*
+   * Nómina Preview: los estilos de impresión se inyectan dinámicamente via JS
+   * en handlePrintPreview() → NominaVistaPreviaContent.tsx
+   *
+   * Las reglas de abajo son solo fallback por si se imprime con Ctrl+P
+   * desde la vista previa (sin pasar por el botón "Imprimir").
+   */
   .page-form-modal-backdrop {
     background: white !important;
     position: static !important;
     overflow: visible !important;
     height: auto !important;
     inset: auto !important;
+    z-index: auto !important;
   }
   .page-form-modal-panel--excel-preview {
     max-height: none !important;
@@ -3772,6 +3780,9 @@ input, textarea, select {
     box-shadow: none !important;
     position: static !important;
     width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    border-radius: 0 !important;
   }
   .nomina-vista-previa-content,
   .nomina-vista-previa-content__body {
@@ -3780,42 +3791,18 @@ input, textarea, select {
     height: auto !important;
     min-height: 0 !important;
     flex: none !important;
+    display: block !important;
   }
   .nomina-vista-previa-content__zoom-root {
     zoom: 1 !important;
     transform: none !important;
+    padding: 0 !important;
   }
   .nomina-preview-report .overflow-x-auto {
     overflow: visible !important;
   }
   .nomina-vista-previa-content__toolbar {
     display: none !important;
-  }
-
-  /* Solo la planilla reconstruida — oculta nómina operativa detrás del modal */
-  body.nomina-preview-print-mode * {
-    visibility: hidden !important;
-  }
-  body.nomina-preview-print-mode .nomina-preview-report,
-  body.nomina-preview-print-mode .nomina-preview-report * {
-    visibility: visible !important;
-  }
-  body.nomina-preview-print-mode .nomina-preview-report {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: white !important;
-  }
-  body.nomina-preview-print-mode [data-main-content],
-  body.nomina-preview-print-mode main,
-  body.nomina-preview-print-mode [data-app-shell] {
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow: visible !important;
-    height: auto !important;
   }
 }
 

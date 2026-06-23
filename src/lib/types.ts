@@ -40,6 +40,13 @@ export interface Personal {
   perfil_compensacion_id?: string | null;
   vertical_asignada?: string | null;
   grupo_turno?: string | null;
+  // --- Liquidación de Despidos: datos persistidos del Excel/CSV importado ---
+  /** Días reales trabajados para la liquidación. null = auto-calcular desde despido_fecha. */
+  liquidacion_dias_trabajados?: number | null;
+  /** Bonificaciones extra para la liquidación de despido. */
+  liquidacion_bonificaciones?: number | null;
+  /** Si el trabajador cobró semana libre en su liquidación. */
+  liquidacion_cobra_semana_libre?: boolean | null;
   created_at: string;
   updated_at: string;
 }

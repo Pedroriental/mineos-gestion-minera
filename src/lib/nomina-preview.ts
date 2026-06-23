@@ -27,6 +27,7 @@ import {
   aggregatePlantillaSectionTotalsFromRegistros,
   buildPlantillaPreviewSectionOrder,
   buildPlantillaPreviewSectionOrderForPeriod,
+  buildDespedidosPreviewSection,
   plantillaSummaryLabel,
   resolveWorkerPlantillaPreviewSection,
   resolveWorkerPlantillaPreviewSectionFromRegistros,
@@ -980,6 +981,49 @@ export function buildNominaPreviewReport(input: {
       });
   }
 
+  // ── Deduplicar secciones por título ──
+  // Cuando hay plantilla, diferentes rutas de resolución (snapshot, rotación, orphan)
+  // pueden generar IDs distintos para la misma cuadrilla pero con el mismo título.
+  // Ejemplo: `plantilla__<uuid>` vs `plantilla__orphan__Vertical 1PD` vs `mina__Vertical 1PD`.
+  // Fusionamos todas las secciones con el mismo título en una sola, prefiriendo el ID
+  // canónico de la plantilla (el que aparece en importSectionOrder).
+  if (plantilla) {
+    const canonicalIdByTitle = new Map<string, string>();
+    for (const spec of importSectionOrder ?? []) {
+      canonicalIdByTitle.set(spec.title, spec.id);
+    }
+
+    const mergedByTitle = new Map<string, NominaPreviewSection>();
+    for (const s of sections) {
+      const canonicalId = canonicalIdByTitle.get(s.title) ?? s.id;
+      const existing = mergedByTitle.get(s.title);
+      if (!existing) {
+        mergedByTitle.set(s.title, { ...s, id: canonicalId });
+      } else {
+        // Fusionar filas (evitar duplicados por personal_id)
+        const existingIds = new Set(existing.rows.map((r) => r.personal.id));
+        for (const row of s.rows) {
+          if (!existingIds.has(row.personal.id)) {
+            existing.rows.push(row);
+            existingIds.add(row.personal.id);
+          }
+        }
+        // Tomar el total más alto (el canónico de plantillaSectionTotals o suma)
+        const canonicalTotal = plantillaSectionTotals?.get(canonicalId);
+        const orphanTotal = plantillaSectionTotals?.get(s.id);
+        existing.sectionTotal = canonicalTotal
+          ?? parseFloat(((existing.sectionTotal || 0) + (orphanTotal ?? s.sectionTotal)).toFixed(2));
+        // Asegurar que el ID canónico es el de la plantilla
+        existing.id = canonicalId;
+      }
+    }
+    sections = [...mergedByTitle.values()];
+    // Re-sort filas dentro de cada sección fusionada
+    for (const s of sections) {
+      s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
+    }
+  }
+
   sections = sections.sort(
     (a, b) =>
       sectionSortKey(a.id, importOrderIndex) - sectionSortKey(b.id, importOrderIndex) ||
@@ -1015,6 +1059,15 @@ export function buildNominaPreviewReport(input: {
   );
   if (filterArea) {
     novedades = novedades.filter((n) => n.area === filterArea);
+  }
+
+  const despedidosSection = buildDespedidosPreviewSection(
+    personalForCatalog.filter((p) => p.estado_laboral === 'DESPEDIDO'),
+    weekColumns,
+    filterArea,
+  );
+  if (despedidosSection) {
+    sections.push(despedidosSection);
   }
 
   return {

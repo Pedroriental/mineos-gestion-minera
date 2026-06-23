@@ -1,11 +1,12 @@
 import {
   calcularBonoTransportePorPosicion,
   calcularSalarioPorPosicionCiclo,
+  posicionEnCicloDesdeSemana,
   posicionEsquemaPersonal,
   tarifaPlanaSemanaLibre,
   totalSemanasEsquema,
 } from '@/lib/nomina/perfil-ciclo-reglas';
-import { calculateExpectedAttendance } from '@/lib/rotacion-personal';
+import { calculateExpectedAttendance, getWeekStart } from '@/lib/rotacion-personal';
 import type { Personal, PoliticaReposo } from '@/lib/types';
 import type { EstatusRotacionPlantilla } from '@/lib/rotacion-plantillas/types';
 import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-transporte-semana';
@@ -386,4 +387,128 @@ export function predictWeekPay(
     diasTrabajados,
     source: 'calculada',
   };
+}
+
+// ── LIQUIDACION DE DESPEDIDOS ──────────────────────────────────
+
+export type LiquidacionDesglose = {
+  semanaInicio: string;
+  posicionCiclo: number;
+  estado: EstadoAsistenciaNomina;
+  dias: number;
+  monto: number;
+  descripcion: string;
+};
+
+export type LiquidacionResultado = {
+  semanas: LiquidacionDesglose[];
+  montoTotal: number;
+  diasParciales: number;
+  semanaLibreGanada: boolean;
+};
+
+/**
+ * Calcula la liquidación de un trabajador despedido.
+ * NO depende del esquema de rotación — es generalizada.
+ * - Días trabajados: lunes de la semana del despido hasta el día ANTERIOR al despido
+ *   (no se cuenta el día del despido, p.ej. lunes-jueves = 3 días).
+ *   Si se pasa `diasTrabajadosOverride`, se usa ese valor en su lugar.
+ * - Semana libre: solo si cobraSemanaLibre === true
+ *   (el usuario decide manualmente si el trabajador llegó a cobrarla).
+ *   El monto de la semana libre es `salario_libre || salario_base`
+ *   (puede variar por trabajador según su $/Semana).
+ * - Bono extra: se agrega aparte en el panel
+ */
+export function calcularLiquidacionPendiente(
+  personal: Pick<Personal, 'salario_base' | 'salario_libre' | 'bono_transporte'>,
+  despidoFechaISO: string,
+  cobraSemanaLibre: boolean,
+  diasTrabajadosOverride?: number | null,
+): LiquidacionResultado {
+  const salarioBase = Number(personal.salario_base) || 0;
+  const salarioLibre = Number(personal.salario_libre) || salarioBase;
+  const bonoTransporte = Number(personal.bono_transporte) || 0;
+
+  const desglose: LiquidacionDesglose[] = [];
+  let montoTotal = 0;
+
+  const despidoFecha = new Date(`${despidoFechaISO}T00:00:00`);
+
+  // Calcular el lunes de la semana del despido
+  const despidoWeekStart = getWeekStart(despidoFecha);
+  const despidoWeekStartDate = new Date(`${despidoWeekStart}T00:00:00`);
+
+  // Días trabajados: override manual o auto-cálculo
+  let diasTrabajados: number;
+  if (diasTrabajadosOverride !== undefined && diasTrabajadosOverride !== null) {
+    diasTrabajados = Math.max(0, Math.min(14, Math.round(diasTrabajadosOverride)));
+  } else {
+    // Auto: lunes hasta día ANTERIOR al despido (no contar día del despido)
+    diasTrabajados = Math.max(
+      0,
+      Math.min(7, Math.ceil((despidoFecha.getTime() - despidoWeekStartDate.getTime()) / (24 * 60 * 60 * 1000)))
+    );
+  }
+
+  if (diasTrabajados > 0) {
+    // Pago proporcional sin cap a 7 días: un trabajador que trabajó 8 días cobra
+    // (salarioSemanal / 7) * 8. applyProportionalWeeklyPay clampea a 7 días, lo que
+    // para una liquidación跨周 está mal: el trabajador pierde el pago de los días
+    // extras trabajados antes de la semana del despido.
+    const porDia = salarioBase > 0 ? salarioBase / 7 : 0;
+    const porDiaBono = bonoTransporte > 0 ? bonoTransporte / 7 : 0;
+    const montoDias = parseFloat((porDia * diasTrabajados).toFixed(2));
+    const montoBono = parseFloat((porDiaBono * diasTrabajados).toFixed(2));
+    const total = parseFloat((montoDias + montoBono).toFixed(2));
+    desglose.push({
+      semanaInicio: despidoWeekStart,
+      posicionCiclo: 0,
+      estado: 'trabajada',
+      dias: diasTrabajados,
+      monto: total,
+      descripcion: `${diasTrabajados} días trabajados`,
+    });
+    montoTotal += total;
+  }
+
+  if (cobraSemanaLibre) {
+    desglose.push({
+      semanaInicio: despidoWeekStart,
+      posicionCiclo: -1,
+      estado: 'libre',
+      dias: 0,
+      monto: parseFloat(salarioLibre.toFixed(2)),
+      descripcion: `Semana libre ($${salarioLibre.toFixed(2)})`,
+    });
+    montoTotal += parseFloat(salarioLibre.toFixed(2));
+  }
+
+  return {
+    semanas: desglose,
+    montoTotal: parseFloat(montoTotal.toFixed(2)),
+    diasParciales: diasTrabajados,
+    semanaLibreGanada: cobraSemanaLibre,
+  };
+}
+
+function rolEnCiclo(
+  esquema: string,
+  posicion: number,
+  totalSemanas: number,
+): 'trabajada' | 'libre' | 'no_laborada' {
+  if (totalSemanas <= 1) return 'trabajada';
+  switch (esquema) {
+    case 'MINA_2X1':
+    case 'MINA_ROTATIVA_3G':
+      return posicion === 2 ? 'libre' : 'trabajada';
+    case 'MOLINO_ROTATIVO':
+      return posicion === 1 ? 'libre' : 'trabajada';
+    case 'MOLINO_15X15':
+    case 'MOLINO_14X14':
+      if (posicion === 2) return 'libre';
+      if (posicion === 3) return 'no_laborada';
+      return 'trabajada';
+    default:
+      return 'trabajada';
+  }
 }

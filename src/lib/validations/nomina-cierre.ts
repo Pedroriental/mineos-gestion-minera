@@ -81,6 +81,7 @@ export const RegistroCierreSchema = z
     /** Cuadrilla de plantilla al cerrar (persistida en personal_snapshot). */
     cuadrillaId: z.string().uuid('ID de cuadrilla inválido').optional(),
     cuadrillaNombre: z.string().trim().min(1).max(200).optional(),
+    posicionCiclo: z.number().int().min(0).max(20).nullable().optional(),
   })
   .superRefine((r, ctx) => {
     if (r.estadoAsistencia === 'no_laborado' && r.diasTrabajados !== 0) {

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
 import { deriveAsignacionNominaFields, isAsignacionNominaValid, PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { loadBibliotecaAppSnapshot } from '@/lib/biblioteca-catalog';
-import { AUTO_ROTACION_OBS, tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
+import { AUTO_ROTACION_OBS, tieneEsquemaConRotacion, getWeekStart } from '@/lib/rotacion-personal';
 import {
   distribucionToCierrePayload,
   validateDistribucion,
@@ -613,6 +613,7 @@ async function procesarCierreHistoricoManualV3(
       personal_snapshot: snapshotFromCierreRow(personal, r, area),
       origen: origenRegistro,
       periodo_id: periodoId,
+      posicion_en_ciclo: r.posicionCiclo ?? null,
     };
   });
   const { error: regError } = await supabase.from('nomina_registros').insert(registros);
@@ -816,6 +817,17 @@ export async function procesarCierreNominaV3Action(
       return { ok: false, message: 'El cierre no devolvió la semana procesada.' };
     }
 
+    // Guardar posicion_en_ciclo en registros
+    for (const r of rows) {
+      if (r.posicionCiclo !== undefined && r.posicionCiclo !== null) {
+        await supabase
+          .from('nomina_registros')
+          .update({ posicion_en_ciclo: r.posicionCiclo })
+          .eq('semana_id', semanaId)
+          .eq('personal_id', r.personalId);
+      }
+    }
+
     // 6. Auditar ajustes manuales aceptados por el checksum (si los hubo)
     for (const ajuste of checksum.ajustes) {
       await registrarAuditAction(
@@ -1007,5 +1019,285 @@ export async function registrarAuditAction(
   } catch {
     // Silent — audit logging should never break the app
     console.error('[Audit] Failed to log:', accion, entidad);
+  }
+}
+
+// ── LIQUIDACION DE DESPEDIDOS ──────────────────────────────────
+
+export type LiquidacionDespedidoItem = {
+  personalId: string;
+  montoLiquidacion: number;
+  bonificaciones: number;
+  cobraSemanaLibre: boolean;
+  diasTrabajados: number | null;
+  observacion: string;
+  despidoFecha: string;
+};
+
+export async function procesarLiquidacionDespedidosAction(
+  payload: {
+    area: string;
+    liquidaciones: LiquidacionDespedidoItem[];
+    distribucion?: { nombre: string; porcentaje: number; pagoDirecto: number }[];
+  },
+): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { ok: false, message: 'No autenticado' };
+
+    const { area, liquidaciones, distribucion } = payload;
+    if (!liquidaciones.length) return { ok: false, message: 'Sin liquidaciones' };
+
+    let totalProcesado = 0;
+    const semanasProcesadas = new Set<string>();
+
+    for (const liq of liquidaciones) {
+      const weekStart = getWeekStart(liq.despidoFecha);
+      const weekEndDate = new Date(`${weekStart}T00:00:00`);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      const weekEnd = weekEndDate.toISOString().split('T')[0];
+
+      const findResult = await findOrCreateNominaSemanaForCierre(supabase, {
+        semanaInicio: weekStart,
+        semanaFin: weekEnd,
+        area,
+        totalTrabajadores: liquidaciones.filter((l) => l.despidoFecha === liq.despidoFecha).length,
+        totalPagado: liquidaciones
+          .filter((l) => l.despidoFecha === liq.despidoFecha)
+          .reduce((sum, l) => sum + l.montoLiquidacion, 0),
+        registradoPor: user.id,
+        origen: 'cierre_v3',
+      });
+
+      if ('error' in findResult) {
+        throw new Error(findResult.error);
+      }
+      const semanaId = findResult.semanaId;
+
+      const { data: regExist } = await supabase
+        .from('nomina_registros')
+        .select('id')
+        .eq('semana_id', semanaId)
+        .eq('personal_id', liq.personalId)
+        .maybeSingle();
+
+      if (regExist?.id) {
+        const { error: errUpd } = await supabase
+          .from('nomina_registros')
+          .update({
+            monto_pagado: liq.montoLiquidacion,
+            bonificaciones: liq.bonificaciones,
+            es_finiquito: true,
+            estado_asistencia: 'no_laborado',
+            dias_trabajados: 0,
+            salario_base_calculado: liq.montoLiquidacion - liq.bonificaciones,
+            novedad_turno: 'LIQUIDACION',
+            novedad_turno_obs: liq.observacion,
+            origen: 'cierre_v3',
+          })
+          .eq('id', regExist.id);
+        if (errUpd) throw new Error(errUpd.message);
+      } else {
+        const { error: errIns } = await supabase
+          .from('nomina_registros')
+          .insert({
+            semana_id: semanaId,
+            personal_id: liq.personalId,
+            monto_pagado: liq.montoLiquidacion,
+            bonificaciones: liq.bonificaciones,
+            total_vales: 0,
+            es_semana_libre: false,
+            es_finiquito: true,
+            estado_asistencia: 'no_laborado',
+            dias_trabajados: 0,
+            salario_base_calculado: liq.montoLiquidacion - liq.bonificaciones,
+            novedad_turno: 'LIQUIDACION',
+            novedad_turno_obs: liq.observacion,
+            origen: 'cierre_v3',
+          });
+        if (errIns) throw new Error(errIns.message);
+      }
+
+      totalProcesado += liq.montoLiquidacion;
+
+      // Persistir los valores finales en personal (para futuras referencias / PDF)
+      await supabase
+        .from('personal')
+        .update({
+          liquidacion_dias_trabajados: liq.diasTrabajados,
+          liquidacion_bonificaciones: liq.bonificaciones,
+          liquidacion_cobra_semana_libre: liq.cobraSemanaLibre,
+        })
+        .eq('id', liq.personalId);
+
+      await registrarAuditAction(
+        'LIQUIDACION_DESPEDIDO',
+        'personal',
+        liq.personalId,
+        `Liquidación procesada: $${liq.montoLiquidacion} (bono: $${liq.bonificaciones}${liq.cobraSemanaLibre ? ', incluye semana libre' : ''})`,
+        user.id,
+      );
+    }
+
+    // Distribución de pagos (Pedro / Darinel / La Fe) — igual que el cierre de nómina semanal
+    if (distribucion && distribucion.length > 0) {
+      for (const semanaId of semanasProcesadas) {
+        const { data: semanaRow } = await supabase
+          .from('nomina_semanas')
+          .select('total_pagado')
+          .eq('id', semanaId)
+          .maybeSingle();
+
+        const totalPagado = Number(semanaRow?.total_pagado) || totalProcesado;
+        const distribucionPayload = distribucion.map((d) => ({
+          id: d.nombre.toLowerCase().replace(/\s+/g, '-'),
+          nombre: d.nombre,
+          porcentaje: d.porcentaje,
+          pagoDirecto: d.pagoDirecto,
+        }));
+        const montoPedro = parseFloat(((totalPagado * (distribucion[0]?.porcentaje ?? 0)) / 100).toFixed(2));
+        const montoDarinel = parseFloat(((totalPagado * (distribucion[1]?.porcentaje ?? 0)) / 100).toFixed(2));
+        const montoLaFe = parseFloat(((totalPagado * (distribucion[2]?.porcentaje ?? 0)) / 100).toFixed(2));
+
+        const { error: errCierre } = await supabase
+          .from('nomina_cierres')
+          .upsert(
+            {
+              semana_id: semanaId,
+              total_nomina_usd: totalPagado,
+              pct_pedro: distribucion[0]?.porcentaje ?? 0,
+              pct_darinel: distribucion[1]?.porcentaje ?? 0,
+              pct_la_fe: distribucion[2]?.porcentaje ?? 0,
+              monto_pedro: montoPedro,
+              monto_darinel: montoDarinel,
+              monto_la_fe: montoLaFe,
+              distribucion: distribucionPayload,
+            },
+            { onConflict: 'semana_id' },
+          );
+        if (errCierre) {
+          console.error('Error al guardar distribucion:', errCierre.message);
+        }
+      }
+    }
+
+    const paths = ['/admin/trabajadores', '/admin/nomina', '/mina/nomina', '/planta/nomina', '/operaciones/resumen', '/dashboard'];
+    for (const p of paths) {
+      try { await revalidatePath(p); } catch {}
+    }
+
+    return {
+      ok: true,
+      message: `${liquidaciones.length} liquidacion(es) procesada(s). Total: $${totalProcesado.toFixed(2)}`,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al procesar liquidaciones';
+    return { ok: false, message };
+  }
+}
+
+/**
+ * Actualiza los campos editables de liquidación de un trabajador despedido.
+ * Se usa desde el panel con debounce para auto-guardar cambios del usuario.
+ * Si el trabajador está cerrado, no permite editar para proteger el cierre.
+ */
+export async function actualizarLiquidacionPersonalAction(
+  personalId: string,
+  campos: {
+    diasTrabajados?: number | null;
+    bonificaciones?: number | null;
+    cobraSemanaLibre?: boolean;
+  },
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { ok: false, message: 'No autenticado' };
+    if (!personalId) return { ok: false, message: 'Falta personalId' };
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('personal')
+      .select('id, estado_laboral')
+      .eq('id', personalId)
+      .maybeSingle();
+    if (fetchErr) return { ok: false, message: fetchErr.message };
+    if (!current) return { ok: false, message: 'Trabajador no encontrado' };
+
+    const updatePayload: Record<string, unknown> = {
+      ultimo_update_estado_at: new Date().toISOString(),
+    };
+    if (campos.diasTrabajados !== undefined) {
+      updatePayload.liquidacion_dias_trabajados = campos.diasTrabajados;
+    }
+    if (campos.bonificaciones !== undefined) {
+      updatePayload.liquidacion_bonificaciones = campos.bonificaciones;
+    }
+    if (campos.cobraSemanaLibre !== undefined) {
+      updatePayload.liquidacion_cobra_semana_libre = !!campos.cobraSemanaLibre;
+    }
+
+    const { error: updErr } = await supabase
+      .from('personal')
+      .update(updatePayload)
+      .eq('id', personalId);
+    if (updErr) return { ok: false, message: updErr.message };
+
+    return { ok: true, message: 'Guardado' };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al actualizar';
+    return { ok: false, message };
+  }
+}
+
+/**
+ * Soft-delete de un trabajador despedido desde el panel.
+ * Lo marca como HISTORICO/INACTIVO para que no aparezca en el panel
+ * pero preserva integridad referencial con nomina_cierres/registros.
+ * Si ya fue cerrado, no permite eliminar desde aquí.
+ */
+export async function eliminarDespedidoAction(
+  personalId: string,
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { ok: false, message: 'No autenticado' };
+    if (!personalId) return { ok: false, message: 'Falta personalId' };
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('personal')
+      .select('id, estado_laboral, estatus, nombre_completo')
+      .eq('id', personalId)
+      .maybeSingle();
+    if (fetchErr) return { ok: false, message: fetchErr.message };
+    if (!current) return { ok: false, message: 'Trabajador no encontrado' };
+
+    const { error: updErr } = await supabase
+      .from('personal')
+      .update({
+        estado_laboral: 'HISTORICO',
+        estatus: 'INACTIVO',
+        activo: false,
+        ultimo_update_estado_at: new Date().toISOString(),
+      })
+      .eq('id', personalId);
+    if (updErr) return { ok: false, message: updErr.message };
+
+    const paths = [
+      '/admin/trabajadores',
+      '/admin/nomina',
+      '/mina/nomina',
+      '/planta/nomina',
+      '/operaciones/resumen',
+    ];
+    for (const p of paths) {
+      try { await revalidatePath(p); } catch {}
+    }
+
+    return { ok: true, message: `${current.nombre_completo} movido a histórico` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al eliminar';
+    return { ok: false, message };
   }
 }

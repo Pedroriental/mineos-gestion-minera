@@ -385,3 +385,62 @@ export function plantillaSummaryLabel(title: string, plantilla?: RotacionPlantil
   }
   return title.replace(/^Semanas Mina Belén — /, 'Nóminas ').replace(/^Semanas Molinos — /, 'Nómina ');
 }
+
+// ── SECCION DE DESPEDIDOS / LIQUIDACION ────────────────────────
+
+import type { NominaPreviewSection, NominaPreviewWorkerRow, NominaPreviewWeekCell } from '@/lib/nomina-preview';
+import { calcularLiquidacionPendiente } from '@/lib/nomina-calculo';
+
+export function buildDespedidosPreviewSection(
+  despedidos: Personal[],
+  weekColumns: { weekStart: string }[],
+  filterArea?: string,
+  cobraSemanaLibre = false,
+): NominaPreviewSection | null {
+  if (despedidos.length === 0) return null;
+
+  const rows: NominaPreviewWorkerRow[] = [];
+
+  for (const p of despedidos) {
+    if (filterArea && p.area !== filterArea) continue;
+
+    const despidoFecha = p.despido_fecha ?? p.estado_fin_fecha ?? new Date().toISOString().split('T')[0];
+
+    const liquidacion = calcularLiquidacionPendiente(p, despidoFecha, cobraSemanaLibre);
+
+    const weeks: Record<string, NominaPreviewWeekCell> = {};
+    let total = liquidacion.montoTotal;
+
+    for (const sem of liquidacion.semanas) {
+      const col = weekColumns.find((w) => w.weekStart === sem.semanaInicio);
+      if (!col) continue;
+      weeks[sem.semanaInicio] = {
+        amount: sem.monto,
+        estado: sem.estado,
+        source: 'calculada',
+      };
+    }
+
+    if (total === 0 && liquidacion.diasParciales === 0) continue;
+
+    rows.push({
+      personal: p,
+      weeks,
+      total,
+      observaciones: `Liquidación: ${liquidacion.diasParciales} días trabajados${liquidacion.semanaLibreGanada ? ' + semana libre' : ''}`,
+      saleLibre: false,
+    });
+  }
+
+  if (rows.length === 0) return null;
+
+  rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
+
+  return {
+    id: `${filterArea ?? 'mina'}__despedidos`,
+    title: 'Personal Despedido',
+    subtitle: 'Pagos o liquidaciones de personal retirado',
+    rows,
+    sectionTotal: parseFloat(rows.reduce((n, r) => n + r.total, 0).toFixed(2)),
+  };
+}
