@@ -17,7 +17,8 @@ export type ImportarDespedidosDetalle = {
   nombre: string;
   estado: 'created' | 'updated' | 'skipped' | 'error';
   message?: string;
-  matchedBy?: 'cedula' | 'nombre' | 'fuzzy-name';
+  matchedBy?: 'cedula' | 'nombre' | 'fuzzy-name' | 'auto-generated' | 'auto-cedula' | 'auto-nombre';
+  incompleteData?: boolean;
 };
 
 export type ImportarDespedidosResult = {

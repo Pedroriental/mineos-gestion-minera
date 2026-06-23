@@ -3,7 +3,7 @@
 import { useState, useRef, useTransition } from 'react';
 import {
   Loader2, Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X,
-  UserPlus, RefreshCw, UserCheck, UserX,
+  UserPlus, RefreshCw, UserCheck, UserX, AlertCircle,
 } from 'lucide-react';
 import { importarDespedidosLoteAction } from '@/lib/actions/importar-despedidos';
 import type {
@@ -175,6 +175,7 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
         updated: detalle.filter((d) => d.estado === 'updated').length,
         skipped: detalle.filter((d) => d.estado === 'skipped').length,
         error: detalle.filter((d) => d.estado === 'error').length,
+        incomplete: detalle.filter((d) => d.incompleteData).length,
       }
     : null;
 
@@ -287,6 +288,21 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
                     <AlertTriangle className="h-3 w-3" /> {counts.error} con error
                   </span>
                 )}
+                {counts.incomplete > 0 && (
+                  <span className="flex items-center gap-1 text-amber-300">
+                    <AlertCircle className="h-3 w-3" /> {counts.incomplete} con datos incompletos
+                  </span>
+                )}
+              </div>
+            )}
+            {counts && counts.incomplete > 0 && (
+              <div className="mt-2 flex items-center gap-1.5 text-[10px] text-amber-300">
+                <AlertCircle className="h-3 w-3" />
+                Edítalos en{' '}
+                <a href="/admin/trabajadores?search=SN-" className="underline hover:text-amber-200">
+                  /admin/trabajadores
+                </a>{' '}
+                para completar cédula y nombre.
               </div>
             )}
           </div>
@@ -334,7 +350,14 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
                       {d.matchedBy === 'cedula' && 'match por cédula'}
                       {d.matchedBy === 'nombre' && 'match por nombre'}
                       {d.matchedBy === 'fuzzy-name' && 'match fuzzy (nombre similar)'}
-                      {d.message && d.message}
+                      {(d.matchedBy === 'auto-generated' || d.matchedBy === 'auto-cedula' || d.matchedBy === 'auto-nombre') && (
+                        <span className="flex items-center gap-1 text-amber-400">
+                          <AlertCircle className="h-3 w-3" /> datos incompletos
+                        </span>
+                      )}
+                      {d.message && (
+                        <div className="mt-0.5 text-[9px] text-zinc-500">{d.message}</div>
+                      )}
                     </td>
                   </tr>
                 ))}

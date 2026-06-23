@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2, CheckCircle2, AlertTriangle, Printer, Upload, Search, X,
-  Trash2, RotateCcw, Eraser, Save,
+  Trash2, RotateCcw, Eraser, Save, AlertCircle,
 } from 'lucide-react';
 import type { Personal } from '@/lib/types';
 import { calcularLiquidacionPendiente, type LiquidacionResultado } from '@/lib/nomina-calculo';
@@ -590,6 +590,18 @@ function LiquidacionCard({
               <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
                 importado
               </span>
+            )}
+            {p.cedula.startsWith('SN-') && (
+              <a
+                href="/admin/trabajadores?search=SN-"
+                target="_blank"
+                rel="noreferrer"
+                title="Cédula y/o nombre generados automáticamente. Click para editar."
+                className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/40 px-1.5 py-0.5 text-[9px] font-medium text-amber-300 hover:bg-amber-500/25 transition-colors"
+              >
+                <AlertCircle className="h-2.5 w-2.5" />
+                Datos incompletos
+              </a>
             )}
             {!cerrada && saveState === 'saving' && (
               <span className="flex items-center gap-1 text-[9px] text-zinc-500">
