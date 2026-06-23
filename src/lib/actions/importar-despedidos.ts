@@ -24,20 +24,40 @@ export async function importarDespedidosLoteAction(
     const cedulasNoEncontradas: string[] = [];
 
     for (const row of rows) {
-      const cedula = String(row.cedula || '').trim();
-      if (!cedula) {
+      const cedulaRaw = String(row.cedula || '').trim();
+      if (!cedulaRaw) {
         cedulasNoEncontradas.push(`(sin cédula) - ${row.despidoCausa || 'sin nombre'}`);
         continue;
       }
 
-      const { data: personal } = await supabase
+      // Normalizar cédula: quitar puntos, guiones y espacios para comparar
+      const cedulaNormalized = cedulaRaw.replace(/[.\-\s]/g, '');
+
+      // Buscar primero con la cédula exacta, luego con normalizada
+      let personal = null;
+      const { data: exactMatch } = await supabase
         .from('personal')
-        .select('id, estado_laboral')
-        .eq('cedula', cedula)
+        .select('id, estado_laboral, cedula')
+        .eq('cedula', cedulaRaw)
         .maybeSingle();
 
+      if (exactMatch) {
+        personal = exactMatch;
+      } else {
+        // Buscar normalizada usando función RPC-like via filter
+        const { data: allCedulas } = await supabase
+          .from('personal')
+          .select('id, estado_laboral, cedula');
+        if (allCedulas) {
+          const match = allCedulas.find(
+            (p) => String(p.cedula).replace(/[.\-\s]/g, '') === cedulaNormalized,
+          );
+          personal = match || null;
+        }
+      }
+
       if (!personal) {
-        cedulasNoEncontradas.push(cedula);
+        cedulasNoEncontradas.push(cedulaRaw);
         continue;
       }
 
@@ -72,7 +92,7 @@ export async function importarDespedidosLoteAction(
         .eq('id', personal.id);
 
       if (error) {
-        console.error(`Error al actualizar a ${cedula}:`, error.message);
+        console.error(`Error al actualizar a ${cedulaRaw}:`, error.message);
         continue;
       }
       procesados++;
