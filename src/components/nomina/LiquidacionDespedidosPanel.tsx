@@ -9,8 +9,10 @@ import { printLiquidacionPdf, type LiquidacionExportRow, type LiquidacionExportM
 import { ImportarDespedidosModal } from '@/components/nomina/ImportarDespedidosModal';
 import type { DistribucionParte } from '@/lib/nomina-distribucion';
 
+type Area = 'mina' | 'planta' | 'administracion' | 'seguridad' | 'transporte';
+
 type Props = {
-  area: string;
+  area: Area | string;
   personal: Personal[];
   distribucionPartes?: DistribucionParte[];
   onRefresh?: () => void;
@@ -334,6 +336,7 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
 
       {showImportModal && (
         <ImportarDespedidosModal
+          area={area as Area}
           onClose={() => setShowImportModal(false)}
           onSuccess={() => {
             setShowImportModal(false);

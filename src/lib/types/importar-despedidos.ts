@@ -2,6 +2,9 @@
 
 export type ImportarDespedidosRow = {
   cedula: string;
+  nombre: string;
+  cargo: string;
+  salarioSemana: number;
   diasTrabajados: number;
   cobraSemanaLibre: boolean;
   bonificaciones: number;
@@ -9,10 +12,21 @@ export type ImportarDespedidosRow = {
   despidoCausa: string;
 };
 
+export type ImportarDespedidosDetalle = {
+  cedula: string;
+  nombre: string;
+  estado: 'created' | 'updated' | 'skipped' | 'error';
+  message?: string;
+  matchedBy?: 'cedula' | 'nombre';
+};
+
 export type ImportarDespedidosResult = {
   ok: boolean;
   message: string;
   totalProcesados?: number;
   totalNoEncontrados?: number;
-  cedulasNoEncontradas?: string[];
+  totalCreados?: number;
+  totalActualizados?: number;
+  totalErrores?: number;
+  detalle?: ImportarDespedidosDetalle[];
 };
