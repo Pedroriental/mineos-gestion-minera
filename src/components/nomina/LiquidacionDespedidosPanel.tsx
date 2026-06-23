@@ -437,6 +437,7 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
             onDiasTrabajados={(v) => handleDiasTrabajados(item.personal.id, v)}
             onEliminar={() => handleConfirmEliminar(item.personal)}
             eliminando={eliminando}
+            canEdit={canEdit}
           />
         ))}
       </div>
@@ -503,6 +504,7 @@ function LiquidacionCard({
   onDiasTrabajados,
   onEliminar,
   eliminando,
+  canEdit,
 }: {
   item: LiquidacionItem;
   montoFinal: number;
@@ -512,6 +514,7 @@ function LiquidacionCard({
   onDiasTrabajados: (v: number | null) => void;
   onEliminar: () => void;
   eliminando: boolean;
+  canEdit: boolean;
 }) {
   const { personal: p, liquidacion, bonificaciones, cobraSemanaLibre, diasTrabajadosOverride, cerrada } = item;
   const [editMode, setEditMode] = useState(false);
