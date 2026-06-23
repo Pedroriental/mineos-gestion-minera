@@ -2,23 +2,7 @@
 
 import { createServerClient } from '@/lib/supabase-server';
 import { revalidatePath } from 'next/cache';
-
-export type ImportarDespedidosRow = {
-  cedula: string;
-  diasTrabajados: number;
-  cobraSemanaLibre: boolean;
-  bonificaciones: number;
-  despidoFecha: string;
-  despidoCausa: string;
-};
-
-export type ImportarDespedidosResult = {
-  ok: boolean;
-  message: string;
-  totalProcesados?: number;
-  totalNoEncontrados?: number;
-  cedulasNoEncontradas?: string[];
-};
+import type { ImportarDespedidosRow, ImportarDespedidosResult } from '@/lib/types/importar-despedidos';
 
 /**
  * Procesa un lote de despidos desde un Excel/CSV.
@@ -41,7 +25,10 @@ export async function importarDespedidosLoteAction(
 
     for (const row of rows) {
       const cedula = String(row.cedula || '').trim();
-      if (!cedula) continue;
+      if (!cedula) {
+        cedulasNoEncontradas.push(`(sin cédula) - ${row.despidoCausa || 'sin nombre'}`);
+        continue;
+      }
 
       const { data: personal } = await supabase
         .from('personal')
@@ -92,7 +79,7 @@ export async function importarDespedidosLoteAction(
 
     return {
       ok: true,
-      message: `${procesados} trabajador(es) marcado(s) como despedido${cedulasNoEncontradas.length > 0 ? `. ${cedulasNoEncontradas.length} cédula(s) no encontrada(s)` : ''}.`,
+      message: `${procesados} trabajador(es) procesado(s)${cedulasNoEncontradas.length > 0 ? `. ${cedulasNoEncontradas.length} no encontrado(s) o sin cédula` : ''}.`,
       totalProcesados: procesados,
       totalNoEncontrados: cedulasNoEncontradas.length,
       cedulasNoEncontradas,

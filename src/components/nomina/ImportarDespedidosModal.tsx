@@ -2,7 +2,8 @@
 
 import { useState, useRef, useTransition } from 'react';
 import { Loader2, Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X } from 'lucide-react';
-import { importarDespedidosLoteAction, type ImportarDespedidosRow } from '@/lib/actions/importar-despedidos';
+import { importarDespedidosLoteAction } from '@/lib/actions/importar-despedidos';
+import type { ImportarDespedidosRow } from '@/lib/types/importar-despedidos';
 
 type Props = {
   onClose: () => void;
@@ -93,7 +94,18 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
         console.info('[ImportarDespedidos] parsed sample:', parsed[0]);
       }
 
-      parsed = parsed.filter((r) => r.cedula);
+      parsed = parsed.filter((r) => {
+        // Filtrar filas completamente vacías o filas de totales/sumas
+        const noCedula = !r.cedula;
+        const noDias = !r.diasTrabajados;
+        const noBono = !r.bonificaciones;
+        const noDespidoFecha = !r.despidoFecha;
+        if (noCedula && noDias && noBono && noDespidoFecha) return false;
+        // Filtrar fila "Total" (la palabra 'total' en la cédula, causa o como cédula)
+        const allValues = `${r.cedula} ${r.despidoCausa} ${r.despidoFecha}`.toLowerCase();
+        if (allValues.includes('total')) return false;
+        return true;
+      });
       setRows(parsed);
       if (parsed.length === 0) {
         const rawKeys = json.length > 0 ? Object.keys(json[0]).join(', ') : 'ninguna';
@@ -117,13 +129,27 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
   const handleImportar = () => {
     setError(null);
     setSuccess(null);
+    if (typeof window !== 'undefined') {
+      console.info(`[ImportarDespedidos] handleImportar: enviando ${rows.length} filas`);
+    }
     startTransition(async () => {
-      const res = await importarDespedidosLoteAction(rows);
-      if (res.ok) {
-        setSuccess(res.message);
-        onSuccess?.();
-      } else {
-        setError(res.message);
+      try {
+        const res = await importarDespedidosLoteAction(rows);
+        if (typeof window !== 'undefined') {
+          console.info('[ImportarDespedidos] respuesta:', res);
+        }
+        if (res.ok) {
+          setSuccess(res.message);
+          onSuccess?.();
+        } else {
+          setError(res.message);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Error desconocido al importar';
+        if (typeof window !== 'undefined') {
+          console.error('[ImportarDespedidos] error:', err);
+        }
+        setError(message);
       }
     });
   };
