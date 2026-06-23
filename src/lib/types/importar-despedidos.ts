@@ -21,6 +21,33 @@ export type ImportarDespedidosDetalle = {
   incompleteData?: boolean;
 };
 
+export type PrevisualizarImportFila = {
+  rowIndex: number;
+  cedulaOriginal: string;
+  nombreOriginal: string;
+  cargo: string;
+  diasTrabajados: number;
+  bonificaciones: number;
+  cobraSemanaLibre: boolean;
+  despidoFecha: string;
+  despidoCausa: string;
+  salarioSemana: number;
+  existe: boolean;
+  matchedBy?: 'cedula' | 'nombre' | 'fuzzy-name' | 'auto-generated' | 'auto-cedula' | 'auto-nombre';
+  cedulaEfectiva: string;
+  nombreEfectivo: string;
+  incompleteData: boolean;
+};
+
+export type PrevisualizarImportResult = {
+  ok: boolean;
+  message: string;
+  filas: PrevisualizarImportFila[];
+  totalExistentes: number;
+  totalNuevos: number;
+  totalIncompletos: number;
+};
+
 export type ImportarDespedidosResult = {
   ok: boolean;
   message: string;

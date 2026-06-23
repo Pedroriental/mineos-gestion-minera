@@ -1,14 +1,18 @@
 'use client';
 
-import { useState, useRef, useTransition } from 'react';
+import { useState, useRef, useTransition, useMemo } from 'react';
 import {
   Loader2, Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X,
-  UserPlus, RefreshCw, UserCheck, UserX, AlertCircle,
+  UserPlus, RefreshCw, UserCheck, AlertCircle, Square, CheckSquare,
 } from 'lucide-react';
-import { importarDespedidosLoteAction } from '@/lib/actions/importar-despedidos';
+import {
+  importarDespedidosLoteAction,
+  previsualizarImportAction,
+} from '@/lib/actions/importar-despedidos';
 import type {
   ImportarDespedidosRow,
   ImportarDespedidosDetalle,
+  PrevisualizarImportFila,
 } from '@/lib/types/importar-despedidos';
 
 type Area = 'mina' | 'planta' | 'administracion' | 'seguridad' | 'transporte';
@@ -33,10 +37,16 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
   const [success, setSuccess] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<ImportarDespedidosDetalle[] | null>(null);
 
+  const [previsualizacion, setPrevisualizacion] = useState<PrevisualizarImportFila[] | null>(null);
+  const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
+  const [previsualizando, setPrevisualizando] = useState(false);
+
   const handleFile = async (file: File) => {
     setError(null);
     setSuccess(null);
     setDetalle(null);
+    setPrevisualizacion(null);
+    setSeleccionados(new Set());
     setParsing(true);
     try {
       const ext = file.name.toLowerCase().split('.').pop();
@@ -74,11 +84,6 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
         } else {
           json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
         }
-
-        if (typeof window !== 'undefined') {
-          console.info('[ImportarDespedidos] XLSX header row index:', headerRowIdx);
-          console.info('[ImportarDespedidos] XLSX keys raw:', json.length > 0 ? Object.keys(json[0]) : 'empty');
-        }
       } else {
         throw new Error('Formato no soportado. Use .csv, .xlsx o .xls');
       }
@@ -91,13 +96,7 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
         }
         return obj;
       });
-      if (typeof window !== 'undefined') {
-        console.info('[ImportarDespedidos] normalized keys:', normalized.length > 0 ? Object.keys(normalized[0]) : 'empty');
-      }
       parsed = normalized.map((row) => rowToImportRow(row));
-      if (typeof window !== 'undefined') {
-        console.info('[ImportarDespedidos] parsed sample:', parsed[0]);
-      }
 
       parsed = parsed.filter((r) => {
         const noCedula = !r.cedula;
@@ -116,11 +115,27 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
         setError(
           `No se encontraron filas válidas. Encabezados detectados: [${rawKeys}]. Verifica que existan al menos las columnas "Cédula" y "Nombre" con valores no vacíos.`,
         );
-        if (typeof window !== 'undefined') {
-          console.warn('[ImportarDespedidos] Filas parseadas pero sin cédula/nombre. Encabezados:', rawKeys);
+      }
+
+      // Disparar previsualización automática
+      if (parsed.length > 0) {
+        setPrevisualizando(true);
+        try {
+          const prev = await previsualizarImportAction(parsed, area);
+          if (prev.ok) {
+            setPrevisualizacion(prev.filas);
+            // Por defecto: marcar SOLO los nuevos (no existentes)
+            const nuevos = new Set<number>();
+            for (const f of prev.filas) {
+              if (!f.existe) nuevos.add(f.rowIndex);
+            }
+            setSeleccionados(nuevos);
+          } else {
+            setError(`Error al previsualizar: ${prev.message}`);
+          }
+        } finally {
+          setPrevisualizando(false);
         }
-      } else if (typeof window !== 'undefined') {
-        console.info(`[ImportarDespedidos] ${parsed.length} fila(s) parseada(s) correctamente.`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al parsear el archivo';
@@ -134,14 +149,16 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
     setError(null);
     setSuccess(null);
     if (typeof window !== 'undefined') {
-      console.info(`[ImportarDespedidos] handleImportar: enviando ${rows.length} filas a área ${area}`);
+      console.info(`[ImportarDespedidos] handleImportar: enviando ${seleccionados.size} fila(s) de ${rows.length}`);
+    }
+    const filasAImportar = rows.filter((_, idx) => seleccionados.has(idx));
+    if (filasAImportar.length === 0) {
+      setError('No has seleccionado ninguna fila para importar');
+      return;
     }
     startTransition(async () => {
       try {
-        const res = await importarDespedidosLoteAction(rows, area);
-        if (typeof window !== 'undefined') {
-          console.info('[ImportarDespedidos] respuesta:', res);
-        }
+        const res = await importarDespedidosLoteAction(filasAImportar, area);
         if (res.ok) {
           setSuccess(res.message);
           if (res.detalle) setDetalle(res.detalle);
@@ -153,9 +170,6 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error desconocido al importar';
-        if (typeof window !== 'undefined') {
-          console.error('[ImportarDespedidos] error:', err);
-        }
         setError(message);
       }
     });
@@ -166,22 +180,47 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
     setDetalle(null);
     setError(null);
     setSuccess(null);
+    setPrevisualizacion(null);
+    setSeleccionados(new Set());
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  const counts = detalle
-    ? {
-        created: detalle.filter((d) => d.estado === 'created').length,
-        updated: detalle.filter((d) => d.estado === 'updated').length,
-        skipped: detalle.filter((d) => d.estado === 'skipped').length,
-        error: detalle.filter((d) => d.estado === 'error').length,
-        incomplete: detalle.filter((d) => d.incompleteData).length,
-      }
-    : null;
+  const counts = useMemo(() => {
+    if (!previsualizacion) return null;
+    return {
+      existentes: previsualizacion.filter((f) => f.existe).length,
+      nuevos: previsualizacion.filter((f) => !f.existe).length,
+      incompletos: previsualizacion.filter((f) => f.incompleteData).length,
+      seleccionadosCount: seleccionados.size,
+    };
+  }, [previsualizacion, seleccionados]);
+
+  const toggleSeleccion = (rowIndex: number) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowIndex)) next.delete(rowIndex);
+      else next.add(rowIndex);
+      return next;
+    });
+  };
+
+  const seleccionarTodos = () => {
+    if (!previsualizacion) return;
+    setSeleccionados(new Set(previsualizacion.map((f) => f.rowIndex)));
+  };
+  const limpiarSeleccion = () => setSeleccionados(new Set());
+  const soloNuevos = () => {
+    if (!previsualizacion) return;
+    setSeleccionados(new Set(previsualizacion.filter((f) => !f.existe).map((f) => f.rowIndex)));
+  };
+  const soloExistentes = () => {
+    if (!previsualizacion) return;
+    setSeleccionados(new Set(previsualizacion.filter((f) => f.existe).map((f) => f.rowIndex)));
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-3xl rounded-lg border border-white/10 bg-zinc-900/95 p-5 shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-5xl rounded-lg border border-white/10 bg-zinc-900/95 p-5 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4 text-amber-400" />
@@ -197,10 +236,9 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
         <p className="mb-3 text-[11px] text-zinc-400">
           Carga un archivo con las columnas: <strong className="text-zinc-200">Nombre</strong>,{' '}
           <strong className="text-zinc-200">Cédula</strong>, Cargo, $/Semana, DespidoFecha, Causa,
-          DiasTrabajados, CobraSemanaLibre, Bonificaciones. El sistema intentará emparejar
-          cada fila por cédula o nombre; si no existe el trabajador, lo creará automáticamente
-          y lo marcará como DESPEDIDO. La liquidación se procesa después en la pestaña
-          &quot;Despedidos&quot;.
+          DiasTrabajados, CobraSemanaLibre, Bonificaciones. El sistema mostrará una previsualización
+          de qué trabajadores ya existen en la BD y cuáles se crearán nuevos. Marca solo las filas
+          que quieres importar.
         </p>
 
         <details className="mb-3 rounded border border-white/5 bg-zinc-900/40 p-2 text-[10px] text-zinc-500">
@@ -214,7 +252,7 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
             type="file"
             accept=".csv,.xlsx,.xls,.txt"
             onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-            className="block w-full text-[11px] text-zinc-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500/15 file:px-3 file:py-1.5 file:text-[11px] file:font-semibold file:file-amber-300 hover:file:bg-amber-500/25"
+            className="block w-full text-[11px] text-zinc-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500/15 file:px-3 file:py-1.5 file:text-[11px] file:font-semibold file:text-amber-300 hover:file:bg-amber-500/25"
           />
         </div>
 
@@ -223,39 +261,132 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Parseando archivo...
           </div>
         )}
-
-        {rows.length > 0 && !detalle && (
-          <div className="mb-3 max-h-48 overflow-y-auto rounded border border-white/5 bg-zinc-950/40">
-            <table className="w-full text-[10px]">
-              <thead className="border-b border-white/5 bg-zinc-900/50 text-zinc-500">
-                <tr>
-                  <th className="px-2 py-1 text-left">Nombre</th>
-                  <th className="px-2 py-1 text-left">Cédula</th>
-                  <th className="px-2 py-1 text-left">Cargo</th>
-                  <th className="px-2 py-1 text-right">$/Sem</th>
-                  <th className="px-2 py-1 text-left">Despido</th>
-                  <th className="px-2 py-1 text-right">Días</th>
-                  <th className="px-2 py-1 text-center">Libre</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-zinc-300">
-                {rows.slice(0, 50).map((r, i) => (
-                  <tr key={i}>
-                    <td className="px-2 py-1 truncate max-w-[180px]">{r.nombre}</td>
-                    <td className="px-2 py-1">{r.cedula}</td>
-                    <td className="px-2 py-1">{r.cargo}</td>
-                    <td className="px-2 py-1 text-right tabular-nums">${r.salarioSemana}</td>
-                    <td className="px-2 py-1">{r.despidoFecha}</td>
-                    <td className="px-2 py-1 text-right tabular-nums">{r.diasTrabajados}</td>
-                    <td className="px-2 py-1 text-center">{r.cobraSemanaLibre ? 'SI' : 'NO'}</td>
-                  </tr>
-                ))}
-                {rows.length > 50 && (
-                  <tr><td colSpan={7} className="px-2 py-1 text-center text-zinc-500">... y {rows.length - 50} más</td></tr>
-                )}
-              </tbody>
-            </table>
+        {previsualizando && (
+          <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Previsualizando contra la BD...
           </div>
+        )}
+
+        {previsualizacion && previsualizacion.length > 0 && !detalle && (
+          <>
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="text-zinc-400">Selección rápida:</span>
+              <button
+                type="button"
+                onClick={seleccionarTodos}
+                className="rounded border border-white/10 bg-zinc-900/40 px-2 py-1 text-zinc-300 hover:bg-white/5"
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={soloNuevos}
+                className="rounded border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-emerald-300 hover:bg-emerald-500/15"
+              >
+                Solo nuevos
+              </button>
+              <button
+                type="button"
+                onClick={soloExistentes}
+                className="rounded border border-sky-500/20 bg-sky-500/5 px-2 py-1 text-sky-300 hover:bg-sky-500/15"
+              >
+                Solo existentes
+              </button>
+              <button
+                type="button"
+                onClick={limpiarSeleccion}
+                className="rounded border border-white/10 bg-zinc-900/40 px-2 py-1 text-zinc-300 hover:bg-white/5"
+              >
+                Ninguno
+              </button>
+              {counts && (
+                <span className="ml-auto text-zinc-400">
+                  <span className="text-emerald-300">{counts.nuevos} nuevo(s)</span>
+                  {' · '}
+                  <span className="text-sky-300">{counts.existentes} existente(s)</span>
+                  {counts.incompletos > 0 && (
+                    <>
+                      {' · '}
+                      <span className="text-amber-300">{counts.incompletos} incompleto(s)</span>
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+
+            <div className="mb-3 max-h-72 overflow-y-auto rounded border border-white/5 bg-zinc-950/40">
+              <table className="w-full text-[10px]">
+                <thead className="sticky top-0 border-b border-white/5 bg-zinc-900/95 text-zinc-500">
+                  <tr>
+                    <th className="w-8 px-2 py-1.5"></th>
+                    <th className="px-2 py-1.5 text-left">Estado</th>
+                    <th className="px-2 py-1.5 text-left">Nombre</th>
+                    <th className="px-2 py-1.5 text-left">Cédula</th>
+                    <th className="px-2 py-1.5 text-left">Cargo</th>
+                    <th className="px-2 py-1.5 text-right">Días</th>
+                    <th className="px-2 py-1.5 text-center">Libre</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-zinc-300">
+                  {previsualizacion.map((f) => {
+                    const checked = seleccionados.has(f.rowIndex);
+                    return (
+                      <tr
+                        key={f.rowIndex}
+                        onClick={() => toggleSeleccion(f.rowIndex)}
+                        className={`cursor-pointer transition-colors ${
+                          checked ? 'bg-amber-500/5' : 'hover:bg-white/[0.02]'
+                        }`}
+                      >
+                        <td className="px-2 py-1 text-zinc-400">
+                          {checked
+                            ? <CheckSquare className="h-3.5 w-3.5 text-amber-400" />
+                            : <Square className="h-3.5 w-3.5 text-zinc-600" />}
+                        </td>
+                        <td className="px-2 py-1">
+                          {f.existe ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 border border-sky-500/30 px-1.5 py-0.5 text-[9px] font-medium text-sky-300">
+                              <UserCheck className="h-2.5 w-2.5" />
+                              Existente
+                            </span>
+                          ) : f.incompleteData ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
+                              <AlertCircle className="h-2.5 w-2.5" />
+                              Nuevo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-medium text-emerald-300">
+                              <UserPlus className="h-2.5 w-2.5" />
+                              Nuevo
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1 truncate max-w-[180px]">
+                          {f.nombreEfectivo || '—'}
+                          {f.incompleteData && (
+                            <div className="text-[9px] text-amber-400">
+                              (generado automáticamente)
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1">
+                          {f.cedulaEfectiva || '—'}
+                          {f.cedulaEfectiva !== f.cedulaOriginal && f.cedulaEfectiva && (
+                            <div className="text-[9px] text-amber-400">
+                              era &ldquo;{f.cedulaOriginal || 'vacía'}&rdquo;
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1">{f.cargo || '—'}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{f.diasTrabajados}</td>
+                        <td className="px-2 py-1 text-center">{f.cobraSemanaLibre ? 'SI' : 'NO'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {error && (
@@ -270,104 +401,38 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               {success}
             </div>
-            {counts && (
-              <div className="mt-2 flex flex-wrap gap-3 text-[10px]">
-                <span className="flex items-center gap-1 text-emerald-300">
-                  <UserPlus className="h-3 w-3" /> {counts.created} creado(s)
-                </span>
-                <span className="flex items-center gap-1 text-sky-300">
-                  <UserCheck className="h-3 w-3" /> {counts.updated} actualizado(s)
-                </span>
-                {counts.skipped > 0 && (
-                  <span className="flex items-center gap-1 text-zinc-400">
-                    <UserX className="h-3 w-3" /> {counts.skipped} omitido(s)
-                  </span>
-                )}
-                {counts.error > 0 && (
-                  <span className="flex items-center gap-1 text-red-300">
-                    <AlertTriangle className="h-3 w-3" /> {counts.error} con error
-                  </span>
-                )}
-                {counts.incomplete > 0 && (
-                  <span className="flex items-center gap-1 text-amber-300">
-                    <AlertCircle className="h-3 w-3" /> {counts.incomplete} con datos incompletos
-                  </span>
-                )}
+            {detalle && detalle.length > 0 && (
+              <div className="mt-2 max-h-40 overflow-y-auto rounded border border-emerald-500/10 bg-zinc-950/30">
+                <table className="w-full text-[10px]">
+                  <thead className="text-emerald-300">
+                    <tr>
+                      <th className="px-2 py-1 text-left">Estado</th>
+                      <th className="px-2 py-1 text-left">Nombre</th>
+                      <th className="px-2 py-1 text-left">Detalle</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-zinc-300">
+                    {detalle.map((d, i) => (
+                      <tr key={i}>
+                        <td className="px-2 py-1">
+                          {d.estado === 'created' && <span className="text-emerald-300">Creado</span>}
+                          {d.estado === 'updated' && <span className="text-sky-300">Actualizado</span>}
+                          {d.estado === 'skipped' && <span className="text-zinc-500">Omitido</span>}
+                          {d.estado === 'error' && <span className="text-red-300">Error</span>}
+                        </td>
+                        <td className="px-2 py-1 truncate max-w-[200px]">{d.nombre || '—'}</td>
+                        <td className="px-2 py-1 text-zinc-400">{d.message || d.matchedBy || ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-            {counts && counts.incomplete > 0 && (
-              <div className="mt-2 flex items-center gap-1.5 text-[10px] text-amber-300">
-                <AlertCircle className="h-3 w-3" />
-                Edítalos en{' '}
-                <a href="/admin/trabajadores?search=SN-" className="underline hover:text-amber-200">
-                  /admin/trabajadores
-                </a>{' '}
-                para completar cédula y nombre.
-              </div>
-            )}
-          </div>
-        )}
-
-        {detalle && detalle.length > 0 && (
-          <div className="mb-3 max-h-60 overflow-y-auto rounded border border-white/5 bg-zinc-950/40">
-            <table className="w-full text-[10px]">
-              <thead className="border-b border-white/5 bg-zinc-900/50 text-zinc-500">
-                <tr>
-                  <th className="px-2 py-1 text-left">Estado</th>
-                  <th className="px-2 py-1 text-left">Nombre</th>
-                  <th className="px-2 py-1 text-left">Cédula</th>
-                  <th className="px-2 py-1 text-left">Detalle</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-zinc-300">
-                {detalle.map((d, i) => (
-                  <tr key={i}>
-                    <td className="px-2 py-1">
-                      {d.estado === 'created' && (
-                        <span className="flex items-center gap-1 text-emerald-400">
-                          <UserPlus className="h-3 w-3" /> Nuevo
-                        </span>
-                      )}
-                      {d.estado === 'updated' && (
-                        <span className="flex items-center gap-1 text-sky-400">
-                          <UserCheck className="h-3 w-3" /> Actualizado
-                        </span>
-                      )}
-                      {d.estado === 'skipped' && (
-                        <span className="flex items-center gap-1 text-zinc-500">
-                          <UserX className="h-3 w-3" /> Omitido
-                        </span>
-                      )}
-                      {d.estado === 'error' && (
-                        <span className="flex items-center gap-1 text-red-400">
-                          <AlertTriangle className="h-3 w-3" /> Error
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-1 truncate max-w-[180px]">{d.nombre || '—'}</td>
-                    <td className="px-2 py-1">{d.cedula || '—'}</td>
-                    <td className="px-2 py-1 text-zinc-400">
-                      {d.matchedBy === 'cedula' && 'match por cédula'}
-                      {d.matchedBy === 'nombre' && 'match por nombre'}
-                      {d.matchedBy === 'fuzzy-name' && 'match fuzzy (nombre similar)'}
-                      {(d.matchedBy === 'auto-generated' || d.matchedBy === 'auto-cedula' || d.matchedBy === 'auto-nombre') && (
-                        <span className="flex items-center gap-1 text-amber-400">
-                          <AlertCircle className="h-3 w-3" /> datos incompletos
-                        </span>
-                      )}
-                      {d.message && (
-                        <div className="mt-0.5 text-[9px] text-zinc-500">{d.message}</div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
 
         <div className="flex items-center justify-end gap-2">
-          {detalle && (
+          {detalle ? (
             <button
               type="button"
               onClick={handleReset}
@@ -376,7 +441,7 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
               <RefreshCw className="h-3.5 w-3.5" />
               Otro archivo
             </button>
-          )}
+          ) : null}
           <button
             type="button"
             onClick={onClose}
@@ -384,15 +449,15 @@ export function ImportarDespedidosModal({ area, onClose, onSuccess }: Props) {
           >
             {detalle ? 'Cerrar' : 'Cancelar'}
           </button>
-          {!detalle && (
+          {!detalle && previsualizacion && previsualizacion.length > 0 && (
             <button
               type="button"
               onClick={handleImportar}
-              disabled={rows.length === 0 || processing}
+              disabled={processing || seleccionados.size === 0}
               className="flex items-center gap-1.5 rounded bg-amber-500/15 border border-amber-500/30 px-3 py-1.5 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/25 transition-colors disabled:opacity-40"
             >
               {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-              Marcar {rows.length} como despedido{rows.length !== 1 ? 's' : ''}
+              Importar {seleccionados.size} seleccionada{seleccionados.size !== 1 ? 's' : ''}
             </button>
           )}
         </div>
