@@ -222,7 +222,6 @@ export async function importarDespedidosLoteAction(
             liquidacion_dias_trabajados: row.diasTrabajados || null,
             liquidacion_bonificaciones: row.bonificaciones || 0,
             liquidacion_cobra_semana_libre: !!row.cobraSemanaLibre,
-            liquidacion_persiste: true,
             estado_manual_override: true,
             ultimo_update_estado_at: new Date().toISOString(),
           };
