@@ -451,8 +451,14 @@ export function calcularLiquidacionPendiente(
   }
 
   if (diasTrabajados > 0) {
-    const montoDias = applyProportionalWeeklyPay(salarioBase, diasTrabajados);
-    const montoBono = applyProportionalWeeklyPay(bonoTransporte, diasTrabajados);
+    // Pago proporcional sin cap a 7 días: un trabajador que trabajó 8 días cobra
+    // (salarioSemanal / 7) * 8. applyProportionalWeeklyPay clampea a 7 días, lo que
+    // para una liquidación跨周 está mal: el trabajador pierde el pago de los días
+    // extras trabajados antes de la semana del despido.
+    const porDia = salarioBase > 0 ? salarioBase / 7 : 0;
+    const porDiaBono = bonoTransporte > 0 ? bonoTransporte / 7 : 0;
+    const montoDias = parseFloat((porDia * diasTrabajados).toFixed(2));
+    const montoBono = parseFloat((porDiaBono * diasTrabajados).toFixed(2));
     const total = parseFloat((montoDias + montoBono).toFixed(2));
     desglose.push({
       semanaInicio: despidoWeekStart,
