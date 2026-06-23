@@ -41,15 +41,21 @@ export async function importarDespedidosLoteAction(
         continue;
       }
 
-      // Solo actualiza si aún no está despedido (idempotente)
-      if (personal.estado_laboral === 'DESPEDIDO') {
-        procesados++;
-        continue;
-      }
+      // Si ya está despedido, solo actualizamos los datos de liquidación
+      // (días, bonificaciones, semana libre) sin tocar estado/estatus
+      const isAlreadyFired = personal.estado_laboral === 'DESPEDIDO';
 
-      const { error } = await supabase
-        .from('personal')
-        .update({
+      const updatePayload: Record<string, unknown> = {
+        liquidacion_dias_trabajados: row.diasTrabajados || null,
+        liquidacion_bonificaciones: row.bonificaciones || 0,
+        liquidacion_cobra_semana_libre: row.cobraSemanaLibre,
+        estado_manual_override: true,
+        ultimo_update_estado_at: new Date().toISOString(),
+      };
+
+      if (!isAlreadyFired) {
+        // Primera vez que se marca como despedido
+        Object.assign(updatePayload, {
           estado_laboral: 'DESPEDIDO',
           estatus: 'LIQUIDADO',
           activo: false,
@@ -57,16 +63,16 @@ export async function importarDespedidosLoteAction(
           despido_causa: row.despidoCausa || 'Despido',
           observacion_estado: row.despidoCausa || 'Despido',
           estado_inicio_fecha: row.despidoFecha || null,
-          liquidacion_dias_trabajados: row.diasTrabajados || null,
-          liquidacion_bonificaciones: row.bonificaciones || 0,
-          liquidacion_cobra_semana_libre: row.cobraSemanaLibre,
-          estado_manual_override: true,
-          ultimo_update_estado_at: new Date().toISOString(),
-        })
+        });
+      }
+
+      const { error } = await supabase
+        .from('personal')
+        .update(updatePayload)
         .eq('id', personal.id);
 
       if (error) {
-        console.error(`Error al marcar como despedido a ${cedula}:`, error.message);
+        console.error(`Error al actualizar a ${cedula}:`, error.message);
         continue;
       }
       procesados++;
@@ -79,7 +85,7 @@ export async function importarDespedidosLoteAction(
 
     return {
       ok: true,
-      message: `${procesados} trabajador(es) procesado(s)${cedulasNoEncontradas.length > 0 ? `. ${cedulasNoEncontradas.length} no encontrado(s) o sin cédula` : ''}.`,
+      message: `${procesados} trabajador(es) procesado(s)${cedulasNoEncontradas.length > 0 ? `. ${cedulasNoEncontradas.length} no encontrado(s) o sin cédula` : ''}. La página se recargará para mostrar los cambios.`,
       totalProcesados: procesados,
       totalNoEncontrados: cedulasNoEncontradas.length,
       cedulasNoEncontradas,

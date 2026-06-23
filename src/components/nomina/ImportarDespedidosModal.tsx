@@ -140,7 +140,11 @@ export function ImportarDespedidosModal({ onClose, onSuccess }: Props) {
         }
         if (res.ok) {
           setSuccess(res.message);
-          onSuccess?.();
+          // Esperar 2 segundos para que el usuario vea el mensaje de éxito,
+          // luego cerrar el modal y refrescar
+          setTimeout(() => {
+            onSuccess?.();
+          }, 2500);
         } else {
           setError(res.message);
         }
