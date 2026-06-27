@@ -256,6 +256,7 @@ export default function TrabajadoresRegistryClient({
   const [filterEstado, setFilterEstado] = useState('');
   const [filterSitio, setFilterSitio] = useState('');
   const [filterCuadrilla, setFilterCuadrilla] = useState('');
+  const [showDownload, setShowDownload] = useState(false);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: TRABAJADORES_DEFAULT_PAGE_ROWS,
@@ -1226,7 +1227,6 @@ export default function TrabajadoresRegistryClient({
           {(['ACTIVO', 'REPOSO', 'VACACIONES', 'DESPEDIDO', 'REENGANCHADO'] as EstadoLaboral[]).map((opt) => {
             const worker = localTrabajadores.find((w) => w.id === estadoMenu.id);
             const current = ((worker?.estado_laboral || 'ACTIVO') as EstadoLaboral);
-  const [showDownload, setShowDownload] = useState(false);
 
   return (
               <button
