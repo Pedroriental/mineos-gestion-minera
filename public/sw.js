@@ -1,8 +1,8 @@
-// MineOS Service Worker — v12
+// MineOS Service Worker — v13
 // Network-first para /_next/static/; solo cachea respuestas OK (evita 500/404 cacheados tras deploy).
 // v12: navegaciones siempre con cache: 'reload' para evitar bundles viejos cacheados.
 
-const STATIC_CACHE = 'mineos-static-v12';
+const STATIC_CACHE = 'mineos-static-v13';
 
 function isLocalDevHost(hostname) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
