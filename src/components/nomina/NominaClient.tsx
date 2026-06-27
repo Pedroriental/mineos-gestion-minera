@@ -2374,7 +2374,7 @@ export default function NominaClient({
   const buildPdfData = useCallback((): { data: PlantillaPdfData; meta: { plantillaNombre: string; area: string; cycleStart: string } } | null => {
     const snap = deserializeInstanciaSnapshot(instanciaSnapshot);
     if (!snap) return null;
-    const plantillaActiva = plantillas.find((p) => p.id === snap.plantillaId);
+    const plantillaActiva = rotacionPlantillas.find((p) => p.id === snap.plantillaId);
     if (!plantillaActiva) return null;
     const personalMap = new Map<string, Personal>(
       (masterCatalog ?? []).map((p) => [p.id, p]),
@@ -2388,7 +2388,7 @@ export default function NominaClient({
         cycleStart: snap.fechaInicioCiclo,
       },
     };
-  }, [instanciaSnapshot, plantillas, masterCatalog]);
+  }, [instanciaSnapshot, rotacionPlantillas, masterCatalog]);
 
   const handlePreviewPlantillaPdf = useCallback(async () => {
     const built = buildPdfData();
