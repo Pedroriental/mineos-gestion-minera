@@ -26,6 +26,7 @@ import {
   Users,
   X,
   Trash2,
+  Download,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -60,6 +61,12 @@ import {
   estadoObservadoOpcionesPorEsquema,
   fechaInicioRotacionDesdeEstadoObservado,
 } from '@/lib/nomina/perfil-ciclo-reglas';
+import { sugerenciasPorArea } from '@/lib/validations/trabajadores-cuadrilla';
+import { TrabajadorCuadrillaBadge } from '@/components/nomina/TrabajadorCuadrillaBadge';
+import {
+  TrabajadoresListadoDownloadModal,
+  areaLabelForArea,
+} from '@/components/nomina/TrabajadoresListadoDownloadModal';
 
 type EstadoLaboral = 'ACTIVO' | 'DESPEDIDO' | 'REPOSO' | 'VACACIONES' | 'REENGANCHADO';
 
@@ -89,6 +96,7 @@ type FormState = {
   rotacion_inicio_fecha: string;
   rotacion_estado_referencia_semana: string;
   rotacion_estado_referencia_posicion: string;
+  cuadrilla: string;
 };
 
 type EstadoModal = {
@@ -126,6 +134,7 @@ const EMPTY_FORM: FormState = {
   rotacion_inicio_fecha: '',
   rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
   rotacion_estado_referencia_posicion: '',
+  cuadrilla: '',
 };
 
 function statusTone(estado: EstadoLaboral) {
@@ -246,6 +255,7 @@ export default function TrabajadoresRegistryClient({
   const [filterNomina, setFilterNomina] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
   const [filterSitio, setFilterSitio] = useState('');
+  const [filterCuadrilla, setFilterCuadrilla] = useState('');
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: TRABAJADORES_DEFAULT_PAGE_ROWS,
@@ -337,6 +347,7 @@ export default function TrabajadoresRegistryClient({
       if (filterNomina && t.area !== filterNomina) return false;
       if (filterEstado && estado !== filterEstado) return false;
       if (filterSitio && getUbicacionLaboralLabel(t) !== filterSitio) return false;
+      if (filterCuadrilla && (t.cuadrilla || '').trim() !== filterCuadrilla) return false;
       if (!q) return true;
       return [
         t.nombre_completo,
@@ -352,11 +363,10 @@ export default function TrabajadoresRegistryClient({
         .toLowerCase()
         .includes(q);
     });
-  }, [localTrabajadores, search, filterNomina, filterEstado, filterSitio, biblioteca]);
+  }, [localTrabajadores, search, filterNomina, filterEstado, filterSitio, filterCuadrilla, biblioteca]);
 
   const filterSummary = useMemo(() => {
     let activos = 0;
-    let reposo = 0;
     let despedidos = 0;
     for (const t of filtered) {
       const e = (t.estado_laboral || 'ACTIVO') as EstadoLaboral;
@@ -366,6 +376,16 @@ export default function TrabajadoresRegistryClient({
     }
     return { activos, reposo, despedidos, total: filtered.length };
   }, [filtered]);
+
+  /** Cuadrillas únicas en el dataset actual (para filtro y listado). */
+  const cuadrillasUnicas = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of localTrabajadores) {
+      const c = (t.cuadrilla || '').trim();
+      if (c) set.add(c);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [localTrabajadores]);
 
   const tableColumns = useMemo(
     () => [{ id: 'id', accessorFn: (row: Personal) => row.id }],
@@ -451,8 +471,8 @@ export default function TrabajadoresRegistryClient({
     }
   }, [displayPageCount, pagination.pageIndex]);
 
-  const hasActiveFilters = !!(search || filterNomina || filterEstado || filterSitio);
-  const activeFilterCount = [filterNomina, filterEstado, filterSitio].filter(Boolean).length;
+  const hasActiveFilters = !!(search || filterNomina || filterEstado || filterSitio || filterCuadrilla);
+  const activeFilterCount = [filterNomina, filterEstado, filterSitio, filterCuadrilla].filter(Boolean).length;
   const { open: filtersOpen, setOpen: setFiltersOpen } = useMobileFilterSheet();
 
   function clearFilters() {
@@ -460,6 +480,7 @@ export default function TrabajadoresRegistryClient({
     setFilterNomina('');
     setFilterEstado('');
     setFilterSitio('');
+    setFilterCuadrilla('');
   }
 
   useEffect(() => {
@@ -514,6 +535,7 @@ export default function TrabajadoresRegistryClient({
       rotacion_inicio_fecha: t.rotacion_inicio_fecha || '',
       rotacion_estado_referencia_semana: new Date().toISOString().slice(0, 10),
       rotacion_estado_referencia_posicion: '',
+      cuadrilla: t.cuadrilla || '',
     });
     setDocCedula(null);
     setFotoCarnet(null);
@@ -580,6 +602,7 @@ export default function TrabajadoresRegistryClient({
     fd.set('rotacion_inicio_fecha', form.rotacion_inicio_fecha);
     fd.set('rotacion_estado_referencia_semana', form.rotacion_estado_referencia_semana);
     fd.set('rotacion_estado_referencia_posicion', form.rotacion_estado_referencia_posicion);
+    if (form.cuadrilla) fd.set('cuadrilla', form.cuadrilla);
     if (docCedula) fd.set('doc_cedula', docCedula);
     if (fotoCarnet) fd.set('foto_carnet', fotoCarnet);
 
@@ -942,6 +965,31 @@ export default function TrabajadoresRegistryClient({
             </div>
           </div>
         ) : null}
+
+        {cuadrillasUnicas.length > 0 ? (
+          <div className="trabajadores-page__filter-pills flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-white/40">
+              Cuadrilla
+            </span>
+            <button
+              type="button"
+              onClick={() => setFilterCuadrilla('')}
+              className={filterPillClass(filterCuadrilla === '')}
+            >
+              Todas
+            </button>
+            {cuadrillasUnicas.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setFilterCuadrilla(filterCuadrilla === c ? '' : c)}
+                className={filterPillClass(filterCuadrilla === c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="trabajadores-page__filter-summary mt-4 border-t border-white/[0.08] pt-3">
@@ -1018,6 +1066,16 @@ export default function TrabajadoresRegistryClient({
                   </button>
                 ) : null}
               </div>
+              <button
+                type="button"
+                onClick={() => setShowDownload(true)}
+                disabled={filtered.length === 0}
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 text-[11px] font-bold text-amber-300 transition-colors hover:bg-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Descargar listado por cuadrilla"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Descargar Listado
+              </button>
               {selectedIds.size > 0 && (
                 <button
                   type="button"
@@ -1149,6 +1207,16 @@ export default function TrabajadoresRegistryClient({
         <TrabajadoresImportAliasesPanel trabajadoresById={trabajadoresById} />
       </div>
 
+      {showDownload ? (
+        <TrabajadoresListadoDownloadModal
+          open={showDownload}
+          onClose={() => setShowDownload(false)}
+          rows={filtered}
+          area={filterNomina || 'todas'}
+          areaLabel={filterNomina ? areaLabelForArea(filterNomina) : 'Todas las áreas'}
+        />
+      ) : null}
+
       {estadoMenu && (
         <div
           data-estado-menu
@@ -1158,7 +1226,9 @@ export default function TrabajadoresRegistryClient({
           {(['ACTIVO', 'REPOSO', 'VACACIONES', 'DESPEDIDO', 'REENGANCHADO'] as EstadoLaboral[]).map((opt) => {
             const worker = localTrabajadores.find((w) => w.id === estadoMenu.id);
             const current = ((worker?.estado_laboral || 'ACTIVO') as EstadoLaboral);
-            return (
+  const [showDownload, setShowDownload] = useState(false);
+
+  return (
               <button
                 key={opt}
                 type="button"
@@ -1389,6 +1459,24 @@ export default function TrabajadoresRegistryClient({
               placeholder="Vertical, Molinos, Administración..."
             />
             <p className="mt-1 text-[10px] text-white/35">Centro de costo para subtotales y reportes.</p>
+          </div>
+          <div>
+            <label className="input-label">Cuadrilla</label>
+            <input
+              list="cuadrilla-options"
+              className="input-field"
+              value={form.cuadrilla}
+              onChange={(e) => setForm((p) => ({ ...p, cuadrilla: e.target.value }))}
+              placeholder="A, B, C, Mañana, Noche…"
+            />
+            <datalist id="cuadrilla-options">
+              {sugerenciasPorArea(form.area).map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+            <p className="mt-1 text-[10px] text-white/35">
+              Agrupa el trabajador en listados descargables. Texto libre.
+            </p>
           </div>
           <div>
             <label className="input-label">Estado Inicial</label>

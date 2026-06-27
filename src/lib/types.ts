@@ -36,6 +36,8 @@ export interface Personal {
   foto_carnet_url?: string | null;
   esquema_rotacion: 'FIJO_SEMANAL' | 'MINA_2X1' | 'MOLINO_FIJO' | 'MOLINO_ROTATIVO' | 'MINA_ROTATIVA_3G' | 'MOLINO_15X15' | 'MOLINO_14X14';
   rotacion_inicio_fecha?: string;
+  /** Etiqueta libre (A, B, C, Mañana, Noche) para listados descargables. */
+  cuadrilla?: string | null;
   // --- Campos V7: Perfiles de Compensación ---
   perfil_compensacion_id?: string | null;
   vertical_asignada?: string | null;

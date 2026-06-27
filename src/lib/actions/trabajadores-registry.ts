@@ -17,6 +17,7 @@ import {
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { tieneEsquemaConRotacion } from '@/lib/rotacion-personal';
 import { fechaInicioRotacionDesdeEstadoObservado } from '@/lib/nomina/perfil-ciclo-reglas';
+import { normalizeCuadrilla } from '@/lib/validations/trabajadores-cuadrilla';
 
 export type RegistryActionResult =
   | { ok: true; message: string }
@@ -264,6 +265,9 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
         ? rotacionInicioDeducida || rotacionInicioRaw || fechaIngresoRaw || existingIngreso || new Date().toISOString().split('T')[0]
         : null;
 
+    const cuadrillaRaw = String(formData.get('cuadrilla') ?? '').trim();
+    const cuadrilla = normalizeCuadrilla(cuadrillaRaw);
+
     const payloadBase = {
       complex_id: complexId,
       cedula,
@@ -299,6 +303,7 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
       bono_transporte: bonoTransporte,
       esquema_rotacion: esquemaRotacion,
       rotacion_inicio_fecha: rotacionInicio,
+      cuadrilla,
     };
 
     let error;
