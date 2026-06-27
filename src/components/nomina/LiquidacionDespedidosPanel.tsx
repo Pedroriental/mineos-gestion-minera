@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition, useEffect, useCallback, useRef } from 'react';
 import {
-  Loader2, CheckCircle2, AlertTriangle, Printer, Upload, Search, X,
+  Loader2, CheckCircle2, AlertTriangle, Upload, Search, X, Eye, Download, Share2,
   Trash2, RotateCcw, Eraser, Save, AlertCircle,
 } from 'lucide-react';
 import type { Personal } from '@/lib/types';
@@ -12,9 +12,19 @@ import {
   actualizarLiquidacionPersonalAction,
   eliminarDespedidoAction,
 } from '@/lib/actions/nomina-v3';
-import { printLiquidacionPdf, type LiquidacionExportRow, type LiquidacionExportMeta } from '@/lib/nomina/liquidacion-pdf';
+import {
+  downloadLiquidacionPdf,
+  previewLiquidacionPdf,
+  shareLiquidacionPdf,
+  canSharePdf,
+  type ShareOutcome,
+  type LiquidacionExportRow,
+  type LiquidacionExportMeta,
+} from '@/lib/nomina/liquidacion-pdf';
+import { NominaPdfPreviewModal } from '@/components/nomina/NominaPdfPreviewModal';
 import { ImportarDespedidosModal } from '@/components/nomina/ImportarDespedidosModal';
 import type { DistribucionParte } from '@/lib/nomina-distribucion';
+import { toast } from 'sonner';
 
 type Area = 'mina' | 'planta' | 'administracion' | 'seguridad' | 'transporte';
 
@@ -251,7 +261,7 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
     });
   }, [confirmEliminar, onRefresh]);
 
-  const handleImprimirPDF = useCallback(() => {
+  const buildLiquidacionPdfPayload = useCallback(() => {
     const pdfRows: LiquidacionExportRow[] = itemsList.map((item) => {
       const salarioBase = Number(item.personal.salario_base) || 0;
       const salarioLibre = Number(item.personal.salario_libre) || salarioBase;
@@ -314,8 +324,84 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
         })
       : [];
 
-    printLiquidacionPdf(pdfRows, meta, distLineas);
-  }, [itemsList, area, distribucionPartes]);
+    return { pdfRows, meta, distLineas };
+  }, [itemsList, distribucionPartes, area]);
+
+  const [pdfPreview, setPdfPreview] = useState<{
+    open: boolean;
+    loading: boolean;
+    error: string | null;
+    blob: Blob | null;
+    url: string | null;
+    title: string;
+  }>({
+    open: false,
+    loading: false,
+    error: null,
+    blob: null,
+    url: null,
+    title: '',
+  });
+  const [pdfShareSupported, setPdfShareSupported] = useState(false);
+  useEffect(() => {
+    setPdfShareSupported(canSharePdf());
+  }, []);
+
+  const closePdfPreview = useCallback(() => {
+    setPdfPreview((prev) => {
+      if (prev.url) URL.revokeObjectURL(prev.url);
+      return { open: false, loading: false, error: null, blob: null, url: null, title: '' };
+    });
+  }, []);
+
+  const handlePreviewLiquidacionPdf = useCallback(async () => {
+    if (itemsList.length === 0) {
+      toast.error('No hay liquidaciones para exportar.');
+      return;
+    }
+    const { pdfRows, meta, distLineas } = buildLiquidacionPdfPayload();
+    setPdfPreview({ open: true, loading: true, error: null, blob: null, url: null, title: `Liquidación · ${meta.areaLabel}` });
+    try {
+      const { blob, url } = await previewLiquidacionPdf(pdfRows, meta, distLineas);
+      setPdfPreview((prev) => ({ ...prev, loading: false, blob, url }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo generar el PDF.';
+      setPdfPreview((prev) => ({ ...prev, loading: false, error: msg }));
+    }
+  }, [buildLiquidacionPdfPayload, itemsList.length]);
+
+  const handleDownloadLiquidacionPdf = useCallback(async () => {
+    if (itemsList.length === 0) {
+      toast.error('No hay liquidaciones para exportar.');
+      return;
+    }
+    const { pdfRows, meta, distLineas } = buildLiquidacionPdfPayload();
+    try {
+      await downloadLiquidacionPdf(pdfRows, meta, distLineas);
+      toast.success('PDF descargado.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo descargar el PDF.';
+      toast.error(msg);
+    }
+  }, [buildLiquidacionPdfPayload, itemsList.length]);
+
+  const handleShareLiquidacionPdf = useCallback(async () => {
+    if (itemsList.length === 0) {
+      toast.error('No hay liquidaciones para compartir.');
+      return;
+    }
+    const { pdfRows, meta, distLineas } = buildLiquidacionPdfPayload();
+    try {
+      const outcome: ShareOutcome = await shareLiquidacionPdf(pdfRows, meta, distLineas);
+      if (outcome === 'unsupported') toast.error('Tu navegador no soporta compartir PDF.');
+      else if (outcome === 'cancelled') toast.info('Compartir cancelado.');
+      else if (outcome === 'failed') toast.error('No se pudo compartir el PDF.');
+      else toast.success('Compartido.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al compartir.';
+      toast.error(msg);
+    }
+  }, [buildLiquidacionPdfPayload, itemsList.length]);
 
   if (despedidos.length === 0) {
     return (
@@ -351,13 +437,36 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
           </button>
           <button
             type="button"
-            onClick={handleImprimirPDF}
+            onClick={handlePreviewLiquidacionPdf}
             disabled={itemsList.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900/40 px-3 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-white/5 transition-colors disabled:opacity-40"
+            title="Ver PDF"
+            className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Printer className="h-3.5 w-3.5" />
-            Imprimir PDF
+            <Eye className="h-3.5 w-3.5" />
+            Ver PDF
           </button>
+          <button
+            type="button"
+            onClick={handleDownloadLiquidacionPdf}
+            disabled={itemsList.length === 0}
+            title="Descargar PDF"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900/40 px-3 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Descargar PDF
+          </button>
+          {pdfShareSupported && (
+            <button
+              type="button"
+              onClick={handleShareLiquidacionPdf}
+              disabled={itemsList.length === 0}
+              title="Compartir PDF"
+              className="flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-300 hover:bg-cyan-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Compartir
+            </button>
+          )}
           <button
             type="button"
             onClick={handleCerrar}
@@ -452,6 +561,22 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
           }}
         />
       )}
+
+      <NominaPdfPreviewModal
+        open={pdfPreview.open}
+        onClose={closePdfPreview}
+        title={pdfPreview.title}
+        blobUrl={pdfPreview.url}
+        loading={pdfPreview.loading}
+        error={pdfPreview.error}
+        onDownload={handleDownloadLiquidacionPdf}
+        onShare={
+          pdfShareSupported
+            ? handleShareLiquidacionPdf
+            : undefined
+        }
+        canShare={pdfShareSupported}
+      />
 
       {confirmEliminar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">

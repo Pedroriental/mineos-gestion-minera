@@ -652,7 +652,6 @@ export function NominaMobileMoreSheet({
   onClose,
   canEdit,
   hasData,
-  onPdf,
   onCsv,
   onExcel,
   onBorrar,
@@ -662,7 +661,6 @@ export function NominaMobileMoreSheet({
   onClose: () => void;
   canEdit: boolean;
   hasData: boolean;
-  onPdf: () => void;
   onCsv: () => void;
   onExcel?: () => void;
   onBorrar: () => void;
@@ -675,7 +673,6 @@ export function NominaMobileMoreSheet({
     ...(onExcel
       ? [{ label: 'Previsualización', icon: FileSpreadsheet, onClick: onExcel, needsEdit: false }]
       : []),
-    { label: 'Exportar PDF', icon: Printer, onClick: onPdf, needsEdit: false },
     { label: 'Exportar CSV', icon: Download, onClick: onCsv, needsEdit: false },
     { label: 'Vaciar semana', icon: Trash2, onClick: onBorrar, needsEdit: true, danger: false },
   ];

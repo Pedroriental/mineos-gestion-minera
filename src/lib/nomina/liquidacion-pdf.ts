@@ -1,8 +1,10 @@
 // ============================================================
-// MineOS - Generador de PDF para Liquidación de Despedidos
-// Mismo formato que la nómina semanal + Distribución de pagos
+// MineOS - Generador de PDF para Liquidación de Despidos
+// jsPDF + autoTable. Misma estructura visual que la versión HTML.
 // ============================================================
 
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import type { DistribucionLinea } from '@/lib/nomina-distribucion';
 
 export type LiquidacionExportRow = {
@@ -36,200 +38,430 @@ export type LiquidacionExportMeta = {
   totalBonificaciones: number;
 };
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+const LOCALE = 'es-VE';
+const CURRENCY = 'USD';
+
+const fmtUsd = (n: number) =>
+  new Intl.NumberFormat(LOCALE, {
+    style: 'currency',
+    currency: CURRENCY,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+
+const PAGE_MARGIN_MM = 12;
+const HEADER_BG: [number, number, number] = [232, 238, 245];
+const ROW_ALT: [number, number, number] = [250, 251, 252];
+const TOTAL_BG: [number, number, number] = [255, 248, 225];
+const TEXT_BORDER: [number, number, number] = [221, 227, 234];
+const TEXT_DARK: [number, number, number] = [146, 64, 14];
+
+let cachedLogoPng: string | null = null;
+let logoFetchPromise: Promise<string | null> | null = null;
+
+async function getLogoPngBase64(): Promise<string | null> {
+  if (cachedLogoPng !== null) return cachedLogoPng;
+  if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+  if (logoFetchPromise) return logoFetchPromise;
+  logoFetchPromise = (async () => {
+    try {
+      const svgUrl = '/brand/mineos-logotipo-light.svg';
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = svgUrl;
+      await new Promise<void>((resolve, reject) => {
+        if (img.complete) resolve();
+        else {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Logo load failed'));
+        }
+      });
+      const scale = 3;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, img.naturalWidth * scale);
+      canvas.height = Math.max(1, img.naturalHeight * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      cachedLogoPng = canvas.toDataURL('image/png');
+      return cachedLogoPng;
+    } catch {
+      return null;
+    }
+  })();
+  return logoFetchPromise;
 }
 
-function fmtUsd(n: number): string {
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function addHeader(doc: jsPDF, meta: LiquidacionExportMeta) {
+  const pW = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(212, 175, 55);
+  doc.rect(0, 0, pW, 4, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(212, 175, 55);
+  doc.text('MOLINOS LA FÉ — MINA BELÉN', PAGE_MARGIN_MM, 18);
+
+  doc.setFontSize(13);
+  doc.setTextColor(...TEXT_DARK);
+  doc.text(`Liquidación de Personal Retirado · ${meta.areaLabel}`, PAGE_MARGIN_MM, 26);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text(
+    `Fecha de liquidación: ${meta.fechaLiquidacion}    Trabajadores: ${meta.workerCount}    Generado: ${meta.fechaGeneracion}`,
+    PAGE_MARGIN_MM,
+    32,
+  );
 }
 
-export function buildLiquidacionPrintHtml(
+function addSummaryBoxes(
+  doc: jsPDF,
+  meta: LiquidacionExportMeta,
+  startY: number,
+): number {
+  const pW = doc.internal.pageSize.getWidth();
+  const items: Array<{ label: string; value: string }> = [
+    { label: 'Total a Pagar', value: fmtUsd(meta.totalGeneral) },
+    { label: 'Total / Días Trabajados', value: fmtUsd(meta.totalDias) },
+    { label: 'Total Sem. Libres', value: fmtUsd(meta.totalLibres) },
+    { label: 'Total Bonificaciones', value: fmtUsd(meta.totalBonificaciones) },
+  ];
+
+  const gap = 4;
+  const boxW = (pW - 2 * PAGE_MARGIN_MM - gap * (items.length - 1)) / items.length;
+  const boxH = 16;
+
+  items.forEach((it, i) => {
+    const x = PAGE_MARGIN_MM + i * (boxW + gap);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(x, startY, boxW, boxH, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(110, 130, 150);
+    doc.text(it.label.toUpperCase(), x + 3, startY + 5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...TEXT_DARK);
+    doc.text(it.value, x + 3, startY + 12);
+  });
+
+  return startY + boxH + 4;
+}
+
+function buildDoc(rows: LiquidacionExportRow[], meta: LiquidacionExportMeta): jsPDF {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  addHeader(doc, meta);
+
+  let cursor = addSummaryBoxes(doc, meta, 36);
+
+  const head: string[] = [
+    '#',
+    'Nombre y Apellido',
+    'Cédula',
+    'Cargo',
+    '$/Sem',
+    '$/día',
+    'Días Trab.',
+    'Total /DT',
+    'Sem. Libre',
+    'Bono',
+    'Total a Cobrar',
+  ];
+
+  const body = rows.map((r, i) => [
+    i + 1,
+    r.personal.nombre_completo,
+    r.personal.cedula,
+    r.personal.cargo || '—',
+    fmtUsd(r.salarioBase),
+    fmtUsd(r.porDia),
+    r.diasTrabajados,
+    fmtUsd(r.totalDias),
+    r.cobraSemanaLibre ? fmtUsd(r.semanaLibreMonto) : '—',
+    fmtUsd(r.bonificaciones),
+    fmtUsd(r.totalACobrar),
+  ]);
+
+  // Fila total
+  body.push([
+    '·',
+    'TOTAL',
+    '',
+    '',
+    '',
+    '',
+    '',
+    fmtUsd(meta.totalDias),
+    fmtUsd(meta.totalLibres),
+    fmtUsd(meta.totalBonificaciones),
+    fmtUsd(meta.totalGeneral),
+  ]);
+
+  autoTable(doc, {
+    startY: cursor,
+    head: [head],
+    body,
+    theme: 'grid',
+    styles: {
+      font: 'helvetica',
+      fontSize: 8,
+      cellPadding: 2.5,
+      lineColor: TEXT_BORDER,
+      lineWidth: 0.1,
+      textColor: [17, 17, 17],
+    },
+    headStyles: {
+      fillColor: HEADER_BG,
+      textColor: [60, 60, 60],
+      fontStyle: 'bold',
+      lineColor: [184, 196, 212],
+      lineWidth: 0.3,
+      halign: 'center',
+    },
+    alternateRowStyles: { fillColor: ROW_ALT },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 8 },
+      1: { halign: 'left' },
+      2: { halign: 'center', cellWidth: 28 },
+      3: { halign: 'left' },
+      4: { halign: 'right', cellWidth: 22 },
+      5: { halign: 'right', cellWidth: 20 },
+      6: { halign: 'center', cellWidth: 18 },
+      7: { halign: 'right', cellWidth: 22 },
+      8: { halign: 'right', cellWidth: 22 },
+      9: { halign: 'right', cellWidth: 20 },
+      10: { halign: 'right', cellWidth: 28 },
+    },
+    didParseCell: (cellData) => {
+      if (cellData.section === 'body' && cellData.row.index === body.length - 1) {
+        cellData.cell.styles.fillColor = TOTAL_BG;
+        cellData.cell.styles.fontStyle = 'bold';
+        cellData.cell.styles.textColor = TEXT_DARK;
+      }
+    },
+    margin: { left: PAGE_MARGIN_MM, right: PAGE_MARGIN_MM },
+  });
+
+  return doc;
+}
+
+function addDistribucionSection(
+  doc: jsPDF,
+  distribucion: DistribucionLinea[],
+  startY: number,
+): number {
+  if (!distribucion.length) return startY;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(40, 40, 40);
+  doc.text('Distribución de pagos', PAGE_MARGIN_MM, startY + 4);
+
+  const head: string[] = ['Beneficiario', '%', 'Bruto', 'Pagos directos', 'Neto'];
+  const body = distribucion.map((d) => [
+    d.nombre,
+    `${Number(d.porcentaje).toFixed(2)}%`,
+    fmtUsd(Number(d.bruto) || 0),
+    fmtUsd(Number(d.pagoDirecto) || 0),
+    fmtUsd(Number(d.neto) || 0),
+  ]);
+
+  autoTable(doc, {
+    startY: startY + 8,
+    head: [head],
+    body,
+    theme: 'grid',
+    styles: {
+      font: 'helvetica',
+      fontSize: 8,
+      cellPadding: 2.5,
+      lineColor: TEXT_BORDER,
+      lineWidth: 0.1,
+      textColor: [17, 17, 17],
+    },
+    headStyles: {
+      fillColor: HEADER_BG,
+      textColor: [60, 60, 60],
+      fontStyle: 'bold',
+      lineColor: [184, 196, 212],
+      lineWidth: 0.3,
+    },
+    alternateRowStyles: { fillColor: ROW_ALT },
+    columnStyles: {
+      0: { halign: 'left' },
+      1: { halign: 'right', cellWidth: 18 },
+      2: { halign: 'right', cellWidth: 30 },
+      3: { halign: 'right', cellWidth: 30 },
+      4: { halign: 'right', cellWidth: 30 },
+    },
+    margin: { left: PAGE_MARGIN_MM, right: PAGE_MARGIN_MM },
+  });
+
+  // @ts-expect-error lastAutoTable existe en runtime
+  const finalY: number = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY ?? startY + 30;
+
+  // Firmas
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(40, 40, 40);
+  const sigY = finalY + 14;
+  const pW = doc.internal.pageSize.getWidth();
+  const usable = pW - 2 * PAGE_MARGIN_MM;
+  const boxW = usable / distribucion.length;
+  distribucion.forEach((d, i) => {
+    const x = PAGE_MARGIN_MM + i * boxW;
+    doc.setDrawColor(60, 60, 60);
+    doc.line(x + 8, sigY, x + boxW - 8, sigY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(String(d.nombre).toUpperCase(), x + boxW / 2, sigY + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Beneficiario', x + boxW / 2, sigY + 10, { align: 'center' });
+  });
+
+  return sigY + 16;
+}
+
+function addFooter(doc: jsPDF) {
+  const pH = doc.internal.pageSize.getHeight();
+  const pW = doc.internal.pageSize.getWidth();
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(140, 140, 140);
+    doc.text(
+      'Generado por MineOS · Sistema de Gestión Minera de Alta Precisión',
+      PAGE_MARGIN_MM,
+      pH - 6,
+    );
+    doc.text(
+      `Página ${i} de ${total}`,
+      pW - PAGE_MARGIN_MM,
+      pH - 6,
+      { align: 'right' },
+    );
+  }
+}
+
+function defaultFileName(meta: LiquidacionExportMeta): string {
+  const slug = meta.area.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `liquidacion-${slug || 'area'}-${meta.fechaLiquidacion}.pdf`;
+}
+
+export async function buildLiquidacionPdfBlob(
   rows: LiquidacionExportRow[],
   meta: LiquidacionExportMeta,
   distribucion: DistribucionLinea[] = [],
-): string {
-  const generatedAt = meta.fechaGeneracion;
+): Promise<Blob> {
+  const doc = buildDoc(rows, meta);
 
-  const tableRows = rows
-    .map(
-      (r, i) => `
-    <tr>
-      <td style="text-align:center">${i + 1}</td>
-      <td>${escapeHtml(r.personal.nombre_completo)}</td>
-      <td style="text-align:center">${escapeHtml(r.personal.cedula)}</td>
-      <td style="text-align:center">${escapeHtml(r.personal.cargo)}</td>
-      <td style="text-align:right">${fmtUsd(r.salarioBase)}</td>
-      <td style="text-align:right">${fmtUsd(r.porDia)}</td>
-      <td style="text-align:center">${r.diasTrabajados}</td>
-      <td style="text-align:right">${fmtUsd(r.totalDias)}</td>
-      <td style="text-align:right">${r.cobraSemanaLibre ? fmtUsd(r.semanaLibreMonto) : '—'}</td>
-      <td style="text-align:right">${fmtUsd(r.bonificaciones)}</td>
-      <td style="text-align:right;font-weight:bold">${fmtUsd(r.totalACobrar)}</td>
-    </tr>`,
-    )
-    .join('');
+  // @ts-expect-error lastAutoTable existe en runtime
+  const afterTabla: number = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY ?? 50;
+  addDistribucionSection(doc, distribucion, afterTabla);
 
-  const totalRow = `
-    <tr style="background:#0a1623;font-weight:bold;color:#d57706">
-      <td colspan="7" style="text-align:right;padding:6px 8px">TOTAL</td>
-      <td style="text-align:right;padding:6px 8px">${fmtUsd(meta.totalDias)}</td>
-      <td style="text-align:right;padding:6px 8px">${fmtUsd(meta.totalLibres)}</td>
-      <td style="text-align:right;padding:6px 8px">${fmtUsd(meta.totalBonificaciones)}</td>
-      <td style="text-align:right;padding:6px 8px">${fmtUsd(meta.totalGeneral)}</td>
-    </tr>`;
+  addFooter(doc);
 
-  const distRows = distribucion
-    .map(
-      (d) => `
-    <tr>
-      <td>${escapeHtml(d.nombre)}</td>
-      <td style="text-align:right">${d.porcentaje.toFixed(2)}%</td>
-      <td style="text-align:right">${fmtUsd(d.bruto)}</td>
-      <td style="text-align:right">${fmtUsd(d.pagoDirecto)}</td>
-      <td style="text-align:right;font-weight:bold">${fmtUsd(d.neto)}</td>
-    </tr>`,
-    )
-    .join('');
-
-  const signatures = distribucion
-    .map(
-      (d) => `
-    <div class="signature-block">
-      <div class="signature-line"></div>
-      <div class="signature-name">${escapeHtml(d.nombre)}</div>
-      <div class="signature-role">Beneficiario</div>
-    </div>`,
-    )
-    .join('');
-
-  return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8" />
-<title>Liquidación de Personal Retirado — ${escapeHtml(meta.areaLabel)} — ${meta.fechaLiquidacion}</title>
-<style>
-  @page { size: landscape; margin: 12mm }
-  * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #dcdcdc; background: #0a1623; margin: 0; padding: 16px; }
-  h1 { font-size: 16px; margin: 0 0 4px 0; color: #fff; }
-  h2 { font-size: 13px; margin: 14px 0 6px 0; color: #fff; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 10px; border-bottom: 1px solid #19324a; }
-  .brand { color: #d57706; font-weight: 700; font-size: 15px; }
-  .meta { font-size: 11px; line-height: 1.5; color: #a0b0c0; }
-  .meta strong { color: #dcdcdc; }
-  .summary { display: flex; gap: 12px; margin: 10px 0 6px 0; font-size: 11px; }
-  .summary-item { background: #0f2330; border: 1px solid #19324a; border-radius: 4px; padding: 6px 10px; min-width: 100px; }
-  .summary-label { color: #a0b0c0; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .summary-value { font-size: 14px; font-weight: 700; color: #d57706; margin-top: 2px; }
-  table { border-collapse: collapse; width: 100%; font-size: 9px; background: #0c1c28; }
-  thead th { background: #0f2330; color: #d57706; text-align: left; padding: 6px 8px; border-bottom: 1px solid #19324a; font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; }
-  tbody td { padding: 5px 8px; border-bottom: 1px solid #16263a; }
-  tbody tr:nth-child(even) { background: #11242e; }
-  .signatures { display: flex; gap: 32px; margin: 24px 0 12px 0; }
-  .signature-block { flex: 1; }
-  .signature-line { border-top: 1px solid #dcdcdc; padding-top: 4px; }
-  .signature-name { font-size: 10px; color: #dcdcdc; margin-top: 4px; text-align: center; font-weight: 600; }
-  .signature-role { font-size: 9px; color: #a0b0c0; text-align: center; }
-  .footer { font-size: 9px; color: #6b7c8a; text-align: center; margin-top: 16px; }
-  @media print {
-    body { background: #fff; color: #000; }
-    .summary-item { background: #f5f5f5; border-color: #ccc; }
-    .summary-value { color: #000; }
-    table { background: #fff; }
-    thead th { background: #e0e0e0; color: #000; }
-    tbody td { border-color: #ddd; }
-    tbody tr:nth-child(even) { background: #f5f5f5; }
-    .meta, .footer { color: #555; }
-    .brand { color: #b56500; }
-  }
-</style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="brand">MOLINOS LA FÉ · MineOS</div>
-      <h1>Liquidación de Personal Retirado — ${escapeHtml(meta.areaLabel)}</h1>
-    </div>
-    <div class="meta">
-      <div><strong>Fecha de liquidación:</strong> ${meta.fechaLiquidacion}</div>
-      <div><strong>Trabajadores:</strong> ${meta.workerCount}</div>
-      <div><strong>Generado:</strong> ${generatedAt}</div>
-    </div>
-  </div>
-
-  <div class="summary">
-    <div class="summary-item">
-      <div class="summary-label">Total a Pagar</div>
-      <div class="summary-value">${fmtUsd(meta.totalGeneral)}</div>
-    </div>
-    <div class="summary-item">
-      <div class="summary-label">Total Días Trabajados</div>
-      <div class="summary-value">${fmtUsd(meta.totalDias)}</div>
-    </div>
-    <div class="summary-item">
-      <div class="summary-label">Total Semanas Libres</div>
-      <div class="summary-value">${fmtUsd(meta.totalLibres)}</div>
-    </div>
-    <div class="summary-item">
-      <div class="summary-label">Total Bonificaciones</div>
-      <div class="summary-value">${fmtUsd(meta.totalBonificaciones)}</div>
-    </div>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Nombre y Apellido</th>
-        <th>Cédula</th>
-        <th>Cargo</th>
-        <th>$/Semana</th>
-        <th>$/día</th>
-        <th>Días Trab.</th>
-        <th>Total/DT</th>
-        <th>Sem. Libre</th>
-        <th>Bono</th>
-        <th>Total a Cobrar</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${tableRows}
-      ${totalRow}
-    </tbody>
-  </table>
-
-  ${
-    distRows
-      ? `<h2>Distribución de pagos</h2>
-    <table style="max-width:640px">
-      <thead><tr><th>Beneficiario</th><th>%</th><th>Bruto</th><th>Pagos directos</th><th>Neto</th></tr></thead>
-      <tbody>${distRows}</tbody>
-    </table>
-    ${signatures ? `<div class="signatures">${signatures}</div>` : ''}`
-      : ''
+  // Logo en cada página
+  const logoPng = await getLogoPngBase64();
+  if (logoPng) {
+    const pW = doc.internal.pageSize.getWidth();
+    for (let i = 1; i <= doc.getNumberOfPages(); i++) {
+      doc.setPage(i);
+      try {
+        doc.addImage(logoPng, 'PNG', pW - PAGE_MARGIN_MM - 35, 8, 35, 12, undefined, 'FAST');
+      } catch {
+        // ignore
+      }
+    }
   }
 
-  <p class="footer">Generado por MineOS · Sistema de Gestión Minera de Alta Precisión</p>
-</body>
-</html>`;
+  const arrayBuffer = doc.output('arraybuffer');
+  return new Blob([arrayBuffer], { type: 'application/pdf' });
 }
 
-export function printLiquidacionPdf(
+export async function downloadLiquidacionPdf(
   rows: LiquidacionExportRow[],
   meta: LiquidacionExportMeta,
   distribucion: DistribucionLinea[] = [],
-): void {
-  const html = buildLiquidacionPrintHtml(rows, meta, distribucion);
-  const win = window.open('', '_blank');
-  if (!win) return;
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  win.print();
+  fileName?: string,
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const blob = await buildLiquidacionPdfBlob(rows, meta, distribucion);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName ?? defaultFileName(meta);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
+
+export async function previewLiquidacionPdf(
+  rows: LiquidacionExportRow[],
+  meta: LiquidacionExportMeta,
+  distribucion: DistribucionLinea[] = [],
+): Promise<{ blob: Blob; url: string }> {
+  if (typeof window === 'undefined') {
+    throw new Error('previewLiquidacionPdf requiere window');
+  }
+  const blob = await buildLiquidacionPdfBlob(rows, meta, distribucion);
+  const url = URL.createObjectURL(blob);
+  return { blob, url };
+}
+
+export type ShareOutcome = 'shared' | 'cancelled' | 'unsupported' | 'failed';
+
+export function canSharePdf(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  if (typeof navigator.canShare !== 'function') return false;
+  try {
+    const dummy = new File([new Blob(['x'])], 'x.pdf', { type: 'application/pdf' });
+    return navigator.canShare({ files: [dummy] });
+  } catch {
+    return false;
+  }
+}
+
+export async function shareLiquidacionPdf(
+  rows: LiquidacionExportRow[],
+  meta: LiquidacionExportMeta,
+  distribucion: DistribucionLinea[] = [],
+  fileName?: string,
+): Promise<ShareOutcome> {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+    return 'unsupported';
+  }
+  try {
+    const blob = await buildLiquidacionPdfBlob(rows, meta, distribucion);
+    const name = fileName ?? defaultFileName(meta);
+    const file = new File([blob], name, { type: 'application/pdf' });
+    if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: [file] })) {
+      return 'unsupported';
+    }
+    await navigator.share({
+      files: [file],
+      title: `Liquidación ${meta.areaLabel} ${meta.fechaLiquidacion}`,
+    });
+    return 'shared';
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return 'cancelled';
+    return 'failed';
+  }
+}
+
+export { defaultFileName as defaultLiquidacionPdfFileName };

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { LayoutGrid, Square, Download, Loader2, Pencil, Users, Trash2 } from 'lucide-react';
+import { LayoutGrid, Square, Download, Loader2, Pencil, Users, Trash2, Eye, Share2 } from 'lucide-react';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import { totalTrabajadoresPlantilla } from '@/lib/rotacion-plantillas/types';
 import type { InstanciaActivaSerialized } from '@/lib/rotacion-plantillas/instancia-serialize';
@@ -31,6 +31,10 @@ type Props = {
   onEditPlantilla: (plantillaId: string) => void;
   onInstanciaChange?: () => void;
   migrationRequired?: boolean;
+  onPreviewPdf?: () => void;
+  onDownloadPdf?: () => void;
+  onSharePdf?: () => void;
+  canSharePdf?: boolean;
 };
 
 export function RotacionInstanciaPanel({
@@ -42,6 +46,10 @@ export function RotacionInstanciaPanel({
   onEditPlantilla,
   onInstanciaChange,
   migrationRequired = false,
+  onPreviewPdf,
+  onDownloadPdf,
+  onSharePdf,
+  canSharePdf = false,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const confirmDialog = useConfirm();
@@ -134,7 +142,40 @@ export function RotacionInstanciaPanel({
                 {instanciaActiva.cuadrillas.length} cuadrilla(s)
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {onPreviewPdf && (
+                <button
+                  type="button"
+                  onClick={onPreviewPdf}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-200 hover:bg-amber-500/20 disabled:opacity-40"
+                  title="Ver PDF"
+                >
+                  <Eye className="h-3 w-3" /> Ver PDF
+                </button>
+              )}
+              {onDownloadPdf && (
+                <button
+                  type="button"
+                  onClick={onDownloadPdf}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[10px] text-white/70 hover:bg-zinc-800/40 disabled:opacity-40"
+                  title="Descargar PDF"
+                >
+                  <Download className="h-3 w-3" /> PDF
+                </button>
+              )}
+              {onSharePdf && canSharePdf && (
+                <button
+                  type="button"
+                  onClick={onSharePdf}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-40"
+                  title="Compartir PDF"
+                >
+                  <Share2 className="h-3 w-3" /> Compartir
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleExport}

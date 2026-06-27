@@ -147,9 +147,20 @@ import { useBiblioteca } from '@/contexts/biblioteca-context';
 import { buildPersonalSnapshot } from '@/lib/nomina/types';
 import {
   downloadNominaSemanaCsv,
-  printNominaSemanaPdf,
   type NominaSemanaExportRow,
 } from '@/lib/nomina/nomina-semana-export';
+import {
+  buildPlantillaPdfData,
+  type PlantillaPdfData,
+} from '@/lib/rotacion-plantillas/plantilla-pdf-data';
+import {
+  previewNominaPlantillaPdf,
+  downloadNominaPlantillaPdf,
+  shareNominaPlantillaPdf,
+  canSharePdf as canSharePdfGlobal,
+  type ShareOutcome,
+} from '@/lib/nomina/nomina-plantilla-pdf';
+import { NominaPdfPreviewModal } from '@/components/nomina/NominaPdfPreviewModal';
 import type { Personal, NominaRegistro, NominaSemana, NominaVale, HistorialPagoRow, RolSemana } from '@/lib/types';
 
 import { 
@@ -2337,10 +2348,116 @@ export default function NominaClient({
     });
   }
 
-  // ── PDF Consolidated Report ─────────────────────────────────────────────
-  const handlePrintReport = useCallback(() => {
-    printNominaSemanaPdf(nominaExportRows, nominaExportMeta, distribucion.lineas);
-  }, [nominaExportRows, nominaExportMeta, distribucion.lineas]);
+  // ── PDF de Plantilla (reemplaza al semanal clásico) ────────────────────
+  const [pdfPreview, setPdfPreview] = useState<{
+    open: boolean;
+    loading: boolean;
+    error: string | null;
+    blob: Blob | null;
+    url: string | null;
+    title: string;
+    meta: { plantillaNombre: string; area: string; cycleStart: string } | null;
+  }>({
+    open: false,
+    loading: false,
+    error: null,
+    blob: null,
+    url: null,
+    title: '',
+    meta: null,
+  });
+  const [pdfShareSupported, setPdfShareSupported] = useState(false);
+  useEffect(() => {
+    setPdfShareSupported(canSharePdfGlobal());
+  }, []);
+
+  const buildPdfData = useCallback((): { data: PlantillaPdfData; meta: { plantillaNombre: string; area: string; cycleStart: string } } | null => {
+    const snap = deserializeInstanciaSnapshot(instanciaSnapshot);
+    if (!snap) return null;
+    const plantillaActiva = plantillas.find((p) => p.id === snap.plantillaId);
+    if (!plantillaActiva) return null;
+    const personalMap = new Map<string, Personal>(
+      (masterCatalog ?? []).map((p) => [p.id, p]),
+    );
+    const data = buildPlantillaPdfData(plantillaActiva, snap, personalMap);
+    return {
+      data,
+      meta: {
+        plantillaNombre: plantillaActiva.nombre,
+        area: plantillaActiva.area,
+        cycleStart: snap.fechaInicioCiclo,
+      },
+    };
+  }, [instanciaSnapshot, plantillas, masterCatalog]);
+
+  const handlePreviewPlantillaPdf = useCallback(async () => {
+    const built = buildPdfData();
+    if (!built) {
+      toastError('No hay plantilla activa con datos para exportar.');
+      return;
+    }
+    setPdfPreview({
+      open: true,
+      loading: true,
+      error: null,
+      blob: null,
+      url: null,
+      title: built.meta.plantillaNombre,
+      meta: built.meta,
+    });
+    try {
+      const { blob, url } = await previewNominaPlantillaPdf(built.data);
+      setPdfPreview((prev) => ({ ...prev, loading: false, blob, url }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo generar el PDF.';
+      setPdfPreview((prev) => ({ ...prev, loading: false, error: msg }));
+    }
+  }, [buildPdfData]);
+
+  const handleDownloadPlantillaPdf = useCallback(async () => {
+    const built = buildPdfData();
+    if (!built) {
+      toastError('No hay plantilla activa con datos para exportar.');
+      return;
+    }
+    try {
+      await downloadNominaPlantillaPdf(built.data, built.meta);
+      toast.success('PDF descargado.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo descargar el PDF.';
+      toastError(msg);
+    }
+  }, [buildPdfData]);
+
+  const handleSharePlantillaPdf = useCallback(async () => {
+    const built = buildPdfData();
+    if (!built) {
+      toastError('No hay plantilla activa para compartir.');
+      return;
+    }
+    try {
+      const outcome: ShareOutcome = await shareNominaPlantillaPdf(built.data, built.meta);
+      if (outcome === 'unsupported') {
+        toastError('Tu navegador no soporta compartir PDF.');
+      } else if (outcome === 'cancelled') {
+        toast.info('Compartir cancelado.');
+      } else if (outcome === 'failed') {
+        toastError('No se pudo compartir el PDF.');
+      } else {
+        toast.success('Compartido.');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al compartir.';
+      toastError(msg);
+    }
+  }, [buildPdfData]);
+
+  const closePdfPreview = useCallback(() => {
+    setPdfPreview((prev) => {
+      if (prev.url) URL.revokeObjectURL(prev.url);
+      return { open: false, loading: false, error: null, blob: null, url: null, title: '', meta: null };
+    });
+  }, []);
 
   const toolbarPrimaryActions = (
     <>
@@ -2371,9 +2488,6 @@ export default function NominaClient({
         className="nomina-page__toolbar-btn btn-secondary"
       >
         <FileSpreadsheet className="shrink-0 text-zinc-400" /> Previsualización
-      </button>
-      <button onClick={handlePrintReport} title="PDF" className="nomina-page__toolbar-btn btn-secondary">
-        <Printer className="shrink-0 text-zinc-400" /> PDF
       </button>
       <button onClick={handleExportCSV} title="CSV" className="nomina-page__toolbar-btn btn-secondary">
         <Download className="shrink-0 text-zinc-400" /> CSV
@@ -2731,6 +2845,16 @@ export default function NominaClient({
                         void refreshPlantillas();
                         router.refresh();
                       }}
+                      onPreviewPdf={() => {
+                        void handlePreviewPlantillaPdf();
+                      }}
+                      onDownloadPdf={() => {
+                        void handleDownloadPlantillaPdf();
+                      }}
+                      onSharePdf={() => {
+                        void handleSharePlantillaPdf();
+                      }}
+                      canSharePdf={pdfShareSupported}
                     />
                   )}
                 </div>
@@ -3262,7 +3386,6 @@ export default function NominaClient({
         onClose={() => setMobileMoreOpen(false)}
         canEdit={canEdit}
         hasData={preNominaRows.length > 0 && !semanaActualProcesada}
-        onPdf={handlePrintReport}
         onCsv={handleExportCSV}
         onExcel={() => {
           setMobileMoreOpen(false);
@@ -3557,6 +3680,36 @@ export default function NominaClient({
           onImported={handleNominaImported}
         />
       ) : null}
+
+      <NominaPdfPreviewModal
+        open={pdfPreview.open}
+        onClose={closePdfPreview}
+        title={pdfPreview.title}
+        blobUrl={pdfPreview.url}
+        loading={pdfPreview.loading}
+        error={pdfPreview.error}
+        onDownload={() => {
+          if (pdfPreview.blob && pdfPreview.meta) {
+            const meta = pdfPreview.meta;
+            const url = pdfPreview.url;
+            if (!url) return;
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `nomina-plantilla-${meta.plantillaNombre.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-ciclo-${meta.cycleStart}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }
+        }}
+        onShare={
+          pdfShareSupported && pdfPreview.blob && pdfPreview.meta
+            ? () => {
+                void handleSharePlantillaPdf();
+              }
+            : undefined
+        }
+        canShare={pdfShareSupported}
+      />
 
       {showRotacionSandbox ? (
         <RotacionPlantillaSandboxModal
