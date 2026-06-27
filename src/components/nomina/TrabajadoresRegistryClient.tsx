@@ -368,6 +368,7 @@ export default function TrabajadoresRegistryClient({
 
   const filterSummary = useMemo(() => {
     let activos = 0;
+    let reposo = 0;
     let despedidos = 0;
     for (const t of filtered) {
       const e = (t.estado_laboral || 'ACTIVO') as EstadoLaboral;

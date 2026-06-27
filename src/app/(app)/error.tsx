@@ -41,8 +41,14 @@ async function clearAppCachesAndReload() {
   } catch {
     // ignore
   }
-  // Forzar recarga dura (bypass HTTP cache).
-  window.location.reload();
+  // Forzar navegación a una URL con query param único. Esto bypassea
+  // el HTTP cache del navegador (los navegadores no cachean URLs con
+  // query strings que cambian) y combinado con el SW v12 (que usa
+  // cache: 'reload' en navegaciones) garantiza que se cargue HTML
+  // y bundles nuevos del servidor.
+  const cb = `cb=${Date.now()}`;
+  const url = window.location.pathname + window.location.search + (window.location.search ? '&' : '?') + cb;
+  window.location.replace(url);
 }
 
 export default function AppError({
