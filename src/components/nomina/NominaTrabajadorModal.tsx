@@ -246,7 +246,12 @@ export default function NominaTrabajadorModal({
             {asistencia.label}
           </span>
           <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
-            {row.diasTrabajados} de 7 días
+            {row.diasTrabajados} {row.diasTrabajados === 1 ? 'día' : 'días'} trabajados
+            {row.diasTrabajados > 7 ? (
+              <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-amber-300">
+                (+{row.diasTrabajados - 7} extra)
+              </span>
+            ) : null}
           </span>
           {row.novedadTurno !== 'ACTIVO' ? (
             <span

@@ -5,7 +5,7 @@ import { MobileSheetActionList } from '@/components/mobile/MobileSheetActionList
 import { SheetIconBadge } from '@/components/mobile/SheetIconBadge';
 import { PageFormModal } from '@/components/ui/PageFormModal';
 import { cn } from '@/lib/utils';
-import { NOMINA_DIAS_POR_SEMANA } from '@/lib/nomina-calculo';
+import { MAX_DIAS_TRABAJADOS, NOMINA_DIAS_POR_SEMANA } from '@/lib/nomina-calculo';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import type { NominaNovedadTurno, ReposoModoSueldoSemana } from '@/lib/nomina-novedad-turno';
 import { displayNombrePersonal } from '@/lib/personal-master';
@@ -499,7 +499,7 @@ export function NominaMobileWorkerCard({
               <input
                 type="number"
                 min={0}
-                max={NOMINA_DIAS_POR_SEMANA}
+                max={MAX_DIAS_TRABAJADOS}
                 step={1}
                 disabled={locked}
                 value={row.diasTrabajados}

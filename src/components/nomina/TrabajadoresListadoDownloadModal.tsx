@@ -97,11 +97,13 @@ export function TrabajadoresListadoDownloadModal({
   useEffect(() => {
     if (!open) return;
     if (pdfState.data || pdfState.loading) return;
-    const pdfRows = buildPdfRows(rows);
+    const pdfRows = buildPdfRows(rows).filter(
+      (r) => typeof r.cuadrilla === 'string' && r.cuadrilla.trim() !== '',
+    );
     if (pdfRows.length === 0) {
       setPdfState({
         loading: false,
-        error: 'No hay trabajadores activos o reenganchados para listar.',
+        error: 'No hay trabajadores con cuadrilla asignada para listar.',
         blob: null,
         url: null,
         data: null,

@@ -14,7 +14,7 @@ import {
   type NominaNovedadTurno,
   type ReposoModoSueldoSemana,
 } from '@/lib/nomina-novedad-turno';
-import { NOMINA_DIAS_POR_SEMANA } from '@/lib/nomina-calculo';
+import { MAX_DIAS_TRABAJADOS, NOMINA_DIAS_POR_SEMANA } from '@/lib/nomina-calculo';
 
 type Props = {
   value: NominaNovedadTurno;
@@ -108,13 +108,13 @@ export default function NominaNovedadTurnoCell({
               <input
                 type="number"
                 min={0}
-                max={NOMINA_DIAS_POR_SEMANA}
+                max={MAX_DIAS_TRABAJADOS}
                 step={1}
                 value={reposoDiasPagados}
                 onChange={(e) => onReposoDiasPagadosChange(Number(e.target.value))}
                 className="nomina-reposo-field tabular-nums"
                 aria-label={`Días pagados por reposo parcial de ${workerName}`}
-                title={`Días a pagar (0–${NOMINA_DIAS_POR_SEMANA}) para cálculo proporcional`}
+                title={`Días a pagar (0–${MAX_DIAS_TRABAJADOS}) para cálculo proporcional`}
               />
               <span className="nomina-reposo-field__hint">días</span>
             </div>

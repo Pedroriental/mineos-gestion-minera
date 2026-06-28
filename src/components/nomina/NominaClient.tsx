@@ -122,6 +122,7 @@ import {
   explicitWeeklyBaseRate,
   defaultDiasTrabajados,
   formatProportionalSalarioHint,
+  MAX_DIAS_TRABAJADOS,
   NOMINA_DIAS_POR_SEMANA,
   resolveEstadoYDias,
   aplicarPoliticaReposoSemanal,
@@ -3124,7 +3125,7 @@ export default function NominaClient({
                                       <input
                                         type="number"
                                         min={0}
-                                        max={NOMINA_DIAS_POR_SEMANA}
+                                        max={MAX_DIAS_TRABAJADOS}
                                         step={1}
                                         value={row.diasTrabajados}
                                         disabled={semanaActualProcesada}
@@ -3133,10 +3134,10 @@ export default function NominaClient({
                                             diasTrabajados: Number(e.target.value),
                                           })
                                         }
-                                        title={`Días trabajados (0–${NOMINA_DIAS_POR_SEMANA}). El sueldo base se prorratea: (salario semanal ÷ 7) × días.`}
+                                        title={`Días trabajados (0–${MAX_DIAS_TRABAJADOS}). El sueldo base se prorratea: (salario semanal ÷ 7) × días.`}
                                         className="w-12 rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 py-1 text-center text-xs font-bold tabular-nums text-white outline-none focus:border-amber-500/50 disabled:opacity-40"
                                       />
-                                      <span className="text-[8px] font-medium text-white/35">de {NOMINA_DIAS_POR_SEMANA}</span>
+                                      <span className="text-[8px] font-medium text-white/35">de {NOMINA_DIAS_POR_SEMANA} (máx {MAX_DIAS_TRABAJADOS})</span>
                                     </div>
                                   ) : (
                                     <div className="inline-flex flex-col items-center gap-1 opacity-40">
@@ -3763,7 +3764,7 @@ export default function NominaClient({
               <div className="flex justify-between"><span className="text-white/40">Asistencia:</span><span className="font-bold text-amber-500 uppercase">{selectedReceipt.estadoAsistencia}</span></div>
             </div>
             <div className="py-4 space-y-2 border-b border-dashed border-white/10 text-xs">
-              <div className="flex justify-between"><span className="text-white/40">Días trabajados:</span><span className="font-bold text-amber-500">{selectedReceipt.diasTrabajados} / {NOMINA_DIAS_POR_SEMANA}</span></div>
+              <div className="flex justify-between"><span className="text-white/40">Días trabajados:</span><span className="font-bold text-amber-500">{selectedReceipt.diasTrabajados} {selectedReceipt.diasTrabajados > NOMINA_DIAS_POR_SEMANA ? `(sem. base ${NOMINA_DIAS_POR_SEMANA} + extra)` : `/ ${NOMINA_DIAS_POR_SEMANA}`}</span></div>
               <div className="flex justify-between"><span className="text-white/40">Sueldo:</span><span className="text-white/95 font-semibold tabular-nums">{fmtMoney(selectedReceipt.salarioBaseCalculado)}</span></div>
               <div className="flex justify-between"><span className="text-white/40">Bono Transporte:</span><span className="text-emerald-400 font-semibold tabular-nums">+{fmtMoney(selectedReceipt.bonoTransporte)}</span></div>
               <div className="flex justify-between"><span className="text-white/40">Bonificaciones:</span><span className="text-emerald-400 font-semibold tabular-nums">+{fmtMoney(selectedReceipt.bonificaciones)}</span></div>

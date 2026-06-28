@@ -14,13 +14,16 @@ import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-tr
 export type EstadoAsistenciaNomina = 'trabajada' | 'libre' | 'no_laborado';
 
 export const NOMINA_DIAS_POR_SEMANA = 7;
+/** Máximo de días que se pueden registrar como "trabajados" en una semana.
+ *  Default: 14 (semana normal + semana extra). */
+export const MAX_DIAS_TRABAJADOS = 14;
 
 export function clampDiasTrabajados(
   dias: number,
   diasSemana: number = NOMINA_DIAS_POR_SEMANA,
 ): number {
   if (!Number.isFinite(dias)) return 0;
-  return Math.max(0, Math.min(diasSemana, Math.round(dias)));
+  return Math.max(0, Math.min(MAX_DIAS_TRABAJADOS, Math.round(dias)));
 }
 
 export function defaultDiasTrabajados(estado: EstadoAsistenciaNomina): number {
@@ -28,7 +31,8 @@ export function defaultDiasTrabajados(estado: EstadoAsistenciaNomina): number {
   return NOMINA_DIAS_POR_SEMANA;
 }
 
-/** Sueldo semanal proporcional: (salario_semanal / días_semana) × días_trabajados */
+/** Sueldo semanal proporcional: (salario_semanal / días_semana) × días_trabajados.
+ *  Soporta días > días_semana (caso semana + extra): prorrea con la misma fórmula. */
 export function applyProportionalWeeklyPay(
   salarioSemanal: number,
   diasTrabajados: number,
@@ -37,7 +41,7 @@ export function applyProportionalWeeklyPay(
   const semanal = Number(salarioSemanal) || 0;
   const dias = clampDiasTrabajados(diasTrabajados, diasSemana);
   if (semanal <= 0 || dias <= 0) return 0;
-  if (dias >= diasSemana) return parseFloat(semanal.toFixed(2));
+  if (dias === diasSemana) return parseFloat(semanal.toFixed(2));
   return parseFloat(((semanal / diasSemana) * dias).toFixed(2));
 }
 
