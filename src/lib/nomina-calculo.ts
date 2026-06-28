@@ -456,9 +456,8 @@ export function calcularLiquidacionPendiente(
 
   if (diasTrabajados > 0) {
     // Pago proporcional sin cap a 7 días: un trabajador que trabajó 8 días cobra
-    // (salarioSemanal / 7) * 8. applyProportionalWeeklyPay clampea a 7 días, lo que
-    // para una liquidación跨周 está mal: el trabajador pierde el pago de los días
-    // extras trabajados antes de la semana del despido.
+    // (salarioSemanal / 7) * 8. clampDiasTrabajados acepta hasta
+    // MAX_DIAS_TRABAJADOS (14) para soportar semana + extra.
     const porDia = salarioBase > 0 ? salarioBase / 7 : 0;
     const porDiaBono = bonoTransporte > 0 ? bonoTransporte / 7 : 0;
     const montoDias = parseFloat((porDia * diasTrabajados).toFixed(2));

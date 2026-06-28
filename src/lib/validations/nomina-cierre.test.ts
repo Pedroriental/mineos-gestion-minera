@@ -87,7 +87,7 @@ describe('RegistroCierreSchema', () => {
   });
 
   it('rechaza días fuera de rango o no enteros', () => {
-    assert.equal(RegistroCierreSchema.safeParse(baseRow({ diasTrabajados: 8 })).success, false);
+    assert.equal(RegistroCierreSchema.safeParse(baseRow({ diasTrabajados: 15 })).success, false);
     assert.equal(RegistroCierreSchema.safeParse(baseRow({ diasTrabajados: 2.5 })).success, false);
   });
 

@@ -226,7 +226,7 @@ function buildReposoObsTag(
   let inner = REPOSO_MODO_SUELDO_LABEL[reposoCondicion];
   const dias =
     extras?.reposoDiasPagados !== undefined && reposoCondicion === 'PARCIAL'
-      ? Math.max(0, Math.min(7, Math.round(extras.reposoDiasPagados)))
+      ? Math.max(0, Math.min(14, Math.round(extras.reposoDiasPagados)))
       : undefined;
   const compMonto =
     reposoCondicion === 'PAGO_UNICO' ? Number(extras?.reposoCompensacionMonto) || 0 : 0;

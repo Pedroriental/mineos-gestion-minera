@@ -11,7 +11,7 @@
  * Módulo puro (sin 'use server'): testeable con `tsx --test`.
  */
 import { z } from 'zod';
-import { calculateNominaRowPay } from '@/lib/nomina-calculo';
+import { calculateNominaRowPay, MAX_DIAS_TRABAJADOS } from '@/lib/nomina-calculo';
 import { calculatePayForPlantillaNominaRow } from '@/lib/rotacion-plantillas/semana-cierre';
 import type { EstatusRotacionPlantilla } from '@/lib/rotacion-plantillas/types';
 import {
@@ -49,7 +49,7 @@ export const RegistroCierreSchema = z
       .number({ error: 'Días trabajados inválidos' })
       .int('Días trabajados debe ser entero')
       .min(0, 'Días trabajados no puede ser negativo')
-      .max(7, 'Días trabajados no puede superar 7'),
+      .max(MAX_DIAS_TRABAJADOS, `Días trabajados no puede superar ${MAX_DIAS_TRABAJADOS}`),
     total: montoUsd,
     bonoTransporte: montoUsd,
     bonificaciones: montoUsd,
@@ -59,7 +59,7 @@ export const RegistroCierreSchema = z
     esSemanaLibre: z.boolean().optional(),
     salarioBaseCalculado: montoUsd.optional(),
     reposoCondicion: z.string().nullable().optional(),
-    reposoDiasPagados: z.number().int().min(0).max(7).optional(),
+    reposoDiasPagados: z.number().int().min(0).max(MAX_DIAS_TRABAJADOS).optional(),
     reposoCompensacionMonto: montoUsd.optional(),
     /**
      * Ajuste explícito: permite que `total` difiera del recalculado por el
