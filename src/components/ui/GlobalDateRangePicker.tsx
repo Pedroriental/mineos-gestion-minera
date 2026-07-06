@@ -56,24 +56,40 @@ function DateRangeActions({
   onCancel,
   onApply,
   className,
+  applyDisabled,
+  applyMessage,
 }: {
   onClear: () => void;
   onCancel: () => void;
   onApply: () => void;
   className?: string;
+  applyDisabled?: boolean;
+  applyMessage?: string | null;
 }) {
   return (
-    <div className={cn('global-date-panel__actions flex items-center justify-between gap-2 pt-1', className)}>
-      <button type="button" onClick={onClear} className="btn-secondary !h-8 px-3 text-xs">
-        Limpiar
-      </button>
-      <div className="flex gap-2">
-        <button type="button" onClick={onCancel} className="btn-secondary !h-8 px-3 text-xs">
-          Cancelar
+    <div className={cn('global-date-panel__actions flex flex-col gap-2 pt-1', className)}>
+      {applyMessage ? (
+        <p className="text-[11px] font-medium text-amber-300" role="status">
+          {applyMessage}
+        </p>
+      ) : null}
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={onClear} className="btn-secondary !h-8 px-3 text-xs">
+          Limpiar
         </button>
-        <button type="button" onClick={onApply} className="btn-primary !h-8 px-4 text-xs">
-          Aplicar Rango
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={onCancel} className="btn-secondary !h-8 px-3 text-xs">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={applyDisabled}
+            className="btn-primary !h-8 px-4 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Aplicar Rango
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -85,18 +101,28 @@ function DateRangePanelContent({
   onClear,
   onCancel,
   onApply,
+  applyDisabled,
+  applyMessage,
 }: {
   dateRange: { from: string; to: string };
   setDateRange: React.Dispatch<React.SetStateAction<{ from: string; to: string }>>;
   onClear: () => void;
   onCancel: () => void;
   onApply: () => void;
+  applyDisabled?: boolean;
+  applyMessage?: string | null;
 }) {
   return (
     <div className="global-date-panel__body space-y-4">
       <h4 className="global-date-panel__title">Rango Histórico</h4>
       <DateRangeFields dateRange={dateRange} setDateRange={setDateRange} />
-      <DateRangeActions onClear={onClear} onCancel={onCancel} onApply={onApply} />
+      <DateRangeActions
+        onClear={onClear}
+        onCancel={onCancel}
+        onApply={onApply}
+        applyDisabled={applyDisabled}
+        applyMessage={applyMessage}
+      />
     </div>
   );
 }
@@ -142,7 +168,32 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const validateDate = (iso: string): boolean => {
+    if (!iso) return false;
+    try {
+      const d = parseISO(iso);
+      return isValid(d);
+    } catch {
+      return false;
+    }
+  };
+
+  const fromValid = validateDate(dateRange.from);
+  const toValid = validateDate(dateRange.to);
+  const rangeValid = fromValid && toValid;
+  const rangeInOrder = !rangeValid
+    ? false
+    : parseISO(dateRange.from).getTime() <= parseISO(dateRange.to).getTime();
+
+  const applyDisabled = !rangeValid || !rangeInOrder;
+  const applyMessage = !rangeValid
+    ? 'Ambas fechas son obligatorias y deben ser válidas.'
+    : !rangeInOrder
+      ? 'La fecha inicial no puede ser posterior a la final.'
+      : null;
+
   const handleApply = () => {
+    if (applyDisabled) return;
     setIsOpen(false);
     const params = new URLSearchParams(searchParams.toString());
     params.set('desde', dateRange.from);
@@ -203,6 +254,8 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
               onClear={handleClear}
               onCancel={() => setIsOpen(false)}
               onApply={handleApply}
+              applyDisabled={applyDisabled}
+              applyMessage={applyMessage}
             />
           </div>
         </MobileActionSheet>
@@ -221,6 +274,8 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
             onClear={handleClear}
             onCancel={() => setIsOpen(false)}
             onApply={handleApply}
+            applyDisabled={applyDisabled}
+            applyMessage={applyMessage}
           />
         </div>
       ) : null}
