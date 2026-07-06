@@ -20,7 +20,7 @@
 # Variables de entorno opcionales:
 #   REMOTE_HOST    Host SSH (default: root@24.144.116.215)
 #   REMOTE_PORT    Puerto SSH (default: 22)
-#   REMOTE_CWD     Carpeta del proyecto en el server (default: la del PM2)
+#   REMOTE_CWD     Carpeta del proyecto en el server (default: auto-detect PM2)
 #   SSH_KEY        Ruta a la llave privada (default: ~/.ssh/id_ed25519)
 #   BRANCH         Rama a desplegar (default: release/diseno-sin-nomina)
 #   DRY_RUN        Si es 1, muestra el comando sin ejecutarlo
@@ -46,18 +46,6 @@ if [[ ! -f "${SSH_KEY}" ]]; then
   echo
 fi
 
-echo "==> Configuración del deploy"
-echo "    Host remoto : ${REMOTE_HOST}:${REMOTE_PORT}"
-echo "    Llave SSH   : ${SSH_KEY}"
-echo "    Rama        : ${BRANCH}"
-echo "    Carpeta     : ${REMOTE_CWD:-<auto-detect via PM2>}"
-echo
-
-REMOTE_CMD="bash scripts/deploy-server-remote.sh '${BRANCH}'"
-if [[ -n "${REMOTE_CWD}" ]]; then
-  REMOTE_CMD="${REMOTE_CMD} '${REMOTE_CWD}'"
-fi
-
 SSH_OPTS=(
   -p "${REMOTE_PORT}"
   -o BatchMode=yes
@@ -69,6 +57,52 @@ if [[ -f "${SSH_KEY}" ]]; then
   SSH_OPTS+=(-i "${SSH_KEY}")
 fi
 
+remote() {
+  ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" "$1"
+}
+
+# Auto-detectar la carpeta del proyecto via PM2 si no se pasó REMOTE_CWD
+if [[ -z "${REMOTE_CWD}" ]]; then
+  echo "==> Detectando ruta del proyecto vía PM2…"
+  DETECTED="$(remote 'pm2 show mineos 2>/dev/null | grep -i "exec cwd" | head -1 | sed -E "s/.*exec cwd[^/]*(\/[^|│]+).*/\1/" | tr -d "[:space:]"' || true)"
+  if [[ -n "${DETECTED}" && "${DETECTED}" == /* && -d "${DETECTED}" ]]; then
+    REMOTE_CWD="${DETECTED}"
+  else
+    for candidate in /var/www/mineos /var/www/mineos-gestion-minera; do
+      if remote "test -f ${candidate}/package.json" 2>/dev/null; then
+        REMOTE_CWD="${candidate}"
+        break
+      fi
+    done
+  fi
+  if [[ -z "${REMOTE_CWD}" ]]; then
+    echo "ERROR: No se pudo detectar la ruta del proyecto en el server."
+    echo "Exporta REMOTE_CWD=/ruta/al/proyecto y vuelve a ejecutar."
+    exit 1
+  fi
+  echo "    Detectado: ${REMOTE_CWD}"
+fi
+
+# Verificar que la ruta es válida antes de seguir
+if ! remote "test -f '${REMOTE_CWD}/package.json'" 2>/dev/null; then
+  echo "ERROR: ${REMOTE_CWD}/package.json no existe en el server."
+  exit 1
+fi
+if ! remote "test -f '${REMOTE_CWD}/scripts/deploy-server-remote.sh'" 2>/dev/null; then
+  echo "ERROR: ${REMOTE_CWD}/scripts/deploy-server-remote.sh no existe en el server."
+  echo "Asegúrate de que el repo está clonado correctamente en ${REMOTE_CWD}."
+  exit 1
+fi
+
+echo "==> Configuración del deploy"
+echo "    Host remoto : ${REMOTE_HOST}:${REMOTE_PORT}"
+echo "    Llave SSH   : ${SSH_KEY}"
+echo "    Rama        : ${BRANCH}"
+echo "    Carpeta     : ${REMOTE_CWD}"
+echo
+
+REMOTE_CMD="cd '${REMOTE_CWD}' && bash scripts/deploy-server-remote.sh '${BRANCH}' '${REMOTE_CWD}'"
+
 if [[ "${DRY_RUN}" == "1" ]]; then
   echo "[DRY-RUN] ssh ${SSH_OPTS[*]} ${REMOTE_HOST} \"${REMOTE_CMD}\""
   exit 0
@@ -78,4 +112,4 @@ echo "==> Conectando a ${REMOTE_HOST}…"
 echo "    (si pide password, configura key-based auth primero)"
 echo
 
-ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" "${REMOTE_CMD}"
+remote "${REMOTE_CMD}"
