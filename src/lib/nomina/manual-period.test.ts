@@ -356,6 +356,139 @@ describe('manual-period', () => {
     assert.equal(previousWeekInManualPeriod(period, weeks[0]), null);
   });
 
+  it('resolveActiveCuadrillaIdsForWeek filtra por weekColumnCuadrillas[colIdx]', () => {
+    // Caso del usuario: desmarcó cuadrilla A de la columna S1.
+    // Debe quedar solo cuadrilla B activa para esa semana.
+    const { resolveActiveCuadrillaIdsForWeek } = require('@/lib/rotacion-plantillas/manual-plantilla-projection');
+    const plantilla = {
+      id: 'pl-1',
+      nombre: 'Vertical',
+      cuadrillas: [
+        { id: 'c-a', nombre: 'Cuadrilla A', orden: 0, filas: [] },
+        { id: 'c-b', nombre: 'Cuadrilla B', orden: 1, filas: [] },
+      ],
+    };
+    const period = {
+      rangeStart: '2026-05-04',
+      rangeEnd: '2026-05-31',
+      weekColumnAssignment: ['2026-05-04', '2026-05-11', '2026-05-18', '2026-05-25'],
+      weekColumnCuadrillas: [
+        ['c-b'], // S1: solo B (A desmarcada)
+        ['c-a', 'c-b'], // S2: ambas
+        ['c-a', 'c-b'], // S3: ambas
+        ['c-a', 'c-b'], // S4: ambas
+      ],
+    };
+    const activeS1 = resolveActiveCuadrillaIdsForWeek(period, '2026-05-04', plantilla);
+    assert.deepEqual(activeS1, ['c-b'], 'S1 solo debe tener cuadrilla B');
+    const activeS2 = resolveActiveCuadrillaIdsForWeek(period, '2026-05-11', plantilla);
+    assert.deepEqual(activeS2.sort(), ['c-a', 'c-b'], 'S2 debe tener ambas');
+  });
+
+  it('buildManualPlantillaNominaRows filtra trabajadores por cuadrilla activa', () => {
+    // Caso del usuario: desmarcó cuadrilla A de la columna S1. Los
+    // trabajadores de A NO deben aparecer en la semana 1.
+    const {
+      buildManualPlantillaNominaRows,
+    } = require('@/lib/rotacion-plantillas/manual-plantilla-projection');
+    const plantilla = {
+      id: 'pl-1',
+      nombre: 'Vertical',
+      cuadrillas: [
+        {
+          id: 'c-a',
+          nombre: 'Cuadrilla A',
+          orden: 0,
+          filas: [
+            { personalId: 'p-a1', celdas: {} },
+            { personalId: 'p-a2', celdas: {} },
+          ],
+          semanas: [
+            { id: 'sem-0', nombre: 'S1', estatusDefault: 'TRABAJADA' },
+            { id: 'sem-1', nombre: 'S2', estatusDefault: 'LIBRE' },
+          ],
+        },
+        {
+          id: 'c-b',
+          nombre: 'Cuadrilla B',
+          orden: 1,
+          filas: [
+            { personalId: 'p-b1', celdas: {} },
+            { personalId: 'p-b2', celdas: {} },
+          ],
+          semanas: [
+            { id: 'sem-0', nombre: 'S1', estatusDefault: 'TRABAJADA' },
+            { id: 'sem-1', nombre: 'S2', estatusDefault: 'LIBRE' },
+          ],
+        },
+      ],
+    };
+    const personal = [
+      { id: 'p-a1', nombre_completo: 'A1', cedula: '1', area: 'mina', activo: true, area_detalle: 'Cuadrilla A' },
+      { id: 'p-a2', nombre_completo: 'A2', cedula: '2', area: 'mina', activo: true, area_detalle: 'Cuadrilla A' },
+      { id: 'p-b1', nombre_completo: 'B1', cedula: '3', area: 'mina', activo: true, area_detalle: 'Cuadrilla B' },
+      { id: 'p-b2', nombre_completo: 'B2', cedula: '4', area: 'mina', activo: true, area_detalle: 'Cuadrilla B' },
+    ];
+    const rows = buildManualPlantillaNominaRows({
+      plantilla,
+      personalCatalog: personal,
+      personalIds: ['p-a1', 'p-a2', 'p-b1', 'p-b2'],
+      weekStart: '2026-05-04',
+      periodStart: '2026-05-04',
+      periodEnd: '2026-05-31',
+      weekColumnAssignment: ['2026-05-04', '2026-05-11', '2026-05-18', '2026-05-25'],
+      weekColumnCuadrillas: [['c-b'], ['c-a', 'c-b'], ['c-a', 'c-b'], ['c-a', 'c-b']],
+      valesMap: {},
+      weekEnd: '2026-05-10',
+    });
+    const ids = rows.map((r: { personal: { id: string } }) => r.personal.id).sort();
+    assert.deepEqual(
+      ids,
+      ['p-b1', 'p-b2'],
+      'los trabajadores de Cuadrilla A no deben aparecer cuando está desmarcada',
+    );
+  });
+
+  it('buildManualPlantillaNominaRows preserva al personal manual (forceIncludeIds) aunque no esté en cuadrilla activa', () => {
+    // El usuario agregó manualmente a alguien que no está en la plantilla.
+    // Ese alguien debe seguir apareciendo aunque las cuadrillas no lo
+    // incluyan (es un override explícito del usuario).
+    const {
+      buildManualPlantillaNominaRows,
+    } = require('@/lib/rotacion-plantillas/manual-plantilla-projection');
+    const plantilla = {
+      id: 'pl-1',
+      nombre: 'Vertical',
+      cuadrillas: [
+        {
+          id: 'c-a',
+          nombre: 'Cuadrilla A',
+          orden: 0,
+          filas: [],
+          semanas: [{ id: 'sem-0', nombre: 'S1', estatusDefault: 'TRABAJADA' }],
+        },
+      ],
+    };
+    const personal = [
+      { id: 'p-manual', nombre_completo: 'Manual', cedula: 'm', area: 'mina', activo: true, area_detalle: 'Otra cosa' },
+    ];
+    const rows = buildManualPlantillaNominaRows({
+      plantilla,
+      personalCatalog: personal,
+      personalIds: ['p-manual'],
+      weekStart: '2026-05-04',
+      periodStart: '2026-05-04',
+      periodEnd: '2026-05-31',
+      weekColumnAssignment: ['2026-05-04'],
+      weekColumnCuadrillas: [['c-a']],
+      valesMap: {},
+      weekEnd: '2026-05-10',
+      forceIncludeIds: ['p-manual'],
+    });
+    assert.equal(rows.length, 1, 'el personal manual debe aparecer por forceInclude');
+    assert.equal(rows[0].personal.id, 'p-manual');
+  });
+
   it('stripPeriodoLabelPrefix quita prefijo Manual', () => {
     assert.equal(stripPeriodoLabelPrefix('[Manual] Mayo 2026'), 'Mayo 2026');
     assert.equal(stripPeriodoLabelPrefix('Mayo 2026'), 'Mayo 2026');

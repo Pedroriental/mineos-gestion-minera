@@ -504,6 +504,19 @@ export function buildManualPlantillaNominaRows(input: {
     );
     if (!rotacion) {
       const cuadrilla = resolveCuadrillaForPersonal(plantilla, p, activeCuadrillaIds);
+      // Si la columna tiene cuadrillas activas (no todas desmarcadas) y el
+      // personal no cae en ninguna, no incluirlo. Antes siempre se agregaba
+      // la fila, lo que dejaba la cuadrilla desmarcada 'apareciendo' en
+      // la vista semanal con sus trabajadores. Excepción: el personal
+      // añadido manualmente via forceIncludeIds sigue mostrándose aunque
+      // no pertenezca a ninguna cuadrilla activa.
+      if (
+        activeCuadrillaIds.length > 0 &&
+        !cuadrilla &&
+        !forceInclude.has(personalId)
+      ) {
+        continue;
+      }
       rows.push(buildManualExplicitNominaRow(p, weekStart, valesMap, cuadrilla?.nombre));
       continue;
     }
