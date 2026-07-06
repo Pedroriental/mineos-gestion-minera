@@ -129,9 +129,14 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (popoverRef.current?.contains(target)) return;
+      // No cerrar si el click cae en un popover anidado (p.ej. el menú
+      // portal del AppDatePicker interno). El atributo data-popover-content
+      // marca cualquier popover hijo que deba ignorarse.
+      if (target instanceof Element && target.closest('[data-popover-content]')) return;
+      setIsOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -208,7 +213,7 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
     <div className="global-date-picker relative" ref={popoverRef}>
       {triggerButton}
       {isOpen ? (
-        <div className="global-date-panel app-popover absolute right-0 z-50 mt-2 w-72 p-4 animate-in fade-in slide-in-from-top-2">
+        <div data-popover-content className="global-date-panel app-popover absolute right-0 z-50 mt-2 w-72 p-4 animate-in fade-in slide-in-from-top-2">
           <DateRangePanelContent
             dateRange={dateRange}
             setDateRange={setDateRange}

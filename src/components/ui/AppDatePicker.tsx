@@ -344,6 +344,7 @@ export function AppDatePicker({
       ? createPortal(
           <div
             id={`${id}-menu`}
+            data-popover-content
             className={cn(
               'z-[10000] rounded-xl border p-3 shadow-2xl',
               'animate-in fade-in zoom-in-95 duration-100',
