@@ -156,6 +156,7 @@ export default function GlobalDateRangePicker({ variant = 'default' }: GlobalDat
 
   const handleClear = () => {
     setIsOpen(false);
+    setDateRange({ from: format(firstDay, 'yyyy-MM-dd'), to: format(today, 'yyyy-MM-dd') });
     router.push(pathname, { scroll: false });
     router.refresh();
   };
