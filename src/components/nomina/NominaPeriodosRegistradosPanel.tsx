@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Eye,
   Loader2,
+  Pencil,
   PlayCircle,
   Trash2,
 } from 'lucide-react';
@@ -43,6 +44,7 @@ type Props = {
   userId?: string;
   onViewPeriod: (period: ManualNominaPeriod) => void;
   onWorkWeek: (period: ManualNominaPeriod, weekStart: string) => void;
+  onEditWeek?: (period: ManualNominaPeriod, weekStart: string) => void;
   onPeriodDeleted?: () => void;
 };
 
@@ -79,6 +81,7 @@ export function NominaPeriodosRegistradosPanel({
   userId,
   onViewPeriod,
   onWorkWeek,
+  onEditWeek,
   onPeriodDeleted,
 }: Props) {
   const confirmDialog = useConfirm();
@@ -420,6 +423,7 @@ export function NominaPeriodosRegistradosPanel({
                                   <th className="px-1.5 py-1">Intervalo</th>
                                   <th className="px-1.5 py-1 text-right">USD</th>
                                   <th className="px-1.5 py-1">Est.</th>
+                                  <th className="px-1.5 py-1 text-right">Acc.</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -463,6 +467,19 @@ export function NominaPeriodosRegistradosPanel({
                                         >
                                           {closed ? 'OK' : 'Pend.'}
                                         </span>
+                                      </td>
+                                      <td className="px-1.5 py-1 text-right">
+                                        {closed && onEditWeek ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => onEditWeek(manual, w)}
+                                            className="inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-1.5 text-[9px] font-semibold text-[var(--mineos-general-bright)] transition-colors hover:border-[var(--mineos-general-border)]/40 hover:bg-[var(--mineos-general-soft)]/50"
+                                            title="Editar semana consolidada"
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                            Editar
+                                          </button>
+                                        ) : null}
                                       </td>
                                     </tr>
                                   );

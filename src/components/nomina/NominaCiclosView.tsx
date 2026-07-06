@@ -40,6 +40,7 @@ type Props = {
   userId?: string;
   onConsolidated?: () => void;
   consolidatedLockedPeriodIds?: Set<string>;
+  editedAfterConsolidationPeriodIds?: Set<string>;
   personal?: Personal[];
   valesPorPersonal?: Record<string, number>;
   periodosRefreshKey?: number;
@@ -66,12 +67,15 @@ export function NominaCiclosView({
   userId,
   onConsolidated,
   consolidatedLockedPeriodIds = new Set(),
+  editedAfterConsolidationPeriodIds = new Set(),
   personal = [],
   valesPorPersonal = {},
 }: Props) {
   const editorPeriod = getEditorPeriod(periodsSession);
   const editorLocked =
     editorPeriod != null && consolidatedLockedPeriodIds.has(editorPeriod.id);
+  const editorEditedAfterConsolidation =
+    editorPeriod != null && editedAfterConsolidationPeriodIds.has(editorPeriod.id);
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-3 lg:gap-4">
@@ -136,6 +140,7 @@ export function NominaCiclosView({
         userId={userId}
         onConsolidated={onConsolidated}
         consolidatedLocked={editorLocked}
+        editedAfterConsolidation={editorEditedAfterConsolidation}
         canEdit={canEdit}
         onDeleteDraft={canEdit ? onDeleteDraftPeriod : undefined}
         onExitEditor={() =>

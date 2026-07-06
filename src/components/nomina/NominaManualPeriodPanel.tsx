@@ -93,6 +93,8 @@ type Props = {
   onConsolidated?: () => void;
   /** Periodo ya consolidado en archivo y sin cambios tras revertir. */
   consolidatedLocked?: boolean;
+  /** Periodo consolidado que recibió ediciones: el botón debe decir «Re-consolidar». */
+  editedAfterConsolidation?: boolean;
   onExitEditor?: () => void;
   onDeleteDraft?: () => void;
   canEdit?: boolean;
@@ -111,6 +113,7 @@ export function NominaManualPeriodPanel({
   userId,
   onConsolidated,
   consolidatedLocked = false,
+  editedAfterConsolidation = false,
   onExitEditor,
   onDeleteDraft,
   canEdit = true,
@@ -826,10 +829,20 @@ export function NominaManualPeriodPanel({
                   type="button"
                   onClick={handleConsolidate}
                   disabled={pending}
-                  className={cn(mineosBtnSubtleClass('benefit'), 'h-7 px-2 text-[10px]')}
+                  className={cn(
+                    mineosBtnSubtleClass(editedAfterConsolidation ? 'general' : 'benefit'),
+                    'h-7 px-2 text-[10px]',
+                    editedAfterConsolidation &&
+                      'border-amber-500/40 text-amber-300 hover:bg-amber-500/10',
+                  )}
+                  title={
+                    editedAfterConsolidation
+                      ? 'Aplicar cambios y volver a consolidar este periodo en archivo'
+                      : 'Consolidar este periodo en archivo'
+                  }
                 >
                   {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  Consolidar
+                  {editedAfterConsolidation ? 'Re-consolidar' : 'Consolidar'}
                 </button>
               ))}
             {!activeWeekInPeriod && (

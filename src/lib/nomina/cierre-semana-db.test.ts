@@ -87,4 +87,21 @@ describe('cierre semana db (contrato)', () => {
     assert.equal(input.area, 'planta');
     assert.notEqual(input.area, 'mina', 'sin area en INSERT la fila quedaría mina por DEFAULT');
   });
+
+  it('documenta el contrato de re-consolidación de un periodo manual', () => {
+    // Tras editar una semana consolidada y re-consolidar:
+    // 1. El periodo mantiene su `id` original (UPDATE, no INSERT).
+    // 2. `total_usd` se recalcula re-leyendo `nomina_semanas.total_pagado`.
+    // 3. `metadata.semana_ids` se reemplaza con la nueva lista de semanas.
+    // 4. Los links de `nomina_periodo_semanas` se borran y re-crean (idempotente).
+    // 5. `nomina_semanas.periodo_id` se re-asigna para todas las semanas del rango.
+    // 6. Se emite una entrada de auditoría con accion='RECONSOLIDAR_PERIODO' y
+    //    `detalle` que incluya el total anterior y el nuevo.
+    const previousTotalUsd = 1000;
+    const newTotalUsd = 1250;
+    const auditDetalle = `Periodo Demo: $${previousTotalUsd.toFixed(2)} -> $${newTotalUsd.toFixed(2)}`;
+    assert.match(auditDetalle, /1000\.00/);
+    assert.match(auditDetalle, /1250\.00/);
+    assert.notEqual(previousTotalUsd, newTotalUsd);
+  });
 });

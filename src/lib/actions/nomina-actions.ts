@@ -521,6 +521,20 @@ async function reconcileConsolidacionManualPeriodTotalsInDb(
   }
 }
 
+export async function runNominaPeriodosMaintenanceAction(): Promise<ActionResult> {
+  try {
+    const supabase = await createServerClient();
+    await dedupeConsolidacionManualPeriodosInDb(supabase);
+    await reconcileConsolidacionManualPeriodTotalsInDb(supabase);
+    return { ok: true, message: 'Mantenimiento de periodos completado.' };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Error en mantenimiento de periodos',
+    };
+  }
+}
+
 export async function listNominaPeriodosAction(): Promise<{
   ok: boolean;
   periodos: NominaPeriodoSummary[];
@@ -528,8 +542,6 @@ export async function listNominaPeriodosAction(): Promise<{
 }> {
   try {
     const supabase = await createServerClient();
-    await dedupeConsolidacionManualPeriodosInDb(supabase);
-    await reconcileConsolidacionManualPeriodTotalsInDb(supabase);
 
     const { data, error } = await supabase
       .from('nomina_periodos')
@@ -728,7 +740,7 @@ export async function consolidarNominaPeriodoAction(input: {
 
     const { data: existingRows } = await supabase
       .from('nomina_periodos')
-      .select('id, created_at, metadata')
+      .select('id, created_at, metadata, total_usd')
       .eq('range_start', rangeStart)
       .eq('range_end', rangeEnd)
       .eq('origen', 'consolidacion_manual');
@@ -748,6 +760,8 @@ export async function consolidarNominaPeriodoAction(input: {
         : null;
 
     let periodoId: string;
+    const previousTotalUsd = canonical?.total_usd ? Number(canonical.total_usd) : 0;
+    const isReconsolidation = Boolean(canonical?.id);
 
     if (canonical?.id) {
       const { error: updErr } = await supabase
@@ -807,19 +821,29 @@ export async function consolidarNominaPeriodoAction(input: {
         semanas.map((s) => s.id),
       );
 
-    await registrarAuditAction(
-      'CONSOLIDAR_PERIODO',
-      'nomina_periodos',
-      periodoId,
-      `Periodo ${label}: $${totalUsd.toFixed(2)}`,
-      userId,
-    );
+    if (isReconsolidation) {
+      await registrarAuditAction(
+        'RECONSOLIDAR_PERIODO',
+        'nomina_periodos',
+        periodoId,
+        `Periodo ${label}: $${previousTotalUsd.toFixed(2)} → $${totalUsd.toFixed(2)}`,
+        userId,
+      );
+    } else {
+      await registrarAuditAction(
+        'CONSOLIDAR_PERIODO',
+        'nomina_periodos',
+        periodoId,
+        `Periodo ${label}: $${totalUsd.toFixed(2)}`,
+        userId,
+      );
+    }
 
     revalidateNominaPaths();
     return {
       ok: true,
-      message: canonical?.id ? 'Periodo actualizado' : 'Periodo consolidado',
-      data: { periodoId, totalUsd },
+      message: canonical?.id ? 'Periodo re-consolidado' : 'Periodo consolidado',
+      data: { periodoId, totalUsd, reconsolidated: isReconsolidation },
     };
   } catch (e) {
     return {
@@ -1000,7 +1024,12 @@ export async function listNominaMesesPanelAction(area: 'mina' | 'planta'): Promi
       .sort((a, b) => b.rangeStart.localeCompare(a.rangeStart));
 
     const ciclosDisponibles = scoped
-      .filter((p) => periodoEsCicloConsolidado(p) && !cicloIdsEnMes.has(p.id))
+      .filter(
+        (p) =>
+          periodoEsCicloConsolidado(p) &&
+          !cicloIdsEnMes.has(p.id) &&
+          p.semanaCount > 0,
+      )
       .sort((a, b) => b.rangeStart.localeCompare(a.rangeStart));
 
     return { ok: true, data: { meses, ciclosDisponibles } };

@@ -43,6 +43,7 @@ import {
   reposoPagoUnicoMontoFromRow,
   weekDraftToRowOverrides,
   writeNominaNovedadDraft,
+  type NominaWeekDraft,
 } from '@/lib/nomina-novedad-turno';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { SheetIconBadge } from '@/components/mobile';
@@ -101,6 +102,7 @@ import {
   carryManualWeekToNext,
   carryoverRowsFromSemanaRegistros,
   mergePersonalCatalogWithRosterEntries,
+  resetNovedadDraftForRoster,
   seedManualWeekIfEmpty,
   type ManualWeekCarryoverRow,
 } from '@/lib/nomina/manual-period-carryover';
@@ -559,6 +561,9 @@ export default function NominaClient({
   );
   const [manualSessionHydrated, setManualSessionHydrated] = useState(false);
   const [consolidatedLockedIds, setConsolidatedLockedIds] = useState<Set<string>>(new Set());
+  const [editedConsolidatedPeriodIds, setEditedConsolidatedPeriodIds] = useState<Set<string>>(
+    new Set(),
+  );
   /** Fuerza relectura del roster manual en localStorage tras asignar trabajador. */
   const [manualRosterTick, setManualRosterTick] = useState(0);
   const [showArchivo, setShowArchivo] = useState(false);
@@ -2318,17 +2323,28 @@ export default function NominaClient({
               keptIds.map((id) => ({ id })),
               manualPeriodId,
             );
-            // Recargar filas con solo los de la plantilla
-            const keptPersonal = personalCatalogMerged.filter((p) => keptIds.includes(p.id));
-            const novedadDraft = readNominaNovedadDraft(
-              nominaNovedadDraftKey(area, weekRange.inicio, manualPeriodId),
-            );
-            const rows = keptPersonal.map((p) =>
-              applyWeekDraft(
-                buildOperationalNominaRow(p, weekRange.inicio, {}),
-                weekRange.inicio,
-                novedadDraft[p.id],
-              ),
+            // Reset del draft para que las novedades manuales se limpien,
+            // pero conservando los IDs de la plantilla.
+            const draftKey = nominaNovedadDraftKey(area, weekRange.inicio, manualPeriodId);
+            const freshDraft = resetNovedadDraftForRoster(keptIds);
+            writeNominaNovedadDraft(draftKey, freshDraft);
+            // Recargar filas respetando la plantilla (estatus, días bloqueados, etc.)
+            const valesMapEmpty: Record<string, NominaVale[]> = {};
+            const baseRows = buildManualPlantillaNominaRows({
+              plantilla: manualPlantillaActiva,
+              personalCatalog: personalCatalogMerged,
+              personalIds: keptIds,
+              weekStart: weekRange.inicio,
+              periodStart: manualPeriodForView.rangeStart,
+              periodEnd: manualPeriodForView.rangeEnd,
+              weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
+              weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
+              valesMap: valesMapEmpty,
+              weekEnd: weekRange.fin,
+              forceIncludeIds: keptIds,
+            });
+            const rows = baseRows.map((row) =>
+              applyWeekDraft(row, weekRange.inicio, freshDraft[row.personal.id]),
             );
             setPreNominaRows(rows);
             setManualRosterTick((t) => t + 1);
@@ -2337,11 +2353,31 @@ export default function NominaClient({
             return;
           }
         }
-        // Sin plantilla: vaciar todo
-        clearManualWeekRoster(area, weekRange.inicio, manualPeriodId);
-      } else {
-        markOperationalWeekEmptied(area, weekRange.inicio, true);
+        // Sin plantilla activa: PRESERVAR el roster existente en localStorage
+        // y solo resetear el draft. Antes se borraba el roster completo, lo cual
+        // destruía la estructura de la semana del periodo.
+        const existingRoster = readManualWeekRosterEntries(
+          area,
+          weekRange.inicio,
+          manualPeriodId,
+        );
+        const existingIds = existingRoster.map((e) => e.id);
+        const draftKey = nominaNovedadDraftKey(area, weekRange.inicio, manualPeriodId);
+        writeNominaNovedadDraft(draftKey, resetNovedadDraftForRoster(existingIds));
+        // Limpiar state; initRows se vuelve a ejecutar al cambiar manualRosterTick
+        // y regenera las filas desde el roster preservado + draft fresco.
+        setPreNominaRows([]);
+        setManualRosterTick((t) => t + 1);
+        setShowBorrarModal(false);
+        toast.success(
+          existingIds.length
+            ? `Semana vaciada. Se conservan ${existingIds.length} trabajadores del roster.`
+            : 'Semana vaciada. El roster ya estaba vacío.',
+        );
+        return;
       }
+      // Sin periodo manual: solo marcar como vaciada (modo operativo).
+      markOperationalWeekEmptied(area, weekRange.inicio, true);
       setPreNominaRows([]);
       setManualRosterTick((t) => t + 1);
       setShowBorrarModal(false);
@@ -2767,6 +2803,7 @@ export default function NominaClient({
                           return editorId ? removePeriodFromSession(prev, editorId) : prev;
                         });
                         setConsolidatedLockedIds(new Set());
+                        setEditedConsolidatedPeriodIds(new Set());
                         router.refresh();
                         setArchivoRefreshKey((k) => k + 1);
                       }}
@@ -2781,6 +2818,21 @@ export default function NominaClient({
                           editorPeriodId: p.id,
                           historicalPeriodId: p.id,
                         }));
+                        setWeekRange({ inicio: ws, fin: getWeekEnd(ws) });
+                        setViewMode('semanal');
+                      }}
+                      onEditWeek={(p, ws) => {
+                        handleEditorPeriodChange(p, { fromConsolidated: true, resetReconsolidation: false });
+                        setManualPeriodSession((prev) => ({
+                          ...prev,
+                          editorPeriodId: p.id,
+                          historicalPeriodId: p.id,
+                        }));
+                        setEditedConsolidatedPeriodIds((prev) => {
+                          const next = new Set(prev);
+                          next.add(p.id);
+                          return next;
+                        });
                         setWeekRange({ inicio: ws, fin: getWeekEnd(ws) });
                         setViewMode('semanal');
                       }}
@@ -2808,12 +2860,14 @@ export default function NominaClient({
                       personal={personalCatalogMerged}
                       valesPorPersonal={proximosPagosValesPorPersonal}
                       consolidatedLockedPeriodIds={consolidatedLockedIds}
+                      editedAfterConsolidationPeriodIds={editedConsolidatedPeriodIds}
                       onConsolidated={() => {
                         setManualPeriodSession((prev) => {
                           const editorId = prev.editorPeriodId;
                           return editorId ? removePeriodFromSession(prev, editorId) : prev;
                         });
                         setConsolidatedLockedIds(new Set());
+                        setEditedConsolidatedPeriodIds(new Set());
                         router.refresh();
                         setArchivoRefreshKey((k) => k + 1);
                       }}

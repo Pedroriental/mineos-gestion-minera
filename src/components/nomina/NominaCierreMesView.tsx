@@ -15,6 +15,7 @@ type Props = {
   onConsolidated?: () => void;
   onViewPeriod: (period: ManualNominaPeriod) => void;
   onWorkWeek: (period: ManualNominaPeriod, weekStart: string) => void;
+  onEditWeek?: (period: ManualNominaPeriod, weekStart: string) => void;
 };
 
 export function NominaCierreMesView({
@@ -27,6 +28,7 @@ export function NominaCierreMesView({
   onConsolidated,
   onViewPeriod,
   onWorkWeek,
+  onEditWeek,
 }: Props) {
   const areaKey = area === 'planta' || area === 'mina' ? area : 'mina';
 
@@ -50,6 +52,7 @@ export function NominaCierreMesView({
         userId={userId}
         onViewPeriod={onViewPeriod}
         onWorkWeek={onWorkWeek}
+        onEditWeek={onEditWeek}
         onPeriodDeleted={onConsolidated}
       />
 
