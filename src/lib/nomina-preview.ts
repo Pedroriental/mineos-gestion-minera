@@ -479,6 +479,7 @@ function collectImportPreviewPeople(
       if (registroRef) {
         const snapFromReg = registroRef.personal_snapshot;
         return {
+          ...(existing ?? {}),
           id,
           cedula: snapFromReg?.cedula || existing?.cedula || '—',
           nombre_completo: snapFromReg?.nombre_completo || existing?.nombre_completo || 'Trabajador',
@@ -817,6 +818,7 @@ export function buildNominaPreviewReport(input: {
     );
     if (!allowProjection && !hasRegistroInRange) continue;
     if (p.estatus && p.estatus !== 'ACTIVO' && !hasRegistroInRange) continue;
+    if (p.estado_laboral === 'DESPEDIDO') continue;
     if (p.fecha_ingreso && p.fecha_ingreso > rangeEnd) continue;
     const snap = personalSnapshots[p.id];
     const meta =

@@ -71,12 +71,22 @@ export function periodsEnCurso(session: ManualPeriodsSession): ManualNominaPerio
   return filterManualPeriodsEnCurso(session.periods);
 }
 
-/** Quita archivos importados y duplicados; reajusta ids de sesión. */
+/** Quita archivos importados y duplicados; reajusta ids de sesión.
+ *  Conserva periodos archivados con vínculo a DB para que el usuario pueda
+ *  seguir cerrando semanas abiertas de un ciclo ya consolidado parcialmente. */
 export function sanitizeManualPeriodsSession(
   session: ManualPeriodsSession,
   area?: string,
 ): ManualPeriodsSession {
   let periods = filterManualPeriodsEnCurso(session.periods);
+  // Conservar periodos archivados explícitamente cargados (tienen link a DB)
+  const archivedEditable = session.periods.filter(
+    (p) =>
+      p.id.startsWith('arch-') &&
+      (!!p.periodoArchivoId || !!p.periodoVistaId) &&
+      !periods.some((ep) => ep.id === p.id),
+  );
+  periods = [...periods, ...archivedEditable];
   if (area) {
     periods = periods
       .filter((p) => isManualPeriodCompatibleWithArea(p, area))

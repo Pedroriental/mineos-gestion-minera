@@ -144,12 +144,17 @@ type CatalogData = {
   byName: Map<string, ExistingPersonal>;
 };
 
-async function loadCatalog(supabase: Awaited<ReturnType<typeof createServerClient>>): Promise<
+async function loadCatalog(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  complexId?: string | null,
+): Promise<
   { ok: true; data: CatalogData } | { ok: false; message: string }
 > {
-  const { data: allPersonal, error: listErr } = await supabase
+  let query = supabase
     .from('personal')
     .select('id, nombre_completo, estado_laboral, cedula, area');
+  if (complexId) query = query.eq('complex_id', complexId);
+  const { data: allPersonal, error: listErr } = await query;
   if (listErr) return { ok: false, message: `Error al leer personal: ${listErr.message}` };
   const personalList: ExistingPersonal[] = allPersonal ?? [];
   const byCedula = new Map<string, ExistingPersonal>();
@@ -303,7 +308,7 @@ export async function importarDespedidosLoteAction(
     }
 
     // Cargar el catálogo de personal una sola vez
-    const catalogResult = await loadCatalog(supabase);
+    const catalogResult = await loadCatalog(supabase, complexId);
     if (!catalogResult.ok) return catalogResult;
     const catalog = catalogResult.data;
 
@@ -497,7 +502,7 @@ export async function previsualizarImportAction(
     if (!user) return { ok: false, message: 'No autenticado', filas: [], totalExistentes: 0, totalNuevos: 0, totalIncompletos: 0 };
     if (rows.length === 0) return { ok: false, message: 'Sin filas para previsualizar', filas: [], totalExistentes: 0, totalNuevos: 0, totalIncompletos: 0 };
 
-    const catalogResult = await loadCatalog(supabase);
+    const catalogResult = await loadCatalog(supabase, null);
     if (!catalogResult.ok) {
       return { ok: false, message: catalogResult.message, filas: [], totalExistentes: 0, totalNuevos: 0, totalIncompletos: 0 };
     }

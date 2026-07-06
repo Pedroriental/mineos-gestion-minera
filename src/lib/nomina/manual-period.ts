@@ -367,7 +367,7 @@ export function firstOpenWeekInPeriod(
   area?: string,
 ): string | null {
   const progress = computeManualPeriodProgress(period, semanas, area);
-  return progress.openWeeks[0] ?? progress.weeks[0] ?? null;
+  return progress.openWeeks[0] ?? null;
 }
 
 export function nextWeekInManualPeriod(

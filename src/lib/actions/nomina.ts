@@ -6,6 +6,7 @@ import { PERSONAL_SYNC_PATHS } from '@/lib/personal-master';
 import { z } from 'zod';
 import { registrarAuditAction } from './nomina-v3';
 import { revertirCierreRotacionNominaAction } from './rotacion-instancias';
+import { refreshPeriodoTotalUsd } from '@/lib/nomina/cierre-semana-db';
 
 export type ActionResult =
   | { ok: true;  message: string; data?: any }
@@ -121,6 +122,21 @@ export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
         .eq('semana_id', semanaId);
     } else {
       await supabase.from('nomina_vales').update({ semana_id: null }).eq('semana_id', semanaId);
+    }
+
+    // Limpiar links del periodo consolidado antes de borrar la semana
+    const { data: periodoLinks } = await supabase
+      .from('nomina_periodo_semanas')
+      .select('periodo_id')
+      .eq('semana_id', semanaId);
+
+    if (periodoLinks?.length) {
+      await supabase.from('nomina_periodo_semanas').delete().eq('semana_id', semanaId);
+      for (const link of periodoLinks) {
+        if (link.periodo_id) {
+          await refreshPeriodoTotalUsd(supabase, link.periodo_id);
+        }
+      }
     }
 
     await supabase.from('nomina_registros').delete().eq('semana_id', semanaId);

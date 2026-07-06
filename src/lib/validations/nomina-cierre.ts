@@ -259,7 +259,6 @@ export function verificarTotalesCierre(
           estadoAsistencia: row.estadoAsistencia,
           diasTrabajados: row.diasTrabajados,
           weekStart,
-          bonoTransporte: row.bonoTransporte,
           bonificaciones: row.bonificaciones,
           totalVales: row.totalVales,
         });

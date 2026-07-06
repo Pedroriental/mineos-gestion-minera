@@ -169,14 +169,31 @@ describe('manual-period', () => {
     ]);
     assert.equal(deduped.length, 1);
     assert.equal(deduped[0]?.id, 'mp-2');
+  });
+
+  it('sanitizeManualPeriodsSession conserva archivados con DB link para seguir editando semanas abiertas', () => {
+    const mp = {
+      id: 'mp-1',
+      label: '5ta Semana',
+      rangeStart: '2026-05-11',
+      rangeEnd: '2026-05-31',
+      plantillaId: 'pl',
+      plantillaNombre: 'P',
+      semanaIds: [],
+    };
+    const arch = { ...mp, id: 'arch-db-1', periodoArchivoId: 'db-1' };
     const session = sanitizeManualPeriodsSession({
       periods: [mp, arch, { ...mp, id: 'mp-2' }],
       editorPeriodId: 'arch-db-1',
       workingWeekPeriodId: 'arch-db-1',
       historicalPeriodId: 'arch-db-1',
     }, 'mina');
+    // El archivado persiste en la sesión para seguir cerrando semanas
+    assert.ok(session.periods.some((p) => p.id === 'arch-db-1'));
+    // periodsEnCurso sigue excluyendo archivados de la lista de borradores
     assert.equal(periodsEnCurso(session).length, 1);
-    assert.equal(session.editorPeriodId, 'mp-2');
+    // El editor puede seguir apuntando al archivado cargado
+    assert.equal(session.editorPeriodId, 'arch-db-1');
   });
 
   it('resolveManualPeriodForWeek prefiere editor sobre histórico en rangos solapados', () => {

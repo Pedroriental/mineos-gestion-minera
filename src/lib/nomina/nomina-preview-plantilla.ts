@@ -423,11 +423,19 @@ export function buildDespedidosPreviewSection(
 
     if (total === 0 && liquidacion.diasParciales === 0) continue;
 
+    const observacionLiquidacion = liquidacion.diasParciales > 0
+      ? `Liquidación: ${liquidacion.diasParciales} días trabajados${liquidacion.semanaLibreGanada ? ' + semana libre' : ''}`
+      : '';
+    const observacionRetirado = 'Retirado';
+    const observaciones = observacionLiquidacion
+      ? `${observacionRetirado} · ${observacionLiquidacion}`
+      : observacionRetirado;
+
     rows.push({
       personal: p,
       weeks,
       total,
-      observaciones: `Liquidación: ${liquidacion.diasParciales} días trabajados${liquidacion.semanaLibreGanada ? ' + semana libre' : ''}`,
+      observaciones,
       saleLibre: false,
     });
   }

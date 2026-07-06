@@ -324,6 +324,7 @@ describe('anotaciones derivadas (salen libre / retirado)', () => {
       ...minero,
       id: 'p-retirado',
       estado_laboral: 'DESPEDIDO',
+      despido_fecha: '2026-05-28',
     } as Personal;
     const report = buildNominaPreviewReport({
       personal: [p],
@@ -331,7 +332,8 @@ describe('anotaciones derivadas (salen libre / retirado)', () => {
       allowProjection: false,
       ...range,
     });
-    const row = report.sections[0]?.rows[0];
+    const despedidosSection = report.sections.find((s) => s.id.includes('despedidos'));
+    const row = despedidosSection?.rows[0];
     assert.match(row?.observaciones ?? '', /Retirado/);
   });
 });
