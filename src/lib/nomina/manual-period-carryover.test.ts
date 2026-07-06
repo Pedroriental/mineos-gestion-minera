@@ -4,7 +4,11 @@ import {
   buildCarryoverDraftFromRows,
   buildRosterEntriesFromCarryoverRows,
   carryoverRowsFromSemanaRegistros,
+  mergeCarryoverDraft,
+  mergeCarryoverRoster,
   preNominaRowToCarryoverDraft,
+  resetNovedadDraftForRoster,
+  type ManualWeekCarryoverRow,
 } from '@/lib/nomina/manual-period-carryover';
 import { nextWeekInManualPeriod } from '@/lib/nomina/manual-period';
 import type { ManualNominaPeriod } from '@/lib/nomina/manual-period';
@@ -120,5 +124,141 @@ describe('manual-period-carryover', () => {
     ]);
     assert.equal(draft.a?.bonoTransporte, 10);
     assert.equal(draft.a?.estadoAsistencia, undefined);
+  });
+
+  it('mergeCarryoverRoster conserva entradas manuales y añade arrastradas', () => {
+    const existing = [
+      { id: 'manual-1', areaDetalle: 'Manual' },
+      { id: 'ambos', areaDetalle: 'Manual' },
+    ];
+    const carryRows: ManualWeekCarryoverRow[] = [
+      {
+        personal: { id: 'ambos', area_detalle: 'Carry' },
+        novedadTurno: 'ACTIVO',
+        novedadTurnoObs: '',
+        estadoAsistencia: 'trabajada',
+        diasTrabajados: 7,
+        bonoTransporte: 0,
+        bonificaciones: 0,
+      },
+      {
+        personal: { id: 'nuevo', area_detalle: 'Carry' },
+        novedadTurno: 'ACTIVO',
+        novedadTurnoObs: '',
+        estadoAsistencia: 'trabajada',
+        diasTrabajados: 7,
+        bonoTransporte: 0,
+        bonificaciones: 0,
+      },
+    ];
+    const merged = mergeCarryoverRoster(existing, carryRows);
+    const ids = merged.map((e) => e.id).sort();
+    assert.deepEqual(ids, ['ambos', 'manual-1', 'nuevo']);
+    const ambos = merged.find((e) => e.id === 'ambos');
+    assert.equal(ambos?.areaDetalle, 'Carry', 'entrada compartida usa el carryover');
+  });
+
+  it('mergeCarryoverRoster con existing vacío añade todos los arrastrados', () => {
+    const carryRows: ManualWeekCarryoverRow[] = [
+      {
+        personal: { id: 'a', area_detalle: 'X' },
+        novedadTurno: 'ACTIVO',
+        novedadTurnoObs: '',
+        estadoAsistencia: 'trabajada',
+        diasTrabajados: 7,
+        bonoTransporte: 0,
+        bonificaciones: 0,
+      },
+    ];
+    const merged = mergeCarryoverRoster([], carryRows);
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0].id, 'a');
+  });
+
+  it('mergeCarryoverRoster con carryRows vacío preserva existing tal cual', () => {
+    const existing = [{ id: 'manual-1', areaDetalle: 'Manual' }];
+    const merged = mergeCarryoverRoster(existing, []);
+    assert.deepEqual(merged, existing);
+  });
+
+  it('mergeCarryoverDraft conserva draft manual del destino y rellena pagos arrastrados', () => {
+    const existing = {
+      'manual-1': {
+        novedadTurno: 'REPOSO' as const,
+        novedadTurnoObs: 'Editado por usuario',
+        reposoCondicion: 'PARCIAL' as const,
+        reposoDiasPagados: 2,
+        reposoCompensacionMonto: 0,
+        bonoTransporte: 0,
+        bonificaciones: 0,
+      },
+    };
+    const carryRows: ManualWeekCarryoverRow[] = [
+      {
+        personal: { id: 'manual-1', area_detalle: '' },
+        novedadTurno: 'ACTIVO',
+        novedadTurnoObs: '',
+        estadoAsistencia: 'trabajada',
+        diasTrabajados: 7,
+        bonoTransporte: 50,
+        bonificaciones: 120,
+      },
+      {
+        personal: { id: 'nuevo', area_detalle: '' },
+        novedadTurno: 'ACTIVO',
+        novedadTurnoObs: '',
+        estadoAsistencia: 'trabajada',
+        diasTrabajados: 7,
+        bonoTransporte: 30,
+        bonificaciones: 0,
+      },
+    ];
+    const merged = mergeCarryoverDraft(existing, carryRows);
+    assert.equal(merged['manual-1']?.novedadTurno, 'REPOSO', 'preserva novedad manual');
+    assert.equal(merged['manual-1']?.novedadTurnoObs, 'Editado por usuario');
+    assert.equal(merged['manual-1']?.reposoDiasPagados, 2);
+    assert.equal(merged['manual-1']?.bonoTransporte, 50, 'sí actualiza pagos');
+    assert.equal(merged['manual-1']?.bonificaciones, 120);
+    assert.equal(merged['nuevo']?.bonoTransporte, 30);
+  });
+
+  it('mergeCarryoverDraft con carryRows vacío devuelve existing sin cambios', () => {
+    const existing = {
+      a: {
+        novedadTurno: 'ACTIVO' as const,
+        novedadTurnoObs: '',
+        reposoCondicion: null,
+        reposoDiasPagados: 0,
+        reposoCompensacionMonto: 0,
+        bonoTransporte: 10,
+        bonificaciones: 0,
+      },
+    };
+    const merged = mergeCarryoverDraft(existing, []);
+    assert.deepEqual(merged, existing);
+  });
+
+  it('resetNovedadDraftForRoster crea entradas ACTIVO sin reposo ni bonos', () => {
+    const draft = resetNovedadDraftForRoster(['a', 'b']);
+    assert.equal(draft.a?.novedadTurno, 'ACTIVO');
+    assert.equal(draft.a?.novedadTurnoObs, '');
+    assert.equal(draft.a?.reposoCondicion, null);
+    assert.equal(draft.a?.reposoDiasPagados, 0);
+    assert.equal(draft.a?.reposoCompensacionMonto, 0);
+    assert.equal(draft.a?.bonoTransporte, 0);
+    assert.equal(draft.a?.bonificaciones, 0);
+    assert.equal(draft.b?.novedadTurno, 'ACTIVO');
+  });
+
+  it('resetNovedadDraftForRoster con roster vacío devuelve objeto vacío', () => {
+    const draft = resetNovedadDraftForRoster([]);
+    assert.deepEqual(draft, {});
+  });
+
+  it('resetNovedadDraftForRoster no muta la entrada por defecto entre llamadas', () => {
+    const draft1 = resetNovedadDraftForRoster(['x']);
+    const draft2 = resetNovedadDraftForRoster(['y']);
+    // Cada llamada crea objetos independientes para evitar referencias compartidas
+    assert.notEqual(draft1.x, draft2.y);
   });
 });

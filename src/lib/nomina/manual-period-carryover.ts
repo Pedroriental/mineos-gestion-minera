@@ -15,6 +15,7 @@ import {
   writeManualWeekRosterEntries,
   type ManualWeekRosterEntry,
 } from '@/lib/nomina/manual-period-roster';
+import { readNominaNovedadDraft } from '@/lib/nomina-novedad-turno';
 import type { Personal } from '@/lib/types';
 
 export type ManualWeekCarryoverRow = {
@@ -70,19 +71,63 @@ export function carryManualWeekToNext(
   rows: ManualWeekCarryoverRow[],
 ): string | null {
   const nextWeek = nextWeekInManualPeriod(period, closedWeekStart);
-  if (!nextWeek || !rows.length) return null;
+  if (!nextWeek) return null;
 
-  writeManualWeekRosterEntries(
-    area,
-    nextWeek,
-    buildRosterEntriesFromCarryoverRows(rows),
-    period.id,
+  const existingRoster = readManualWeekRosterEntries(area, nextWeek, period.id);
+  const existingDraft = readNominaNovedadDraft(
+    nominaNovedadDraftKey(area, nextWeek, period.id),
   );
+
+  const mergedRoster = rows.length
+    ? mergeCarryoverRoster(existingRoster, rows)
+    : existingRoster;
+  const mergedDraft = rows.length
+    ? mergeCarryoverDraft(existingDraft, rows)
+    : existingDraft;
+
+  writeManualWeekRosterEntries(area, nextWeek, mergedRoster, period.id);
   writeNominaNovedadDraft(
     nominaNovedadDraftKey(area, nextWeek, period.id),
-    buildCarryoverDraftFromRows(rows),
+    mergedDraft,
   );
   return nextWeek;
+}
+
+/** Roster destino tras arrastrar: une manuales existentes con arrastrados, sin duplicar. */
+export function mergeCarryoverRoster(
+  existingEntries: ManualWeekRosterEntry[],
+  rows: ManualWeekCarryoverRow[],
+): ManualWeekRosterEntry[] {
+  const carried = buildRosterEntriesFromCarryoverRows(rows);
+  const byId = new Map<string, ManualWeekRosterEntry>();
+  for (const e of existingEntries) byId.set(e.id, e);
+  for (const e of carried) {
+    const prev = byId.get(e.id);
+    byId.set(e.id, prev ? { ...prev, ...e } : e);
+  }
+  return [...byId.values()];
+}
+
+/** Draft destino tras arrastrar: conserva entradas manuales, rellena nuevas desde el carryover. */
+export function mergeCarryoverDraft(
+  existingDraft: NominaWeekDraft,
+  rows: ManualWeekCarryoverRow[],
+): NominaWeekDraft {
+  const carried = buildCarryoverDraftFromRows(rows);
+  const merged: NominaWeekDraft = { ...existingDraft };
+  for (const [personalId, carriedEntry] of Object.entries(carried)) {
+    const prev = merged[personalId];
+    if (prev) {
+      merged[personalId] = {
+        ...prev,
+        bonoTransporte: carriedEntry.bonoTransporte,
+        bonificaciones: carriedEntry.bonificaciones,
+      };
+    } else {
+      merged[personalId] = carriedEntry;
+    }
+  }
+  return merged;
 }
 
 export function mergePersonalCatalogWithRosterEntries(
@@ -182,4 +227,27 @@ export function seedManualWeekIfEmpty(
     buildCarryoverDraftFromRows(rows),
   );
   return true;
+}
+
+/** Entrada por defecto del draft de novedades: novedad ACTIVA, sin reposo, sin bonos. */
+export function freshNovedadDraftEntry() {
+  return {
+    novedadTurno: 'ACTIVO' as const,
+    novedadTurnoObs: '',
+    reposoCondicion: null as null,
+    reposoDiasPagados: 0,
+    reposoCompensacionMonto: 0,
+    bonoTransporte: 0,
+    bonificaciones: 0,
+  };
+}
+
+/** Vaciar semana: dado un roster, devuelve un draft fresco con todos los IDs en ACTIVO. */
+export function resetNovedadDraftForRoster(
+  rosterIds: string[],
+): NominaWeekDraft {
+  const draft: NominaWeekDraft = {};
+  const fresh = freshNovedadDraftEntry();
+  for (const id of rosterIds) draft[id] = { ...fresh };
+  return draft;
 }
