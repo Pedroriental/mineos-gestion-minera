@@ -3233,7 +3233,20 @@ export default function NominaClient({
                                 </td>
                                 {/* Bono */}
                                 <td className="px-5 py-3 text-right">
-                                  <input type="number" value={row.bonoTransporte || ''} onChange={e => handleUpdateRow(p.id, { bonoTransporte: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={row.bonoTransporte ?? ''}
+                                    onChange={e => handleUpdateRow(p.id, { bonoTransporte: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                    onInput={e => {
+                                      const v = (e.target as HTMLInputElement).value;
+                                      handleUpdateRow(p.id, { bonoTransporte: v === '' ? 0 : Number(v) });
+                                    }}
+                                    placeholder="0.00"
+                                    readOnly={semanaActualProcesada}
+                                    className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 read-only:opacity-40 read-only:cursor-not-allowed"
+                                  />
                                 </td>
                                 {/* Bonificaciones */}
                                 <td className="px-5 py-3 text-right">
