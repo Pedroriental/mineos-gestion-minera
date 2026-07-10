@@ -520,20 +520,14 @@ export function NominaMobileWorkerCard({
             </div>
             <label className="rounded-md border border-zinc-800/70 bg-zinc-950/35 px-2 py-1.5">
               <span className="text-[8px] font-bold uppercase text-white/35">Bono T.</span>
-              {row.diasInputBloqueado ? (
-                <p className="mt-0.5 text-right text-[11px] font-semibold tabular-nums text-white/50">
-                  {fmtMoney(row.bonoTransporte)}
-                </p>
-              ) : (
-                <input
-                  type="number"
-                  value={row.bonoTransporte || ''}
-                  disabled={locked}
-                  onChange={(e) => onUpdateRow({ bonoTransporte: Number(e.target.value) || 0 })}
-                  className="mt-0.5 w-full border-0 bg-transparent p-0 text-right text-[11px] font-semibold tabular-nums text-white/90 outline-none"
-                  placeholder="0"
-                />
-              )}
+              <input
+                type="number"
+                value={row.bonoTransporte || ''}
+                disabled={locked}
+                onChange={(e) => onUpdateRow({ bonoTransporte: Number(e.target.value) || 0 })}
+                className="mt-0.5 w-full border-0 bg-transparent p-0 text-right text-[11px] font-semibold tabular-nums text-white/90 outline-none disabled:opacity-40"
+                placeholder="0"
+              />
             </label>
             <label className="rounded-md border border-zinc-800/70 bg-zinc-950/35 px-2 py-1.5">
               <span className="text-[8px] font-bold uppercase text-white/35">Bonos</span>
