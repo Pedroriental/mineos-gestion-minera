@@ -198,7 +198,7 @@ export function calculateNominaRowPay(input: {
     diasTrabajados,
   );
 
-  const esAdmin = input.personal.area === 'administracion' || (input.personal.area_detalle || '').toLowerCase().includes('administra');
+  const esAdmin = input.personal.area === 'administracion';
 
   const bonoTransporte =
     esAdmin
@@ -250,7 +250,7 @@ export function calculateExplicitAsistenciaPay(input: {
   let salarioBaseCalculado = 0;
   let bonoTransporte = 0;
 
-  const esAdmin = input.personal.area === 'administracion' || (input.personal.area_detalle || '').toLowerCase().includes('administra');
+  const esAdmin = input.personal.area === 'administracion';
 
   if (estadoAsistencia === 'trabajada') {
     salarioBaseCalculado = applyProportionalWeeklyPay(base, diasTrabajados);
@@ -324,9 +324,7 @@ export function calculatePayFromPlantillaEstatus(input: {
     input.diasTrabajados,
   );
 
-  const esAdmin =
-    input.personal.area === 'administracion' ||
-    (input.personal.area_detalle || '').toLowerCase().includes('administra');
+  const esAdmin = input.personal.area === 'administracion';
 
   let salarioBaseCalculado = 0;
   let bonoTransporte = 0;
@@ -340,11 +338,22 @@ export function calculatePayFromPlantillaEstatus(input: {
           : applyProportionalWeeklyPay(bonoBase, NOMINA_DIAS_POR_SEMANA);
     }
   } else {
+    // Para semanas que NO son 'bono_transporte_paga' (ej: 'trabajada_paga',
+    // 'libre_paga', 'reposo'), el bono del personal se paga si:
+    //   1) el caller lo pasa explícitamente (input.bonoTransporte !== undefined)
+    //   2) o el trabajador no es admin y tiene bono configurado
+    // Antes se pasaba 0, lo que hacía que el bono no apareciera en
+    // semanas normales aunque el trabajador lo tuviera configurado.
+    const bonoDefault = esAdmin
+      ? 0
+      : Number(input.personal.bono_transporte) || 0;
     const explicit = calculateExplicitAsistenciaPay({
       personal: input.personal,
       estadoAsistencia: resolvedEstado,
       diasTrabajados,
-      bonoTransporte: 0,
+      bonoTransporte: input.bonoTransporte !== undefined
+        ? input.bonoTransporte
+        : bonoDefault,
       bonificaciones: input.bonificaciones,
       totalVales: input.totalVales,
     });

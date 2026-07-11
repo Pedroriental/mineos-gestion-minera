@@ -480,6 +480,15 @@ export function buildManualPlantillaNominaRows(input: {
   );
   const rows: ManualPlantillaNominaRow[] = [];
 
+  // Si la plantilla tiene al menos una cuadrilla con la columna
+  // 'bono_transporte' activada, el bono del personal se paga en
+  // TODAS las semanas (no solo en 'bono_transporte_paga'). Esto
+  // refleja el modelo del usuario: el bono se paga acumulado,
+  // no en una semana exclusiva.
+  const plantillaTieneBonoColumna = plantilla.cuadrillas.some(
+    (c) => Array.isArray(c.columnasVista) && c.columnasVista.includes('bono_transporte'),
+  );
+
   for (const personalId of [...new Set(personalIds)]) {
     const p = catalogById.get(personalId);
     if (!p) continue;
@@ -538,7 +547,15 @@ export function buildManualPlantillaNominaRows(input: {
       estatus: rotacion.estatus,
       personal: p,
       diasTrabajados,
-      bonoTransporte: esSemanaBono ? undefined : 0,
+      // Si es semana de bono: el cálculo interno lo decide (usa personal.bono_transporte)
+      // Si NO es semana de bono pero la plantilla tiene la columna bono_transporte
+      //   activada: se paga el bono del personal (no se fuerza a 0)
+      // Si NO es semana de bono y la plantilla NO tiene esa columna: 0
+      bonoTransporte: esSemanaBono
+        ? undefined
+        : plantillaTieneBonoColumna
+          ? Number(p.bono_transporte) || 0
+          : 0,
       bonificaciones: 0,
       totalVales,
     });
