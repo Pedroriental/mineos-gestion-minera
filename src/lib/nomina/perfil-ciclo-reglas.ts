@@ -341,8 +341,12 @@ export function calcularBonoTransportePorPosicion(
     return applyProportionalWeeklyPay(bono, diasTrabajados);
   }
 
-  if (posicion === 2 && (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G')) {
-    return 0;
+  // MINA_2X1 y MINA_ROTATIVA_3G: el bono se paga cuando el trabajador trabaja
+  // (posiciones 0 y 1). En posición 2 (semana libre) no se paga.
+  if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
+    if (estadoAsistencia !== 'trabajada') return 0;
+    const bono = Number(personal.bono_transporte) || 0;
+    return applyProportionalWeeklyPay(bono, diasTrabajados);
   }
 
   return 0;

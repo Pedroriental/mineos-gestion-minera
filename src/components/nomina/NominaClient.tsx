@@ -966,7 +966,7 @@ export default function NominaClient({
         weekStart,
         bonificaciones: 0,
         totalVales,
-        bonoTransporte: diasBloqueados ? 0 : undefined,
+        bonoTransporte: Number(p.bono_transporte) || 0,
       });
       return {
         personal: p,
@@ -3238,14 +3238,20 @@ export default function NominaClient({
                                     step="0.01"
                                     min="0"
                                     value={row.bonoTransporte ?? ''}
-                                    onChange={e => handleUpdateRow(p.id, { bonoTransporte: e.target.value === '' ? 0 : Number(e.target.value) })}
-                                    onInput={e => {
-                                      const v = (e.target as HTMLInputElement).value;
-                                      handleUpdateRow(p.id, { bonoTransporte: v === '' ? 0 : Number(v) });
+                                    onChange={e => {
+                                      if (typeof window !== 'undefined') {
+                                        console.info('[BonoT] onChange', { personalId: p.id, value: e.target.value });
+                                      }
+                                      handleUpdateRow(p.id, { bonoTransporte: e.target.value === '' ? 0 : Number(e.target.value) });
+                                    }}
+                                    onFocus={() => {
+                                      if (typeof window !== 'undefined') {
+                                        console.info('[BonoT] onFocus', { personalId: p.id, currentValue: row.bonoTransporte, semanaActualProcesada });
+                                      }
                                     }}
                                     placeholder="0.00"
-                                    readOnly={semanaActualProcesada}
-                                    className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 read-only:opacity-40 read-only:cursor-not-allowed"
+                                    disabled={semanaActualProcesada}
+                                    className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
                                   />
                                 </td>
                                 {/* Bonificaciones */}

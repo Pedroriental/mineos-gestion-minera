@@ -229,15 +229,18 @@ export function seedManualWeekIfEmpty(
   return true;
 }
 
-/** Entrada por defecto del draft de novedades: novedad ACTIVA, sin reposo, sin bonos. */
-export function freshNovedadDraftEntry() {
+/** Entrada por defecto del draft de novedades: novedad ACTIVA, sin reposo, sin bonos.
+ *  Si se pasa `bonoTransporteDefault`, se usa ese valor como bono inicial
+ *  (en lugar de 0). Esto permite que el bono configurado al registrar al
+ *  trabajador se cargue automáticamente en la nómina. */
+export function freshNovedadDraftEntry(bonoTransporteDefault: number = 0) {
   return {
     novedadTurno: 'ACTIVO' as const,
     novedadTurnoObs: '',
     reposoCondicion: null as null,
     reposoDiasPagados: 0,
     reposoCompensacionMonto: 0,
-    bonoTransporte: 0,
+    bonoTransporte: bonoTransporteDefault,
     bonificaciones: 0,
   };
 }
