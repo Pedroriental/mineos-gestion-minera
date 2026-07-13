@@ -966,7 +966,9 @@ export default function NominaClient({
         weekStart,
         bonificaciones: 0,
         totalVales,
-        bonoTransporte: Number(p.bono_transporte) || 0,
+        // El bono de transporte es un componente SEPARADO que se paga
+        // solo cuando el usuario lo captura manualmente. No se pasa
+        // aquí para que el cálculo automático retorne 0.
       });
       return {
         personal: p,

@@ -321,6 +321,15 @@ export function calcularSalarioPorPosicionCiclo(
   return applyProportionalWeeklyPay(base, diasTrabajados);
 }
 
+/**
+ * El bono de transporte es un componente SEPARADO del sueldo semanal.
+ * Se paga cuando el trabajador se va libre a su casa, NO es una semana
+ * ni un día extra. El cálculo automático siempre retorna 0; el bono se
+ * paga solo cuando el usuario lo captura manualmente con un override
+ * (campo 'bonoTransporte' en el input o ajuste con motivo en el cierre).
+ *
+ * Esto aplica a TODOS los esquemas (MINA_2X1, MOLINO_14X14, MOLINO_15X15, etc).
+ */
 export function calcularBonoTransportePorPosicion(
   esquema: EsquemaRotacion | string,
   personal: Pick<Personal, 'bono_transporte'>,
@@ -330,25 +339,6 @@ export function calcularBonoTransportePorPosicion(
   override?: number,
 ): number {
   if (override !== undefined) return override;
-
-  if (esquema === 'MOLINO_14X14') {
-    return 0;
-  }
-
-  if (esquema === 'MOLINO_15X15') {
-    if (posicion !== 1 || estadoAsistencia !== 'trabajada') return 0;
-    const bono = Number(personal.bono_transporte) || 0;
-    return applyProportionalWeeklyPay(bono, diasTrabajados);
-  }
-
-  // MINA_2X1 y MINA_ROTATIVA_3G: el bono se paga cuando el trabajador trabaja
-  // (posiciones 0 y 1). En posición 2 (semana libre) no se paga.
-  if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
-    if (estadoAsistencia !== 'trabajada') return 0;
-    const bono = Number(personal.bono_transporte) || 0;
-    return applyProportionalWeeklyPay(bono, diasTrabajados);
-  }
-
   return 0;
 }
 

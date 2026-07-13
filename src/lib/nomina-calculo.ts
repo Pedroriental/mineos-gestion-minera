@@ -339,21 +339,17 @@ export function calculatePayFromPlantillaEstatus(input: {
     }
   } else {
     // Para semanas que NO son 'bono_transporte_paga' (ej: 'trabajada_paga',
-    // 'libre_paga', 'reposo'), el bono del personal se paga si:
-    //   1) el caller lo pasa explícitamente (input.bonoTransporte !== undefined)
-    //   2) o el trabajador no es admin y tiene bono configurado
-    // Antes se pasaba 0, lo que hacía que el bono no apareciera en
-    // semanas normales aunque el trabajador lo tuviera configurado.
-    const bonoDefault = esAdmin
-      ? 0
-      : Number(input.personal.bono_transporte) || 0;
+    // 'libre_paga', 'reposo'), el bono NO se paga automáticamente.
+    // El bono de transporte es un componente SEPARADO que se paga solo
+    // cuando el usuario lo captura manualmente con un override
+    // (input.bonoTransporte !== undefined).
     const explicit = calculateExplicitAsistenciaPay({
       personal: input.personal,
       estadoAsistencia: resolvedEstado,
       diasTrabajados,
       bonoTransporte: input.bonoTransporte !== undefined
         ? input.bonoTransporte
-        : bonoDefault,
+        : 0,
       bonificaciones: input.bonificaciones,
       totalVales: input.totalVales,
     });
@@ -393,6 +389,9 @@ export function predictWeekPay(
     diasTrabajados,
     weekStart,
     totalVales: valesDeduccion,
+    // El bono de transporte es un componente SEPARADO que se paga
+    // solo cuando el usuario lo captura manualmente. No se pasa
+    // aquí para que el cálculo automático retorne 0.
   });
   return {
     amount: pay.total,
