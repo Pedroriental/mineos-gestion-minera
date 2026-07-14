@@ -181,13 +181,8 @@ export function rolSemanaPorPosicion(
   posicion: number,
   perfil?: Pick<PerfilCompensacion, 'semanas_libres_por_ciclo'>,
 ): RolSemana {
-  if (esquema === 'MOLINO_14X14') {
-    if (posicion <= 1) return 'trabajada';
-    if (posicion === 2) return 'libre';
-    return 'no_laborada';
-  }
-
-  if (esquema === 'MOLINO_15X15') {
+  // MOLINO_14X14 es alias histórico de MOLINO_15X15: misma logica de ciclo.
+  if (esquema === 'MOLINO_14X14' || esquema === 'MOLINO_15X15') {
     if (posicion <= 1) return 'trabajada';
     if (posicion === 2) return 'libre';
     return 'no_laborada';
@@ -203,7 +198,7 @@ export function rolSemanaPorPosicion(
 }
 
 export function etiquetaColumnaCiclo(esquema: EsquemaRotacion | string, posicion: number): string {
-  if (esquema === 'MOLINO_14X14') {
+  if (esquema === 'MOLINO_14X14' || esquema === 'MOLINO_15X15') {
     if (posicion === 0) return 'Trab 1';
     if (posicion === 1) return 'Trab 2';
     if (posicion === 2) return 'Libre Pag.';
@@ -214,12 +209,6 @@ export function etiquetaColumnaCiclo(esquema: EsquemaRotacion | string, posicion
     if (posicion === 1) return 'Trab Noche';
     return 'Libre Pag.';
   }
-  if (esquema === 'MOLINO_15X15') {
-    if (posicion === 0) return 'Trab 1';
-    if (posicion === 1) return 'Trab 2';
-    if (posicion === 2) return 'Libre Pag.';
-    return 'Libre $0';
-  }
   return `Sem ${posicion + 1}`;
 }
 
@@ -227,17 +216,11 @@ export function etiquetaEstadoRotacion(
   esquema: EsquemaRotacion | string,
   posicion: number,
 ): string | null {
-  if (esquema === 'MOLINO_14X14') {
+  if (esquema === 'MOLINO_14X14' || esquema === 'MOLINO_15X15') {
     if (posicion === 0) return 'Labor (1)';
     if (posicion === 1) return 'Labor (2)';
     if (posicion === 2) return 'Libre Pagada';
     return 'Libre $0';
-  }
-  if (esquema === 'MOLINO_15X15') {
-    if (posicion === 0) return 'Labor (1)';
-    if (posicion === 1) return 'Labor (2)';
-    if (posicion === 2) return 'Libre Pagada';
-    return 'Libre No Pagada';
   }
   if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
     if (posicion === 0) return 'Labor Día';
@@ -253,9 +236,8 @@ export function inputsDiasBloqueados(
   posicion: number | null,
 ): boolean {
   if (posicion === null) return false;
-  if (esquema === 'MOLINO_14X14') return posicion >= 2;
+  if (esquema === 'MOLINO_14X14' || esquema === 'MOLINO_15X15') return posicion >= 2;
   if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') return posicion === 2;
-  if (esquema === 'MOLINO_15X15') return posicion >= 2;
   return posicion === 0;
 }
 
@@ -290,20 +272,8 @@ export function calcularSalarioPorPosicionCiclo(
 ): number {
   const base = Number(personal.salario_base) || 0;
 
-  if (esquema === 'MOLINO_14X14') {
-    if (posicion === 2) return tarifaPlanaSemanaLibre(personal);
-    if (posicion >= 3) return 0;
-    if (estadoAsistencia === 'no_laborado') return 0;
-    return applyProportionalWeeklyPay(base, diasTrabajados);
-  }
-
-  if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
-    if (posicion === 2) return tarifaPlanaSemanaLibre(personal);
-    if (estadoAsistencia === 'no_laborado') return 0;
-    return applyProportionalWeeklyPay(base, diasTrabajados);
-  }
-
-  if (esquema === 'MOLINO_15X15') {
+  // MOLINO_14X14 es alias histórico de MOLINO_15X15: misma logica de calculo.
+  if (esquema === 'MOLINO_14X14' || esquema === 'MOLINO_15X15') {
     if (posicion <= 1) {
       if (estadoAsistencia === 'no_laborado') return 0;
       return applyProportionalWeeklyPay(base, diasTrabajados);
@@ -312,6 +282,12 @@ export function calcularSalarioPorPosicionCiclo(
       return tarifaPlanaSemanaLibre(personal);
     }
     return 0;
+  }
+
+  if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
+    if (posicion === 2) return tarifaPlanaSemanaLibre(personal);
+    if (estadoAsistencia === 'no_laborado') return 0;
+    return applyProportionalWeeklyPay(base, diasTrabajados);
   }
 
   if (estadoAsistencia === 'no_laborado') return 0;

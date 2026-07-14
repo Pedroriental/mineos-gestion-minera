@@ -63,7 +63,7 @@ describe('coherencia etiqueta ↔ rol ↔ pago (single source of truth para UI)'
       140, // salario_libre=0 → cae a salario_base
     );
 
-    assert.equal(etiquetaEstadoRotacion('MOLINO_15X15', 3), 'Libre No Pagada');
+    assert.equal(etiquetaEstadoRotacion('MOLINO_15X15', 3), 'Libre $0');
     assert.equal(rolSemanaPorPosicion('MOLINO_15X15', 3), 'no_laborada');
     assert.equal(calcularSalarioPorPosicionCiclo('MOLINO_15X15', PERSONAL, 3, 'no_laborado', 0), 0);
   });

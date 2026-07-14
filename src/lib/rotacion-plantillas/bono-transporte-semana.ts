@@ -7,9 +7,8 @@ export function posicionColumnaBonoTransporteEsquema(
 ): number | null {
   switch (esquema) {
     case 'MOLINO_15X15':
-      return 1;
     case 'MOLINO_14X14':
-      return null;
+      return 1;
     default:
       return null;
   }

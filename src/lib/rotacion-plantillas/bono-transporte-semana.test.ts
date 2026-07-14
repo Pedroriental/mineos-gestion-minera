@@ -13,8 +13,8 @@ describe('bono-transporte-semana', () => {
     assert.equal(sugerirEstatusDefaultSemana(0, 'MOLINO_15X15'), 'libre_paga');
   });
 
-  it('MOLINO_14X14 no predice columna bono automática', () => {
-    assert.equal(posicionColumnaBonoTransporteEsquema('MOLINO_14X14'), null);
+  it('MOLINO_14X14 es alias de MOLINO_15X15: predice bono en columna índice 1', () => {
+    assert.equal(posicionColumnaBonoTransporteEsquema('MOLINO_14X14'), 1);
   });
 
   it('aplicarPrediccionBonoColumnas marca columna 1 en 15x15', () => {
