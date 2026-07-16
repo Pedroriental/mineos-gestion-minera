@@ -163,6 +163,16 @@ async function asignarEmpresasAGasto(
   montoTotal: number,
   empresasInput: Array<{ empresa_id: string; monto_pagado: number; porcentaje?: number }> | null | undefined,
 ): Promise<{ ok: boolean; message: string }> {
+  // Limpiar asignaciones previas antes de insertar las nuevas (para crear/actualizar limpio)
+  const { error: deleteError } = await supabase
+    .from('gastos_empresas')
+    .delete()
+    .eq('gasto_id', gastoId);
+
+  if (deleteError) {
+    console.error('[asignarEmpresasAGasto] Error clearing old assignments:', deleteError.message);
+  }
+
   let empresasAsignar: Array<{ empresa_id: string; monto_pagado: number; porcentaje: number }>;
 
   if (empresasInput && empresasInput.length > 0) {
@@ -339,6 +349,18 @@ export async function updateGasto(raw: unknown, options?: SaveOptions): Promise<
     if (!updated || updated.length === 0) {
       console.error('[Action] updateGasto: RLS silently blocked update or record not found');
       return { ok: false, message: 'Error de permisos: no se pudo actualizar el gasto.' };
+    }
+
+    // Actualizar asignaciones de empresas para el gasto
+    const empresasAsignacion = await asignarEmpresasAGasto(
+      supabase,
+      id,
+      enriched.monto,
+      parsed.data.empresas ?? null,
+    );
+
+    if (!empresasAsignacion.ok) {
+      console.error('[Action] updateGasto empresas asignacion:', empresasAsignacion.message);
     }
 
     revalidateAll();

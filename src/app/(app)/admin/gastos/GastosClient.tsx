@@ -548,6 +548,19 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
         : '',
       guardar_en_catalogo: false,
     }]);
+
+    if (item.gastos_empresas && item.gastos_empresas.length > 0) {
+      setEmpresasAsignadas(
+        item.gastos_empresas.map((ge) => ({
+          empresa_id: ge.empresa_id,
+          monto_pagado: Number(ge.monto_pagado),
+          porcentaje: Number(ge.porcentaje),
+        }))
+      );
+    } else {
+      setEmpresasAsignadas([]);
+    }
+
     setShowModal(true);
   }
   function closeModal() { setShowModal(false); resetForm(); }
