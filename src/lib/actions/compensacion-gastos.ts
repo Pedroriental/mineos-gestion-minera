@@ -60,7 +60,7 @@ export async function generarCompensacionGastosAction(
     const { data: gastosData, error: gastosError } = await supabase
       .from('gastos')
       .select(
-        'id, fecha, monto, categoria_id, categorias_gasto(nombre)',
+        'id, fecha, monto, descripcion, categoria_id, categorias_gasto(nombre)',
       )
       .gte('fecha', desde)
       .lte('fecha', hasta);
