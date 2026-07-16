@@ -272,10 +272,10 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
           </div>
 
           {/* Resumen visual: ¿quién le debe a quién? */}
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+          <div className="rounded-lg border border-[var(--mineos-general-border)] bg-[var(--mineos-general-soft)] p-3">
             <div className="mb-2 flex items-center gap-2">
-              <Users className="h-3.5 w-3.5 text-amber-400" />
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+              <Users className="h-3.5 w-3.5 text-[var(--mineos-general-bright)]" />
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--mineos-general-bright)]">
                 Resumen de Compensación
               </h3>
             </div>
@@ -283,39 +283,50 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
               {resumen.empresas.map((e) => {
                 const r = resumen.resumenPorEmpresa[e.id];
                 if (!r) return null;
-                const colorClass =
-                  r.estado === 'debe_cobrar'
-                    ? 'text-emerald-400 border-emerald-500/30'
-                    : r.estado === 'debe_pagar'
-                      ? 'text-red-400 border-red-500/30'
-                      : 'text-zinc-400 border-zinc-500/30';
-                const bgClass =
-                  r.estado === 'debe_cobrar'
-                    ? 'bg-emerald-500/5'
-                    : r.estado === 'debe_pagar'
-                      ? 'bg-red-500/5'
-                      : 'bg-zinc-500/5';
                 const label =
                   r.estado === 'debe_cobrar'
                     ? 'Debe cobrar'
                     : r.estado === 'debe_pagar'
                       ? 'Debe pagar'
                       : 'Equilibrado';
+
+                const tokenMap = {
+                  debe_cobrar: {
+                    text: 'var(--mineos-benefit-bright)',
+                    border: 'var(--mineos-benefit-border)',
+                    bg: 'var(--mineos-benefit-soft)',
+                  },
+                  debe_pagar: {
+                    text: 'var(--mineos-expense-bright)',
+                    border: 'var(--mineos-expense-border)',
+                    bg: 'var(--mineos-expense-soft)',
+                  },
+                  equilibrado: {
+                    text: 'var(--mineos-neutral-muted)',
+                    border: 'var(--dashboard-border)',
+                    bg: 'var(--dashboard-background)',
+                  },
+                } as const;
+
+                const t = tokenMap[r.estado];
+
                 return (
                   <div
                     key={e.id}
-                    className={`flex items-center justify-between rounded-lg border ${colorClass} ${bgClass} px-3 py-2`}
+                    className="flex items-center justify-between rounded-lg border px-3 py-2"
+                    style={{ color: t.text, borderColor: t.border, background: t.bg }}
                   >
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">
                         {e.nombre}
                       </p>
-                      <p className={`text-base font-bold tabular-nums ${colorClass.split(' ')[0]}`}>
+                      <p className="text-base font-bold tabular-nums">
                         {formatCurrency(Math.abs(r.saldo))}
                       </p>
                     </div>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${colorClass.split(' ')[0]} ${bgClass}`}
+                      className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase"
+                      style={{ color: t.text, background: t.bg }}
                     >
                       {label}
                     </span>

@@ -1,3 +1,5 @@
+'use client';
+
 import type { CompensacionResumen } from '@/lib/compensacion-gastos';
 
 function fmtCsv(n: number): string {

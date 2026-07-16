@@ -47,16 +47,20 @@ export function GastoEmpresaSelector({
     };
   }, []);
 
-  // Auto-inicializar con La Fé 100% si no hay asignaciones.
+  // Auto-inicializar con la empresa de mayor participación al 100% si no hay asignaciones.
   // Usamos un ref para evitar re-disparar en cada cambio de empresasAsignadas.
   const initializedRef = useRef(false);
   useEffect(() => {
     if (initializedRef.current || loading || empresas.length === 0) return;
     if (empresasAsignadas.length === 0) {
-      const laFe = empresas.find((e) => e.nombre_corto === 'la_fe') ?? empresas[0];
+      // Pick the empresa with the highest participation %
+      const defaultEmpresa = empresas.reduce((best, e) =>
+        e.porcentaje > best.porcentaje ? e : best,
+        empresas[0],
+      );
       onChange([
         {
-          empresa_id: laFe.id,
+          empresa_id: defaultEmpresa.id,
           monto_pagado: montoTotal,
           porcentaje: 100,
         },
