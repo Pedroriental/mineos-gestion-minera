@@ -104,16 +104,24 @@ export async function generarCompensacionGastosAction(
       });
     }
 
-    // 6. Mapear y filtrar gastos al formato del cálculo (excluyendo nóminas, mano de obra e instalación)
+    // 6. Mapear y filtrar gastos al formato del cálculo.
+    // Reglas de exclusión:
+    //   - "Gastos Molino": La Fé y Los Riasco no comparten gastos de molino, no genera compensación.
+    //   - Nóminas: se dividen al 60/40 sin compensación.
     const gastos: GastoParaCompensacion[] = gastosList
       .filter((g) => {
+        // Excluir categoría Gastos Molino completa
+        const cat = Array.isArray(g.categorias_gasto)
+          ? g.categorias_gasto[0]
+          : g.categorias_gasto;
+        const categoriaNombre = (cat?.nombre ?? '').toLowerCase();
+        if (categoriaNombre.includes('molino')) return false;
+
+        // Excluir únicamente gastos de nómina semanal
         const desc = (g.descripcion ?? '').toLowerCase();
-        const esExcluido = 
-          desc.includes('nómina') || 
-          desc.includes('nomina') || 
-          desc.includes('mano de obra') || 
-          desc.includes('instalación') || 
-          desc.includes('instalacion');
+        const esExcluido =
+          desc.includes('nómina') ||
+          desc.includes('nomina');
         return !esExcluido;
       })
       .map((g) => {
