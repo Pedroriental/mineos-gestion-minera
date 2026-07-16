@@ -23,7 +23,9 @@ export default async function GastosPage() {
   const [gastosRes, catsRes, conceptosRes] = await Promise.all([
     supabase
       .from('gastos')
-      .select('*, categorias_gasto(nombre, tipo)')
+      .select(
+        '*, categorias_gasto(nombre, tipo), gastos_empresas(empresa_id, monto_pagado, porcentaje, empresas_inversoras(id, nombre, nombre_corto, color))',
+      )
       .order('fecha', { ascending: false })
       .limit(500),                 // límite alto — TanStack pagina en cliente
     supabase

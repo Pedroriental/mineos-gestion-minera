@@ -25,6 +25,7 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto, createGastosBulk } from '@/lib/actions/gastos';
 import { verifyGastosBeforeSave } from '@/lib/actions/gastos-audit';
 import { getPrecioOroParaFecha } from '@/lib/actions/gastos-oro';
+import { GastoEmpresaSelector } from '@/components/gastos/GastoEmpresaSelector';
 import {
   convertGramosToUsd,
   isLegacyGastoOroNota,
@@ -117,6 +118,9 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   const [baseInfo,  setBaseInfo]  = useState(EMPTY_BASE_INFO);
   const [items,     setItems]     = useState([createEmptyItem()]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [empresasAsignadas, setEmpresasAsignadas] = useState<
+    Array<{ empresa_id: string; monto_pagado: number; porcentaje: number }>
+  >([]);
   const [isGlobalAmount, setIsGlobalAmount] = useState(false);
   const [globalAmount, setGlobalAmount] = useState('');
   const [sorting,   setSorting]   = useState<SortingState>([]);
@@ -512,13 +516,14 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   }
 
   // ── Modal helpers ─────────────────────────────────────────
-  function resetForm() { 
-    setBaseInfo(EMPTY_BASE_INFO); 
+  function resetForm() {
+    setBaseInfo(EMPTY_BASE_INFO);
     setItems([createEmptyItem()]);
-    setEditItem(null); 
-    setFormError(null); 
+    setEditItem(null);
+    setFormError(null);
     setIsGlobalAmount(false);
     setGlobalAmount('');
+    setEmpresasAsignadas([]);
   }
   function openNew()   { resetForm(); setShowModal(true); }
   function openEdit(item: Gasto) {
@@ -548,6 +553,21 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   function closeModal() { setShowModal(false); resetForm(); }
 
   // ── Mutaciones ────────────────────────────────────────────
+  /** Devuelve el monto total del gasto en el formulario (para el selector de empresas). */
+  function getCurrentMontoTotal(): number {
+    if (isGlobalAmount) {
+      const n = parseFloat(globalAmount);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+    return items.reduce((s, it) => {
+      if (it.pago_en_oro) {
+        // Oro se convierte a USD en el save; usamos un fallback razonable.
+        return s + (parseFloat(it.monto) || 0);
+      }
+      return s + (parseFloat(it.monto) || 0);
+    }, 0);
+  }
+
   function handleSave() {
     setFormError(null);
     if (!baseInfo.fecha) { setFormError('La fecha es obligatoria.'); return; }
@@ -596,14 +616,15 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
         if (!catResult.ok) { setFormError(catResult.message); return; }
 
         payloads.push({
-          fecha: baseInfo.fecha, 
-          categoria_id: catResult.id, 
+          fecha: baseInfo.fecha,
+          categoria_id: catResult.id,
           descripcion: globalDesc,
-          monto: parseFloat(globalAmount), 
+          monto: parseFloat(globalAmount),
           proveedor: baseInfo.proveedor || null,
-          factura_referencia: baseInfo.factura_referencia || null, 
+          factura_referencia: baseInfo.factura_referencia || null,
           notas: baseInfo.notas || null,
           registrado_por: user?.id || null,
+          empresas: empresasAsignadas.length > 0 ? empresasAsignadas : null,
           ...(editItem ? { id: editItem.id } : {}),
         });
 
@@ -644,16 +665,17 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
             : parseFloat(it.monto);
 
           payloads.push({
-            fecha: baseInfo.fecha, 
-            categoria_id: categoriaId, 
+            fecha: baseInfo.fecha,
+            categoria_id: categoriaId,
             descripcion: desc,
             monto: montoUsd,
             monto_gramos_oro: gramosOro,
             precio_oro_usd_gramo: it.pago_en_oro ? precioOro : null,
             proveedor: baseInfo.proveedor || null,
-            factura_referencia: baseInfo.factura_referencia || null, 
+            factura_referencia: baseInfo.factura_referencia || null,
             notas: baseInfo.notas || null,
             registrado_por: user?.id || null,
+            empresas: empresasAsignadas.length > 0 ? empresasAsignadas : null,
             ...(editItem ? { id: editItem.id } : {}),
           });
         }
@@ -1151,6 +1173,15 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
                 onChange={e => setBaseInfo({ ...baseInfo, notas: e.target.value })}
                 className="input-field min-h-[4.5rem] resize-none"
                 placeholder="Notas aclaratorias sobre el bloque de gastos..."
+              />
+            </div>
+
+            {/* Selector de Empresas (Fase 8) */}
+            <div className="rounded-lg border border-white/10 bg-zinc-900/30 p-3">
+              <GastoEmpresaSelector
+                montoTotal={getCurrentMontoTotal()}
+                empresasAsignadas={empresasAsignadas}
+                onChange={setEmpresasAsignadas}
               />
             </div>
           </div>

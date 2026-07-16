@@ -5,7 +5,20 @@
  */
 import { z } from 'zod';
 
-// ── Schema base ──────────────────────────────────────────────
+// ── Asignación de empresas a un gasto ────────────────────────
+export const GastoEmpresaAsignacionSchema = z.object({
+  empresa_id: z.string().uuid('ID de empresa inválido'),
+  monto_pagado: z
+    .number({ message: 'El monto debe ser un número' })
+    .min(0, 'El monto no puede ser negativo'),
+  porcentaje: z
+    .number({ message: 'El porcentaje debe ser un número' })
+    .min(0, 'El porcentaje no puede ser negativo')
+    .max(100, 'El porcentaje no puede ser mayor a 100')
+    .optional(),
+});
+
+// ── Schema base ─────────────────────────────────────────────
 export const GastoSchema = z.object({
   fecha: z
     .string()
@@ -67,6 +80,12 @@ export const GastoSchema = z.object({
     .uuid()
     .optional()
     .nullable(),
+
+  // Asignación de empresas (opcional). Si no se proporciona, se asigna 100% a La Fé por defecto.
+  empresas: z
+    .array(GastoEmpresaAsignacionSchema)
+    .optional()
+    .nullable(),
 });
 
 // Para edición — el id es obligatorio
@@ -77,3 +96,4 @@ export const GastoUpdateSchema = GastoSchema.extend({
 // ── Tipos inferidos ──────────────────────────────────────────
 export type GastoInput  = z.infer<typeof GastoSchema>;
 export type GastoUpdate = z.infer<typeof GastoUpdateSchema>;
+export type GastoEmpresaAsignacion = z.infer<typeof GastoEmpresaAsignacionSchema>;

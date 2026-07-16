@@ -202,6 +202,71 @@ export function getGastoColumns({
       sortingFn: 'basic',
     }),
 
+    helper.accessor((row) => row.gastos_empresas ?? [], {
+      id: 'pagado_por',
+      meta: { align: 'left' },
+      header: () => (
+        <span className="gastos-th text-[10px] font-bold uppercase tracking-wide">
+          Pagado por
+        </span>
+      ),
+      cell: (info) => {
+        const geList = info.getValue() as Array<{
+          empresa_id: string;
+          monto_pagado: number;
+          porcentaje: number;
+          empresas_inversoras?: { nombre: string; color: string } | null;
+        }>;
+        if (!geList || geList.length === 0) {
+          return (
+            <span className="gastos-td block max-w-full truncate text-[10px] opacity-60">
+              —
+            </span>
+          );
+        }
+        if (geList.length === 1) {
+          const ge = geList[0];
+          const emp = ge.empresas_inversoras;
+          return (
+            <span className="gastos-td flex items-center gap-1.5 text-[10px]">
+              {emp && (
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: emp.color }}
+                />
+              )}
+              <span className="truncate">{emp?.nombre ?? ge.empresa_id}</span>
+              <span className="shrink-0 opacity-60">({ge.porcentaje}%)</span>
+            </span>
+          );
+        }
+        return (
+          <div className="gastos-td flex max-w-full flex-wrap items-center gap-1 text-[10px]">
+            {geList.map((ge) => {
+              const emp = ge.empresas_inversoras;
+              return (
+                <span
+                  key={ge.empresa_id}
+                  className="flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-medium"
+                  title={`${emp?.nombre ?? ge.empresa_id}: $${ge.monto_pagado.toFixed(2)} (${ge.porcentaje}%)`}
+                >
+                  {emp && (
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: emp.color }}
+                    />
+                  )}
+                  <span className="truncate">{emp?.nombre ?? ge.empresa_id}</span>
+                  <span className="shrink-0 opacity-70">({ge.porcentaje}%)</span>
+                </span>
+              );
+            })}
+          </div>
+        );
+      },
+      enableSorting: false,
+    }),
+
     helper.display({
       id: 'actions',
       meta: { align: 'right' },

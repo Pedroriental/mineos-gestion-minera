@@ -295,6 +295,23 @@ export interface Gasto {
   created_at: string;
   updated_at: string;
   categorias_gasto?: CategoriaGasto;
+  /** Empresas inversoras que pagaron este gasto (Fase 8 compensación). */
+  gastos_empresas?: GastoEmpresaAsignacion[];
+}
+
+/** Asignación de una empresa inversora a un gasto (Fase 8). */
+export interface GastoEmpresaAsignacion {
+  empresa_id: string;
+  monto_pagado: number;
+  porcentaje: number;
+  es_pago_directo?: boolean;
+  /** Relación con la empresa inversora (opcional, presente cuando se hace join). */
+  empresas_inversoras?: {
+    id: string;
+    nombre: string;
+    nombre_corto: string;
+    color: string;
+  } | null;
 }
 
 export interface GastoConcepto {

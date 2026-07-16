@@ -108,36 +108,115 @@ export async function createGasto(raw: unknown, options?: SaveOptions): Promise<
     registrado_por:      enriched.registrado_por    ?? null,
   }).select('id');
 
-    if (error) {
-      console.error('[Action] createGasto Supabase error:', error.message);
-      return { ok: false, message: `Error al guardar: ${error.message}` };
-    }
+  if (error) {
+    console.error('[Action] createGasto Supabase error:', error.message);
+    return { ok: false, message: `Error al guardar: ${error.message}` };
+  }
 
-    if (!inserted || inserted.length === 0) {
-      console.error('[Action] createGasto: RLS silently blocked insert');
-      return { ok: false, message: 'Error de permisos: no se pudo guardar el gasto.' };
-    }
+  if (!inserted || inserted.length === 0) {
+    console.error('[Action] createGasto: RLS silently blocked insert');
+    return { ok: false, message: 'Error de permisos: no se pudo guardar el gasto.' };
+  }
 
-    // Notify admins if a supervisor submitted the report
-    if (user?.complexId) {
-      await notifyAdmins({
-        complexId: user.complexId,
-        type: 'report_submitted',
-        title: 'Nuevo gasto registrado',
-        body: `${user.email} registró un gasto de $${enriched.monto}`,
-        href: '/admin/gastos',
-        actorId: user.id,
-        actorRole: user.role,
-      });
-    }
+  // Asignar empresas al gasto
+  const gastoId = inserted[0].id;
+  const empresasAsignacion = await asignarEmpresasAGasto(
+    supabase,
+    gastoId,
+    enriched.monto,
+    data.empresas ?? null,
+  );
+  if (!empresasAsignacion.ok) {
+    // Si falla la asignación, igual continuamos (no es crítico)
+    console.error('[Action] createGasto empresas asignacion:', empresasAsignacion.message);
+  }
 
-    // 3) Purgar caché y actualizar UI sin reload
-    revalidateAll();
-    return { ok: true, message: 'Gasto registrado correctamente' };
+  // Notify admins if a supervisor submitted the report
+  if (user?.complexId) {
+    await notifyAdmins({
+      complexId: user.complexId,
+      type: 'report_submitted',
+      title: 'Nuevo gasto registrado',
+      body: `${user.email} registró un gasto de $${enriched.monto}`,
+      href: '/admin/gastos',
+      actorId: user.id,
+      actorRole: user.role,
+    });
+  }
+
+  // 3) Purgar caché y actualizar UI sin reload
+  revalidateAll();
+  return { ok: true, message: 'Gasto registrado correctamente' };
   } catch (err) {
     console.error('[Action] createGasto Exception:', err);
     return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };
   }
+}
+
+/**
+ * Asigna empresas a un gasto recién creado.
+ * Si no se proporcionan empresas, asigna 100% a La Fé (la primera empresa activa).
+ */
+async function asignarEmpresasAGasto(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  gastoId: string,
+  montoTotal: number,
+  empresasInput: Array<{ empresa_id: string; monto_pagado: number; porcentaje?: number }> | null | undefined,
+): Promise<{ ok: boolean; message: string }> {
+  let empresasAsignar: Array<{ empresa_id: string; monto_pagado: number; porcentaje: number }>;
+
+  if (empresasInput && empresasInput.length > 0) {
+    empresasAsignar = empresasInput.map((e) => ({
+      empresa_id: e.empresa_id,
+      monto_pagado: e.monto_pagado,
+      porcentaje: e.porcentaje ?? 0,
+    }));
+  } else {
+    // Default: asignar 100% a La Fé
+    const { data: laFe } = await supabase
+      .from('empresas_inversoras')
+      .select('id')
+      .eq('nombre_corto', 'la_fe')
+      .eq('activo', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (!laFe) {
+      // Si no existe La Fé, tomar la primera empresa activa
+      const { data: primeraActiva } = await supabase
+        .from('empresas_inversoras')
+        .select('id')
+        .eq('activo', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (!primeraActiva) {
+        return { ok: true, message: 'No hay empresas inversoras activas' };
+      }
+      empresasAsignar = [
+        { empresa_id: primeraActiva.id, monto_pagado: montoTotal, porcentaje: 100 },
+      ];
+    } else {
+      empresasAsignar = [
+        { empresa_id: laFe.id, monto_pagado: montoTotal, porcentaje: 100 },
+      ];
+    }
+  }
+
+  const { error } = await supabase.from('gastos_empresas').insert(
+    empresasAsignar.map((e) => ({
+      gasto_id: gastoId,
+      empresa_id: e.empresa_id,
+      monto_pagado: e.monto_pagado,
+      porcentaje: e.porcentaje,
+      es_pago_directo: true,
+    })),
+  );
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+  return { ok: true, message: 'Empresas asignadas' };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -187,6 +266,22 @@ export async function createGastosBulk(raws: unknown[], options?: SaveOptions): 
     if (!inserted || inserted.length === 0) {
       console.error('[Action] createGastosBulk: RLS silently blocked bulk insert');
       return { ok: false, message: 'Error de permisos: no se pudieron guardar los gastos.' };
+    }
+
+    // Asignar empresas a cada gasto insertado
+    for (let i = 0; i < inserted.length; i++) {
+      const gastoId = inserted[i].id;
+      const originalRow = data[i];
+      const enrichedRow = enrichedRows[i];
+      const res = await asignarEmpresasAGasto(
+        supabase,
+        gastoId,
+        enrichedRow.monto,
+        originalRow.empresas ?? null,
+      );
+      if (!res.ok) {
+        console.error('[Action] createGastosBulk empresas:', res.message);
+      }
     }
 
     revalidateAll();
