@@ -32,20 +32,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
+  const fetchProfile = useCallback(async (userId: string, currentUser: User) => {
+    const { data: profile } = await supabase
       .from('user_profiles')
       .select('id, display_name, role, complex_id, active')
       .eq('id', userId)
       .single();
-    setProfile(data ?? null);
+    setProfile(profile ?? null);
+
+    if (profile) {
+      const dbRole = profile.role;
+      const dbComplexId = profile.complex_id;
+      const needsRoleSync = currentUser.user_metadata?.role !== dbRole;
+      const needsComplexSync = currentUser.user_metadata?.complex_id !== dbComplexId;
+
+      if (needsRoleSync || needsComplexSync) {
+        console.log('Syncing stale JWT user_metadata with DB profile...');
+        await supabase.auth.updateUser({
+          data: { role: dbRole, complex_id: dbComplexId },
+        });
+        await supabase.auth.refreshSession();
+      }
+    }
   }, []);
 
   useEffect(() => {
-    const guestStored = sessionStorage.getItem(GUEST_KEY);
-    if (guestStored === 'true') {
-      setIsGuest(true);
-    }
+    Promise.resolve().then(() => {
+      const guestStored = sessionStorage.getItem(GUEST_KEY);
+      if (guestStored === 'true') {
+        setIsGuest(true);
+      }
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -53,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
 
       if (session?.user) {
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id, session.user);
       } else {
         setProfile(null);
       }
