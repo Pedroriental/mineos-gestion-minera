@@ -52,45 +52,72 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
   });
 
   // ============ TABLA PRINCIPAL ============
-  const head = [['Item', 'Descripción', 'Total']];
-  const subHead: string[][] = [[]];
+  const N = resumen.empresas.length;
 
-  resumen.empresas.forEach((e) => {
-    head[0].push(e.nombre, '', '');
-    subHead[0].push('Real', 'Teórico', 'Comp.');
-  });
+  const headerRow1 = [
+    'Item',
+    'Descripción del Gasto',
+    'Total',
+    { content: 'Gasto Real', colSpan: N, styles: { halign: 'center' } },
+    { content: 'Gasto Teórico', colSpan: N, styles: { halign: 'center' } },
+    { content: 'Compensación de Gastos', colSpan: N, styles: { halign: 'center' } }
+  ];
 
+  const headerRow2 = [
+    '',
+    '',
+    '',
+    ...resumen.empresas.map((e) => e.nombre),
+    ...resumen.empresas.map((e) => e.nombre),
+    ...resumen.empresas.map((e) => e.nombre)
+  ];
+
+  const fullHead = [headerRow1, headerRow2];
   const body: (string | number)[][] = [];
 
   resumen.categorias.forEach((cat, i) => {
     const row: (string | number)[] = [String(i + 1), cat.nombre, fmtPdf(cat.total)];
+    
+    // Gasto Real
     resumen.empresas.forEach((e) => {
       row.push(fmtPdf(cat.gastoRealPorEmpresa[e.id] ?? 0));
+    });
+    
+    // Gasto Teórico
+    resumen.empresas.forEach((e) => {
       row.push(fmtPdf(cat.gastoTeoricoPorEmpresa[e.id] ?? 0));
+    });
+    
+    // Compensación
+    resumen.empresas.forEach((e) => {
       const comp = cat.compensacionPorEmpresa[e.id] ?? 0;
       const compStr = comp > 0 ? `+${fmtPdf(comp)}` : fmtPdf(comp);
       row.push(compStr);
     });
+    
     body.push(row);
   });
 
   // Fila de totales
   const totalRow: (string | number)[] = ['', 'TOTAL', fmtPdf(resumen.totalGasto)];
+  
+  // Gasto Real Totales
   resumen.empresas.forEach((e) => {
     totalRow.push(fmtPdf(resumen.totalRealPorEmpresa[e.id] ?? 0));
+  });
+  
+  // Gasto Teórico Totales
+  resumen.empresas.forEach((e) => {
     totalRow.push(fmtPdf(resumen.totalTeoricoPorEmpresa[e.id] ?? 0));
+  });
+  
+  // Compensación Totales
+  resumen.empresas.forEach((e) => {
     const comp = resumen.totalCompensacionPorEmpresa[e.id] ?? 0;
     totalRow.push(comp > 0 ? `+${fmtPdf(comp)}` : fmtPdf(comp));
   });
+  
   body.push(totalRow);
-
-  // Construir headers completos con sub-headers
-  const fullHead = head.map((row, i) => {
-    if (i === 0) {
-      return row;
-    }
-    return subHead[i - 1];
-  });
 
   autoTable(doc, {
     head: fullHead,
@@ -133,13 +160,13 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
   doc.text(
-    'Positivo (+) = la empresa pagó de más → debe cobrar',
+    'Positivo (+) = la empresa pago de mas: debe cobrar',
     margin,
     resumenY,
   );
   resumenY += 5;
   doc.text(
-    'Negativo (-) = la empresa pagó de menos → debe pagar',
+    'Negativo (-) = la empresa pago de menos: debe pagar',
     margin,
     resumenY,
   );

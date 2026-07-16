@@ -102,11 +102,15 @@ export function GastoEmpresaSelector({
   const actualizarMonto = useCallback(
     (empresaId: string, montoPagado: number) => {
       onChange(
-        empresasAsignadas.map((e) => ({
-          ...e,
-          monto_pagado: Math.max(0, montoPagado),
-          porcentaje: montoTotal > 0 ? round2((Math.max(0, montoPagado) / montoTotal) * 100) : 0,
-        })),
+        empresasAsignadas.map((e) =>
+          e.empresa_id === empresaId
+            ? {
+                ...e,
+                monto_pagado: Math.max(0, montoPagado),
+                porcentaje: montoTotal > 0 ? round2((Math.max(0, montoPagado) / montoTotal) * 100) : 0,
+              }
+            : e,
+        ),
       );
     },
     [empresasAsignadas, montoTotal, onChange],
@@ -116,11 +120,15 @@ export function GastoEmpresaSelector({
     (empresaId: string, porcentaje: number) => {
       const p = Math.max(0, Math.min(100, porcentaje));
       onChange(
-        empresasAsignadas.map((e) => ({
-          ...e,
-          porcentaje: round2(p),
-          monto_pagado: round2((p / 100) * montoTotal),
-        })),
+        empresasAsignadas.map((e) =>
+          e.empresa_id === empresaId
+            ? {
+                ...e,
+                porcentaje: round2(p),
+                monto_pagado: round2((p / 100) * montoTotal),
+              }
+            : e,
+        ),
       );
     },
     [empresasAsignadas, montoTotal, onChange],
@@ -136,7 +144,7 @@ export function GastoEmpresaSelector({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-white/5 bg-zinc-900/30 p-3 text-[11px] text-zinc-500">
+      <div className="rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-background)]/30 p-3 text-[11px] text-[var(--dashboard-text-muted)]">
         Cargando empresas inversoras...
       </div>
     );
@@ -144,16 +152,16 @@ export function GastoEmpresaSelector({
 
   if (empresas.length === 0) {
     return (
-      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] text-amber-300">
+      <div className="rounded-lg border border-[var(--mineos-general-border)] bg-[var(--mineos-general-soft)] p-3 text-[11px] text-[var(--mineos-general-bright)]">
         No hay empresas inversoras activas. Configúralas primero en la tabla{' '}
-        <code className="rounded bg-amber-500/10 px-1">empresas_inversoras</code>.
+        <code className="rounded bg-[var(--mineos-general-soft)]/20 px-1">empresas_inversoras</code>.
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)]">
         <Users className="h-3 w-3" />
         Empresas que pagaron
       </div>
@@ -167,18 +175,18 @@ export function GastoEmpresaSelector({
             return (
               <div
                 key={asig.empresa_id}
-                className="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-900/30 p-2"
+                className="flex items-center gap-2 rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-background)]/30 p-2"
               >
                 <div
                   className="h-2 w-2 shrink-0 rounded-full"
                   style={{ backgroundColor: emp.color }}
                 />
-                <span className="min-w-0 flex-1 text-[11px] font-medium text-zinc-200">
+                <span className="min-w-0 flex-1 text-[11px] font-medium text-[var(--dashboard-text)]">
                   {emp.nombre}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <div className="flex items-center gap-1">
-                    <span className="text-[9px] text-zinc-500">$</span>
+                    <span className="text-[9px] text-[var(--dashboard-text-muted)]">$</span>
                     <input
                       type="number"
                       step="0.01"
@@ -187,7 +195,7 @@ export function GastoEmpresaSelector({
                       onChange={(e) =>
                         actualizarMonto(asig.empresa_id, Number(e.target.value) || 0)
                       }
-                      className="w-20 rounded border border-white/10 bg-zinc-950 px-1.5 py-0.5 text-right text-[10px] tabular-nums text-zinc-200 outline-none focus:border-amber-500/50"
+                      className="w-20 rounded border border-[var(--dashboard-border)] bg-[var(--dashboard-background)] px-1.5 py-0.5 text-right text-[10px] tabular-nums text-[var(--dashboard-text)] outline-none focus:border-[var(--dashboard-accent)]/50"
                     />
                   </div>
                   <div className="flex items-center gap-1">
@@ -200,14 +208,14 @@ export function GastoEmpresaSelector({
                       onChange={(e) =>
                         actualizarPorcentaje(asig.empresa_id, Number(e.target.value) || 0)
                       }
-                      className="w-14 rounded border border-white/10 bg-zinc-950 px-1.5 py-0.5 text-right text-[10px] tabular-nums text-zinc-200 outline-none focus:border-amber-500/50"
+                      className="w-14 rounded border border-[var(--dashboard-border)] bg-[var(--dashboard-background)] px-1.5 py-0.5 text-right text-[10px] tabular-nums text-[var(--dashboard-text)] outline-none focus:border-[var(--dashboard-accent)]/50"
                     />
-                    <span className="text-[9px] text-zinc-500">%</span>
+                    <span className="text-[9px] text-[var(--dashboard-text-muted)]">%</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => eliminarEmpresa(asig.empresa_id)}
-                    className="rounded p-0.5 text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+                    className="rounded p-0.5 text-[var(--dashboard-text-muted)] hover:bg-[var(--mineos-expense-soft)] hover:text-[var(--mineos-expense-bright)]"
                     aria-label={`Quitar ${emp.nombre}`}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -222,14 +230,14 @@ export function GastoEmpresaSelector({
       {/* Selector para agregar más empresas */}
       {empresasDisponibles.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <Building2 className="h-3 w-3 text-zinc-500" />
-          <span className="text-[10px] text-zinc-500">Agregar:</span>
+          <Building2 className="h-3 w-3 text-[var(--dashboard-text-muted)]" />
+          <span className="text-[10px] text-[var(--dashboard-text-muted)]">Agregar:</span>
           {empresasDisponibles.map((emp) => (
             <button
               key={emp.id}
               type="button"
               onClick={() => agregarEmpresa(emp.id)}
-              className="flex items-center gap-1 rounded border border-white/10 bg-zinc-900/40 px-2 py-0.5 text-[10px] text-zinc-300 hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+              className="flex items-center gap-1 rounded border border-[var(--dashboard-border)] bg-[var(--dashboard-background)] px-2 py-0.5 text-[10px] text-[var(--dashboard-text)] hover:border-[var(--dashboard-accent)]/40 hover:bg-[var(--dashboard-accent)]/10 hover:text-[var(--dashboard-accent)]"
             >
               <span
                 className="h-1.5 w-1.5 rounded-full"
@@ -244,7 +252,7 @@ export function GastoEmpresaSelector({
 
       {/* Warning si la suma no coincide */}
       {tieneWarning && (
-        <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[10px] text-amber-300">
+        <div className="flex items-center gap-1.5 rounded-md border border-[var(--mineos-general-border)] bg-[var(--mineos-general-soft)] px-2 py-1 text-[10px] text-[var(--mineos-general-bright)]">
           <span className="font-bold">⚠</span>
           <span>
             La suma asignada es{' '}

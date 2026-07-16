@@ -119,7 +119,6 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
           <Loader2 className="h-3 w-3 animate-spin" /> Calculando compensación...
         </div>
       )}
-
       {!loading && !resumen && (
         <div className="flex flex-col items-center justify-center gap-1.5 py-12 text-center text-[11px] text-[var(--dashboard-text-muted)]">
           <Calculator className="h-6 w-6 opacity-40" />
@@ -133,112 +132,140 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
       {resumen && (
         <div className="compensacion-content flex min-h-0 flex-1 flex-col gap-3 custom-scrollbar">
           {/* Tabla de compensación */}
-          <div className="overflow-x-auto rounded-lg border border-white/10">
+          <div className="overflow-x-auto rounded-lg border border-[var(--dashboard-border)]">
             <table className="w-full border-collapse text-[10px]">
               <thead>
-                <tr className="bg-amber-500/10 text-[var(--dashboard-text)]">
-                  <th rowSpan={2} className="border border-white/10 px-2 py-1.5 text-center">
+                <tr className="bg-[var(--dashboard-accent)]/10 text-[var(--dashboard-text)]">
+                  <th rowSpan={2} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-center">
                     Item
                   </th>
-                  <th rowSpan={2} className="border border-white/10 px-2 py-1.5 text-left">
-                    Descripción
+                  <th rowSpan={2} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-left">
+                    Descripción del Gasto
                   </th>
                   <th
                     rowSpan={2}
-                    className="border border-white/10 px-2 py-1.5 text-right"
+                    className="border border-[var(--dashboard-border)] px-2 py-1.5 text-right font-bold"
                   >
                     Total
                   </th>
+                  <th colSpan={resumen.empresas.length} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-center font-bold">
+                    Gasto Real
+                  </th>
+                  <th colSpan={resumen.empresas.length} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-center font-bold">
+                    Gasto Teórico
+                  </th>
+                  <th colSpan={resumen.empresas.length} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-center font-bold">
+                    Compensación de Gastos
+                  </th>
+                </tr>
+                <tr className="bg-[var(--dashboard-accent)]/5 text-[var(--dashboard-text-muted)]">
+                  {/* Real columns */}
                   {resumen.empresas.map((e) => (
-                    <th
-                      key={e.id}
-                      colSpan={3}
-                      className="border border-white/10 px-2 py-1.5 text-center"
-                      style={{ color: e.color }}
-                    >
-                      {e.nombre} ({e.porcentaje}%)
+                    <th key={`real-${e.id}`} className="border border-[var(--dashboard-border)] px-2 py-1 text-center text-[9px] font-semibold" style={{ color: e.color }}>
+                      {e.nombre}
                     </th>
                   ))}
-                </tr>
-                <tr className="bg-amber-500/5 text-[var(--dashboard-text-muted)]">
+                  {/* Teórico columns */}
                   {resumen.empresas.map((e) => (
-                    <Fragment key={e.id}>
-                      <th className="border border-white/10 px-2 py-1 text-center text-[9px] font-normal">
-                        Real
-                      </th>
-                      <th className="border border-white/10 px-2 py-1 text-center text-[9px] font-normal">
-                        Teórico
-                      </th>
-                      <th className="border border-white/10 px-2 py-1 text-center text-[9px] font-normal">
-                        Comp.
-                      </th>
-                    </Fragment>
+                    <th key={`teorico-${e.id}`} className="border border-[var(--dashboard-border)] px-2 py-1 text-center text-[9px] font-semibold" style={{ color: e.color }}>
+                      {e.nombre}
+                    </th>
+                  ))}
+                  {/* Comp columns */}
+                  {resumen.empresas.map((e) => (
+                    <th key={`comp-${e.id}`} className="border border-[var(--dashboard-border)] px-2 py-1 text-center text-[9px] font-semibold" style={{ color: e.color }}>
+                      {e.nombre}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {resumen.categorias.map((cat, i) => (
                   <tr key={cat.nombre} className="hover:bg-white/5">
-                    <td className="border border-white/10 px-2 py-1.5 text-center tabular-nums">
+                    <td className="border border-[var(--dashboard-border)] px-2 py-1.5 text-center tabular-nums">
                       {i + 1}
                     </td>
-                    <td className="border border-white/10 px-2 py-1.5">{cat.nombre}</td>
-                    <td className="border border-white/10 px-2 py-1.5 text-right tabular-nums font-semibold">
+                    <td className="border border-[var(--dashboard-border)] px-2 py-1.5">{cat.nombre}</td>
+                    <td className="border border-[var(--dashboard-border)] px-2 py-1.5 text-right tabular-nums font-semibold">
                       {formatCurrency(cat.total)}
                     </td>
+                    
+                    {/* Gasto Real */}
                     {resumen.empresas.map((e) => (
-                      <Fragment key={e.id}>
-                        <td className="border border-white/10 px-2 py-1.5 text-right tabular-nums">
-                          {formatCurrency(cat.gastoRealPorEmpresa[e.id] ?? 0)}
-                        </td>
-                        <td className="border border-white/10 px-2 py-1.5 text-right tabular-nums text-[var(--dashboard-text-muted)]">
-                          {formatCurrency(cat.gastoTeoricoPorEmpresa[e.id] ?? 0)}
-                        </td>
+                      <td key={`real-val-${e.id}`} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-right tabular-nums">
+                        {formatCurrency(cat.gastoRealPorEmpresa[e.id] ?? 0)}
+                      </td>
+                    ))}
+
+                    {/* Gasto Teórico */}
+                    {resumen.empresas.map((e) => (
+                      <td key={`teorico-val-${e.id}`} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-right tabular-nums text-[var(--dashboard-text-muted)]">
+                        {formatCurrency(cat.gastoTeoricoPorEmpresa[e.id] ?? 0)}
+                      </td>
+                    ))}
+
+                    {/* Compensación */}
+                    {resumen.empresas.map((e) => {
+                      const comp = cat.compensacionPorEmpresa[e.id] ?? 0;
+                      return (
                         <td
-                          className={`border border-white/10 px-2 py-1.5 text-right tabular-nums font-bold ${
-                            (cat.compensacionPorEmpresa[e.id] ?? 0) > 0
-                              ? 'text-emerald-400'
-                              : (cat.compensacionPorEmpresa[e.id] ?? 0) < 0
-                                ? 'text-red-400'
+                          key={`comp-val-${e.id}`}
+                          className={`border border-[var(--dashboard-border)] px-2 py-1.5 text-right tabular-nums font-bold ${
+                            comp > 0
+                              ? 'text-[var(--mineos-benefit-bright)]'
+                              : comp < 0
+                                ? 'text-[var(--mineos-expense-bright)]'
                                 : ''
                           }`}
                         >
-                          {formatCurrency(cat.compensacionPorEmpresa[e.id] ?? 0)}
+                          {comp > 0 ? '+' : ''}{formatCurrency(comp)}
                         </td>
-                      </Fragment>
-                    ))}
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="bg-amber-500/10 font-bold">
-                  <td colSpan={2} className="border border-white/10 px-2 py-1.5 text-right">
+                <tr className="bg-[var(--dashboard-accent)]/10 font-bold">
+                  <td colSpan={2} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-right">
                     Total
                   </td>
-                  <td className="border border-white/10 px-2 py-1.5 text-right tabular-nums">
+                  <td className="border border-[var(--dashboard-border)] px-2 py-1.5 text-right tabular-nums">
                     {formatCurrency(resumen.totalGasto)}
                   </td>
+                  
+                  {/* Real Totals */}
                   {resumen.empresas.map((e) => (
-                    <Fragment key={e.id}>
-                      <td className="border border-white/10 px-2 py-1.5 text-right tabular-nums">
-                        {formatCurrency(resumen.totalRealPorEmpresa[e.id] ?? 0)}
-                      </td>
-                      <td className="border border-white/10 px-2 py-1.5 text-right tabular-nums text-[var(--dashboard-text-muted)]">
-                        {formatCurrency(resumen.totalTeoricoPorEmpresa[e.id] ?? 0)}
-                      </td>
+                    <td key={`real-tot-${e.id}`} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-right tabular-nums">
+                      {formatCurrency(resumen.totalRealPorEmpresa[e.id] ?? 0)}
+                    </td>
+                  ))}
+
+                  {/* Teórico Totals */}
+                  {resumen.empresas.map((e) => (
+                    <td key={`teorico-tot-${e.id}`} className="border border-[var(--dashboard-border)] px-2 py-1.5 text-right tabular-nums text-[var(--dashboard-text-muted)]">
+                      {formatCurrency(resumen.totalTeoricoPorEmpresa[e.id] ?? 0)}
+                    </td>
+                  ))}
+
+                  {/* Compensación Totales */}
+                  {resumen.empresas.map((e) => {
+                    const comp = resumen.totalCompensacionPorEmpresa[e.id] ?? 0;
+                    return (
                       <td
-                        className={`border border-white/10 px-2 py-1.5 text-right tabular-nums ${
-                          (resumen.totalCompensacionPorEmpresa[e.id] ?? 0) > 0
-                            ? 'text-emerald-400'
-                            : (resumen.totalCompensacionPorEmpresa[e.id] ?? 0) < 0
-                              ? 'text-red-400'
+                        key={`comp-tot-${e.id}`}
+                        className={`border border-[var(--dashboard-border)] px-2 py-1.5 text-right tabular-nums ${
+                          comp > 0
+                            ? 'text-[var(--mineos-benefit-bright)]'
+                            : comp < 0
+                              ? 'text-[var(--mineos-expense-bright)]'
                               : ''
                         }`}
                       >
-                        {formatCurrency(resumen.totalCompensacionPorEmpresa[e.id] ?? 0)}
+                        {comp > 0 ? '+' : ''}{formatCurrency(comp)}
                       </td>
-                    </Fragment>
-                  ))}
+                    );
+                  })}
                 </tr>
               </tfoot>
             </table>

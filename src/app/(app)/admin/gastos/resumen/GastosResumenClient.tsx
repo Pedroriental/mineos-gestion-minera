@@ -16,6 +16,7 @@ import { AppMonthPicker } from '@/components/ui/AppMonthPicker';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { Tabs } from '@/components/ui/Tabs';
 import CompensacionTab from './CompensacionTab';
+import InversoresTab from './InversoresTab';
 import type {
   GastosResumenSummary,
   GastosResumenPeriod,
@@ -82,13 +83,18 @@ export default function GastosResumenClient({ summary }: Props) {
         tabs={[
           { key: 'resumen', label: 'Resumen', icon: <DollarSign className="h-3 w-3" /> },
           { key: 'compensacion', label: 'Compensación', icon: <Calculator className="h-3 w-3" /> },
+          { key: 'inversores', label: 'Inversores', icon: <Users className="h-3 w-3" /> },
         ]}
         className="gastos-resumen-page__tabs"
       >
-        {(activeTab) =>
-          activeTab === 'compensacion' ? (
-            <CompensacionTab initialMes={period.mes} initialDia={period.dia} />
-          ) : (
+        {(activeTab) => {
+          if (activeTab === 'compensacion') {
+            return <CompensacionTab initialMes={period.mes} initialDia={period.dia} />;
+          }
+          if (activeTab === 'inversores') {
+            return <InversoresTab />;
+          }
+          return (
             <ResumenTab
               period={period}
               pushFilters={pushFilters}
@@ -104,8 +110,8 @@ export default function GastosResumenClient({ summary }: Props) {
               fmt={fmt}
               fmtShort={fmtShort}
             />
-          )
-        }
+          );
+        }}
       </Tabs>
     </div>
   );
