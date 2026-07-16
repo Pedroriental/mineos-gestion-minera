@@ -194,6 +194,91 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
     },
   });
 
+  // ============ SEGUNDA PÁGINA: DESGLOSE DETALLADO ============
+  doc.addPage();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(218, 165, 32);
+  doc.text('Desglose Detallado de Gastos', margin, 18);
+
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Detalle de gastos individuales considerados en el cálculo de compensación.', margin, 24);
+
+  // Cabecera de la tabla detallada
+  const detalleHead = [
+    [
+      'Fecha',
+      'Categoría',
+      'Descripción del Gasto',
+      'Monto Total',
+      ...resumen.empresas.map((e) => `Pagó ${e.nombre}`)
+    ]
+  ];
+
+  // Ordenar gastos por fecha
+  const gastosOrdenados = [...(resumen.gastos ?? [])].sort((a, b) => {
+    return a.fecha.localeCompare(b.fecha);
+  });
+
+  const detalleBody = gastosOrdenados.map((g) => {
+    const row = [
+      fmtDate(g.fecha),
+      g.categoria,
+      g.descripcion ?? 'Sin descripción',
+      fmtPdf(g.monto)
+    ];
+
+    resumen.empresas.forEach((e) => {
+      const pago = g.pagos.find((p) => p.empresa_id === e.id);
+      row.push(fmtPdf(pago?.monto_pagado ?? 0));
+    });
+
+    return row;
+  });
+
+  // Fila de totales al final del desglose
+  const totalDetalleRow = [
+    '',
+    '',
+    'TOTALES',
+    fmtPdf(resumen.totalGasto)
+  ];
+  resumen.empresas.forEach((e) => {
+    totalDetalleRow.push(fmtPdf(resumen.totalRealPorEmpresa[e.id] ?? 0));
+  });
+  detalleBody.push(totalDetalleRow);
+
+  autoTable(doc, {
+    head: detalleHead,
+    body: detalleBody,
+    startY: 30,
+    styles: { fontSize: 8, cellPadding: 3, halign: 'right', overflow: 'linebreak' },
+    headStyles: {
+      fillColor: [218, 165, 32],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 25 },
+      1: { halign: 'left', cellWidth: 40 },
+      2: { halign: 'left', cellWidth: 90 },
+      3: { halign: 'right', cellWidth: 25, fontStyle: 'bold' },
+      4: { halign: 'right', cellWidth: 25 },
+      5: { halign: 'right', cellWidth: 25 }
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.row.index === detalleBody.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [240, 240, 240];
+        data.cell.styles.textColor = [0, 0, 0];
+      }
+    },
+  });
+
   // ============ FOOTER ============
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {

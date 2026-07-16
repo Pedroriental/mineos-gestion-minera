@@ -44,6 +44,7 @@ export type CompensacionResumen = {
     string,
     { saldo: number; estado: 'debe_cobrar' | 'debe_pagar' | 'equilibrado' }
   >;
+  gastos: GastoParaCompensacion[];
 };
 
 export type GastoParaCompensacion = {
@@ -160,6 +161,7 @@ export function resolverCompensacionGastos(input: {
     totalTeoricoPorEmpresa,
     totalCompensacionPorEmpresa,
     resumenPorEmpresa,
+    gastos,
   };
 }
 
