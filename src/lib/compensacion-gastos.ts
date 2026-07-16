@@ -52,6 +52,7 @@ export type GastoParaCompensacion = {
   fecha: string;
   monto: number;
   categoria: string;
+  descripcion?: string | null;
   pagos: Array<{ empresa_id: string; monto_pagado: number }>;
 };
 

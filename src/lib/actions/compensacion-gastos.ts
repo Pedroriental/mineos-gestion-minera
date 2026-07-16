@@ -133,6 +133,7 @@ export async function generarCompensacionGastosAction(
           fecha: g.fecha,
           monto: Number(g.monto),
           categoria: cat?.nombre ?? 'Sin categoría',
+          descripcion: g.descripcion,
           pagos: empresasPorGasto[g.id] ?? [],
         };
       });
