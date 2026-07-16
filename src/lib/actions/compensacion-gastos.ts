@@ -104,19 +104,30 @@ export async function generarCompensacionGastosAction(
       });
     }
 
-    // 6. Mapear gastos al formato del cálculo
-    const gastos: GastoParaCompensacion[] = gastosList.map((g) => {
-      const cat = Array.isArray(g.categorias_gasto)
-        ? g.categorias_gasto[0]
-        : g.categorias_gasto;
-      return {
-        id: g.id,
-        fecha: g.fecha,
-        monto: Number(g.monto),
-        categoria: cat?.nombre ?? 'Sin categoría',
-        pagos: empresasPorGasto[g.id] ?? [],
-      };
-    });
+    // 6. Mapear y filtrar gastos al formato del cálculo (excluyendo nóminas, mano de obra e instalación)
+    const gastos: GastoParaCompensacion[] = gastosList
+      .filter((g) => {
+        const desc = (g.descripcion ?? '').toLowerCase();
+        const esExcluido = 
+          desc.includes('nómina') || 
+          desc.includes('nomina') || 
+          desc.includes('mano de obra') || 
+          desc.includes('instalación') || 
+          desc.includes('instalacion');
+        return !esExcluido;
+      })
+      .map((g) => {
+        const cat = Array.isArray(g.categorias_gasto)
+          ? g.categorias_gasto[0]
+          : g.categorias_gasto;
+        return {
+          id: g.id,
+          fecha: g.fecha,
+          monto: Number(g.monto),
+          categoria: cat?.nombre ?? 'Sin categoría',
+          pagos: empresasPorGasto[g.id] ?? [],
+        };
+      });
 
     // 7. Calcular compensación
     const resumen = resolverCompensacionGastos({
