@@ -6,6 +6,7 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { createProduccion, updateProduccion, deleteProduccion } from '@/lib/actions/produccion';
 import type { ReporteProduccion } from '@/lib/types';
 import { downloadProduccionPDF, downloadBalanceRecuperacionPDF } from '@/lib/pdf-reports';
+import { getUltimasQuemadasAction } from '@/lib/actions/compensacion-gastos';
 import {
   Loader2, Plus, X, Calculator, Download, AlertCircle, Search, TrendingUp, Factory,
   ChevronLeft, ChevronRight,
@@ -129,6 +130,8 @@ export default function ProduccionGerencialClient({
   const [formError, setFormError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingBalance, setIsExportingBalance] = useState(false);
+  const [showBalanceModal, setShowBalanceModal] = useState(false);
+  const [numQuemadas, setNumQuemadas] = useState('2');
   const confirmDialog = useConfirm();
 
   const initialData = data.registros;
@@ -497,7 +500,21 @@ export default function ProduccionGerencialClient({
         ? fmt(minDate)
         : `${fmt(minDate)} al ${fmt(maxDate)}`;
 
-      downloadBalanceRecuperacionPDF(todosLosRegistros, label, totalOroQuemado, countQuemado);
+      let totalOroQ = 0;
+      let countQ = 0;
+      const limit = Number(numQuemadas);
+      if (limit > 0) {
+        const res = await getUltimasQuemadasAction(limit);
+        if (res.ok && res.data) {
+          totalOroQ = res.data.reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
+          countQ = res.data.length;
+        } else {
+          alert('Error al obtener las quemadas, se generara el balance sin ellas.');
+        }
+      }
+
+      downloadBalanceRecuperacionPDF(todosLosRegistros, label, totalOroQ, countQ);
+      setShowBalanceModal(false);
     } catch (err) {
       console.error('Error al generar Balance PDF:', err);
       alert('Error al generar el Balance de Recuperación.');
@@ -548,14 +565,14 @@ export default function ProduccionGerencialClient({
               <span className="truncate lg:hidden">{isExporting ? '…' : 'PDF'}</span>
             </button>
             <button
-              onClick={handleExportBalance}
-              disabled={initialData.length === 0 || isExportingBalance}
+              onClick={() => setShowBalanceModal(true)}
+              disabled={initialData.length === 0}
               title="Balance de recuperación por origen: Vertical 1/2/3, Mantenimiento, Repaso, Molino Continuo"
               className={`${MINEOS_BTN_GERENCIAL_BALANCE} flex h-8 min-w-0 flex-1 lg:h-9 lg:flex-initial`}
             >
-              {isExportingBalance ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Calculator className="h-3.5 w-3.5 shrink-0" />}
-              <span className="hidden truncate lg:inline">{isExportingBalance ? 'Calculando...' : 'Balance de recuperación'}</span>
-              <span className="truncate lg:hidden">{isExportingBalance ? '…' : 'Balance'}</span>
+              <Calculator className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden truncate lg:inline">Balance de recuperación</span>
+              <span className="truncate lg:hidden">Balance</span>
             </button>
             {canEdit && (
               <button
@@ -1002,6 +1019,70 @@ export default function ProduccionGerencialClient({
       >
         {viewItem ? <ProduccionRecordDetail record={viewItem} /> : null}
       </GerencialRecordDetailModal>
+
+      <PageFormModal
+        open={showBalanceModal}
+        onClose={() => setShowBalanceModal(false)}
+        sheetTitle="Balance de Recuperación"
+        sheetIcon={<SheetIconBadge icon={Calculator} />}
+        panelClassName="produccion-page__modal max-w-md sm:p-5 animate-in fade-in zoom-in duration-200"
+      >
+        <div className="mb-3 hidden items-center justify-between lg:flex">
+          <h2 className="page-form-modal-title text-lg font-semibold">Balance de Recuperación</h2>
+          <button
+            type="button"
+            onClick={() => setShowBalanceModal(false)}
+            className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg p-2 text-[var(--dashboard-text-muted)] transition-colors hover:bg-black/[0.06]"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4 py-4">
+          <p className="text-xs text-[var(--dashboard-text-muted)] leading-relaxed">
+            Selecciona cuántas de las quemadas más recientes de planchas deseas consolidar en el balance de recuperación de oro de planta.
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="input-label">
+              Quemadas de planchas a incluir
+            </label>
+            <select
+              value={numQuemadas}
+              onChange={(e) => setNumQuemadas(e.target.value)}
+              className="input-field cursor-pointer"
+            >
+              <option value="0">0 (No incluir quemado de planchas)</option>
+              <option value="1">1 (Última quemada)</option>
+              <option value="2">2 (Últimas 2 quemadas)</option>
+              <option value="3">3 (Últimas 3 quemadas)</option>
+              <option value="4">4 (Últimas 4 quemadas)</option>
+              <option value="5">5 (Últimas 5 quemadas)</option>
+            </select>
+          </div>
+        </div>
+
+        <PageFormModalFooter className="produccion-page__modal-footer">
+          <button
+            type="button"
+            onClick={() => setShowBalanceModal(false)}
+            className="btn-secondary"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleExportBalance}
+            disabled={isExportingBalance}
+            className="btn-primary"
+          >
+            {isExportingBalance ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : null}
+            Generar PDF
+          </button>
+        </PageFormModalFooter>
+      </PageFormModal>
 
     </div>
   );

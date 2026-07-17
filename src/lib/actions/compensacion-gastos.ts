@@ -577,3 +577,22 @@ export async function generarBalanceProdGastosAction(
     return { ok: false, message: 'Error al generar el balance producción vs gastos' };
   }
 }
+
+export async function getUltimasQuemadasAction(limit: number): Promise<{ ok: boolean; data?: any[]; error?: string }> {
+  try {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase
+      .from('reportes_quemado')
+      .select('total_oro_g, fecha')
+      .order('fecha', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: true, data: data ?? [] };
+  } catch (err) {
+    console.error('[compensacion-gastos] getUltimasQuemadasAction exception:', err);
+    return { ok: false, error: 'Error al obtener las últimas quemadas' };
+  }
+}
