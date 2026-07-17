@@ -208,7 +208,91 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
     alternateRowStyles: { fillColor: LIGHT_BG },
   });
 
-  // ============ PÁGINA 2+: DESGLOSE DETALLADO ============
+  // ============ PÁGINA 2: DESGLOSE DE COMPENSACIÓN (por ítem) ============
+  doc.addPage();
+
+  doc.setFillColor(...GOLD);
+  doc.rect(0, 0, pageWidth, 8, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(...DARK);
+  doc.text(`Desglose de Compensacion - ${empresaNombreLimpio}`, margin, 20);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...MUTED);
+  doc.text(
+    `Gastos compartidos de Mina: cuota del ${data.empresa.porcentaje}% vs lo que pago ${empresaNombreLimpio}. La suma de "Diferencia" = Saldo de compensacion.`,
+    margin, 25
+  );
+
+  const GREEN_BG: [number, number, number] = [230, 245, 235];
+  const GREEN_TXT: [number, number, number] = [0, 100, 0];
+  const RED_BG: [number, number, number] = [253, 235, 235];
+  const RED_TXT: [number, number, number] = [160, 20, 20];
+
+  type CompCellDef = string | { content: string; styles?: Record<string, unknown> };
+  const compRows: CompCellDef[][] = data.gastosCompartidosDetalle.map((g) => {
+    const difStr = `${g.diferencia >= 0 ? '+' : ''}${fmt(g.diferencia)}`;
+    const difBg = g.diferencia > 0.005 ? GREEN_BG : g.diferencia < -0.005 ? RED_BG : undefined;
+    const difTxt = g.diferencia > 0.005 ? GREEN_TXT : g.diferencia < -0.005 ? RED_TXT : DARK;
+    return [
+      fmtDate(g.fecha),
+      g.descripcion ?? 'Sin descripcion',
+      fmt(g.montoTotal),
+      fmt(g.cuota),
+      g.pagado > 0 ? fmt(g.pagado) : { content: '$0.00', styles: { textColor: RED_TXT, fontStyle: 'bold' } },
+      { content: difStr, styles: { fontStyle: 'bold', textColor: difTxt, fillColor: difBg ?? [255, 255, 255] } },
+    ];
+  });
+
+  // Fila de totales
+  const totalCuota = data.compensacion.teorico;
+  const totalPagado = data.compensacion.gastadoEmpresa;
+  const totalDif = data.compensacion.saldo;
+  const totalDifStr = `${totalDif >= 0 ? '+' : ''}${fmt(totalDif)}`;
+  const totalDifBg: [number, number, number] = totalDif > 0 ? GREEN_BG : totalDif < 0 ? RED_BG : [240, 240, 240];
+  const totalDifTxt: [number, number, number] = totalDif > 0 ? GREEN_TXT : totalDif < 0 ? RED_TXT : DARK;
+
+  compRows.push([
+    { content: 'TOTAL', styles: { fontStyle: 'bold', fillColor: GOLD, textColor: BLACK } },
+    { content: '', styles: { fillColor: GOLD } },
+    { content: fmt(data.compensacion.totalCompartido), styles: { fontStyle: 'bold', fillColor: GOLD, textColor: BLACK } },
+    { content: fmt(totalCuota), styles: { fontStyle: 'bold', fillColor: GOLD, textColor: BLACK } },
+    { content: fmt(totalPagado), styles: { fontStyle: 'bold', fillColor: GOLD, textColor: BLACK } },
+    { content: totalDifStr, styles: { fontStyle: 'bold', fillColor: totalDifBg, textColor: totalDifTxt } },
+  ]);
+
+  autoTable(doc, {
+    head: [['Fecha', 'Descripcion', 'Total Gasto', `Cuota ${data.empresa.porcentaje}%`, 'Pago Real', 'Diferencia']],
+    body: compRows,
+    startY: 30,
+    styles: {
+      fontSize: 8.5,
+      cellPadding: 3.5,
+      halign: 'right',
+      textColor: DARK,
+      overflow: 'linebreak',
+    },
+    headStyles: {
+      fillColor: DARK,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 22 },
+      1: { halign: 'left', cellWidth: 70 },
+      2: { halign: 'right', cellWidth: 25 },
+      3: { halign: 'right', cellWidth: 22 },
+      4: { halign: 'right', cellWidth: 22 },
+      5: { halign: 'right', cellWidth: 22, fontStyle: 'bold' },
+    },
+    alternateRowStyles: { fillColor: LIGHT_BG },
+  });
+
+  // ============ PÁGINA 3+: DESGLOSE DETALLADO ============
   doc.addPage();
 
   // Franja superior dorada en p2

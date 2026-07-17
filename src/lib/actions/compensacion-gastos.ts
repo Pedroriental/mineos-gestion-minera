@@ -166,6 +166,15 @@ export type GastoEmpresa = {
   montoPagado: number;
 };
 
+export type GastoCompartidoDetalle = {
+  fecha: string;
+  descripcion: string | null;
+  montoTotal: number;
+  cuota: number;      // montoTotal × porcentaje de la empresa
+  pagado: number;     // lo que pagó la empresa
+  diferencia: number; // pagado - cuota (+ = sobrepagó, - = debe)
+};
+
 export type GastosEmpresaResumen = {
   empresa: CompensacionEmpresa;
   mes: string;
@@ -173,6 +182,7 @@ export type GastosEmpresaResumen = {
   hasta: string;
   gastos: GastoEmpresa[];
   totalGastado: number;
+  gastosCompartidosDetalle: GastoCompartidoDetalle[];
   compensacion: {
     totalCompartido: number;
     gastadoEmpresa: number;
@@ -279,6 +289,7 @@ export async function generarGastosEmpresaAction(
     // 5. Compensación: solo gastos compartidos de mina (excluye molino y nóminas)
     let totalCompartido = 0;
     let gastadoEmpresaComp = 0;
+    const gastosCompartidosDetalle: GastoCompartidoDetalle[] = [];
 
     for (const g of gastosRaw) {
       const catRaw = Array.isArray(g.categorias_gasto)
@@ -288,9 +299,26 @@ export async function generarGastosEmpresaAction(
       const desc = (g.descripcion ?? '').toLowerCase();
       if (desc.includes('nómina') || desc.includes('nomina') || catNombre.includes('molino')) continue;
 
-      totalCompartido += Number(g.monto);
-      gastadoEmpresaComp += pagoPorGasto[g.id] ?? 0;
+      const montoTotal = Number(g.monto);
+      const pagadoEmpresa = pagoPorGasto[g.id] ?? 0;
+      const cuota = Math.round(montoTotal * (empresa.porcentaje / 100) * 100) / 100;
+      const diferencia = Math.round((pagadoEmpresa - cuota) * 100) / 100;
+
+      totalCompartido += montoTotal;
+      gastadoEmpresaComp += pagadoEmpresa;
+
+      gastosCompartidosDetalle.push({
+        fecha: g.fecha,
+        descripcion: g.descripcion,
+        montoTotal,
+        cuota,
+        pagado: pagadoEmpresa,
+        diferencia,
+      });
     }
+
+    // Ordenar por fecha
+    gastosCompartidosDetalle.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
     const teorico = Math.round(totalCompartido * (empresa.porcentaje / 100) * 100) / 100;
     const saldo = Math.round((gastadoEmpresaComp - teorico) * 100) / 100;
@@ -308,6 +336,7 @@ export async function generarGastosEmpresaAction(
         hasta,
         gastos,
         totalGastado,
+        gastosCompartidosDetalle,
         compensacion: {
           totalCompartido: Math.round(totalCompartido * 100) / 100,
           gastadoEmpresa: Math.round(gastadoEmpresaComp * 100) / 100,
