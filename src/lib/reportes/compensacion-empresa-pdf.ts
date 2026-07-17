@@ -1,7 +1,7 @@
 'use client';
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type RowInput } from 'jspdf-autotable';
 import type { GastosEmpresaResumen } from '@/lib/actions/compensacion-gastos';
 
 function fmt(n: number): string {
@@ -20,12 +20,6 @@ function fmtDate(iso: string): string {
   });
 }
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const clean = hex.replace('#', '');
-  const num = parseInt(clean, 16);
-  return { r: (num >> 16) & 0xff, g: (num >> 8) & 0xff, b: num & 0xff };
-}
-
 const GOLD: [number, number, number] = [218, 165, 32];
 const BLACK: [number, number, number] = [0, 0, 0];
 const DARK: [number, number, number] = [30, 30, 30];
@@ -33,90 +27,100 @@ const MUTED: [number, number, number] = [100, 100, 100];
 const LIGHT_BG: [number, number, number] = [245, 245, 245];
 
 export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
-  const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
+  // Orientación vertical (Portrait) para mayor legibilidad y formato estándar de reporte
+  const doc = new jsPDF({ orientation: 'portrait', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
-  const empresaColor = hexToRgb(data.empresa.color);
+  const margin = 15;
 
-  // ============ PÁGINA 1: ENCABEZADO + RESUMEN ============
+  const empresaNombreLimpio = data.empresa.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // ============ PÁGINA 1: ENCABEZADO + RESUMEN FINANCIERO ============
 
   // Franja superior dorada
   doc.setFillColor(...GOLD);
-  doc.rect(0, 0, pageWidth, 10, 'F');
+  doc.rect(0, 0, pageWidth, 8, 'F');
 
+  // Título principal
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
+  doc.setFontSize(20);
   doc.setTextColor(...DARK);
-  doc.text(`Informe de Gastos — ${data.empresa.nombre}`, margin, 22);
+  doc.text(`Informe de Gastos - ${empresaNombreLimpio}`, margin, 20);
 
+  // Subtítulo con período
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(...MUTED);
-  const periodo = `${fmtDate(data.desde)} — ${fmtDate(data.hasta)}`;
-  doc.text(`Período: ${periodo}`, margin, 29);
+  const periodo = `${fmtDate(data.desde)} a ${fmtDate(data.hasta)}`;
+  doc.text(`Periodo: ${periodo}`, margin, 26);
 
-  // Participación en esquina superior derecha
+  // Participación en la esquina superior derecha
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(empresaColor.r, empresaColor.g, empresaColor.b);
-  const partTxt = `Participación: ${data.empresa.porcentaje}%`;
-  doc.text(partTxt, pageWidth - margin, 22, { align: 'right' });
+  doc.setFontSize(10);
+  doc.setTextColor(...DARK);
+  const partTxt = `Participacion: ${data.empresa.porcentaje}%`;
+  doc.text(partTxt, pageWidth - margin, 20, { align: 'right' });
 
-  // ─── Recuadro de compensación (tarjeta destacada) ───────────────────────
+  // ─── TABLA DE RESUMEN DE COMPENSACIÓN (Alto contraste y fácil lectura) ───
   const comp = data.compensacion;
   const esDebeCobrar = comp.estado === 'debe_cobrar';
   const esDebePagar = comp.estado === 'debe_pagar';
 
-  const cardColor: [number, number, number] = esDebeCobrar
-    ? [20, 90, 40]
+  const labelSaldo = esDebeCobrar
+    ? 'SALDO A COBRAR (Favor)'
     : esDebePagar
-      ? [90, 20, 20]
-      : [40, 40, 40];
+      ? 'SALDO A PAGAR (Contra)'
+      : 'SALDO EQUILIBRADO';
 
-  const cardTextColor: [number, number, number] = esDebeCobrar
-    ? [80, 200, 120]
-    : esDebePagar
-      ? [220, 80, 80]
-      : [180, 180, 180];
+  const saldoVal = `${comp.saldo > 0 ? '+' : ''}${fmt(comp.saldo)}`;
 
-  const estadoLabel = esDebeCobrar
-    ? 'DEBE COBRAR'
-    : esDebePagar
-      ? 'DEBE PAGAR'
-      : 'EQUILIBRADO';
-
-  doc.setFillColor(...cardColor);
-  doc.roundedRect(margin, 35, pageWidth - margin * 2, 30, 3, 3, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...cardTextColor);
-  doc.text('COMPENSACIÓN DE GASTOS COMPARTIDOS (MINA)', margin + 6, 43);
-
-  doc.setFontSize(20);
-  const saldoTxt = `${esDebeCobrar ? '+' : ''}${fmt(comp.saldo)}`;
-  doc.text(saldoTxt, margin + 6, 57);
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text(estadoLabel, pageWidth - margin - 6, 57, { align: 'right' });
-
-  // Detalle pequeño del cálculo de compensación
-  doc.setFontSize(8);
-  doc.setTextColor(...MUTED);
-  const detalleComp = [
-    `Total compartido: ${fmt(comp.totalCompartido)}`,
-    `Pagado por ${data.empresa.nombre}: ${fmt(comp.gastadoEmpresa)}`,
-    `Teórico (${data.empresa.porcentaje}%): ${fmt(comp.teorico)}`,
-    `Saldo (pagado − teórico): ${fmt(comp.saldo)}`,
+  // Filas del resumen
+  const resumenRows: RowInput[] = [
+    ['Total compartido en Mina (100%)', fmt(comp.totalCompartido)],
+    [`Teorico de ${empresaNombreLimpio} (${data.empresa.porcentaje}%)`, fmt(comp.teorico)],
+    [`Aportado realmente por ${empresaNombreLimpio}`, fmt(comp.gastadoEmpresa)],
+    [labelSaldo, saldoVal],
   ];
-  let detX = margin + 6;
-  for (const txt of detalleComp) {
-    doc.text(txt, detX, 43 + 30 + 8);
-    detX += 70;
-  }
 
-  // ─── Tabla: totales por categoría ────────────────────────────────────────
+  autoTable(doc, {
+    head: [['Concepto de Compensacion (Mina)', 'Monto']],
+    body: resumenRows,
+    startY: 32,
+    styles: {
+      fontSize: 10.5,
+      cellPadding: 4.5,
+      halign: 'right',
+      textColor: DARK,
+    },
+    headStyles: {
+      fillColor: DARK,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'left',
+    },
+    columnStyles: {
+      0: { halign: 'left', fontStyle: 'normal' },
+      1: { halign: 'right', fontStyle: 'bold', cellWidth: 50 },
+    },
+    didParseCell: (d) => {
+      // Estilo especial de alto contraste para la fila del Saldo Final
+      if (d.section === 'body' && d.row.index === resumenRows.length - 1) {
+        d.cell.styles.fontStyle = 'bold';
+        d.cell.styles.fontSize = 11.5;
+        if (esDebeCobrar) {
+          d.cell.styles.fillColor = [230, 245, 235]; // Fondo verde suave
+          d.cell.styles.textColor = [0, 100, 0];      // Texto verde oscuro
+        } else if (esDebePagar) {
+          d.cell.styles.fillColor = [253, 235, 235]; // Fondo rojo suave
+          d.cell.styles.textColor = [160, 20, 20];    // Texto rojo oscuro
+        } else {
+          d.cell.styles.fillColor = [240, 240, 240]; // Fondo gris
+          d.cell.styles.textColor = DARK;
+        }
+      }
+    },
+  });
+
+  // ─── TABLA DE RESUMEN POR CATEGORÍA (Mina vs Molino) ───
   const porCat: Record<string, { total: number; pagado: number; count: number }> = {};
   for (const g of data.gastos) {
     if (!porCat[g.categoria]) porCat[g.categoria] = { total: 0, pagado: 0, count: 0 };
@@ -125,7 +129,7 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
     porCat[g.categoria].count += 1;
   }
 
-  const catRows = Object.entries(porCat).map(([cat, v]) => [
+  const catRows: RowInput[] = Object.entries(porCat).map(([cat, v]) => [
     cat,
     String(v.count),
     fmt(v.total),
@@ -133,17 +137,34 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
   ]);
   catRows.push(['TOTAL GENERAL', String(data.gastos.length), '—', fmt(data.totalGastado)]);
 
+  const startYCat = (doc as any).lastAutoTable.finalY + 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...DARK);
+  doc.text('Resumen de Gastos por Categoria', margin, startYCat - 3);
+
   autoTable(doc, {
-    head: [['Categoría', '# Gastos', 'Monto Total', `Pagado por ${data.empresa.nombre}`]],
+    head: [['Categoria', 'Cant.', 'Monto Total', `Pagado por ${empresaNombreLimpio}`]],
     body: catRows,
-    startY: 82,
-    styles: { fontSize: 9, cellPadding: 3, halign: 'right' },
-    headStyles: { fillColor: GOLD, textColor: BLACK, fontStyle: 'bold', halign: 'center' },
+    startY: startYCat,
+    styles: {
+      fontSize: 10,
+      cellPadding: 4,
+      halign: 'right',
+      textColor: DARK,
+    },
+    headStyles: {
+      fillColor: GOLD,
+      textColor: BLACK,
+      fontStyle: 'bold',
+      halign: 'center',
+    },
     columnStyles: {
-      0: { halign: 'left', cellWidth: 80 },
-      1: { halign: 'center', cellWidth: 25 },
-      2: { halign: 'right', cellWidth: 45 },
-      3: { halign: 'right', cellWidth: 55, fontStyle: 'bold' },
+      0: { halign: 'left', cellWidth: 70 },
+      1: { halign: 'center', cellWidth: 20 },
+      2: { halign: 'right', cellWidth: 40 },
+      3: { halign: 'right', cellWidth: 50, fontStyle: 'bold' },
     },
     didParseCell: (d) => {
       if (d.section === 'body' && d.row.index === catRows.length - 1) {
@@ -158,33 +179,38 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
   // ============ PÁGINA 2+: DESGLOSE DETALLADO ============
   doc.addPage();
 
-  // Franja dorada en p2
+  // Franja superior dorada en p2
   doc.setFillColor(...GOLD);
-  doc.rect(0, 0, pageWidth, 10, 'F');
+  doc.rect(0, 0, pageWidth, 8, 'F');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(...DARK);
-  doc.text(`Desglose Detallado — ${data.empresa.nombre}`, margin, 22);
+  doc.text(`Desglose Detallado - ${empresaNombreLimpio}`, margin, 20);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   doc.setTextColor(...MUTED);
-  doc.text(`Todos los gastos donde ${data.empresa.nombre} registró un pago en ${periodo}`, margin, 28);
+  doc.text(`Todos los gastos donde se registro un pago de ${empresaNombreLimpio} en el periodo`, margin, 25);
 
-  // Agrupar por categoría para mostrar secciones
+  // Ordenar y agrupar por categoría
   const catOrden = Object.keys(porCat).sort((a, b) => a.localeCompare(b));
-
   type CellDef = string | { content: string; colSpan?: number; rowSpan?: number; styles?: Record<string, unknown> };
   const detalleRows: CellDef[][] = [];
 
   for (const cat of catOrden) {
-    // Fila de encabezado de categoría (colSpan 4)
+    // Encabezado de categoría
     detalleRows.push([
       {
         content: cat.toUpperCase(),
         colSpan: 4,
-        styles: { fontStyle: 'bold', fillColor: [50, 50, 50], textColor: [218, 165, 32], halign: 'left' },
+        styles: {
+          fontStyle: 'bold',
+          fillColor: [50, 50, 50],
+          textColor: GOLD,
+          halign: 'left',
+          fontSize: 9.5,
+        },
       },
       '', '', '',
     ]);
@@ -193,13 +219,13 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
     for (const g of itemsCat) {
       detalleRows.push([
         fmtDate(g.fecha),
-        g.descripcion ?? 'Sin descripción',
+        g.descripcion ?? 'Sin descripcion',
         fmt(g.montoTotal),
         fmt(g.montoPagado),
       ]);
     }
 
-    // Subtotal de categoría
+    // Subtotal por categoría
     const cat_ = porCat[cat];
     detalleRows.push([
       '',
@@ -209,7 +235,7 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
     ]);
   }
 
-  // Fila total final
+  // Fila total general
   detalleRows.push([
     '',
     { content: 'TOTAL GENERAL', styles: { fontStyle: 'bold', halign: 'right', fillColor: GOLD, textColor: BLACK } },
@@ -218,36 +244,46 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
   ]);
 
   autoTable(doc, {
-    head: [['Fecha', 'Descripción', 'Monto Total', `Pagado por ${data.empresa.nombre}`]],
+    head: [['Fecha', 'Descripcion', 'Monto Total', `Pagado por ${empresaNombreLimpio}`]],
     body: detalleRows,
-    startY: 33,
-    styles: { fontSize: 8, cellPadding: 3, halign: 'right', overflow: 'linebreak' },
-    headStyles: { fillColor: GOLD, textColor: BLACK, fontStyle: 'bold', halign: 'center' },
+    startY: 30,
+    styles: {
+      fontSize: 9.5,
+      cellPadding: 4,
+      halign: 'right',
+      textColor: DARK,
+      overflow: 'linebreak',
+    },
+    headStyles: {
+      fillColor: GOLD,
+      textColor: BLACK,
+      fontStyle: 'bold',
+      halign: 'center',
+    },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 28 },
-      1: { halign: 'left', cellWidth: 130 },
-      2: { halign: 'right', cellWidth: 38 },
-      3: { halign: 'right', cellWidth: 42, fontStyle: 'bold' },
+      0: { halign: 'center', cellWidth: 25 },
+      1: { halign: 'left', cellWidth: 85 },
+      2: { halign: 'right', cellWidth: 35 },
+      3: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
     },
     alternateRowStyles: { fillColor: LIGHT_BG },
   });
 
-
-  // ============ PIE DE PÁGINA ============
+  // ============ PIE DE PÁGINA (PAGINACIÓN) ============
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setTextColor(...MUTED);
     doc.setFont('helvetica', 'normal');
     doc.text(
-      `Generado el ${new Date().toLocaleString('es-ES')} — Página ${i} de ${pageCount} — Informe ${data.empresa.nombre}`,
+      `Generado el ${new Date().toLocaleString('es-ES')} - Pagina ${i} de ${pageCount} - Informe ${empresaNombreLimpio}`,
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 8,
       { align: 'center' },
     );
   }
 
-  const nombreArchivo = data.empresa.nombre.toLowerCase().replace(/\s+/g, '_');
+  const nombreArchivo = empresaNombreLimpio.toLowerCase().replace(/\s+/g, '_');
   doc.save(`informe_${nombreArchivo}_${data.mes}.pdf`);
 }
