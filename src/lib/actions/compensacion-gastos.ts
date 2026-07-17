@@ -351,3 +351,229 @@ export async function generarGastosEmpresaAction(
     return { ok: false, message: 'Error al generar el informe de empresa' };
   }
 }
+
+// ─── Balance Producción vs Gastos ───────────────────────────────────────────
+
+export type OrigenResumen = {
+  origen: string;
+  totalOro: number;
+  totalSacos: number;
+  totalTon: number;
+  tenor: number;
+  pctTotal: number;
+};
+
+export type BalanceProdGastosResumen = {
+  empresa: CompensacionEmpresa;
+  mes: string;
+  desde: string;
+  hasta: string;
+  precioOro: number;
+  fechaPrecioOro: string | null;
+  fuentePrecioOro: string | null;
+  produccion: {
+    totalOroRecuperado: number;
+    oroQuemadoPlanchas: number;
+    oroGranTotal: number;
+    valorOroGranTotal: number;
+    valorOroEmpresa: number;
+    sacosTotales: number;
+    toneladas: number;
+    tenorGlobal: number;
+    origenResumen: OrigenResumen[];
+    registros: any[];
+  };
+  gastos: GastosEmpresaResumen;
+  balanceNetoReal: number;
+  balanceNetoAjustado: number;
+};
+
+export type BalanceProdGastosResponse =
+  | { ok: true; data: BalanceProdGastosResumen }
+  | { ok: false; message: string };
+
+const ORDEN_ORIGEN = [
+  'Vertical 1',
+  'Vertical 2',
+  'Vertical 3',
+  'Mantenimiento',
+  'Repaso',
+  'Caratal',
+  'Molino Continuo',
+  'Otros',
+];
+
+function clasificarOrigenServer(r: any): string {
+  const molino = (r.molino || '').toLowerCase().trim();
+  const material = (r.material || '').toLowerCase().trim();
+  const codigo = (r.material_codigo || '').toUpperCase().trim();
+
+  if (molino.includes('mantenimiento') || material.includes('mantenimiento')) {
+    return 'Mantenimiento';
+  }
+  if (molino.includes('continuo') || material.includes('continuo')) {
+    return 'Molino Continuo';
+  }
+  if (molino.includes('repaso') || material.includes('repaso')) {
+    return 'Repaso';
+  }
+  if (molino.includes('caratal') || material.includes('caratal')) {
+    return 'Caratal';
+  }
+
+  const buscarVertical = (s: string): string | null => {
+    const m = s.match(/V([123])/i);
+    return m ? `Vertical ${m[1]}` : null;
+  };
+
+  const v = buscarVertical(codigo) || buscarVertical(molino) || buscarVertical(material);
+  if (v) return v;
+
+  return 'Otros';
+}
+
+export async function generarBalanceProdGastosAction(
+  mes: string,
+  empresaId: string,
+  dia?: string | null,
+): Promise<BalanceProdGastosResponse> {
+  try {
+    if (!/^\d{4}-\d{2}$/.test(mes)) {
+      return { ok: false, message: 'Formato de mes inválido (YYYY-MM)' };
+    }
+
+    const supabase = await createServerClient();
+    const { desde, hasta } =
+      dia && /^\d{4}-\d{2}-\d{2}$/.test(dia)
+        ? { desde: dia, hasta: dia }
+        : monthBounds(mes);
+
+    // 1. Obtener precio del oro
+    const { data: precioOroData } = await supabase
+      .from('precio_oro_cache')
+      .select('precio_usd_por_gramo, fecha, fuente')
+      .order('fecha', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const precioOro = Number(precioOroData?.precio_usd_por_gramo ?? 99.68);
+    const fechaPrecioOro = precioOroData?.fecha ?? null;
+    const fuentePrecioOro = precioOroData?.fuente ?? null;
+
+    // 2. Obtener reportes de producción
+    const { data: prodData, error: prodError } = await supabase
+      .from('reportes_produccion')
+      .select('*')
+      .gte('fecha', desde)
+      .lte('fecha', hasta)
+      .order('fecha', { ascending: true });
+
+    if (prodError) return { ok: false, message: prodError.message };
+    const prodRaw = prodData ?? [];
+
+    // 3. Obtener reportes de quemado
+    const { data: quemadoData, error: quemadoError } = await supabase
+      .from('reportes_quemado')
+      .select('total_oro_g')
+      .gte('fecha', desde)
+      .lte('fecha', hasta);
+
+    if (quemadoError) return { ok: false, message: quemadoError.message };
+    const oroQuemadoPlanchas = (quemadoData ?? []).reduce(
+      (s, r) => s + (Number(r.total_oro_g) || 0),
+      0,
+    );
+
+    // 4. Obtener gastos e informes de compensación de la empresa
+    const gastosRes = await generarGastosEmpresaAction(mes, empresaId, dia);
+    if (!gastosRes.ok) {
+      return { ok: false, message: gastosRes.message };
+    }
+    const gastos = gastosRes.data;
+
+    // 5. Agrupar producción por origen
+    const grupos: Record<string, any[]> = {};
+    for (const o of ORDEN_ORIGEN) {
+      grupos[o] = [];
+    }
+
+    let totalOroRecuperado = 0;
+    let sacosTotales = 0;
+    let toneladas = 0;
+
+    for (const r of prodRaw) {
+      const oro = Number(r.oro_recuperado_g) || 0;
+      const sacos = Number(r.sacos) || 0;
+      const ton = Number(r.toneladas_procesadas) || 0;
+
+      totalOroRecuperado += oro;
+      sacosTotales += sacos;
+      toneladas += ton;
+
+      const origen = clasificarOrigenServer(r);
+      if (!grupos[origen]) grupos[origen] = [];
+      grupos[origen].push(r);
+    }
+
+    const origenResumen: OrigenResumen[] = [];
+    for (const origen of ORDEN_ORIGEN) {
+      const regs = grupos[origen] || [];
+      if (regs.length === 0) continue;
+
+      const totalOro = regs.reduce((s, r) => s + (Number(r.oro_recuperado_g) || 0), 0);
+      const totalSacos = Math.round(regs.reduce((s, r) => s + (Number(r.sacos) || 0), 0));
+      const totalTon = regs.reduce((s, r) => s + (Number(r.toneladas_procesadas) || 0), 0);
+      const tenor = totalTon > 0 ? totalOro / totalTon : 0;
+      const pctTotal = totalOroRecuperado > 0 ? (totalOro / totalOroRecuperado) * 100 : 0;
+
+      origenResumen.push({
+        origen,
+        totalOro: Math.round(totalOro * 10000) / 10000,
+        totalSacos,
+        totalTon: Math.round(totalTon * 1000) / 1000,
+        tenor: Math.round(tenor * 10000) / 10000,
+        pctTotal: Math.round(pctTotal * 100) / 100,
+      });
+    }
+
+    const oroGranTotal = totalOroRecuperado + oroQuemadoPlanchas;
+    const valorOroGranTotal = oroGranTotal * precioOro;
+    const valorOroEmpresa = valorOroGranTotal * (gastos.empresa.porcentaje / 100);
+    const tenorGlobal = toneladas > 0 ? totalOroRecuperado / toneladas : 0;
+
+    const balanceNetoReal = valorOroEmpresa - gastos.totalGastado;
+    const totalAjustado = gastos.totalGastado - gastos.compensacion.saldo;
+    const balanceNetoAjustado = valorOroEmpresa - totalAjustado;
+
+    return {
+      ok: true,
+      data: {
+        empresa: gastos.empresa,
+        mes,
+        desde,
+        hasta,
+        precioOro,
+        fechaPrecioOro,
+        fuentePrecioOro,
+        produccion: {
+          totalOroRecuperado: Math.round(totalOroRecuperado * 10000) / 10000,
+          oroQuemadoPlanchas: Math.round(oroQuemadoPlanchas * 10000) / 10000,
+          oroGranTotal: Math.round(oroGranTotal * 10000) / 10000,
+          valorOroGranTotal: Math.round(valorOroGranTotal * 100) / 100,
+          valorOroEmpresa: Math.round(valorOroEmpresa * 100) / 100,
+          sacosTotales,
+          toneladas: Math.round(toneladas * 1000) / 1000,
+          tenorGlobal: Math.round(tenorGlobal * 10000) / 10000,
+          origenResumen,
+          registros: prodRaw,
+        },
+        gastos,
+        balanceNetoReal: Math.round(balanceNetoReal * 100) / 100,
+        balanceNetoAjustado: Math.round(balanceNetoAjustado * 100) / 100,
+      },
+    };
+  } catch (err) {
+    console.error('[compensacion-gastos] balance prod-gastos exception:', err);
+    return { ok: false, message: 'Error al generar el balance producción vs gastos' };
+  }
+}

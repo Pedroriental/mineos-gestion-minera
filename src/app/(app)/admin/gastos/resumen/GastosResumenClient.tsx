@@ -11,12 +11,14 @@ import {
   Users,
   X,
   Loader2,
+  Scale,
 } from 'lucide-react';
 import { AppMonthPicker } from '@/components/ui/AppMonthPicker';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { Tabs } from '@/components/ui/Tabs';
 import CompensacionTab from './CompensacionTab';
 import InversoresTab from './InversoresTab';
+import BalanceProdGastosTab from './BalanceProdGastosTab';
 import type {
   GastosResumenSummary,
   GastosResumenPeriod,
@@ -84,6 +86,7 @@ export default function GastosResumenClient({ summary }: Props) {
           { key: 'resumen', label: 'Resumen', icon: <DollarSign className="h-3 w-3" /> },
           { key: 'compensacion', label: 'Compensación', icon: <Calculator className="h-3 w-3" /> },
           { key: 'inversores', label: 'Inversores', icon: <Users className="h-3 w-3" /> },
+          { key: 'balance_prod_gastos', label: 'Balance Prod/Gastos', icon: <Scale className="h-3 w-3" /> },
         ]}
         className="gastos-resumen-page__tabs"
       >
@@ -93,6 +96,9 @@ export default function GastosResumenClient({ summary }: Props) {
           }
           if (activeTab === 'inversores') {
             return <InversoresTab />;
+          }
+          if (activeTab === 'balance_prod_gastos') {
+            return <BalanceProdGastosTab initialMes={period.mes} initialDia={period.dia} />;
           }
           return (
             <ResumenTab
