@@ -120,6 +120,38 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
     },
   });
 
+  // ─── EXPLICACIÓN DEL CÁLCULO DE COMPENSACIÓN ───
+  const boxY = (doc as any).lastAutoTable.finalY + 5;
+  const boxHeight = 24;
+
+  // Fondo y borde del recuadro
+  doc.setFillColor(248, 249, 250);
+  doc.setDrawColor(220, 224, 230);
+  doc.roundedRect(margin, boxY, pageWidth - margin * 2, boxHeight, 2, 2, 'FD');
+
+  // Título de la explicación
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...DARK);
+  doc.text('Explicacion detallada del calculo:', margin + 6, boxY + 6);
+
+  // Texto explicativo
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(60, 60, 60);
+
+  const explicacionText = esDebeCobrar
+    ? `${empresaNombreLimpio} aporto ${fmt(comp.gastadoEmpresa)} en efectivo, superando su cuota del ${data.empresa.porcentaje}% (${fmt(comp.teorico)}) del total compartido de Mina (${fmt(comp.totalCompartido)}). Le corresponde cobrar la diferencia.`
+    : esDebePagar
+      ? `${empresaNombreLimpio} aporto ${fmt(comp.gastadoEmpresa)} en efectivo, quedando por debajo de su cuota del ${data.empresa.porcentaje}% (${fmt(comp.teorico)}) del total compartido de Mina (${fmt(comp.totalCompartido)}). Debe pagar la diferencia.`
+      : `${empresaNombreLimpio} aporto exactamente su cuota del ${data.empresa.porcentaje}% (${fmt(comp.teorico)}) del total compartido de Mina (${fmt(comp.totalCompartido)}).`;
+
+  const formulaText = `Formula: Aportado Real (${fmt(comp.gastadoEmpresa)}) - Teorico (${fmt(comp.teorico)}) = Saldo de ${saldoVal}`;
+
+  doc.text(explicacionText, margin + 6, boxY + 12, { maxWidth: pageWidth - margin * 2 - 12 });
+  doc.setFont('helvetica', 'bold');
+  doc.text(formulaText, margin + 6, boxY + 19);
+
   // ─── TABLA DE RESUMEN POR CATEGORÍA (Mina vs Molino) ───
   const porCat: Record<string, { total: number; pagado: number; count: number }> = {};
   for (const g of data.gastos) {
@@ -137,7 +169,7 @@ export function generarPdfEmpresa(data: GastosEmpresaResumen): void {
   ]);
   catRows.push(['TOTAL GENERAL', String(data.gastos.length), '—', fmt(data.totalGastado)]);
 
-  const startYCat = (doc as any).lastAutoTable.finalY + 10;
+  const startYCat = boxY + boxHeight + 10;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
