@@ -1,11 +1,15 @@
 'use client';
 
-import { Fragment, useEffect, useState, useTransition } from 'react';
-import { Calculator, Download, FileText, Loader2, Users } from 'lucide-react';
+import { Fragment, useEffect, useRef, useState, useTransition } from 'react';
+import { Calculator, ChevronDown, Download, FileText, Loader2, Users } from 'lucide-react';
 import { AppMonthPicker } from '@/components/ui/AppMonthPicker';
-import { generarCompensacionGastosAction } from '@/lib/actions/compensacion-gastos';
+import {
+  generarCompensacionGastosAction,
+  generarGastosEmpresaAction,
+} from '@/lib/actions/compensacion-gastos';
 import { formatCurrency, type CompensacionResumen } from '@/lib/compensacion-gastos';
 import { generarPdfCompensacionGastos } from '@/lib/reportes/compensacion-gastos-pdf';
+import { generarPdfEmpresa } from '@/lib/reportes/compensacion-empresa-pdf';
 import { descargarCsvCompensacionGastos } from '@/lib/reportes/compensacion-gastos-csv';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/app-toast';
@@ -28,7 +32,10 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
   const [mes, setMes] = useState<string>(initialMes || defaultMes());
   const [resumen, setResumen] = useState<CompensacionResumen | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const cargar = (m: string) => {
     setLoading(true);
@@ -60,6 +67,17 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mes]);
 
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setPdfOpen(false);
+      }
+    };
+    if (pdfOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [pdfOpen]);
+
   const handleDescargarCSV = () => {
     if (!resumen) return;
     try {
@@ -70,13 +88,32 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
     }
   };
 
-  const handleDescargarPDF = () => {
+  const handleDescargarPDFGlobal = () => {
     if (!resumen) return;
     try {
       generarPdfCompensacionGastos(resumen);
-      toast.success('PDF descargado');
+      toast.success('PDF Global descargado');
     } catch (err) {
       toastError(`Error al generar PDF: ${err instanceof Error ? err.message : 'desconocido'}`);
+    }
+    setPdfOpen(false);
+  };
+
+  const handleDescargarPDFEmpresa = async (empresaId: string, empresaNombre: string) => {
+    setPdfLoadingId(empresaId);
+    setPdfOpen(false);
+    try {
+      const res = await generarGastosEmpresaAction(mes, empresaId, initialDia);
+      if (res.ok) {
+        generarPdfEmpresa(res.data);
+        toast.success(`PDF de ${empresaNombre} descargado`);
+      } else {
+        toastError(`Error: ${res.message}`);
+      }
+    } catch (err) {
+      toastError(`Error al generar PDF: ${err instanceof Error ? err.message : 'desconocido'}`);
+    } finally {
+      setPdfLoadingId(null);
     }
   };
 
@@ -104,14 +141,68 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
         >
           <Download className="h-3 w-3" /> CSV
         </button>
-        <button
-          type="button"
-          onClick={handleDescargarPDF}
-          disabled={!resumen}
-          className="gastos-page-btn flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-bold"
-        >
-          <FileText className="h-3 w-3" /> PDF
-        </button>
+
+        {/* PDF Dropdown */}
+        <div ref={dropdownRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setPdfOpen((o) => !o)}
+            disabled={!resumen}
+            className="gastos-page-btn flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-bold"
+          >
+            {pdfLoadingId ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <FileText className="h-3 w-3" />
+            )}
+            PDF
+            <ChevronDown
+              className={`h-2.5 w-2.5 transition-transform duration-150 ${
+                pdfOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {pdfOpen && resumen && (
+            <div
+              className="absolute right-0 top-full z-50 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] shadow-xl"
+              style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
+            >
+              {/* Global */}
+              <button
+                type="button"
+                onClick={handleDescargarPDFGlobal}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[10px] font-semibold transition-colors hover:bg-[var(--dashboard-accent)]/10"
+              >
+                <FileText className="h-3 w-3 text-[var(--dashboard-text-muted)]" />
+                <span className="text-[var(--dashboard-text)]">Compensación Global</span>
+              </button>
+
+              {/* Separador */}
+              <div className="my-0.5 h-px bg-[var(--dashboard-border)]" />
+
+              {/* Un botón por empresa */}
+              {resumen.empresas.map((e) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => handleDescargarPDFEmpresa(e.id, e.nombre)}
+                  disabled={pdfLoadingId === e.id}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[10px] font-semibold transition-colors hover:bg-[var(--dashboard-accent)]/10 disabled:opacity-50"
+                >
+                  {pdfLoadingId === e.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" style={{ color: e.color }} />
+                  ) : (
+                    <FileText className="h-3 w-3" style={{ color: e.color }} />
+                  )}
+                  <span style={{ color: e.color }}>
+                    Informe {e.nombre}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {loading && (

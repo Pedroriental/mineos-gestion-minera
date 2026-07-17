@@ -1,7 +1,7 @@
 'use client';
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type RowInput } from 'jspdf-autotable';
 import type { CompensacionResumen } from '@/lib/compensacion-gastos';
 
 function fmtPdf(n: number): string {
@@ -72,7 +72,7 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
     ...resumen.empresas.map((e) => e.nombre)
   ];
 
-  const fullHead = [headerRow1, headerRow2];
+  const fullHead: RowInput[] = [headerRow1 as RowInput, headerRow2 as RowInput];
   const body: (string | number)[][] = [];
 
   resumen.categorias.forEach((cat, i) => {
