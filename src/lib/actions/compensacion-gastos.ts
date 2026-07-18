@@ -436,6 +436,7 @@ export async function generarBalanceProdGastosAction(
   mes: string,
   empresaId: string,
   dia?: string | null,
+  numQuemadas?: number | null,
 ): Promise<BalanceProdGastosResponse> {
   try {
     if (!/^\d{4}-\d{2}$/.test(mes)) {
@@ -472,17 +473,34 @@ export async function generarBalanceProdGastosAction(
     const prodRaw = prodData ?? [];
 
     // 3. Obtener reportes de quemado
-    const { data: quemadoData, error: quemadoError } = await supabase
-      .from('reportes_quemado')
-      .select('total_oro_g')
-      .gte('fecha', desde)
-      .lte('fecha', hasta);
+    let oroQuemadoPlanchas = 0;
+    if (numQuemadas !== undefined && numQuemadas !== null) {
+      if (numQuemadas > 0) {
+        const { data: quemadoData, error: quemadoError } = await supabase
+          .from('reportes_quemado')
+          .select('total_oro_g')
+          .order('fecha', { ascending: false })
+          .limit(numQuemadas);
 
-    if (quemadoError) return { ok: false, message: quemadoError.message };
-    const oroQuemadoPlanchas = (quemadoData ?? []).reduce(
-      (s, r) => s + (Number(r.total_oro_g) || 0),
-      0,
-    );
+        if (quemadoError) return { ok: false, message: quemadoError.message };
+        oroQuemadoPlanchas = (quemadoData ?? []).reduce(
+          (s, r) => s + (Number(r.total_oro_g) || 0),
+          0,
+        );
+      }
+    } else {
+      const { data: quemadoData, error: quemadoError } = await supabase
+        .from('reportes_quemado')
+        .select('total_oro_g')
+        .gte('fecha', desde)
+        .lte('fecha', hasta);
+
+      if (quemadoError) return { ok: false, message: quemadoError.message };
+      oroQuemadoPlanchas = (quemadoData ?? []).reduce(
+        (s, r) => s + (Number(r.total_oro_g) || 0),
+        0,
+      );
+    }
 
     // 4. Obtener gastos e informes de compensación de la empresa
     const gastosRes = await generarGastosEmpresaAction(mes, empresaId, dia);

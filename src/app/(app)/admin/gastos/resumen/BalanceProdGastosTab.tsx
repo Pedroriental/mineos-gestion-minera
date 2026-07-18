@@ -30,16 +30,18 @@ export default function BalanceProdGastosTab({ initialMes, initialDia }: Props) 
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }));
+  const [numQuemadas, setNumQuemadas] = useState<string>('2');
   const [balance, setBalance] = useState<BalanceProdGastosResumen | null>(null);
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [, startTransition] = useTransition();
 
-  const cargar = (m: string) => {
+  const cargar = (m: string, nq: string) => {
     setLoading(true);
     startTransition(async () => {
       try {
-        const res = await generarBalanceProdGastosAction(m, LA_FE_ID, initialDia);
+        const paramQuemadas = nq === 'rango' ? null : Number(nq);
+        const res = await generarBalanceProdGastosAction(m, LA_FE_ID, initialDia, paramQuemadas);
         if (res.ok) {
           setBalance(res.data);
         } else {
@@ -58,9 +60,9 @@ export default function BalanceProdGastosTab({ initialMes, initialDia }: Props) 
   };
 
   useEffect(() => {
-    cargar(mes);
+    cargar(mes, numQuemadas);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes]);
+  }, [mes, numQuemadas]);
 
   const handleDescargarPDF = () => {
     if (!balance) return;
@@ -89,6 +91,22 @@ export default function BalanceProdGastosTab({ initialMes, initialDia }: Props) 
               onChange={(val) => setMes(val)}
               className="w-40"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)]">Quemadas planchas:</span>
+            <select
+              value={numQuemadas}
+              onChange={(e) => setNumQuemadas(e.target.value)}
+              className="h-9 w-44 rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-card-bg)] px-3 text-xs text-[var(--dashboard-text)] outline-none cursor-pointer hover:border-[var(--dashboard-border-hover)]"
+            >
+              <option value="rango">Filtrar por mes (Rango de fechas)</option>
+              <option value="0">0 (No incluir quemado)</option>
+              <option value="1">1 (Última quemada)</option>
+              <option value="2">2 (Últimas 2 quemadas)</option>
+              <option value="3">3 (Últimas 3 quemadas)</option>
+              <option value="4">4 (Últimas 4 quemadas)</option>
+              <option value="5">5 (Últimas 5 quemadas)</option>
+            </select>
           </div>
         </div>
 
