@@ -605,37 +605,6 @@ export default function NominaClient({
     }
     return map;
   }, [preNominaRows]);
-
-  const projectedWorkers = useMemo(() => {
-    if (!grupoMixtoRosterProjection) return [];
-    return grupoMixtoRosterProjection.expectedIds
-      .map((id) => personalCatalogMerged.find((p) => p.id === id))
-      .filter(Boolean) as Personal[];
-  }, [grupoMixtoRosterProjection, personalCatalogMerged]);
-
-  const toggleProjectionWorker = useCallback((id: string) => {
-    setSelectedProjectionIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }, []);
-
-  const handleApplyProjection = useCallback(() => {
-    if (!selectedProjectionIds.length) {
-      toastError("Debes seleccionar al menos un trabajador para proyectar.");
-      return;
-    }
-    writeManualWeekRosterEntries(
-      area,
-      weekRange.inicio,
-      selectedProjectionIds.map((id) => ({ id })),
-      manualPeriodId,
-    );
-    markOperationalWeekEmptied(area, weekRange.inicio, true);
-    setManualRosterTick((t) => t + 1);
-    setShowProjectionModal(false);
-    toast.success("Roster proyectado aplicado. Ahora puedes editarlo libremente.");
-  }, [area, weekRange.inicio, selectedProjectionIds, manualPeriodId]);
-
   // Forms
   const [editItem, setEditItem] = useState<Personal | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -895,6 +864,36 @@ export default function NominaClient({
     const entries = readManualWeekRosterEntries(area, weekRange.inicio, manualPeriodId);
     return new Set(entries.map((e) => e.id));
   }, [area, weekRange.inicio, manualPeriodId, manualRosterTick]);
+
+  const projectedWorkers = useMemo(() => {
+    if (!grupoMixtoRosterProjection) return [];
+    return grupoMixtoRosterProjection.expectedIds
+      .map((id) => personalCatalogMerged.find((p) => p.id === id))
+      .filter(Boolean) as Personal[];
+  }, [grupoMixtoRosterProjection, personalCatalogMerged]);
+
+  const toggleProjectionWorker = useCallback((id: string) => {
+    setSelectedProjectionIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const handleApplyProjection = useCallback(() => {
+    if (!selectedProjectionIds.length) {
+      toastError("Debes seleccionar al menos un trabajador para proyectar.");
+      return;
+    }
+    writeManualWeekRosterEntries(
+      area,
+      weekRange.inicio,
+      selectedProjectionIds.map((id) => ({ id })),
+      manualPeriodId,
+    );
+    markOperationalWeekEmptied(area, weekRange.inicio, true);
+    setManualRosterTick((t) => t + 1);
+    setShowProjectionModal(false);
+    toast.success("Roster proyectado aplicado. Ahora puedes editarlo libremente.");
+  }, [area, weekRange.inicio, selectedProjectionIds, manualPeriodId]);
 
 
   const novedadDraftKeyForWeek = useCallback(
