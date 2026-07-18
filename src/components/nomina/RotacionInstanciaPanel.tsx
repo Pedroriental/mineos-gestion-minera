@@ -323,9 +323,13 @@ export function RotacionInstanciaBanner({
 
   const fueraPeriodo =
     weekStart &&
+    instanciaActiva &&
+    weekStart < instanciaActiva.fechaInicioCiclo;
+
+  const periodoExtendido =
+    weekStart &&
     instanciaActiva.periodoOperativo &&
-    (weekStart < instanciaActiva.periodoOperativo.inicio ||
-      weekStart > instanciaActiva.periodoOperativo.fin);
+    weekStart > instanciaActiva.periodoOperativo.fin;
 
   return (
     <div
@@ -337,17 +341,21 @@ export function RotacionInstanciaBanner({
     >
       {fueraPeriodo ? (
         <>
-          <span className="font-bold text-white/60">Semana fuera del periodo operativo</span>
+          <span className="font-bold text-white/60">Semana fuera de ciclo</span>
           <span className="text-white/40">
             {' '}
-            — La plantilla &quot;{instanciaActiva.plantillaNombre}&quot; aplica solo{' '}
-            {instanciaActiva.periodoOperativo?.inicio} — {instanciaActiva.periodoOperativo?.fin}. Esta
-            semana usa histórico o esquema legacy.
+            — La plantilla &quot;{instanciaActiva.plantillaNombre}&quot; inicia el ciclo el{' '}
+            {instanciaActiva.fechaInicioCiclo}. Esta semana usa histórico o esquema legacy.
           </span>
         </>
       ) : (
         <>
           <span className="font-bold">{instanciaActiva.plantillaNombre}</span>
+          {periodoExtendido && (
+            <span className="ml-1.5 inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-400 border border-amber-500/20 uppercase tracking-wider">
+              Plantilla Activa Extendida
+            </span>
+          )}
           {instanciaActiva.periodoOperativo ? (
             <span className="text-amber-200/50"> · {instanciaActiva.periodoOperativo.label} · </span>
           ) : (

@@ -163,16 +163,12 @@ export function buildInstanciaSnapshot(
   };
 }
 
-/** La proyección por plantilla solo aplica dentro del periodo operativo y desde el inicio de ciclo. */
+/** La proyección por plantilla aplica a cualquier semana desde el inicio de ciclo mientras la instancia esté activa. */
 export function semanaAplicaInstanciaRotacion(
   weekStart: string,
   instancia: InstanciaActivaSnapshot,
 ): boolean {
-  if (weekStart < instancia.fechaInicioCiclo) return false;
-  if (instancia.periodoOperativo) {
-    return semanaEnPeriodoOperativo(weekStart, instancia.periodoOperativo);
-  }
-  return true;
+  return weekStart >= instancia.fechaInicioCiclo;
 }
 
 export function findCuadrillaForPersonal(

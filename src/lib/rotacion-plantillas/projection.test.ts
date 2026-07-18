@@ -132,7 +132,7 @@ describe('rotacion projection', () => {
     assert.equal(ctx!.estadoAsistencia, 'trabajada');
   });
 
-  it('resolveWorkerRotacionContext respeta periodo operativo', () => {
+  it('resolveWorkerRotacionContext permite semanas posteriores a la fecha fin del periodo operativo', () => {
     const snap = buildInstanciaSnapshot(
       {
         id: 'i1',
@@ -150,8 +150,10 @@ describe('rotacion projection', () => {
 
     assert.equal(semanaAplicaInstanciaRotacion('2026-05-26', snap), false);
     assert.equal(semanaAplicaInstanciaRotacion('2026-06-09', snap), true);
+    assert.equal(semanaAplicaInstanciaRotacion('2026-07-07', snap), true); // Semana posterior a 2026-06-30
     assert.equal(resolveWorkerRotacionContext({ id: 'worker-1', cargo: '', area: 'mina', area_detalle: 'Vertical 1' }, snap, '2026-05-26'), null);
     assert.ok(resolveWorkerRotacionContext({ id: 'worker-1', cargo: '', area: 'mina', area_detalle: 'Vertical 1' }, snap, '2026-06-09'));
+    assert.ok(resolveWorkerRotacionContext({ id: 'worker-1', cargo: '', area: 'mina', area_detalle: 'Vertical 1' }, snap, '2026-07-07'));
   });
 
   it('avanzarPosicionCuadrilla detecta vuelta completa', () => {
