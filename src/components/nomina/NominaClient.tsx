@@ -865,12 +865,9 @@ export default function NominaClient({
     return new Set(entries.map((e) => e.id));
   }, [area, weekRange.inicio, manualPeriodId, manualRosterTick]);
 
-  const projectedWorkers = useMemo(() => {
-    if (!grupoMixtoRosterProjection) return [];
-    return grupoMixtoRosterProjection.expectedIds
-      .map((id) => personalCatalogMerged.find((p) => p.id === id))
-      .filter(Boolean) as Personal[];
-  }, [grupoMixtoRosterProjection, personalCatalogMerged]);
+  const grupoMixtoWorkers = useMemo(() => {
+    return personalCatalogMerged.filter(isGrupoMixtoPersonal);
+  }, [personalCatalogMerged]);
 
   const toggleProjectionWorker = useCallback((id: string) => {
     setSelectedProjectionIds((prev) =>
@@ -879,10 +876,6 @@ export default function NominaClient({
   }, []);
 
   const handleApplyProjection = useCallback(() => {
-    if (!selectedProjectionIds.length) {
-      toastError("Debes seleccionar al menos un trabajador para proyectar.");
-      return;
-    }
     writeManualWeekRosterEntries(
       area,
       weekRange.inicio,
@@ -2093,6 +2086,7 @@ export default function NominaClient({
       });
       if (res.ok) {
         await registrarAuditAction(editItem ? 'EDITAR_PERSONAL' : 'CREAR_PERSONAL', 'personal', editItem?.id || form.cedula, `${form.nombre_completo} - ${form.cargo}`, user?.id, user?.email);
+        router.refresh();
         setShowModal(false); resetForm();
       } else setFormError(res.message);
     });
@@ -3876,11 +3870,12 @@ export default function NominaClient({
           </p>
 
           <div className="max-h-[300px] overflow-y-auto border border-zinc-800 rounded-lg bg-zinc-950/40 p-2.5 space-y-2 mb-5 scroll-y-fade">
-            {projectedWorkers.length === 0 ? (
-              <p className="text-xs text-[var(--text-muted)] text-center py-4">No hay trabajadores sugeridos en el historial.</p>
+            {grupoMixtoWorkers.length === 0 ? (
+              <p className="text-xs text-[var(--text-muted)] text-center py-4">No hay trabajadores de Grupo (Mixto) activos.</p>
             ) : (
-              projectedWorkers.map((p) => {
+              grupoMixtoWorkers.map((p) => {
                 const isSelected = selectedProjectionIds.includes(p.id);
+                const isExpected = grupoMixtoRosterProjection?.expectedIds.includes(p.id) ?? false;
                 return (
                   <label
                     key={p.id}
@@ -3902,11 +3897,22 @@ export default function NominaClient({
                         <p className="text-[10px] text-[var(--text-muted)]">C.I. {p.cedula}</p>
                       </div>
                     </div>
-                    {p.cargo && (
-                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-white/[0.04] text-white/40 uppercase tracking-wider">
-                        {p.cargo}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {isExpected ? (
+                        <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 uppercase tracking-wide">
+                          Esperado
+                        </span>
+                      ) : (
+                        <span className="text-[8px] font-medium px-1 py-0.5 rounded bg-zinc-800 text-zinc-500 uppercase tracking-wide">
+                          No esperado
+                        </span>
+                      )}
+                      {p.cargo && (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-white/[0.04] text-white/40 uppercase tracking-wider max-w-[80px] truncate">
+                          {p.cargo}
+                        </span>
+                      )}
+                    </div>
                   </label>
                 );
               })
@@ -3924,7 +3930,7 @@ export default function NominaClient({
             <button
               type="button"
               onClick={handleApplyProjection}
-              disabled={projectedWorkers.length === 0}
+              disabled={grupoMixtoWorkers.length === 0}
               className="btn-primary flex-1 py-2.5 text-xs font-bold disabled:opacity-40"
             >
               Aplicar Roster
