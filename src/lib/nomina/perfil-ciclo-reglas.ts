@@ -274,6 +274,9 @@ export function calcularSalarioPorPosicionCiclo(
 
   // MOLINO_14X14 es alias histórico de MOLINO_15X15: misma logica de calculo.
   if (esquema === 'MOLINO_14X14' || esquema === 'MOLINO_15X15') {
+    if (estadoAsistencia === 'trabajada') {
+      return applyProportionalWeeklyPay(base, diasTrabajados);
+    }
     if (posicion <= 1) {
       if (estadoAsistencia === 'no_laborado') return 0;
       return applyProportionalWeeklyPay(base, diasTrabajados);
@@ -285,6 +288,9 @@ export function calcularSalarioPorPosicionCiclo(
   }
 
   if (esquema === 'MINA_2X1' || esquema === 'MINA_ROTATIVA_3G') {
+    if (estadoAsistencia === 'trabajada') {
+      return applyProportionalWeeklyPay(base, diasTrabajados);
+    }
     if (posicion === 2) return tarifaPlanaSemanaLibre(personal);
     if (estadoAsistencia === 'no_laborado') return 0;
     return applyProportionalWeeklyPay(base, diasTrabajados);
