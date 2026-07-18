@@ -591,6 +591,8 @@ export default function NominaClient({
   const [preNominaRows, setPreNominaRows] = useState<PreNominaRowState[]>([]);
   const [grupoMixtoRosterProjection, setGrupoMixtoRosterProjection] =
     useState<GrupoMixtoRosterProjection | null>(null);
+  const [showProjectionModal, setShowProjectionModal] = useState(false);
+  const [selectedProjectionIds, setSelectedProjectionIds] = useState<string[]>([]);
   const proximosPagosValesPorPersonal = useMemo(() => {
     const map: Record<string, number> = {};
     for (const row of preNominaRows) {
@@ -603,6 +605,36 @@ export default function NominaClient({
     }
     return map;
   }, [preNominaRows]);
+
+  const projectedWorkers = useMemo(() => {
+    if (!grupoMixtoRosterProjection) return [];
+    return grupoMixtoRosterProjection.expectedIds
+      .map((id) => personalCatalogMerged.find((p) => p.id === id))
+      .filter(Boolean) as Personal[];
+  }, [grupoMixtoRosterProjection, personalCatalogMerged]);
+
+  const toggleProjectionWorker = useCallback((id: string) => {
+    setSelectedProjectionIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const handleApplyProjection = useCallback(() => {
+    if (!selectedProjectionIds.length) {
+      toastError("Debes seleccionar al menos un trabajador para proyectar.");
+      return;
+    }
+    writeManualWeekRosterEntries(
+      area,
+      weekRange.inicio,
+      selectedProjectionIds.map((id) => ({ id })),
+      manualPeriodId,
+    );
+    markOperationalWeekEmptied(area, weekRange.inicio, true);
+    setManualRosterTick((t) => t + 1);
+    setShowProjectionModal(false);
+    toast.success("Roster proyectado aplicado. Ahora puedes editarlo libremente.");
+  }, [area, weekRange.inicio, selectedProjectionIds, manualPeriodId]);
 
   // Forms
   const [editItem, setEditItem] = useState<Personal | null>(null);
@@ -1469,12 +1501,7 @@ export default function NominaClient({
           grupoMixtoProjection = null;
         }
 
-        if (grupoMixtoProjection?.shouldApply) {
-          const expectedIds = new Set([...grupoMixtoProjection.expectedIds, ...weekRoster]);
-          activeWorkers = activeWorkers.filter(
-            (p) => !isGrupoMixtoPersonal(p) || expectedIds.has(p.id),
-          );
-        }
+
       }
 
       if (activeWorkers.length === 0) {
@@ -2655,6 +2682,17 @@ export default function NominaClient({
                         ? fmtDate(grupoMixtoRosterProjection.sourceWeekStart)
                         : 'historial'}.
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProjectionIds(grupoMixtoRosterProjection.expectedIds);
+                        setShowProjectionModal(true);
+                      }}
+                      className="mt-2 w-full py-1.5 px-2.5 rounded bg-[var(--mineos-benefit)] text-zinc-950 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" aria-hidden />
+                      Revisar y Aplicar
+                    </button>
                   </div>
                 )}
                 {procesadoOk && <div className="mt-2.5 flex items-center gap-2 text-xs text-emerald-400 font-bold"><CheckCircle2 className="w-3.5 h-3.5" />{procesadoOk}</div>}
@@ -3820,6 +3858,80 @@ export default function NominaClient({
               <button type="button" onClick={() => setShowBorrarModal(false)} className="btn-secondary flex-1 py-2.5 text-xs font-bold">Cancelar</button>
               <button type="button" onClick={handleVaciarSemana} disabled={isPending} className="btn-primary flex-1 py-2.5 text-xs font-bold disabled:opacity-40">{isPending ? 'Procesando...' : 'Vaciar semana'}</button>
             </PageFormModalFooter>
+      </PageFormModal>
+
+      <PageFormModal
+        open={showProjectionModal}
+        onClose={() => setShowProjectionModal(false)}
+        sheetTitle="Revisar y Aplicar Roster Proyectado"
+        sheetIcon={<SheetIconBadge icon={Users} tone="info" />}
+        panelClassName="max-w-md text-left"
+      >
+        <div className="flex flex-col min-h-0 text-white">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="h-5 w-5 text-[var(--mineos-benefit)]" />
+            <h3 className="page-form-modal-title text-base font-bold">Revisar y Aplicar Proyección</h3>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)] mb-4 leading-normal">
+            Selecciona los trabajadores de <strong className="text-amber-400">Grupo (Mixto)</strong> que deseas incluir en la nómina de esta semana del <span className="font-semibold">{fmtDate(weekRange.inicio)} al {fmtDate(weekRange.fin)}</span>:
+          </p>
+
+          <div className="max-h-[300px] overflow-y-auto border border-zinc-800 rounded-lg bg-zinc-950/40 p-2.5 space-y-2 mb-5 scroll-y-fade">
+            {projectedWorkers.length === 0 ? (
+              <p className="text-xs text-[var(--text-muted)] text-center py-4">No hay trabajadores sugeridos en el historial.</p>
+            ) : (
+              projectedWorkers.map((p) => {
+                const isSelected = selectedProjectionIds.includes(p.id);
+                return (
+                  <label
+                    key={p.id}
+                    className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-[var(--mineos-benefit-border)] bg-[var(--mineos-benefit-soft)] text-white'
+                        : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900/30 text-white/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleProjectionWorker(p.id)}
+                        className="rounded border-zinc-700 bg-zinc-950 text-[var(--mineos-benefit)] focus:ring-[var(--mineos-benefit)] w-4 h-4 cursor-pointer"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate">{p.nombre_completo}</p>
+                        <p className="text-[10px] text-[var(--text-muted)]">C.I. {p.cedula}</p>
+                      </div>
+                    </div>
+                    {p.cargo && (
+                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-white/[0.04] text-white/40 uppercase tracking-wider">
+                        {p.cargo}
+                      </span>
+                    )}
+                  </label>
+                );
+              })
+            )}
+          </div>
+
+          <PageFormModalFooter className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setShowProjectionModal(false)}
+              className="btn-secondary flex-1 py-2.5 text-xs font-bold"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleApplyProjection}
+              disabled={projectedWorkers.length === 0}
+              className="btn-primary flex-1 py-2.5 text-xs font-bold disabled:opacity-40"
+            >
+              Aplicar Roster
+            </button>
+          </PageFormModalFooter>
+        </div>
       </PageFormModal>
 
       {selectedReceipt ? (
