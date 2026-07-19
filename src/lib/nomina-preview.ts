@@ -978,7 +978,13 @@ export function buildNominaPreviewReport(input: {
       )
       .map((s) => {
         s.rows.sort((a, b) => a.personal.nombre_completo.localeCompare(b.personal.nombre_completo, 'es'));
-        s.sectionTotal = plantillaSectionTotals.get(s.id) ?? s.rows.reduce((n, r) => n + r.total, 0);
+        const rowsTotal = s.rows.reduce((n, r) => n + r.total, 0);
+        // Preferir la suma directa de filas cuando hay filas; el agregado de plantilla
+        // solo se usa como fallback para secciones sin filas visibles (p. ej. cerradas
+        // con una cuadrilla que ya no está en el catálogo).
+        s.sectionTotal = s.rows.length > 0
+          ? rowsTotal
+          : (plantillaSectionTotals.get(s.id) ?? 0);
         return s;
       });
   }
@@ -1010,11 +1016,8 @@ export function buildNominaPreviewReport(input: {
             existingIds.add(row.personal.id);
           }
         }
-        // Tomar el total más alto (el canónico de plantillaSectionTotals o suma)
-        const canonicalTotal = plantillaSectionTotals?.get(canonicalId);
-        const orphanTotal = plantillaSectionTotals?.get(s.id);
-        existing.sectionTotal = canonicalTotal
-          ?? parseFloat(((existing.sectionTotal || 0) + (orphanTotal ?? s.sectionTotal)).toFixed(2));
+        // Recalcular total desde las filas fusionadas
+        existing.sectionTotal = existing.rows.reduce((n, r) => n + r.total, 0);
         // Asegurar que el ID canónico es el de la plantilla
         existing.id = canonicalId;
       }
