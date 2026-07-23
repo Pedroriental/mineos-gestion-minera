@@ -18,7 +18,7 @@ import {
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/app-toast';
-import type { Gasto, CategoriaGasto } from '@/lib/types';
+import type { Gasto, CategoriaGasto, EmpresaInversora } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
@@ -55,6 +55,7 @@ interface GastosClientProps {
   categorias: CategoriaGasto[];
   registradoPorLabels: Record<string, string>;
   conceptos?: any[];
+  empresasInversoras?: EmpresaInversora[];
 }
 
 const EMPTY_BASE_INFO = {
@@ -82,6 +83,24 @@ const fmtShort = (n: number) => {
   return fmt(n);
 };
 
+function formatEmpresasPago(gasto: Gasto): string {
+  const asignaciones = gasto.gastos_empresas || [];
+  if (asignaciones.length === 0) return 'Sin asignar';
+  const activas = asignaciones.filter(a => Number(a.monto_pagado) > 0 || Number(a.porcentaje) > 0);
+  if (activas.length === 0) return 'Sin asignar';
+  if (activas.length === 1) {
+    const a = activas[0];
+    const nombre = a.empresas_inversoras?.nombre_corto || a.empresas_inversoras?.nombre || 'Empresa';
+    return `${nombre} (100%)`;
+  }
+  return activas
+    .map(a => {
+      const nombre = a.empresas_inversoras?.nombre_corto || a.empresas_inversoras?.nombre || 'Empresa';
+      return `${nombre} ${Math.round(Number(a.porcentaje))}%`;
+    })
+    .join(' / ');
+}
+
 const GASTOS_PAGE_MAX = 15;
 const GASTOS_ROW_MIN_PX = 32;
 const GASTOS_HEAD_FALLBACK_PX = 32;
@@ -106,7 +125,13 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 }
 
 // ─────────────────────────────────────────────────────────────
-export default function GastosClient({ data, categorias, registradoPorLabels, conceptos }: GastosClientProps) {
+export default function GastosClient({
+  data,
+  categorias,
+  registradoPorLabels,
+  conceptos,
+  empresasInversoras = [],
+}: GastosClientProps) {
   const { user }  = useAuth();
   const canEdit   = useCanEdit();
   const [isPending, startTransition] = useTransition();
@@ -127,11 +152,12 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
   const [globalFilter, setGlobalFilter] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(''); 
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedEmpresa, setSelectedEmpresa] = useState(''); // '' = Todas, 'mixto' = Mixto, o empresa_id
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: GASTOS_PAGE_MAX });
   const [detailId, setDetailId] = useState<string | null>(null);
   const tableBodyRef = useRef<HTMLDivElement>(null);
   const { open: filtersOpen, setOpen: setFiltersOpen } = useMobileFilterSheet();
-  const activeFilterCount = (selectedMonth ? 1 : 0) + (selectedCategory ? 1 : 0);
+  const activeFilterCount = (selectedMonth ? 1 : 0) + (selectedCategory ? 1 : 0) + (selectedEmpresa ? 1 : 0);
 
   const toggleDetail = useCallback((id: string) => {
     setDetailId(prev => (prev === id ? null : id));
@@ -165,12 +191,29 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
     return Array.from(set).sort();
   }, [filteredData]);
 
-  // ── Filtro 2: por categoría ───────────────────────────
-  const finalData = useMemo(() =>
-    selectedCategory
-      ? filteredData.filter(g => (g.categorias_gasto?.nombre || 'Sin categoría') === selectedCategory)
-      : filteredData,
-  [filteredData, selectedCategory]);
+  // ── Filtros combinados (Mes + Categoría + Empresa Inversora) ─────
+  const finalData = useMemo(() => {
+    return data.filter((g) => {
+      // 1. Mes
+      if (selectedMonth && !g.fecha.startsWith(selectedMonth)) return false;
+      // 2. Categoría
+      if (selectedCategory && (g.categorias_gasto?.nombre || 'Sin categoría') !== selectedCategory) return false;
+      // 3. Empresa inversora / Financiador
+      if (selectedEmpresa) {
+        const asignaciones = g.gastos_empresas || [];
+        if (selectedEmpresa === 'mixto') {
+          const activas = asignaciones.filter(a => Number(a.monto_pagado) > 0 || Number(a.porcentaje) > 0);
+          if (activas.length <= 1) return false;
+        } else {
+          const hasEmp = asignaciones.some(
+            a => a.empresa_id === selectedEmpresa && (Number(a.monto_pagado) > 0 || Number(a.porcentaje) > 0)
+          );
+          if (!hasEmp) return false;
+        }
+      }
+      return true;
+    });
+  }, [data, selectedMonth, selectedCategory, selectedEmpresa]);
 
   const toggleFechaSort = useCallback(() => {
     setSorting(prev => {
@@ -332,13 +375,22 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
     const dateStr = now.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
     const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-    // Período legible
+    // Labels
     let periodoLabel = 'Todos los registros';
     if (selectedMonth) {
       const [y, m] = selectedMonth.split('-');
       const raw = new Date(Number(y), Number(m) - 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
       periodoLabel = raw.charAt(0).toUpperCase() + raw.slice(1);
     }
+
+    let empresaLabel = 'Todas las empresas';
+    if (selectedEmpresa === 'mixto') {
+      empresaLabel = 'Financiamiento Mixto';
+    } else if (selectedEmpresa) {
+      const foundEmp = empresasInversoras.find(e => e.id === selectedEmpresa);
+      empresaLabel = foundEmp ? (foundEmp.nombre_corto || foundEmp.nombre) : 'Empresa seleccionada';
+    }
+
     const categoryLabel = selectedCategory || 'Todas las categorías';
     const fullPeriodo   = selectedCategory ? `${periodoLabel}  ·  ${categoryLabel}` : periodoLabel;
 
@@ -356,120 +408,129 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
     const cats    = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 7);
     const maxCat  = cats[0]?.[1] || 1;
 
-    // ── HEADER ─────────────────────────────────────────────
-    doc.setFillColor(9, 9, 11);
+    // ── HEADER SLATE DARK BAR (0..28mm) ─────────────────────────
+    doc.setFillColor(15, 23, 42); // Slate 900
     doc.rect(0, 0, W, 28, 'F');
-    // Barra de acento dorada
+    // Gold Accent Bar
     doc.setFillColor(218, 165, 32);
     doc.rect(0, 0, 4, 28, 'F');
 
     doc.setTextColor(218, 165, 32);
-    doc.setFontSize(17);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('MineOS', 12, 12);
+    doc.text('MineOS', 12, 11);
 
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
-    doc.text('Reporte de Gastos Operativos', 12, 21);
+    doc.text('Reporte de Gastos Operativos', 12, 20);
 
-    // Derecha: período y fecha
-    doc.setTextColor(160, 160, 170);
+    // Metadata a la derecha
+    doc.setTextColor(203, 213, 225); // Slate 300
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Periodo: ${fullPeriodo}`, W - 10, 12, { align: 'right' });
-    doc.text(`Generado: ${dateStr}  ${timeStr}`, W - 10, 20, { align: 'right' });
+    doc.text(`Periodo: ${periodoLabel}`, W - 10, 9, { align: 'right' });
+    doc.text(`Empresa: ${empresaLabel}`, W - 10, 15, { align: 'right' });
+    doc.text(`Categoría: ${categoryLabel}  ·  Generado: ${dateStr} ${timeStr}`, W - 10, 21, { align: 'right' });
 
-    // ── KPI BOXES ──────────────────────────────────────────
+    // ── KPI CARDS (LIGHT ELEGANT STYLE) ──────────────────────────
     const kpiY = 33;
-    const kpiH = 20;
+    const kpiH = 19;
     const kpiW = (W - 20 - 9) / 4; // 4 cajas con 3 gaps de 3mm
     const kpis = [
       { label: 'TOTAL GASTADO',  value: fmt(totalAmount),                       accent: [220, 38, 38]   as [number, number, number] },
-      { label: 'REGISTROS',      value: String(gastos.length),                   accent: [148, 163, 184] as [number, number, number] },
+      { label: 'REGISTROS',      value: String(gastos.length),                   accent: [71, 85, 105]   as [number, number, number] },
       { label: 'MAYOR GASTO',    value: fmt(Number(maxItem?.monto ?? 0)),        accent: [218, 165, 32]  as [number, number, number] },
-      { label: 'PROMEDIO',       value: fmt(avgAmount),                          accent: [52, 211, 153]  as [number, number, number] },
+      { label: 'PROMEDIO',       value: fmt(avgAmount),                          accent: [16, 185, 129]  as [number, number, number] },
     ];
     kpis.forEach((kpi, i) => {
       const x = 10 + i * (kpiW + 3);
-      doc.setFillColor(18, 18, 22);
-      doc.roundedRect(x, kpiY, kpiW, kpiH, 2, 2, 'F');
-      // Borde izquierdo de acento
+      // Fondo tarjeta blanco/slate-50
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(x, kpiY, kpiW, kpiH, 1.5, 1.5, 'F');
+      // Borde tarjeta slate-200
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(x, kpiY, kpiW, kpiH, 1.5, 1.5, 'D');
+
+      // Tira de acento izquierda
       doc.setFillColor(...kpi.accent);
-      doc.rect(x, kpiY, 2.5, kpiH, 'F');
+      doc.rect(x, kpiY, 2, kpiH, 'F');
+
       // Label
-      doc.setTextColor(100, 100, 115);
+      doc.setTextColor(100, 116, 139);
       doc.setFontSize(6);
       doc.setFont('helvetica', 'bold');
-      doc.text(kpi.label, x + 5.5, kpiY + 7);
-      // Value
+      doc.text(kpi.label, x + 5, kpiY + 6.5);
+
+      // Valor
       doc.setTextColor(...kpi.accent);
-      doc.setFontSize(11);
-      doc.text(kpi.value, x + 5.5, kpiY + 16);
+      doc.setFontSize(10.5);
+      doc.text(kpi.value, x + 5, kpiY + 15);
     });
 
-    let curY = kpiY + kpiH + 6; // ~59
+    let curY = kpiY + kpiH + 5; // ~57
 
     // ── GRAFICO DE CATEGORIAS ──────────────────────────────
     if (cats.length > 0) {
-      // Titulo de sección
-      doc.setFillColor(14, 14, 18);
-      doc.rect(0, curY, W, 7, 'F');
-      doc.setTextColor(100, 100, 115);
+      doc.setFillColor(241, 245, 249);
+      doc.rect(10, curY, W - 20, 6, 'F');
+      doc.setTextColor(71, 85, 105);
       doc.setFontSize(6.5);
       doc.setFont('helvetica', 'bold');
-      doc.text('// DISTRIBUCION POR CATEGORIA', 10, curY + 4.5);
-      curY += 9;
+      doc.text('DISTRIBUCION POR CATEGORIA', 13, curY + 4.2);
+      curY += 8;
 
       const labelW = 58;
-      const valueW = 26;
+      const valueW = 30;
       const barAreaX = 10 + labelW + 2;
       const barW     = W - 20 - labelW - valueW - 4;
-      const barH     = 4.5;
-      const rowGap   = 7.5;
+      const barH     = 4;
+      const rowGap   = 6.5;
 
       cats.forEach(([catName, catTotal], i) => {
         const y   = curY + i * rowGap;
         const pct = catTotal / maxCat;
         const rgb = hexToRgb(CAT_COLORS[i % CAT_COLORS.length]);
-        const truncated = catName.length > 24 ? catName.slice(0, 24) + '...' : catName;
+        const truncated = catName.length > 28 ? catName.slice(0, 28) + '...' : catName;
 
-        // Nombre categoría
-        doc.setTextColor(170, 170, 185);
+        // Label
+        doc.setTextColor(51, 65, 85);
         doc.setFontSize(6.5);
         doc.setFont('helvetica', 'normal');
         doc.text(truncated, 10, y + barH - 0.5);
 
         // Fondo barra
-        doc.setFillColor(28, 28, 34);
-        doc.roundedRect(barAreaX, y, barW, barH, 1, 1, 'F');
+        doc.setFillColor(226, 232, 240);
+        doc.roundedRect(barAreaX, y, barW, barH, 0.8, 0.8, 'F');
 
         // Barra activa
         if (rgb) doc.setFillColor(rgb.r, rgb.g, rgb.b);
         const fillW = Math.max(2, barW * pct);
-        doc.roundedRect(barAreaX, y, fillW, barH, 1, 1, 'F');
+        doc.roundedRect(barAreaX, y, fillW, barH, 0.8, 0.8, 'F');
 
-        // Valor + porcentaje
+        // Valor
         const pctStr = `${((catTotal / totalAmount) * 100).toFixed(1)}%`;
-        doc.setTextColor(190, 190, 205);
+        doc.setTextColor(71, 85, 105);
         doc.setFontSize(6);
-        doc.text(`${fmt(catTotal)}  ${pctStr}`, barAreaX + barW + 2, y + barH - 0.5);
+        doc.text(`${fmt(catTotal)} (${pctStr})`, barAreaX + barW + 2, y + barH - 0.5);
       });
 
-      curY += cats.length * rowGap + 5;
+      curY += cats.length * rowGap + 4;
     }
 
     // ── DETALLE DE TRANSACCIONES ────────────────────────────
-    doc.setFillColor(14, 14, 18);
-    doc.rect(0, curY, W, 7, 'F');
-    doc.setTextColor(100, 100, 115);
+    doc.setFillColor(241, 245, 249);
+    doc.rect(10, curY, W - 20, 6, 'F');
+    doc.setTextColor(71, 85, 105);
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'bold');
-    doc.text('// DETALLE DE TRANSACCIONES', 10, curY + 4.5);
-    curY += 9;
+    doc.text('DETALLE DE TRANSACCIONES', 13, curY + 4.2);
+    curY += 8;
 
     autoTable(doc, {
       startY: curY,
-      head: [['FECHA', 'DESCRIPCION', 'CANTIDAD', 'CATEGORIA', 'PROVEEDOR', 'REF. FACTURA', 'MONTO USD']],
+      margin: { left: 10, right: 10 },
+      head: [['FECHA', 'DESCRIPCION', 'CANTIDAD', 'CATEGORIA', 'EMPRESA / PAGADOR', 'PROVEEDOR', 'REF. FACTURA', 'MONTO USD']],
       body: gastos.map(g => {
         const { cleanDesc, cantidad } = parseDescripcion(g.descripcion);
         return [
@@ -477,41 +538,48 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
           cleanDesc,
           cantidad !== '—' ? cantidad : '',
           g.categorias_gasto?.nombre || '-',
+          formatEmpresasPago(g),
           g.proveedor || '-',
           g.factura_referencia || '-',
           fmt(Number(g.monto)),
         ];
       }),
-      foot: [['', '', '', '', 'TOTAL PERIODO', fmt(totalAmount)]],
-      styles:             { fontSize: 7.5, cellPadding: 2.5, textColor: [200, 200, 215] as [number,number,number] },
-      headStyles:         { fillColor: [18, 18, 22] as [number,number,number], textColor: [218, 165, 32] as [number,number,number], fontStyle: 'bold' as const, fontSize: 7, cellPadding: 3 },
-      footStyles:         { fillColor: [18, 18, 22] as [number,number,number], textColor: [218, 165, 32] as [number,number,number], fontStyle: 'bold' as const, fontSize: 8 },
-      alternateRowStyles: { fillColor: [20, 20, 26] as [number,number,number] },
-      bodyStyles:         { fillColor: [12, 12, 15] as [number,number,number] },
+      foot: [['', '', '', '', '', '', 'TOTAL PERIODO', fmt(totalAmount)]],
+      styles:             { fontSize: 7, cellPadding: 2.2, textColor: [30, 41, 59] as [number,number,number], lineColor: [226, 232, 240], lineWidth: 0.1 },
+      headStyles:         { fillColor: [15, 23, 42] as [number,number,number], textColor: [218, 165, 32] as [number,number,number], fontStyle: 'bold' as const, fontSize: 6.8, cellPadding: 2.5 },
+      footStyles:         { fillColor: [15, 23, 42] as [number,number,number], textColor: [218, 165, 32] as [number,number,number], fontStyle: 'bold' as const, fontSize: 7.5, cellPadding: 2.5 },
+      alternateRowStyles: { fillColor: [248, 250, 252] as [number,number,number] },
+      bodyStyles:         { fillColor: [255, 255, 255] as [number,number,number] },
       columnStyles: {
-        0: { cellWidth: 22 },
+        0: { cellWidth: 20 },
         1: { cellWidth: 'auto' },
-        2: { cellWidth: 38 },
+        2: { cellWidth: 18 },
         3: { cellWidth: 32 },
-        4: { cellWidth: 32 },
-        5: { cellWidth: 26, halign: 'right' as const },
+        4: { cellWidth: 38 },
+        5: { cellWidth: 26 },
+        6: { cellWidth: 24 },
+        7: { cellWidth: 26, halign: 'right' as const },
       },
       didDrawPage: (d: any) => {
         const total = (doc as any).internal.getNumberOfPages();
-        doc.setFillColor(9, 9, 11);
-        doc.rect(0, 204, W, 6, 'F');
-        doc.setTextColor(80, 80, 95);
-        doc.setFontSize(6);
+        // Pie de página limpio
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.2);
+        doc.line(10, 202, W - 10, 202);
+
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(6.5);
         doc.setFont('helvetica', 'normal');
-        doc.text(`MineOS  |  Gastos Operativos  |  ${fullPeriodo}`, 10, 208);
-        doc.text(`Pagina ${d.pageNumber} de ${total}`, W - 10, 208, { align: 'right' });
+        doc.text(`MineOS  |  Gastos Operativos  |  ${fullPeriodo}  |  Empresa: ${empresaLabel}`, 10, 206);
+        doc.text(`Página ${d.pageNumber} de ${total}`, W - 10, 206, { align: 'right' });
       },
     });
 
+    const empSlug = selectedEmpresa ? `_${selectedEmpresa.toLowerCase()}` : '';
     const catSlug = selectedCategory ? `_${selectedCategory.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}` : '';
     const filename = selectedMonth
-      ? `gastos_${selectedMonth}${catSlug}.pdf`
-      : `gastos_completo${catSlug}_${now.toISOString().split('T')[0]}.pdf`;
+      ? `gastos_${selectedMonth}${empSlug}${catSlug}.pdf`
+      : `gastos_completo${empSlug}${catSlug}_${now.toISOString().split('T')[0]}.pdf`;
     doc.save(filename);
   }
 
@@ -803,6 +871,40 @@ export default function GastosClient({ data, categorias, registradoPorLabels, co
           </div>
         </div>
       )}
+
+      {/* Filtro por Empresa Inversora / Financiador */}
+      <div className="flex flex-col gap-1.5 pt-1 border-t border-[var(--dashboard-border)]/50">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)] flex items-center gap-1.5">
+          <Wallet className="h-3 w-3" aria-hidden /> Financiador / Empresa
+        </label>
+        <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            onClick={() => setSelectedEmpresa('')}
+            className={filterPillClass(selectedEmpresa === '', 'month')}
+          >
+            Todas
+          </button>
+          {empresasInversoras.map((emp) => (
+            <button
+              key={emp.id}
+              type="button"
+              onClick={() => setSelectedEmpresa(selectedEmpresa === emp.id ? '' : emp.id)}
+              className={filterPillClass(selectedEmpresa === emp.id, 'month')}
+              style={selectedEmpresa === emp.id ? { borderColor: emp.color, color: emp.color } : {}}
+            >
+              {emp.nombre_corto || emp.nombre}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setSelectedEmpresa(selectedEmpresa === 'mixto' ? '' : 'mixto')}
+            className={filterPillClass(selectedEmpresa === 'mixto', 'month')}
+          >
+            Mixto
+          </button>
+        </div>
+      </div>
     </div>
   );
 

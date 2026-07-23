@@ -14,13 +14,13 @@
 import { createServerClient } from '@/lib/supabase-server';
 import { resolveRegistradoPorLabels } from '@/lib/resolve-registrado-por';
 import GastosClient from './GastosClient';
-import type { Gasto, CategoriaGasto } from '@/lib/types';
+import type { Gasto, CategoriaGasto, EmpresaInversora } from '@/lib/types';
 
 export default async function GastosPage() {
   const supabase = await createServerClient();
 
   // Fetch en paralelo — queries en el servidor
-  const [gastosRes, catsRes, conceptosRes] = await Promise.all([
+  const [gastosRes, catsRes, conceptosRes, empresasRes] = await Promise.all([
     supabase
       .from('gastos')
       .select(
@@ -38,11 +38,17 @@ export default async function GastosPage() {
       .select('*, categorias_gasto(id, nombre)')
       .eq('activo', true)
       .order('descripcion'),
+    supabase
+      .from('empresas_inversoras')
+      .select('*')
+      .eq('activo', true)
+      .order('nombre'),
   ]);
 
-  const data:       Gasto[]         = (gastosRes.data as Gasto[])        ?? [];
-  const categorias: CategoriaGasto[] = (catsRes.data  as CategoriaGasto[]) ?? [];
-  const conceptos:  any[]           = (conceptosRes.data as any[])       ?? [];
+  const data:               Gasto[]            = (gastosRes.data as Gasto[])           ?? [];
+  const categorias:         CategoriaGasto[]   = (catsRes.data  as CategoriaGasto[])    ?? [];
+  const conceptos:          any[]              = (conceptosRes.data as any[])          ?? [];
+  const empresasInversoras: EmpresaInversora[] = (empresasRes.data as EmpresaInversora[]) ?? [];
 
   const registradoPorLabels = await resolveRegistradoPorLabels(
     data.map(g => g.registrado_por),
@@ -54,6 +60,8 @@ export default async function GastosPage() {
       categorias={categorias}
       registradoPorLabels={registradoPorLabels}
       conceptos={conceptos}
+      empresasInversoras={empresasInversoras}
     />
   );
 }
+
