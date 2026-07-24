@@ -619,4 +619,44 @@ describe('plantilla cuadrillas en vista previa', () => {
     assert.equal(barSection?.sectionTotal, 0);
     assert.equal(barSection?.rows.length, 0);
   });
+
+  it('formats column header as "Bono de Transporte" when week column is bono_transporte_paga', () => {
+    const plantilla: RotacionPlantillaRecord = {
+      id: 'pl-molino-bono',
+      nombre: 'Nómina Molino Variante Bono',
+      descripcion: 'Test',
+      area: 'planta',
+      activo: true,
+      created_at: '',
+      updated_at: '',
+      columnasVista: [],
+      cuadrillas: [
+        {
+          id: 'cq-molino',
+          nombre: 'Molinos - Grupo',
+          asignacionKey: 'molinos',
+          orden: 1,
+          semanas: [
+            { id: 'w1', nombre: 'Bono de Transporte', orden: 1, estatusDefault: 'bono_transporte_paga' },
+            { id: 'w2', nombre: 'Semana Trabajada', orden: 2, estatusDefault: 'trabajada_paga' },
+          ],
+          filas: [],
+        },
+      ],
+    };
+
+    const report = buildNominaPreviewReport({
+      personal: [],
+      registrosCerrados: [],
+      allowProjection: false,
+      rangeStart: '2026-07-13',
+      rangeEnd: '2026-07-26',
+      plantilla,
+    });
+
+    assert.equal(report.weekColumns.length, 2);
+    assert.equal(report.weekColumns[0].header, '1. Bono de Transporte');
+    assert.equal(report.weekColumns[1].header, '2. 20 JUL al 26 JUL');
+  });
 });
+

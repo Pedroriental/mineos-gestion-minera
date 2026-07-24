@@ -34,6 +34,8 @@ import {
   type ManualPeriodPlantillaContext,
 } from '@/lib/nomina/nomina-preview-plantilla';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
+import { posicionEfectivaCuadrilla } from '@/lib/rotacion-plantillas/projection';
+import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-transporte-semana';
 import type { PersonalSnapshot, ParsedNominaPeriod, NominaPeriodoSummary } from '@/lib/nomina/types';
 import type { Personal } from '@/lib/types';
 
@@ -225,6 +227,48 @@ export function formatPreviewPeriodLabel(rangeStart: string, rangeEnd: string): 
   };
 }
 
+export function resolveWeekColumnCustomName(
+  weekStart: string,
+  index: number,
+  plantilla?: RotacionPlantillaRecord,
+  registrosCerrados?: NominaRegistroCerrado[],
+): string | null {
+  if (plantilla?.cuadrillas?.length) {
+    for (const c of plantilla.cuadrillas) {
+      if (!c.semanas?.length) continue;
+      const pos = posicionEfectivaCuadrilla(c.semanas.length, index);
+      const sem = c.semanas[pos];
+      if (!sem) continue;
+      if (
+        sem.estatusDefault === 'bono_transporte_paga' ||
+        esEstatusSemanaBonoTransporte(sem.estatusDefault)
+      ) {
+        return 'Bono de Transporte';
+      }
+      const nombreNorm = (sem.nombre || '').trim().toLowerCase();
+      if (nombreNorm.includes('bono') && nombreNorm.includes('transporte')) {
+        return sem.nombre.trim();
+      }
+    }
+  }
+
+  if (registrosCerrados?.length) {
+    const regsForWeek = registrosCerrados.filter((r) => r.semana_inicio === weekStart);
+    if (regsForWeek.length > 0) {
+      const allBono = regsForWeek.every(
+        (r) =>
+          Number(r.bono_transporte_pagado || 0) > 0 &&
+          (Number(r.monto_pagado || 0) === 0 || r.es_semana_libre),
+      );
+      if (allBono) {
+        return 'Bono de Transporte';
+      }
+    }
+  }
+
+  return null;
+}
+
 export function formatWeekColumnHeader(
   weekStart: string,
   weekEnd: string,
@@ -232,6 +276,7 @@ export function formatWeekColumnHeader(
   totalWeeks: number,
   rangeStart: string,
   rangeEnd: string,
+  customName?: string | null,
 ): { header: string; displayStart: string; displayEnd: string; isPartialInRange: boolean } {
   const displayStart = rangeStart > weekStart ? rangeStart : weekStart;
   const displayEnd = rangeEnd < weekEnd ? rangeEnd : weekEnd;
@@ -241,7 +286,14 @@ export function formatWeekColumnHeader(
   const b = fmtPreviewDate(parseISO(displayEnd));
 
   let header: string;
-  if (totalWeeks === 1) {
+  if (customName && customName.trim().length > 0) {
+    const cleanName = customName.trim();
+    if (totalWeeks === 1) {
+      header = cleanName;
+    } else {
+      header = `${index + 1}. ${cleanName}`;
+    }
+  } else if (totalWeeks === 1) {
     header = isPartialInRange ? `${a} al ${b}` : `Semana ${a} al ${b}`;
   } else {
     header = `${index + 1}. ${a} al ${b}`;
@@ -748,6 +800,7 @@ export function buildNominaPreviewReport(input: {
 
   const weekColumns: NominaPreviewWeekCol[] = weekStarts.map((weekStart, i) => {
     const weekEnd = getWeekEnd(weekStart);
+    const customName = resolveWeekColumnCustomName(weekStart, i, plantilla, registrosCerrados);
     const col = formatWeekColumnHeader(
       weekStart,
       weekEnd,
@@ -755,6 +808,7 @@ export function buildNominaPreviewReport(input: {
       weekStarts.length,
       rangeStart,
       rangeEnd,
+      customName,
     );
     return {
       weekStart,
