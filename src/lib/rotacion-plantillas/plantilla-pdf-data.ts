@@ -321,7 +321,7 @@ export function buildPlantillaPdfData(
     );
     if (!plantillaCuadrilla) continue;
 
-    const cols = columnasVistaForCuadrilla(plantillaCuadrilla, plantilla.columnasVista);
+    const cols = columnasVistaForCuadrilla(plantillaCuadrilla, plantilla.columnasVista ?? []);
     const rows: PlantillaPdfRow[] = [];
     let totalCuadrilla = 0;
 
