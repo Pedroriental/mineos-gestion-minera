@@ -99,13 +99,19 @@ function notesForWeek(input: {
   return notas;
 }
 
+import { esEstatusSemanaBonoTransporte } from '@/lib/rotacion-plantillas/bono-transporte-semana';
+
 function projectWorker(input: {
   personal: Personal;
   weekStart: string;
   instanciaActiva?: InstanciaActivaSnapshot | null;
   valesAplicados: number;
 }): ProximosPagosWorkerProjection {
-  const { personal, weekStart, instanciaActiva, valesAplicados } = input;
+  const { personal: rawPersonal, weekStart, instanciaActiva, valesAplicados } = input;
+  const personal = rawPersonal.area === 'mina'
+    ? { ...rawPersonal, bono_transporte: 0 }
+    : rawPersonal;
+
   const rotacion = resolveWorkerRotacionContext(personal, instanciaActiva, weekStart);
   const missingAnchor = !rotacion && isRotatingWithoutAnchor(personal);
   const fuente: ProximosPagosFuente = rotacion
@@ -136,7 +142,11 @@ function projectWorker(input: {
         diasTrabajados,
         bonificaciones: 0,
         totalVales: valesAplicados,
-        bonoTransporte: diasInputBloqueado ? 0 : undefined,
+        bonoTransporte: esEstatusSemanaBonoTransporte(rotacion.estatus)
+          ? undefined
+          : diasInputBloqueado
+            ? 0
+            : undefined,
       })
     : calculateNominaRowPay({
         personal,

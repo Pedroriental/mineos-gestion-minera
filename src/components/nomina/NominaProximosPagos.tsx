@@ -1,12 +1,22 @@
 'use client';
 
-import { useMemo } from 'react';
-import { AlertTriangle, CalendarClock, CheckCircle2, LayoutGrid, RotateCcw } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  LayoutGrid,
+  RotateCcw,
+  User,
+} from 'lucide-react';
 import { formatManualWeekLabel } from '@/lib/nomina/manual-period';
 import {
   buildProximosPagosForecast,
   type ProximosPagosConfianza,
   type ProximosPagosWeekForecast,
+  type ProximosPagosWorkerProjection,
 } from '@/lib/nomina/proximos-pagos';
 import {
   deserializeInstanciaSnapshot,
@@ -58,12 +68,69 @@ function confidenceMeta(confianza: ProximosPagosConfianza) {
   };
 }
 
-function ForecastCard({ forecast, isFirst }: { forecast: ProximosPagosWeekForecast; isFirst: boolean }) {
+function WorkerRow({ worker }: { worker: ProximosPagosWorkerProjection }) {
+  const isWorked = worker.estado === 'trabajada';
+  const isFree = worker.estado === 'libre';
+  
+  return (
+    <div className="flex items-center justify-between gap-1.5 py-1 text-[10px] border-b border-[var(--card-border)]/30 last:border-b-0">
+      <div className="min-w-0 flex-1 flex items-center gap-1.5">
+        <User className="size-3 shrink-0 text-[var(--text-muted)]" />
+        <span className="truncate font-medium text-[var(--text-primary)]" title={worker.nombre}>
+          {worker.nombre}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1 shrink-0">
+        <span
+          className={cn(
+            'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider',
+            isWorked && 'bg-[var(--mineos-benefit-soft)]/20 text-[var(--mineos-benefit-bright)] border border-[var(--mineos-benefit-border)]/30',
+            isFree && 'bg-[var(--mineos-general-soft)]/20 text-[var(--mineos-general-bright)] border border-[var(--mineos-general-border)]/30',
+            !isWorked && !isFree && 'bg-[var(--surface-elevated)] text-[var(--text-muted)] border border-[var(--card-border)]'
+          )}
+        >
+          {isWorked ? `${worker.diasTrabajados}d turno` : isFree ? 'Libre' : 'Sin pago'}
+        </span>
+
+        {worker.fuente === 'plantilla' ? (
+          <span title="Origen: Plantilla activa">
+            <LayoutGrid className="size-3 text-[var(--mineos-general-bright)]" />
+          </span>
+        ) : worker.fuente === 'rotacion' ? (
+          <span title="Origen: Rotación base">
+            <RotateCcw className="size-3 text-[var(--text-muted)]" />
+          </span>
+        ) : (
+          <span title="Origen: Configuración incompleta">
+            <AlertTriangle className="size-3 text-[var(--mineos-expense-bright)]" />
+          </span>
+        )}
+
+        <span className="font-semibold tabular-nums text-[var(--text-primary)] w-14 text-right">
+          {fmtUsd(worker.amount)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ForecastCard({
+  forecast,
+  isFirst,
+  isExpanded,
+  onToggleExpand,
+}: {
+  forecast: ProximosPagosWeekForecast;
+  isFirst: boolean;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+}) {
   const meta = confidenceMeta(forecast.confianza);
   const Icon = meta.icon;
 
   return (
-    <div className="min-w-0 rounded-md border border-[var(--card-border)] bg-[var(--surface-elevated)]/40 px-2.5 py-2">
+    <div className="min-w-0 rounded-md border border-[var(--card-border)] bg-[var(--surface-elevated)]/40 px-2.5 py-2 transition-all">
       <div className="flex min-w-0 items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-[9px] font-bold uppercase text-[var(--text-muted)]">
@@ -109,25 +176,44 @@ function ForecastCard({ forecast, isFirst }: { forecast: ProximosPagosWeekForeca
         ) : null}
       </div>
 
-      <div className="mt-1.5 flex flex-wrap gap-1 text-[8px] font-semibold text-[var(--text-muted)]">
-        {forecast.porPlantilla > 0 ? (
-          <span className="inline-flex items-center gap-1">
-            <LayoutGrid className="size-2.5" />
-            {forecast.porPlantilla} plantilla
-          </span>
-        ) : null}
-        {forecast.porRotacion > 0 ? (
-          <span className="inline-flex items-center gap-1">
-            <RotateCcw className="size-2.5" />
-            {forecast.porRotacion} rotación
-          </span>
-        ) : null}
-        {forecast.valesAplicados > 0 ? (
-          <span className="text-[var(--mineos-expense-bright)]">
-            -{fmtUsd(forecast.valesAplicados)} vales
-          </span>
-        ) : null}
+      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[8px] font-semibold text-[var(--text-muted)]">
+        <div className="flex flex-wrap gap-1 items-center">
+          {forecast.porPlantilla > 0 ? (
+            <span className="inline-flex items-center gap-1">
+              <LayoutGrid className="size-2.5" />
+              {forecast.porPlantilla} plantilla
+            </span>
+          ) : null}
+          {forecast.porRotacion > 0 ? (
+            <span className="inline-flex items-center gap-1">
+              <RotateCcw className="size-2.5" />
+              {forecast.porRotacion} rotación
+            </span>
+          ) : null}
+          {forecast.valesAplicados > 0 ? (
+            <span className="text-[var(--mineos-expense-bright)]">
+              -{fmtUsd(forecast.valesAplicados)} vales
+            </span>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          className="inline-flex items-center gap-0.5 text-[9px] font-bold text-[var(--mineos-general-bright)] hover:underline focus:outline-none"
+        >
+          {isExpanded ? 'Ocultar' : `Ver personal (${forecast.workers.length})`}
+          {isExpanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+        </button>
       </div>
+
+      {isExpanded && forecast.workers.length > 0 ? (
+        <div className="mt-2 border-t border-[var(--card-border)]/50 pt-1.5 max-h-48 overflow-y-auto pr-0.5">
+          {forecast.workers.map((w) => (
+            <WorkerRow key={w.personalId} worker={w} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -157,6 +243,17 @@ export function NominaProximosPagos({
     [personal, area, workingWeekStart, weeksAhead, instanciaSnapshot, valesPorPersonal],
   );
 
+  const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>(() => ({
+    [workingWeekStart]: true,
+  }));
+
+  const toggleExpand = (weekStart: string) => {
+    setExpandedWeeks((prev) => ({
+      ...prev,
+      [weekStart]: !prev[weekStart],
+    }));
+  };
+
   const hasRoster = forecast.some((f) => f.enTurno + f.libresPagadas + f.sinPago > 0);
   if (!hasRoster) return null;
 
@@ -167,14 +264,14 @@ export function NominaProximosPagos({
     <section className={cn(mineosPanel('general'), 'w-full min-w-0 !p-2.5 lg:!p-3')}>
       <header className="mb-2 flex flex-wrap items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-2">
-        <CalendarClock className="h-4 w-4 shrink-0 text-[var(--mineos-general-bright)]" />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-bold text-[var(--text-primary)]">Próximos pagos</h3>
-          <p className="mt-0.5 text-[10px] leading-snug text-[var(--text-muted)]">
-            Motor determinista alineado con nómina semanal: plantilla operativa, rotación base y
-            vales pendientes en la primera semana.
-          </p>
-        </div>
+          <CalendarClock className="h-4 w-4 shrink-0 text-[var(--mineos-general-bright)]" />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-bold text-[var(--text-primary)]">Próximos pagos</h3>
+            <p className="mt-0.5 text-[10px] leading-snug text-[var(--text-muted)]">
+              Motor determinista alineado con nómina semanal: plantilla operativa, rotación base y
+              vales pendientes en la primera semana.
+            </p>
+          </div>
         </div>
         {firstWeek ? (
           <div className="shrink-0 rounded-lg border border-[var(--mineos-general-border)]/40 bg-[var(--mineos-general-soft)]/10 px-2 py-1 text-right">
@@ -188,7 +285,13 @@ export function NominaProximosPagos({
 
       <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
         {forecast.map((f, idx) => (
-          <ForecastCard key={f.weekStart} forecast={f} isFirst={idx === 0} />
+          <ForecastCard
+            key={f.weekStart}
+            forecast={f}
+            isFirst={idx === 0}
+            isExpanded={Boolean(expandedWeeks[f.weekStart])}
+            onToggleExpand={() => toggleExpand(f.weekStart)}
+          />
         ))}
       </div>
 
