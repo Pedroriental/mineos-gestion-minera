@@ -277,10 +277,13 @@ export function formatWeekColumnHeader(
   rangeStart: string,
   rangeEnd: string,
   customName?: string | null,
+  forceFullOperationalWeek = true,
 ): { header: string; displayStart: string; displayEnd: string; isPartialInRange: boolean } {
-  const displayStart = rangeStart > weekStart ? rangeStart : weekStart;
-  const displayEnd = rangeEnd < weekEnd ? rangeEnd : weekEnd;
-  const isPartialInRange = displayStart !== weekStart || displayEnd !== weekEnd;
+  const displayStart = forceFullOperationalWeek ? weekStart : rangeStart > weekStart ? rangeStart : weekStart;
+  const displayEnd = forceFullOperationalWeek ? weekEnd : rangeEnd < weekEnd ? rangeEnd : weekEnd;
+  const isPartialInRange = forceFullOperationalWeek
+    ? false
+    : displayStart !== weekStart || displayEnd !== weekEnd;
 
   const a = fmtPreviewDate(parseISO(displayStart));
   const b = fmtPreviewDate(parseISO(displayEnd));
