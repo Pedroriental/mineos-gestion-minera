@@ -2312,28 +2312,50 @@ export default function NominaClient({
             const restoredIds = restoredRegs.map((r) => r.personal_id);
             const manualPeriodId = manualPeriodForView?.id;
 
+            // Roster para el ciclo del periodo manual activo
             writeManualWeekRosterEntries(
               area,
               sem.semana_inicio,
               restoredIds.map((id) => ({ id })),
               manualPeriodId,
             );
+            // Roster para la vista semanal general (fallback cuando no hay periodoId activo)
+            writeManualWeekRosterEntries(
+              area,
+              sem.semana_inicio,
+              restoredIds.map((id) => ({ id })),
+              null,
+            );
 
-            const draftKey = nominaNovedadDraftKey(area, sem.semana_inicio, manualPeriodId);
-            const existingDraft = readNominaNovedadDraft(draftKey);
-            const restoredDraft: Record<string, any> = { ...existingDraft };
+            const draftKeyWithPeriod = nominaNovedadDraftKey(area, sem.semana_inicio, manualPeriodId);
+            const draftKeyNoPeriod = nominaNovedadDraftKey(area, sem.semana_inicio, null);
+
+            const existingWithPeriod = readNominaNovedadDraft(draftKeyWithPeriod);
+            const existingNoPeriod = readNominaNovedadDraft(draftKeyNoPeriod);
+
+            const restoredDraftWithPeriod: Record<string, any> = { ...existingWithPeriod };
+            const restoredDraftNoPeriod: Record<string, any> = { ...existingNoPeriod };
 
             for (const reg of restoredRegs) {
-              restoredDraft[reg.personal_id] = {
-                ...(existingDraft[reg.personal_id] ?? {}),
+              const draftRow = {
                 estadoAsistencia: reg.estado_asistencia || (reg.es_semana_libre ? 'libre' : 'trabajada'),
                 diasTrabajados: reg.dias_trabajados != null ? Number(reg.dias_trabajados) : undefined,
                 novedadTurno: reg.novedad_turno ? parseNovedadTurno(reg.novedad_turno) : undefined,
                 novedadTurnoObs: reg.novedad_turno_obs || '',
               };
+              restoredDraftWithPeriod[reg.personal_id] = {
+                ...(existingWithPeriod[reg.personal_id] ?? {}),
+                ...draftRow,
+              };
+              restoredDraftNoPeriod[reg.personal_id] = {
+                ...(existingNoPeriod[reg.personal_id] ?? {}),
+                ...draftRow,
+              };
             }
 
-            writeNominaNovedadDraft(draftKey, restoredDraft);
+            writeNominaNovedadDraft(draftKeyWithPeriod, restoredDraftWithPeriod);
+            writeNominaNovedadDraft(draftKeyNoPeriod, restoredDraftNoPeriod);
+
             setManualRosterTick((t) => t + 1);
           }
 
