@@ -124,6 +124,12 @@ export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
       await supabase.from('nomina_vales').update({ semana_id: null }).eq('semana_id', semanaId);
     }
 
+    // Rescatar registros guardados antes de eliminar la semana para poder conservar el borrador
+    const { data: registrosCerrados } = await supabase
+      .from('nomina_registros')
+      .select('personal_id, monto_pagado, es_semana_libre, estado_asistencia, dias_trabajados, salario_base_calculado, novedad_turno, novedad_turno_obs')
+      .eq('semana_id', semanaId);
+
     // Limpiar links del periodo consolidado antes de borrar la semana
     const { data: periodoLinks } = await supabase
       .from('nomina_periodo_semanas')
@@ -166,7 +172,11 @@ export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
     );
 
     revalidateAll();
-    return { ok: true, message: 'Nómina revertida exitosamente.' };
+    return {
+      ok: true,
+      message: 'Nómina revertida exitosamente.',
+      data: { registros: registrosCerrados || [] },
+    };
   } catch (err) {
     console.error('[Action] revertirSemanaAction Exception:', err);
     return { ok: false, message: 'Error interno del servidor. Por favor, intenta de nuevo.' };

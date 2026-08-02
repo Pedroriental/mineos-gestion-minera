@@ -2300,6 +2300,43 @@ export default function NominaClient({
       try {
         const res = await revertirSemanaAction(sem);
         if (res.ok) {
+          if (res.data?.registros?.length) {
+            const restoredRegs = res.data.registros as Array<{
+              personal_id: string;
+              estado_asistencia?: any;
+              dias_trabajados?: number | null;
+              es_semana_libre?: boolean;
+              novedad_turno?: string | null;
+              novedad_turno_obs?: string | null;
+            }>;
+            const restoredIds = restoredRegs.map((r) => r.personal_id);
+            const manualPeriodId = manualPeriodForView?.id;
+
+            writeManualWeekRosterEntries(
+              area,
+              sem.semana_inicio,
+              restoredIds.map((id) => ({ id })),
+              manualPeriodId,
+            );
+
+            const draftKey = nominaNovedadDraftKey(area, sem.semana_inicio, manualPeriodId);
+            const existingDraft = readNominaNovedadDraft(draftKey);
+            const restoredDraft: Record<string, any> = { ...existingDraft };
+
+            for (const reg of restoredRegs) {
+              restoredDraft[reg.personal_id] = {
+                ...(existingDraft[reg.personal_id] ?? {}),
+                estadoAsistencia: reg.estado_asistencia || (reg.es_semana_libre ? 'libre' : 'trabajada'),
+                diasTrabajados: reg.dias_trabajados != null ? Number(reg.dias_trabajados) : undefined,
+                novedadTurno: reg.novedad_turno ? parseNovedadTurno(reg.novedad_turno) : undefined,
+                novedadTurnoObs: reg.novedad_turno_obs || '',
+              };
+            }
+
+            writeNominaNovedadDraft(draftKey, restoredDraft);
+            setManualRosterTick((t) => t + 1);
+          }
+
           if (manualPeriodForView && weekInManualPeriod(sem.semana_inicio, manualPeriodForView)) {
             setManualPeriodSession((prev) => {
               const period = getPeriodById(prev, manualPeriodForView.id);
@@ -2313,6 +2350,7 @@ export default function NominaClient({
             });
           }
           await registrarAuditAction('REVERTIR_NOMINA', 'nomina_semanas', sem.id, `Revertida: ${fmtDate(sem.semana_inicio)} a ${fmtDate(sem.semana_fin)}`, user?.id, user?.email);
+          toastSuccess('Nómina revertida. Los datos y trabajadores se conservaron en el borrador.');
           router.refresh();
         } else {
           toastError(res.message || 'Error al revertir');
