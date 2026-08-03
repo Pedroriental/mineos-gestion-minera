@@ -394,16 +394,25 @@ export default function GastosClient({
     const categoryLabel = selectedCategory || 'Todas las categorías';
     const fullPeriodo   = selectedCategory ? `${periodoLabel}  ·  ${categoryLabel}` : periodoLabel;
 
+    const getItemMontoEmpresa = (g: Gasto): number => {
+      if (!selectedEmpresa || selectedEmpresa === 'mixto') return Number(g.monto);
+      const asig = (g.gastos_empresas || []).find(a => a.empresa_id === selectedEmpresa);
+      if (asig && Number(asig.monto_pagado) > 0) {
+        return Number(asig.monto_pagado);
+      }
+      return Number(g.monto);
+    };
+
     // KPIs
-    const totalAmount   = gastos.reduce((s, g) => s + Number(g.monto), 0);
-    const maxItem       = gastos.length > 0 ? gastos.reduce((mx, g) => Number(g.monto) > Number(mx.monto) ? g : mx) : null;
+    const totalAmount   = gastos.reduce((s, g) => s + getItemMontoEmpresa(g), 0);
+    const maxItem       = gastos.length > 0 ? gastos.reduce((mx, g) => getItemMontoEmpresa(g) > getItemMontoEmpresa(mx) ? g : mx) : null;
     const avgAmount     = gastos.length > 0 ? totalAmount / gastos.length : 0;
 
     // Categorías para el gráfico
     const catMap: Record<string, number> = {};
     gastos.forEach(g => {
       const cat = g.categorias_gasto?.nombre || 'Sin categoria';
-      catMap[cat] = (catMap[cat] || 0) + Number(g.monto);
+      catMap[cat] = (catMap[cat] || 0) + getItemMontoEmpresa(g);
     });
     const cats    = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 7);
     const maxCat  = cats[0]?.[1] || 1;
@@ -541,7 +550,7 @@ export default function GastosClient({
           formatEmpresasPago(g),
           g.proveedor || '-',
           g.factura_referencia || '-',
-          fmt(Number(g.monto)),
+          fmt(getItemMontoEmpresa(g)),
         ];
       }),
       foot: [['', '', '', '', '', '', 'TOTAL PERIODO', fmt(totalAmount)]],
