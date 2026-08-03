@@ -122,8 +122,8 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
   autoTable(doc, {
     head: fullHead,
     body,
-    startY: 32,
-    styles: { fontSize: 8, cellPadding: 3, halign: 'right', overflow: 'linebreak' },
+    startY: 26,
+    styles: { fontSize: 7.5, cellPadding: 2, halign: 'right', overflow: 'linebreak' },
     headStyles: {
       fillColor: [218, 165, 32],
       textColor: [0, 0, 0],
@@ -131,9 +131,9 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
       halign: 'center',
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 15 },
-      1: { halign: 'left', cellWidth: 50 },
-      2: { halign: 'right', cellWidth: 28, fontStyle: 'bold' },
+      0: { halign: 'center', cellWidth: 12 },
+      1: { halign: 'left', cellWidth: 46 },
+      2: { halign: 'right', cellWidth: 26, fontStyle: 'bold' },
     },
     didParseCell: (data) => {
       if (data.section === 'body' && data.row.index === body.length - 1) {
@@ -147,30 +147,24 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
   // ============ RESUMEN DE COMPENSACIÓN ============
   type DocWithAutoTable = jsPDF & { lastAutoTable?: { finalY?: number } };
   const docWithTable = doc as DocWithAutoTable;
-  const finalY = docWithTable.lastAutoTable?.finalY ?? 50;
-  let resumenY = finalY + 12;
+  const finalYMain = docWithTable.lastAutoTable?.finalY ?? 60;
+  let resumenY = finalYMain + 5;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
+  doc.setFontSize(10);
   doc.setTextColor(218, 165, 32);
   doc.text('Resumen de Compensación', margin, resumenY);
 
-  resumenY += 6;
-  doc.setFontSize(9);
+  resumenY += 4;
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
+  doc.setTextColor(100, 100, 100);
   doc.text(
-    'Positivo (+) = la empresa pago de mas: debe cobrar',
+    'Positivo (+) = debe cobrar  ·  Negativo (-) = debe pagar',
     margin,
     resumenY,
   );
-  resumenY += 5;
-  doc.text(
-    'Negativo (-) = la empresa pago de menos: debe pagar',
-    margin,
-    resumenY,
-  );
-  resumenY += 10;
+  resumenY += 3;
 
   // Tabla de resumen
   const resumenData = resumen.empresas.map((e) => {
@@ -185,31 +179,31 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
     head: [['Empresa', 'Saldo', 'Estado']],
     body: resumenData,
     startY: resumenY,
-    styles: { fontSize: 9, cellPadding: 3, halign: 'right' },
+    styles: { fontSize: 8, cellPadding: 1.8, halign: 'right' },
     headStyles: { fillColor: [218, 165, 32], textColor: [0, 0, 0] },
     columnStyles: {
-      0: { halign: 'left', cellWidth: 60 },
-      1: { halign: 'right', cellWidth: 40, fontStyle: 'bold' },
-      2: { halign: 'center', cellWidth: 40, fontStyle: 'bold' },
+      0: { halign: 'left', cellWidth: 55 },
+      1: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
+      2: { halign: 'center', cellWidth: 35, fontStyle: 'bold' },
     },
   });
 
   // ============ SECCIÓN 4: HISTÓRICO Y ESTATUS ACUMULADO DE COMPENSACIÓN ============
-  const finalYResumen = docWithTable.lastAutoTable?.finalY ?? resumenY + 20;
-  let histY = finalYResumen + 7;
+  const finalYResumen = docWithTable.lastAutoTable?.finalY ?? resumenY + 15;
+  let histY = finalYResumen + 5;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setTextColor(218, 165, 32);
   doc.text('4. HISTÓRICO Y ESTATUS ACUMULADO DE COMPENSACIÓN', margin, histY);
 
-  histY += 4.5;
-  doc.setFontSize(8.5);
+  histY += 4;
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(40, 40, 40);
+  doc.setTextColor(60, 60, 60);
   doc.text('4.1 Histórico y Liquidación acumulada en gramos de Oro (Tasa: $98.00/g)', margin, histY);
 
-  histY += 3.5;
+  histY += 3;
 
   const PRECIO_ORO = 98.00;
   const fe = resumen.empresas.find(e => (e.nombre_corto ?? '').toLowerCase().includes('fe') || e.nombre.toLowerCase().includes('fe')) ?? resumen.empresas[0];
@@ -246,12 +240,13 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
     head: [['Mes / Período', 'Los Riasco (g)', 'La Fé (g)']],
     body: histBody,
     startY: histY,
-    styles: { fontSize: 7.5, cellPadding: 1.8, halign: 'center' },
+    pageBreak: 'avoid',
+    styles: { fontSize: 7, cellPadding: 1.4, halign: 'center' },
     headStyles: { fillColor: [218, 165, 32], textColor: [0, 0, 0], fontStyle: 'bold' },
     columnStyles: {
-      0: { halign: 'left', cellWidth: 70 },
-      1: { halign: 'center', cellWidth: 45 },
-      2: { halign: 'center', cellWidth: 45 },
+      0: { halign: 'left', cellWidth: 65 },
+      1: { halign: 'center', cellWidth: 40 },
+      2: { halign: 'center', cellWidth: 40 },
     },
     didParseCell: (data) => {
       if (data.section === 'body') {
