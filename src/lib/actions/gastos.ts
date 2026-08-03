@@ -578,361 +578,106 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
     const catNominaId = await getCatId('Nómina en Mina');
     const catMolinoId = await getCatId('Operaciones de Molino');
 
-    // 3. Listado completo de ítems a registrar de Julio 2026
-    const itemsAInsertar = [
-      // --- Voladuras (Explosivos y Barre) ---
+    // 3. Limpiar los registros parciales de prueba previos del mes de Julio 2026 (2026-07-01 a 2026-07-31)
+    const { data: gastosJulio } = await supabase
+      .from('gastos')
+      .select('id')
+      .gte('fecha', '2026-07-01')
+      .lte('fecha', '2026-07-31');
+
+    if (gastosJulio?.length) {
+      const idsJulio = gastosJulio.map((g) => g.id);
+      await supabase.from('gastos_empresas').delete().in('gasto_id', idsJulio);
+      await supabase.from('gastos').delete().in('id', idsJulio);
+    }
+
+    // 4. Listado oficial de las 4 categorías del mes completo de Julio 2026 ($97.600,33)
+    const itemsOficiales = [
       {
         fecha: '2026-07-11',
         categoria_id: catVoladurasId,
-        descripcion: '50 metros de Cordón Detonante',
-        monto: 1000.00,
-        proveedor: 'Los Riascos',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 1000.00 }],
-      },
-      {
-        fecha: '2026-07-17',
-        categoria_id: catVoladurasId,
-        descripcion: '350 LP y 50 m de Trenzas',
-        monto: 20250.00,
-        proveedor: 'La Fe',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 20250.00 }],
-      },
-
-      // --- Comida en Mina ---
-      {
-        fecha: '2026-07-02',
-        categoria_id: catComidaId,
-        descripcion: 'Viveres - Plaza Exito',
-        monto: 401.28,
-        proveedor: 'Comercializadora Plaza Exito, C.A.',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 401.28 }],
-      },
-      {
-        fecha: '2026-07-02',
-        categoria_id: catComidaId,
-        descripcion: 'Hortalizas - PEH',
-        monto: 62.22,
-        proveedor: 'Inversiones PEH, C.A.',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 62.22 }],
-      },
-      {
-        fecha: '2026-07-02',
-        categoria_id: catComidaId,
-        descripcion: 'Hortalizas - PEH',
-        monto: 81.91,
-        proveedor: 'Inversiones PEH, C.A.',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 81.91 }],
-      },
-      {
-        fecha: '2026-07-02',
-        categoria_id: catComidaId,
-        descripcion: 'Viveres - Plaza Exito',
-        monto: 2005.55,
-        proveedor: 'Comercializadora Plaza Exito, C.A.',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 2005.55 }],
-      },
-      {
-        fecha: '2026-07-09',
-        categoria_id: catComidaId,
-        descripcion: 'Hortalizas - PEH',
-        monto: 145.64,
-        proveedor: 'Inversiones PEH, C.A.',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 145.64 }],
-      },
-      {
-        fecha: '2026-07-15',
-        categoria_id: catComidaId,
-        descripcion: 'Hidratación y Hielo',
-        monto: 57.60,
-        proveedor: 'Proveedor Comunitario',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 57.60 }],
-      },
-      {
-        fecha: '2026-07-17',
-        categoria_id: catComidaId,
-        descripcion: 'Viveres - Plaza Exito',
-        monto: 1735.15,
-        proveedor: 'Comercializadora Plaza Exito, C.A.',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 1735.15 }],
-      },
-      {
-        fecha: '2026-07-17',
-        categoria_id: catComidaId,
-        descripcion: 'Hortalizas - PEH',
-        monto: 120.95,
-        proveedor: 'Inversiones PEH, C.A.',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 120.95 }],
-      },
-      {
-        fecha: '2026-07-24',
-        categoria_id: catComidaId,
-        descripcion: 'Carne de Res',
-        monto: 93.33,
-        proveedor: 'Proveedor Comunitario',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 93.33 }],
-      },
-      {
-        fecha: '2026-07-24',
-        categoria_id: catComidaId,
-        descripcion: 'Hidratación e Hielo',
-        monto: 90.00,
-        proveedor: 'Proveedor Comunitario',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 90.00 }],
-      },
-      {
-        fecha: '2026-07-25',
-        categoria_id: catComidaId,
-        descripcion: 'Hortalizas - PEH',
-        monto: 129.67,
-        proveedor: 'Inversiones PEH, C.A.',
-        empresas: [
-          { empresa_id: fe.id, monto_pagado: 125.00 },
-          { empresa_id: riasco.id, monto_pagado: 4.67 },
-        ],
-      },
-      {
-        fecha: '2026-07-31',
-        categoria_id: catComidaId,
-        descripcion: 'Hidratación e Hielo',
-        monto: 8.03,
-        proveedor: 'Proveedor Comunitario',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 8.03 }],
-      },
-
-      // --- Nómina en Mina ---
-      {
-        fecha: '2026-07-05',
-        categoria_id: catNominaId,
-        descripcion: 'Nómina Semanal Mina (Día 5)',
-        monto: 5900.71,
-        proveedor: 'Nómina Operativa',
-        empresas: [
-          { empresa_id: riasco.id, monto_pagado: 3540.43 },
-          { empresa_id: fe.id, monto_pagado: 2360.28 },
-        ],
-      },
-      {
-        fecha: '2026-07-12',
-        categoria_id: catNominaId,
-        descripcion: 'Nómina Semanal Mina (Día 12)',
-        monto: 6660.00,
-        proveedor: 'Nómina Operativa',
-        empresas: [
-          { empresa_id: riasco.id, monto_pagado: 3996.00 },
-          { empresa_id: fe.id, monto_pagado: 2664.00 },
-        ],
-      },
-      {
-        fecha: '2026-07-19',
-        categoria_id: catNominaId,
-        descripcion: 'Nómina Semanal Mina (Día 19)',
-        monto: 7027.84,
-        proveedor: 'Nómina Operativa',
-        empresas: [
-          { empresa_id: riasco.id, monto_pagado: 4216.70 },
-          { empresa_id: fe.id, monto_pagado: 2811.14 },
-        ],
-      },
-      {
-        fecha: '2026-07-26',
-        categoria_id: catNominaId,
-        descripcion: 'Nómina Semanal Mina (Día 26)',
-        monto: 7128.57,
-        proveedor: 'Nómina Operativa',
-        empresas: [
-          { empresa_id: riasco.id, monto_pagado: 4277.14 },
-          { empresa_id: fe.id, monto_pagado: 2851.43 },
-        ],
-      },
-
-      // --- Operaciones de Mina (Compras La Fé: $13.484,01 + $6.546,00 Acometida V4 = $20.030,01) ---
-      {
-        fecha: '2026-07-02',
-        categoria_id: catOperacionesId,
-        descripcion: '1500 Litros de Diesel',
-        monto: 1800.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 1800.00 }],
-      },
-      {
-        fecha: '2026-07-02',
-        categoria_id: catOperacionesId,
-        descripcion: '500 Litros de Gasolina',
-        monto: 700.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 700.00 }],
-      },
-      {
-        fecha: '2026-07-05',
-        categoria_id: catOperacionesId,
-        descripcion: '2 Pares de Radios',
-        monto: 120.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 120.00 }],
-      },
-      {
-        fecha: '2026-07-07',
-        categoria_id: catOperacionesId,
-        descripcion: '2 Brocas',
-        monto: 100.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 100.00 }],
-      },
-      {
-        fecha: '2026-07-09',
-        categoria_id: catOperacionesId,
-        descripcion: '11 Brocas',
-        monto: 660.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 660.00 }],
-      },
-      {
-        fecha: '2026-07-16',
-        categoria_id: catOperacionesId,
-        descripcion: '500 Litros de Gasolina',
-        monto: 700.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 700.00 }],
-      },
-      {
-        fecha: '2026-07-17',
-        categoria_id: catOperacionesId,
-        descripcion: 'Contactor, Sacos',
-        monto: 600.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 600.00 }],
-      },
-      {
-        fecha: '2026-07-21',
-        categoria_id: catOperacionesId,
-        descripcion: 'Materiales de Mina',
-        monto: 3000.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 3000.00 }],
-      },
-      {
-        fecha: '2026-07-25',
-        categoria_id: catOperacionesId,
-        descripcion: 'Información y Planos',
-        monto: 650.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 650.00 }],
-      },
-      {
-        fecha: '2026-07-30',
-        categoria_id: catOperacionesId,
-        descripcion: 'Tubos Elec 1", Sacos',
-        monto: 700.00,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 700.00 }],
-      },
-      {
-        fecha: '2026-07-30',
-        categoria_id: catOperacionesId,
-        descripcion: 'Transformadores y Accesorios',
-        monto: 4454.01,
-        proveedor: 'Proveedor Local',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 4454.01 }],
-      },
-      {
-        fecha: '2026-07-11',
-        categoria_id: catOperacionesId,
-        descripcion: 'Acometida V4 - Bomba 20Hp, Cable, Mano Obra y Transformadores (Cuota La Fe)',
-        monto: 6546.00,
-        proveedor: 'Oxifast / Ferremateriales',
-        empresas: [{ empresa_id: fe.id, monto_pagado: 6546.00 }],
-      },
-
-      // --- Operaciones de Mina (Compras Los Riascos: $24.671,86 Total) ---
-      {
-        fecha: '2026-07-11',
-        categoria_id: catOperacionesId,
-        descripcion: 'Acometida V4 - Bomba 20Hp, Cable, Mano Obra y Transformadores (Cuota Los Riascos)',
-        monto: 10559.00,
-        proveedor: 'Oxifast / Ferremateriales',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 10559.00 }],
-      },
-      {
-        fecha: '2026-07-15',
-        categoria_id: catOperacionesId,
-        descripcion: 'Equipos, Repuestos e Insumos Operaciones Mina',
-        monto: 14112.86,
+        descripcion: 'Voladuras (Exp y Barre)',
+        monto: 21250.00,
         proveedor: 'Proveedores Varios',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 14112.86 }],
+        empresas: [
+          { empresa_id: riasco.id, monto_pagado: 1000.00, porcentaje: 5 },
+          { empresa_id: fe.id, monto_pagado: 20250.00, porcentaje: 95 },
+        ],
       },
-
-      // --- Gastos de Molino Los Riasco (Excluidos de compensación mina) ---
       {
         fecha: '2026-07-15',
-        categoria_id: catMolinoId,
-        descripcion: 'Operaciones de Molino',
-        monto: 20782.67,
-        proveedor: 'Los Riascos',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 20782.67 }],
+        categoria_id: catOperacionesId,
+        descripcion: 'Operaciones de Mina',
+        monto: 44701.87,
+        proveedor: 'Proveedores Varios',
+        empresas: [
+          { empresa_id: riasco.id, monto_pagado: 24671.86, porcentaje: 55 },
+          { empresa_id: fe.id, monto_pagado: 20030.01, porcentaje: 45 },
+        ],
       },
       {
         fecha: '2026-07-20',
-        categoria_id: catMolinoId,
-        descripcion: 'Comida en Molino',
-        monto: 2853.13,
-        proveedor: 'Los Riascos',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 2853.13 }],
+        categoria_id: catComidaId,
+        descripcion: 'Comida en Mina',
+        monto: 4931.34,
+        proveedor: 'Proveedores Varios',
+        empresas: [
+          { empresa_id: riasco.id, monto_pagado: 4806.34, porcentaje: 97 },
+          { empresa_id: fe.id, monto_pagado: 125.00, porcentaje: 3 },
+        ],
       },
       {
         fecha: '2026-07-31',
-        categoria_id: catMolinoId,
-        descripcion: 'Nómina en Molino',
-        monto: 13580.00,
-        proveedor: 'Los Riascos',
-        empresas: [{ empresa_id: riasco.id, monto_pagado: 13580.00 }],
+        categoria_id: catNominaId,
+        descripcion: 'Nómina en Mina',
+        monto: 26717.12,
+        proveedor: 'Nómina Operativa',
+        empresas: [
+          { empresa_id: riasco.id, monto_pagado: 16030.27, porcentaje: 60 },
+          { empresa_id: fe.id, monto_pagado: 10686.85, porcentaje: 40 },
+        ],
       },
     ];
 
     let creadosCount = 0;
     let lastErrorMsg = '';
 
-    for (const item of itemsAInsertar) {
+    for (const item of itemsOficiales) {
       if (!item.categoria_id) continue;
 
-      // Buscar si ya existe un gasto idéntico en fecha y monto para no duplicar
-      const { data: existingGasto } = await supabase
+      const { data: gastoIns, error: gastoErr } = await supabase
         .from('gastos')
-        .select('id')
-        .eq('fecha', item.fecha)
-        .eq('categoria_id', item.categoria_id)
-        .eq('monto', item.monto)
-        .limit(1)
-        .maybeSingle();
+        .insert({
+          complex_id: user?.complexId ?? null,
+          registrado_por: user?.id ?? null,
+          fecha: item.fecha,
+          monto: item.monto,
+          categoria_id: item.categoria_id,
+          descripcion: item.descripcion,
+          proveedor: item.proveedor ?? null,
+        })
+        .select('id');
 
-      let gastoId = existingGasto?.id;
-
-      if (!gastoId) {
-        const { data: gastoIns, error: gastoErr } = await supabase
-          .from('gastos')
-          .insert({
-            complex_id: user?.complexId ?? null,
-            registrado_por: user?.id ?? null,
-            fecha: item.fecha,
-            monto: item.monto,
-            categoria_id: item.categoria_id,
-            descripcion: item.descripcion,
-            proveedor: item.proveedor ?? null,
-          })
-          .select('id');
-
-        if (gastoErr || !gastoIns || gastoIns.length === 0) {
-          lastErrorMsg = gastoErr?.message ?? 'Permisos de base de datos o RLS impidieron guardar.';
-          console.error('[restaurarGastosJulio2026] Error insertando gasto:', lastErrorMsg);
-          continue;
-        }
-
-        gastoId = gastoIns[0].id;
-        creadosCount++;
+      if (gastoErr || !gastoIns || gastoIns.length === 0) {
+        lastErrorMsg = gastoErr?.message ?? 'Permisos de base de datos o RLS impidieron guardar.';
+        console.error('[restaurarGastosJulio2026] Error insertando gasto:', lastErrorMsg);
+        continue;
       }
 
-      // Asignar empresas al gasto con asignarEmpresasAGasto
+      const gastoId = gastoIns[0].id;
       await asignarEmpresasAGasto(supabase, gastoId, item.monto, item.empresas);
+      creadosCount++;
     }
+
+    if (creadosCount === 0 && lastErrorMsg) {
+      return { ok: false, message: `No se pudieron guardar los gastos: ${lastErrorMsg}` };
+    }
+
+    revalidateAll();
+    return {
+      ok: true,
+      message: `Se cargó exitosamente la compensación del mes completo de Julio 2026 ($97.600,33).`,
+    };
 
 
 
