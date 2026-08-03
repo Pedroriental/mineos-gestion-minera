@@ -877,33 +877,34 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
         .limit(1)
         .maybeSingle();
 
-      if (existingGasto?.id) {
-        // SI YA EXISTE: NO TOCAR, NO EDITAR, SE CONSERVA TAL CUAL EL USUARIO LO REGISTRÓ
-        continue;
+      let gastoId = existingGasto?.id;
+
+      if (!gastoId) {
+        const { data: gastoIns, error: gastoErr } = await supabase
+          .from('gastos')
+          .insert({
+            complex_id: user?.complexId ?? null,
+            registrado_por: user?.id ?? null,
+            fecha: item.fecha,
+            monto: item.monto,
+            categoria_id: item.categoria_id,
+            descripcion: item.descripcion,
+            proveedor: item.proveedor ?? null,
+          })
+          .select('id');
+
+        if (gastoErr || !gastoIns || gastoIns.length === 0) {
+          lastErrorMsg = gastoErr?.message ?? 'Permisos de base de datos o RLS impidieron guardar.';
+          console.error('[restaurarGastosJulio2026] Error insertando gasto:', lastErrorMsg);
+          continue;
+        }
+
+        gastoId = gastoIns[0].id;
+        creadosCount++;
       }
 
-      const { data: gastoIns, error: gastoErr } = await supabase
-        .from('gastos')
-        .insert({
-          complex_id: user?.complexId ?? null,
-          registrado_por: user?.id ?? null,
-          fecha: item.fecha,
-          monto: item.monto,
-          categoria_id: item.categoria_id,
-          descripcion: item.descripcion,
-          proveedor: item.proveedor ?? null,
-        })
-        .select('id');
-
-      if (gastoErr || !gastoIns || gastoIns.length === 0) {
-        lastErrorMsg = gastoErr?.message ?? 'Permisos de base de datos o RLS impidieron guardar.';
-        console.error('[restaurarGastosJulio2026] Error insertando gasto:', lastErrorMsg);
-        continue;
-      }
-
-      const gastoId = gastoIns[0].id;
+      // Vincular siempre la empresa pagadora real en gastos_empresas (La Fé 100%, Los Riasco 100% o 60/40)
       await asignarEmpresasAGasto(supabase, gastoId, item.monto, item.empresas);
-      creadosCount++;
     }
 
     if (creadosCount === 0 && lastErrorMsg) {
