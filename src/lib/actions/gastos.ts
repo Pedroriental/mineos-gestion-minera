@@ -886,35 +886,82 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
     for (const item of itemsAInsertar) {
       if (!item.categoria_id) continue;
 
-      const { data: gastoIns, error: gastoErr } = await supabase
+      // Buscar si ya existe un gasto idéntico en fecha y monto para no duplicar
+      const { data: existingGasto } = await supabase
         .from('gastos')
-        .insert({
-          complex_id: user?.complexId ?? null,
-          registrado_por: user?.id ?? null,
-          fecha: item.fecha,
-          monto: item.monto,
-          categoria_id: item.categoria_id,
-          descripcion: item.descripcion,
-          proveedor: item.proveedor ?? null,
-        })
-        .select('id');
+        .select('id')
+        .eq('fecha', item.fecha)
+        .eq('categoria_id', item.categoria_id)
+        .eq('monto', item.monto)
+        .limit(1)
+        .maybeSingle();
 
-      if (gastoErr || !gastoIns || gastoIns.length === 0) {
-        lastErrorMsg = gastoErr?.message ?? 'Permisos de base de datos o RLS impidieron guardar.';
-        console.error('[restaurarGastosJulio2026] Error insertando gasto:', lastErrorMsg);
-        continue;
+      let gastoId = existingGasto?.id;
+
+      if (!gastoId) {
+        const { data: gastoIns, error: gastoErr } = await supabase
+          .from('gastos')
+          .insert({
+            complex_id: user?.complexId ?? null,
+            registrado_por: user?.id ?? null,
+            fecha: item.fecha,
+            monto: item.monto,
+            categoria_id: item.categoria_id,
+            descripcion: item.descripcion,
+            proveedor: item.proveedor ?? null,
+          })
+          .select('id');
+
+        if (gastoErr || !gastoIns || gastoIns.length === 0) {
+          lastErrorMsg = gastoErr?.message ?? 'Permisos de base de datos o RLS impidieron guardar.';
+          console.error('[restaurarGastosJulio2026] Error insertando gasto:', lastErrorMsg);
+          continue;
+        }
+
+        gastoId = gastoIns[0].id;
+        creadosCount++;
       }
 
-      const gastoId = gastoIns[0].id;
+      // Asignar empresas al gasto con asignarEmpresasAGasto
+      await asignarEmpresasAGasto(supabase, gastoId, item.monto, item.empresas);
+    }
 
-      const pagosIns = item.empresas.map((p) => ({
-        gasto_id: gastoId,
-        empresa_id: p.empresa_id,
-        monto_pagado: p.monto_pagado,
-      }));
+    // Reparar cualquier otro gasto de Julio 2026 que no tenga empresas asignadas
+    const { data: todosJulio } = await supabase
+      .from('gastos')
+      .select('id, monto, descripcion, categorias_gasto(nombre)')
+      .gte('fecha', '2026-07-01')
+      .lte('fecha', '2026-07-31');
 
-      await supabase.from('gastos_empresas').insert(pagosIns);
-      creadosCount++;
+    if (todosJulio?.length) {
+      const idsJulio = todosJulio.map((g) => g.id);
+      const { data: asignaciones } = await supabase
+        .from('gastos_empresas')
+        .select('gasto_id')
+        .in('gasto_id', idsJulio);
+
+      const asignadosSet = new Set((asignaciones ?? []).map((a) => a.gasto_id));
+
+      for (const g of todosJulio) {
+        if (!asignadosSet.has(g.id)) {
+          const desc = (g.descripcion ?? '').toLowerCase();
+          const cat = (Array.isArray(g.categorias_gasto) ? g.categorias_gasto[0]?.nombre : g.categorias_gasto?.nombre ?? '').toLowerCase();
+
+          if (desc.includes('fe') || desc.includes('la fe')) {
+            await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [{ empresa_id: fe.id, monto_pagado: Number(g.monto) }]);
+          } else if (desc.includes('riasco')) {
+            await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [{ empresa_id: riasco.id, monto_pagado: Number(g.monto) }]);
+          } else {
+            // Dividir 60/40 por defecto
+            const mRiasco = Math.round(Number(g.monto) * 0.6 * 100) / 100;
+            const mFe = Math.round((Number(g.monto) - mRiasco) * 100) / 100;
+            await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [
+              { empresa_id: riasco.id, monto_pagado: mRiasco },
+              { empresa_id: fe.id, monto_pagado: mFe },
+            ]);
+          }
+        }
+      }
     }
 
     if (creadosCount === 0 && lastErrorMsg) {
@@ -924,7 +971,7 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
     revalidateAll();
     return {
       ok: true,
-      message: `Se agregaron exitosamente ${creadosCount} gastos de Julio 2026.`,
+      message: `Se sincronizaron e ingresaron exitosamente los gastos de Julio 2026.`,
     };
   } catch (err: any) {
     console.error('[restaurarGastosJulio2026] Exception:', err);
