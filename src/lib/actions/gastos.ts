@@ -176,11 +176,19 @@ async function asignarEmpresasAGasto(
   let empresasAsignar: Array<{ empresa_id: string; monto_pagado: number; porcentaje: number }>;
 
   if (empresasInput && empresasInput.length > 0) {
-    empresasAsignar = empresasInput.map((e) => ({
-      empresa_id: e.empresa_id,
-      monto_pagado: e.monto_pagado,
-      porcentaje: e.porcentaje ?? 0,
-    }));
+    empresasAsignar = empresasInput.map((e) => {
+      const calcPct =
+        e.porcentaje && e.porcentaje > 0
+          ? e.porcentaje
+          : montoTotal > 0
+            ? Math.round((Number(e.monto_pagado) / montoTotal) * 100)
+            : 0;
+      return {
+        empresa_id: e.empresa_id,
+        monto_pagado: Number(e.monto_pagado),
+        porcentaje: calcPct,
+      };
+    });
   } else {
     // Default: asignar 100% a La Fé
     const { data: laFe } = await supabase
@@ -934,32 +942,28 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
       .lte('fecha', '2026-07-31');
 
     if (todosJulio?.length) {
-      const idsJulio = todosJulio.map((g) => g.id);
-      const { data: asignaciones } = await supabase
-        .from('gastos_empresas')
-        .select('gasto_id')
-        .in('gasto_id', idsJulio);
-
-      const asignadosSet = new Set((asignaciones ?? []).map((a) => a.gasto_id));
-
       for (const g of todosJulio) {
-        if (!asignadosSet.has(g.id)) {
-          const desc = (g.descripcion ?? '').toLowerCase();
-          const cat = (Array.isArray(g.categorias_gasto) ? g.categorias_gasto[0]?.nombre : g.categorias_gasto?.nombre ?? '').toLowerCase();
+        const desc = (g.descripcion ?? '').toLowerCase();
+        const cat = (Array.isArray(g.categorias_gasto) ? g.categorias_gasto[0]?.nombre : g.categorias_gasto?.nombre ?? '').toLowerCase();
 
-          if (desc.includes('fe') || desc.includes('la fe')) {
-            await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [{ empresa_id: fe.id, monto_pagado: Number(g.monto) }]);
-          } else if (desc.includes('riasco')) {
-            await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [{ empresa_id: riasco.id, monto_pagado: Number(g.monto) }]);
-          } else {
-            // Dividir 60/40 por defecto
-            const mRiasco = Math.round(Number(g.monto) * 0.6 * 100) / 100;
-            const mFe = Math.round((Number(g.monto) - mRiasco) * 100) / 100;
+        if (desc.includes('nomina') || cat.includes('nomina')) {
+          const mRiasco = Math.round(Number(g.monto) * 0.6 * 100) / 100;
+          const mFe = Math.round((Number(g.monto) - mRiasco) * 100) / 100;
+          await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [
+            { empresa_id: riasco.id, monto_pagado: mRiasco, porcentaje: 60 },
+            { empresa_id: fe.id, monto_pagado: mFe, porcentaje: 40 },
+          ]);
+        } else if (desc.includes('riasco') || desc.includes('cordón') || desc.includes('viveres') || desc.includes('hortalizas - peh')) {
+          if (desc.includes('129.67')) {
             await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [
-              { empresa_id: riasco.id, monto_pagado: mRiasco },
-              { empresa_id: fe.id, monto_pagado: mFe },
+              { empresa_id: fe.id, monto_pagado: 125.00, porcentaje: 96 },
+              { empresa_id: riasco.id, monto_pagado: 4.67, porcentaje: 4 },
             ]);
+          } else {
+            await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [{ empresa_id: riasco.id, monto_pagado: Number(g.monto), porcentaje: 100 }]);
           }
+        } else if (desc.includes('fe') || desc.includes('la fe') || desc.includes('diesel') || desc.includes('gasolina') || desc.includes('broca') || desc.includes('planos') || desc.includes('transformador')) {
+          await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [{ empresa_id: fe.id, monto_pagado: Number(g.monto), porcentaje: 100 }]);
         }
       }
     }
