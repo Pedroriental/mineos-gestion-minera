@@ -22,7 +22,7 @@ import type { Gasto, CategoriaGasto, EmpresaInversora } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto, createGastosBulk } from '@/lib/actions/gastos';
+import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto, createGastosBulk, restaurarGastosJulio2026Action } from '@/lib/actions/gastos';
 import { verifyGastosBeforeSave } from '@/lib/actions/gastos-audit';
 import { getPrecioOroParaFecha } from '@/lib/actions/gastos-oro';
 import { GastoEmpresaSelector } from '@/components/gastos/GastoEmpresaSelector';
@@ -1056,10 +1056,31 @@ export default function GastosClient({
                         description={
                           globalFilter
                             ? 'Ningún resultado para esa búsqueda.'
-                            : 'Registra el primer gasto operativo.'
+                            : 'Registra el primer gasto operativo o restaura los datos de Julio 2026.'
                         }
                         action={canEdit && !globalFilter ? { label: 'Registrar gasto', onClick: openNew } : undefined}
                       />
+                      {canEdit && !globalFilter && (
+                        <div className="mt-4 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              toast.info('Restaurando gastos de Julio 2026...');
+                              const res = await restaurarGastosJulio2026Action();
+                              if (res.ok) {
+                                toast.success(res.message);
+                                window.location.reload();
+                              } else {
+                                toast.error(res.message);
+                              }
+                            }}
+                            className="inline-flex items-center gap-2 rounded-lg bg-amber-600/20 px-4 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-600/30 border border-amber-500/30 transition-colors"
+                          >
+                            <Receipt className="h-4 w-4" />
+                            Restaurar Gastos Julio 2026 ($97.600,33)
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ) : (
