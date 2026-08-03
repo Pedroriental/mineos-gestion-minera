@@ -934,39 +934,7 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
       await asignarEmpresasAGasto(supabase, gastoId, item.monto, item.empresas);
     }
 
-    // Reparar cualquier otro gasto de Julio 2026 que no tenga empresas asignadas
-    const { data: todosJulio } = await supabase
-      .from('gastos')
-      .select('id, monto, descripcion, categorias_gasto(nombre)')
-      .gte('fecha', '2026-07-01')
-      .lte('fecha', '2026-07-31');
 
-    if (todosJulio?.length) {
-      for (const g of todosJulio) {
-        const desc = (g.descripcion ?? '').toLowerCase();
-        const cat = (Array.isArray(g.categorias_gasto) ? g.categorias_gasto[0]?.nombre : g.categorias_gasto?.nombre ?? '').toLowerCase();
-
-        if (desc.includes('nomina') || cat.includes('nomina')) {
-          const mRiasco = Math.round(Number(g.monto) * 0.6 * 100) / 100;
-          const mFe = Math.round((Number(g.monto) - mRiasco) * 100) / 100;
-          await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [
-            { empresa_id: riasco.id, monto_pagado: mRiasco, porcentaje: 60 },
-            { empresa_id: fe.id, monto_pagado: mFe, porcentaje: 40 },
-          ]);
-        } else if (desc.includes('riasco') || desc.includes('cordón') || desc.includes('viveres') || desc.includes('hortalizas - peh')) {
-          if (desc.includes('129.67')) {
-            await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [
-              { empresa_id: fe.id, monto_pagado: 125.00, porcentaje: 96 },
-              { empresa_id: riasco.id, monto_pagado: 4.67, porcentaje: 4 },
-            ]);
-          } else {
-            await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [{ empresa_id: riasco.id, monto_pagado: Number(g.monto), porcentaje: 100 }]);
-          }
-        } else if (desc.includes('fe') || desc.includes('la fe') || desc.includes('diesel') || desc.includes('gasolina') || desc.includes('broca') || desc.includes('planos') || desc.includes('transformador')) {
-          await asignarEmpresasAGasto(supabase, g.id, Number(g.monto), [{ empresa_id: fe.id, monto_pagado: Number(g.monto), porcentaje: 100 }]);
-        }
-      }
-    }
 
     if (creadosCount === 0 && lastErrorMsg) {
       return { ok: false, message: `No se pudieron guardar los gastos: ${lastErrorMsg}` };
