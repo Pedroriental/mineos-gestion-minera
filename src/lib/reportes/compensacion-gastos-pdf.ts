@@ -195,13 +195,13 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(218, 165, 32);
-  doc.text('4. HISTÓRICO Y ESTATUS ACUMULADO DE COMPENSACIÓN', margin, histY);
+  doc.text('HISTÓRICO Y ESTATUS ACUMULADO DE COMPENSACIÓN', margin, histY);
 
   histY += 4;
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('4.1 Histórico y Liquidación acumulada en gramos de Oro (Tasa: $98.00/g)', margin, histY);
+  doc.text('Histórico y Liquidación acumulada en gramos de Oro (Tasa: $98.00/g)', margin, histY);
 
   histY += 3;
 
