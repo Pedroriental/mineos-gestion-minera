@@ -124,7 +124,7 @@ export async function generarCompensacionGastosAction(
 
         let pagos = empresasPorGasto[g.id] ?? [];
 
-        // Fallback robusto si RLS oculta gastos_empresas o si la relación está vacía:
+        // Fallback si la relación de pagos está vacía:
         if (pagos.length === 0 && empresas.length >= 2) {
           const riasco =
             empresas.find(
@@ -140,27 +140,12 @@ export async function generarCompensacionGastosAction(
             ) ?? empresas[1];
           const montoTotal = Number(g.monto);
 
-          if (categoriaNombre.includes('volad') || desc.includes('volad')) {
-            pagos = [
-              { empresa_id: riasco.id, monto_pagado: 1000.00 },
-              { empresa_id: fe.id, monto_pagado: 20250.00 },
-            ];
-          } else if (categoriaNombre.includes('operac') || desc.includes('operac')) {
-            pagos = [
-              { empresa_id: riasco.id, monto_pagado: 24671.86 },
-              { empresa_id: fe.id, monto_pagado: 20030.01 },
-            ];
-          } else if (categoriaNombre.includes('comida') || desc.includes('comida')) {
-            pagos = [
-              { empresa_id: riasco.id, monto_pagado: 4806.34 },
-              { empresa_id: fe.id, monto_pagado: 125.00 },
-            ];
-          } else if (categoriaNombre.includes('nomina') || desc.includes('nomina')) {
-            pagos = [
-              { empresa_id: riasco.id, monto_pagado: 16030.27 },
-              { empresa_id: fe.id, monto_pagado: 10686.85 },
-            ];
+          if (desc.includes('riasco') || desc.includes('cordón')) {
+            pagos = [{ empresa_id: riasco.id, monto_pagado: montoTotal }];
+          } else if (desc.includes('fe') || desc.includes('la fe') || desc.includes('trenza')) {
+            pagos = [{ empresa_id: fe.id, monto_pagado: montoTotal }];
           } else {
+            // Dividir según % de participación de la empresa (60/40)
             const mRiasco = Math.round(montoTotal * (riasco.porcentaje / 100) * 100) / 100;
             const mFe = Math.round((montoTotal - mRiasco) * 100) / 100;
             pagos = [
