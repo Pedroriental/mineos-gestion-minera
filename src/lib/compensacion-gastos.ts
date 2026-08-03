@@ -127,11 +127,9 @@ export function resolverCompensacionGastos(input: {
     totalRealPorEmpresa[empresa.id] = round2(
       categorias.reduce((s, c) => s + (c.gastoRealPorEmpresa[empresa.id] ?? 0), 0),
     );
-    totalTeoricoPorEmpresa[empresa.id] = round2(
-      categorias.reduce((s, c) => s + (c.gastoTeoricoPorEmpresa[empresa.id] ?? 0), 0),
-    );
+    totalTeoricoPorEmpresa[empresa.id] = round2(totalGasto * (empresa.porcentaje / 100));
     totalCompensacionPorEmpresa[empresa.id] = round2(
-      categorias.reduce((s, c) => s + (c.compensacionPorEmpresa[empresa.id] ?? 0), 0),
+      totalRealPorEmpresa[empresa.id] - totalTeoricoPorEmpresa[empresa.id],
     );
   }
 

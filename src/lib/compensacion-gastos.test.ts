@@ -155,44 +155,46 @@ describe('resolverCompensacionGastos', () => {
     assert.equal(resumen2.resumenPorEmpresa['la_fe'].estado, 'equilibrado');
   });
 
-  it('maneja correctamente el caso del Excel del usuario', () => {
-    // Reproduce el caso del Excel: 4 categorías con gastos reales
+  it('maneja correctamente el caso del Excel del usuario (Mes Completo Julio 2026 - $97.600,33)', () => {
     const gastos: GastoParaCompensacion[] = [
       {
         id: '1',
-        fecha: '2026-07-01',
-        monto: 1000,
+        fecha: '2026-07-11',
+        monto: 21250.00,
         categoria: 'Voladuras (Exp y Barre)',
-        pagos: [{ empresa_id: 'los_riascos', monto_pagado: 1000 }],
+        pagos: [
+          { empresa_id: 'los_riascos', monto_pagado: 1000.00 },
+          { empresa_id: 'la_fe', monto_pagado: 20250.00 },
+        ],
       },
       {
         id: '2',
         fecha: '2026-07-15',
-        monto: 15068.94,
+        monto: 44701.87,
         categoria: 'Operaciones de Mina',
         pagos: [
-          { empresa_id: 'los_riascos', monto_pagado: 9504.95 },
-          { empresa_id: 'la_fe', monto_pagado: 5564.0 },
+          { empresa_id: 'los_riascos', monto_pagado: 24671.86 },
+          { empresa_id: 'la_fe', monto_pagado: 20030.01 },
         ],
       },
       {
         id: '3',
         fecha: '2026-07-20',
-        monto: 2754.20,
+        monto: 4931.34,
         categoria: 'Comida en Mina',
         pagos: [
-          { empresa_id: 'los_riascos', monto_pagado: 2629.20 },
-          { empresa_id: 'la_fe', monto_pagado: 125.0 },
+          { empresa_id: 'los_riascos', monto_pagado: 4806.34 },
+          { empresa_id: 'la_fe', monto_pagado: 125.00 },
         ],
       },
       {
         id: '4',
         fecha: '2026-07-31',
-        monto: 12560.71,
+        monto: 26717.12,
         categoria: 'Nómina en Mina',
         pagos: [
-          { empresa_id: 'los_riascos', monto_pagado: 7536.43 },
-          { empresa_id: 'la_fe', monto_pagado: 5024.28 },
+          { empresa_id: 'los_riascos', monto_pagado: 16030.27 },
+          { empresa_id: 'la_fe', monto_pagado: 10686.85 },
         ],
       },
     ];
@@ -205,13 +207,18 @@ describe('resolverCompensacionGastos', () => {
       hasta: '2026-07-31',
     });
 
-    assert.equal(resumen.totalGasto, 31383.85);
-    assert.equal(resumen.totalRealPorEmpresa['los_riascos'], 20670.58);
-    assert.equal(resumen.totalRealPorEmpresa['la_fe'], 10713.28);
-    // El cálculo da 1840.27 para LR y -1840.26 para LF.
-    // La diferencia de 0.01 es por precisión de redondeo de números flotantes.
-    assert.equal(resumen.totalCompensacionPorEmpresa['los_riascos'], 1840.27);
-    assert.equal(resumen.totalCompensacionPorEmpresa['la_fe'], -1840.26);
+    // Validar Totales Generales
+    assert.equal(resumen.totalGasto, 97600.33);
+    assert.equal(resumen.totalRealPorEmpresa['los_riascos'], 46508.47);
+    assert.equal(resumen.totalRealPorEmpresa['la_fe'], 51091.86);
+    assert.equal(resumen.totalTeoricoPorEmpresa['los_riascos'], 58560.20);
+    assert.equal(resumen.totalTeoricoPorEmpresa['la_fe'], 39040.13);
+    assert.equal(resumen.totalCompensacionPorEmpresa['los_riascos'], -12051.73);
+    assert.equal(resumen.totalCompensacionPorEmpresa['la_fe'], 12051.73);
+
+    // Validar Estados
+    assert.equal(resumen.resumenPorEmpresa['los_riascos'].estado, 'debe_pagar');
+    assert.equal(resumen.resumenPorEmpresa['la_fe'].estado, 'debe_cobrar');
   });
 
   it('ordena categorías alfabéticamente', () => {
