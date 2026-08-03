@@ -578,20 +578,8 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
     const catNominaId = await getCatId('Nómina en Mina');
     const catMolinoId = await getCatId('Operaciones de Molino');
 
-    // 3. Limpiar los registros parciales de prueba previos del mes de Julio 2026 (2026-07-01 a 2026-07-31)
-    const { data: gastosJulio } = await supabase
-      .from('gastos')
-      .select('id')
-      .gte('fecha', '2026-07-01')
-      .lte('fecha', '2026-07-31');
-
-    if (gastosJulio?.length) {
-      const idsJulio = gastosJulio.map((g) => g.id);
-      await supabase.from('gastos_empresas').delete().in('gasto_id', idsJulio);
-      await supabase.from('gastos').delete().in('id', idsJulio);
-    }
-
-    // 4. Listado completo y detallado de las 33 facturas individuales de Julio 2026 ($97.600,33)
+    // NO SE BORRA NINGÚN GASTO EXISTENTE DEL USUARIO
+    // 4. Listado completo y detallado de las facturas de la planilla de Julio 2026 ($97.600,33)
     const itemsDetallados = [
       // --- Voladuras (Explosivos y Barre) ---
       {
@@ -758,7 +746,7 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
         ],
       },
 
-      // --- Operaciones de Mina (Compras La Fé: $13.484,01 + $6.546,00 Acometida V4 = $20.030,01) ---
+      // --- Operaciones de Mina ---
       {
         fecha: '2026-07-02',
         categoria_id: catOperacionesId,
@@ -855,8 +843,6 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
         proveedor: 'Oxifast / Ferremateriales',
         empresas: [{ empresa_id: fe.id, monto_pagado: 6546.00, porcentaje: 100 }],
       },
-
-      // --- Operaciones de Mina (Compras Los Riascos: $24.671,86 Total) ---
       {
         fecha: '2026-07-11',
         categoria_id: catOperacionesId,
@@ -880,6 +866,21 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
 
     for (const item of itemsDetallados) {
       if (!item.categoria_id) continue;
+
+      // Buscar si ya existe un gasto con esa fecha y monto para NO TOCARLO ni duplicarlo
+      const { data: existingGasto } = await supabase
+        .from('gastos')
+        .select('id')
+        .eq('fecha', item.fecha)
+        .eq('categoria_id', item.categoria_id)
+        .eq('monto', item.monto)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingGasto?.id) {
+        // SI YA EXISTE: NO TOCAR, NO EDITAR, SE CONSERVA TAL CUAL EL USUARIO LO REGISTRÓ
+        continue;
+      }
 
       const { data: gastoIns, error: gastoErr } = await supabase
         .from('gastos')
