@@ -517,6 +517,7 @@ export async function deleteGastoConcepto(id: string): Promise<ActionResult> {
 export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
+    const user = await getServerUser();
 
     // 1. Obtener empresas inversoras
     const { data: empresas } = await supabase
@@ -880,6 +881,7 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
     ];
 
     let creadosCount = 0;
+    let lastErrorMsg = '';
 
     for (const item of itemsAInsertar) {
       if (!item.categoria_id) continue;
@@ -887,22 +889,26 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
       const { data: gastoIns, error: gastoErr } = await supabase
         .from('gastos')
         .insert({
+          complex_id: user?.complexId ?? null,
+          registrado_por: user?.id ?? null,
           fecha: item.fecha,
           monto: item.monto,
           categoria_id: item.categoria_id,
           descripcion: item.descripcion,
           proveedor: item.proveedor ?? null,
         })
-        .select('id')
-        .single();
+        .select('id');
 
-      if (gastoErr || !gastoIns?.id) {
-        console.error('[restaurarGastosJulio2026] Error insertando gasto:', gastoErr?.message);
+      if (gastoErr || !gastoIns || gastoIns.length === 0) {
+        lastErrorMsg = gastoErr?.message ?? 'Permisos de base de datos o RLS impidieron guardar.';
+        console.error('[restaurarGastosJulio2026] Error insertando gasto:', lastErrorMsg);
         continue;
       }
 
+      const gastoId = gastoIns[0].id;
+
       const pagosIns = item.empresas.map((p) => ({
-        gasto_id: gastoIns.id,
+        gasto_id: gastoId,
         empresa_id: p.empresa_id,
         monto_pagado: p.monto_pagado,
       }));
@@ -911,10 +917,14 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
       creadosCount++;
     }
 
+    if (creadosCount === 0 && lastErrorMsg) {
+      return { ok: false, message: `No se pudieron guardar los gastos: ${lastErrorMsg}` };
+    }
+
     revalidateAll();
     return {
       ok: true,
-      message: `Se restauraron e ingresaron exitosamente ${creadosCount} gastos de Julio 2026.`,
+      message: `Se agregaron exitosamente ${creadosCount} gastos de Julio 2026.`,
     };
   } catch (err: any) {
     console.error('[restaurarGastosJulio2026] Exception:', err);
