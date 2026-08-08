@@ -38,7 +38,7 @@ function filterRegistrosByArea(
   return registros.filter((r) => r.area === filterArea);
 }
 
-/** Datos en vivo de la semana actual solo si esa semana aún no está cerrada en el servidor. */
+/** Datos en vivo de la semana actual solo si esa semana aún no está cerrada en el servidor, o para añadir trabajadores nuevos agregados en la UI. */
 function mergeActiveRegistros(
   registros: NominaRegistroCerrado[],
   activeWeek: { semana_inicio: string; semana_fin?: string } | undefined,
@@ -49,12 +49,34 @@ function mergeActiveRegistros(
   const activeForArea = filterRegistrosByArea(activeRegistros ?? [], filterArea);
   if (!activeWeek || activeForArea.length === 0) return deduped;
 
+  const existingKeys = new Set(
+    deduped
+      .filter(
+        (r) =>
+          r.semana_inicio === activeWeek.semana_inicio &&
+          (!filterArea || r.area === filterArea),
+      )
+      .map((r) => `${r.personal_id}|${r.semana_inicio}`),
+  );
+
+  const missingFromActive = activeForArea.filter(
+    (r) =>
+      r.semana_inicio === activeWeek.semana_inicio &&
+      !existingKeys.has(`${r.personal_id}|${r.semana_inicio}`),
+  );
+
   const weekClosedOnServer = deduped.some(
     (r) =>
       r.semana_inicio === activeWeek.semana_inicio &&
       (!filterArea || r.area === filterArea),
   );
-  if (weekClosedOnServer) return deduped;
+
+  if (weekClosedOnServer) {
+    if (missingFromActive.length > 0) {
+      return dedupePreviewRegistros([...deduped, ...missingFromActive]);
+    }
+    return deduped;
+  }
 
   const withoutActiveWeek = deduped.filter(
     (r) =>
@@ -132,14 +154,12 @@ export function NominaVistaPreviaModal({
     ) => {
       if (!previewRes.ok) return false;
 
-      const mergedRegistros = periodoId
-        ? previewRes.registrosCerrados
-        : mergeActiveRegistros(
-            previewRes.registrosCerrados,
-            activeWeekRef.current,
-            activeRegistrosRef.current,
-            filterArea,
-          );
+      const mergedRegistros = mergeActiveRegistros(
+        previewRes.registrosCerrados,
+        activeWeekRef.current,
+        activeRegistrosRef.current,
+        filterArea,
+      );
       let mergedSemanas = [...previewRes.semanasCerradas];
 
       const activeForArea = filterRegistrosByArea(activeRegistrosRef.current ?? [], filterArea);
@@ -237,11 +257,11 @@ export function NominaVistaPreviaModal({
 
   // Mezclar datos en vivo de la semana actual sin recargar del servidor.
   useEffect(() => {
-    if (!open || selectedPeriodoId) return;
+    if (!open) return;
     setRegistrosCerrados((prev) =>
       mergeActiveRegistros(prev, activeWeekRef.current, activeRegistrosRef.current, filterArea),
     );
-  }, [open, selectedPeriodoId, filterArea, activeRegistros, activeWeek]);
+  }, [open, filterArea, activeRegistros, activeWeek]);
 
   function handlePeriodSelect(period: NominaPeriodoSummary) {
     startPeriodSwitch(async () => {
