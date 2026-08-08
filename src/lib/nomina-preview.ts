@@ -939,23 +939,22 @@ export function buildNominaPreviewReport(input: {
 
       const vales =
         w.weekStart === lastOpenWeekStart ? valesPorPersonal[p.id] || 0 : 0;
-        const resolved = resolveNominaCell({
-          personal: p,
-          weekStart: w.weekStart,
-          area: effectiveArea,
-          archive,
-          valesDeduccion: vales,
-          allowProjection,
-          isWeekClosed: closedWeeksByArea.has(`${w.weekStart}|${effectiveArea}`),
-        });
-        weeks[w.weekStart] = {
-          amount: resolved.amount,
-          estado: resolved.estado,
-          source: resolved.source === 'archivo' ? 'cerrada' : 'calculada',
-        };
-        if (resolved.source === 'archivo') closedCells += 1;
-        else calculatedCells += 1;
-      }
+      const resolved = resolveNominaCell({
+        personal: p,
+        weekStart: w.weekStart,
+        area: effectiveArea,
+        archive,
+        valesDeduccion: vales,
+        allowProjection,
+        isWeekClosed: closedWeeksByArea.has(`${w.weekStart}|${effectiveArea}`),
+      });
+      weeks[w.weekStart] = {
+        amount: resolved.amount,
+        estado: resolved.estado,
+        source: resolved.source === 'archivo' ? 'cerrada' : 'calculada',
+      };
+      if (resolved.source === 'archivo') closedCells += 1;
+      else calculatedCells += 1;
       total += weeks[w.weekStart].amount;
     }
 
