@@ -876,7 +876,7 @@ export function buildNominaPreviewReport(input: {
     if (!allowProjection && !hasRegistroInRange) continue;
     if (p.estatus && p.estatus !== 'ACTIVO' && !hasRegistroInRange) continue;
     if (p.estado_laboral === 'DESPEDIDO') continue;
-    if (p.fecha_ingreso && p.fecha_ingreso > rangeEnd) continue;
+    if (!hasRegistroInRange && p.fecha_ingreso && p.fecha_ingreso > rangeEnd) continue;
     const snap = personalSnapshots[p.id];
     const meta =
       plantilla && manualPeriodPlantilla
@@ -911,18 +911,13 @@ export function buildNominaPreviewReport(input: {
     let total = 0;
 
     for (const w of weekColumns) {
-      if (p.fecha_ingreso && p.fecha_ingreso > w.weekEnd) {
-        weeks[w.weekStart] = { amount: 0, estado: 'no_laborado', source: 'calculada' };
-        calculatedCells += 1;
-        continue;
-      }
-
       const effectiveArea = filterArea ?? p.area;
       const closed = filterArea
         ? cerradoMap.get(`${p.id}|${w.weekStart}|${filterArea}`) ??
           cerradoMap.get(`${p.id}|${w.weekStart}`)
         : cerradoMap.get(`${p.id}|${w.weekStart}|${p.area}`) ??
           cerradoMap.get(`${p.id}|${w.weekStart}`);
+
       if (closed) {
         const estado =
           (closed.estado_asistencia as EstadoAsistenciaNomina | undefined) ??
@@ -938,6 +933,15 @@ export function buildNominaPreviewReport(input: {
           obs: closed.novedad_turno_obs || '',
         });
         closedCells += 1;
+        total += weeks[w.weekStart].amount;
+        continue;
+      }
+
+      if (p.fecha_ingreso && p.fecha_ingreso > w.weekEnd) {
+        weeks[w.weekStart] = { amount: 0, estado: 'no_laborado', source: 'calculada' };
+        calculatedCells += 1;
+        continue;
+      }
       } else {
         const vales =
           w.weekStart === lastOpenWeekStart ? valesPorPersonal[p.id] || 0 : 0;
@@ -1105,12 +1109,8 @@ export function buildNominaPreviewReport(input: {
     filterArea,
   );
   let grandTotal = parseFloat(summary.reduce((n, s) => n + s.total, 0).toFixed(2));
-  if (!allowProjection && closedRegistrosTotal > 0) {
+  if (sections.length === 0 && closedRegistrosTotal > 0) {
     grandTotal = closedRegistrosTotal;
-  } else if (!allowProjection && sections.length === 0) {
-    grandTotal = closedRegistrosTotal;
-  } else if (allowProjection && calculatedCells === 0) {
-    if (closedRegistrosTotal > 0) grandTotal = closedRegistrosTotal;
   }
   const personalById = new Map(personalForCatalog.map((p) => [p.id, p]));
   let novedades = buildNominaPreviewNovedadesDesdeRegistros(
