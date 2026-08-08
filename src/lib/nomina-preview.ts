@@ -937,14 +937,8 @@ export function buildNominaPreviewReport(input: {
         continue;
       }
 
-      if (p.fecha_ingreso && p.fecha_ingreso > w.weekEnd) {
-        weeks[w.weekStart] = { amount: 0, estado: 'no_laborado', source: 'calculada' };
-        calculatedCells += 1;
-        continue;
-      }
-      } else {
-        const vales =
-          w.weekStart === lastOpenWeekStart ? valesPorPersonal[p.id] || 0 : 0;
+      const vales =
+        w.weekStart === lastOpenWeekStart ? valesPorPersonal[p.id] || 0 : 0;
         const resolved = resolveNominaCell({
           personal: p,
           weekStart: w.weekStart,
