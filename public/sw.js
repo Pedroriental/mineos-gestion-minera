@@ -1,8 +1,7 @@
-// MineOS Service Worker — v13
+// MineOS Service Worker — v14
 // Network-first para /_next/static/; solo cachea respuestas OK (evita 500/404 cacheados tras deploy).
-// v12: navegaciones siempre con cache: 'reload' para evitar bundles viejos cacheados.
 
-const STATIC_CACHE = 'mineos-static-v13';
+const STATIC_CACHE = 'mineos-static-v14';
 
 function isLocalDevHost(hostname) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
@@ -46,13 +45,12 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== location.origin) return;
 
   if (isAppDocumentRequest(event.request, url)) {
-    // Forzar 'reload' para evitar que el navegador sirva HTML viejo
-    // desde HTTP cache. Los chunks /_next/static/* siguen network-first
-    // abajo. Esto garantiza que tras un deploy el cliente SIEMPRE pide
-    // HTML nuevo al servidor, evitando errores de ReferenceError por
-    // bundles desactualizados.
+    // Pasar directamente las navegaciones y RSC a la red de forma limpia
     event.respondWith(
-      fetch(event.request, { cache: 'reload' }).catch(() => Response.error()),
+      fetch(event.request).catch((err) => {
+        console.warn('Document fetch failed:', err);
+        return caches.match(event.request).then((cached) => cached || Response.error());
+      }),
     );
     return;
   }
