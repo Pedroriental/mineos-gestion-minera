@@ -56,6 +56,8 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://api.fontshare.com" />
         <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@700,500,400&display=swap" />
         {/* Tema antes del paint — debe coincidir con theme-context (default: light) */}
         <script
@@ -72,7 +74,7 @@ export default function RootLayout({
       </head>
       <body className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable} font-sans antialiased`}>
         {/* ── Splash screen estático (se pinta antes de React hidrate) ── */}
-        <style>{'@keyframes sspin{to{transform:rotate(360deg)}}#splash-screen{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem;background:#09090b;opacity:1;transition:opacity .3s ease}#splash-screen img{max-height:110px;max-width:200px;width:auto;height:auto}#splash-screen p{font-family:sans-serif;text-align:center;font-size:.875rem;font-weight:600;color:#a1a1aa;margin:0}#splash-screen .sp{border:2px solid #27272a;border-top-color:#f59e0b;border-radius:50%;width:1.5rem;height:1.5rem;animation:sspin .7s linear infinite}'}</style>
+        <style>{'@keyframes sspin{to{transform:rotate(360deg)}}#splash-screen{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem;background:#09090b;opacity:1;transition:opacity .2s ease}#splash-screen img{max-height:110px;max-width:200px;width:auto;height:auto}#splash-screen p{font-family:sans-serif;text-align:center;font-size:.875rem;font-weight:600;color:#a1a1aa;margin:0}#splash-screen .sp{border:2px solid #27272a;border-top-color:#f59e0b;border-radius:50%;width:1.5rem;height:1.5rem;animation:sspin .7s linear infinite}'}</style>
         <div id="splash-screen">
           <img id="splash-logo" src="/brand/mineos-logotipo-dark.svg" alt="MineOS" decoding="async" fetchpriority="high" />
           <p>Sistema de Gestión Minera</p>
@@ -82,7 +84,7 @@ export default function RootLayout({
           __html: `!function(){try{var t=(typeof localStorage!=='undefined'&&localStorage.getItem('mineos-theme'))||'dark';var s=document.getElementById('splash-screen');var l=document.getElementById('splash-logo');if(s&&t==='light'){s.style.background='#f8fafc';}if(l){l.src='/brand/mineos-logotipo-'+(t==='dark'?'dark':'light')+'.svg'}}catch(e){}}()`,
         }} />
         <script dangerouslySetInnerHTML={{
-          __html: `!function(){var s=document.getElementById('splash-screen');if(!s)return;function h(){s.style.opacity='0';setTimeout(function(){s.remove()},300)}var t=setTimeout(h,1000);document.addEventListener('DOMContentLoaded',function(){clearTimeout(t);setTimeout(h,200)})}()`,
+          __html: `!function(){var s=document.getElementById('splash-screen');if(!s)return;function h(){s.style.opacity='0';setTimeout(function(){s.remove()},200)}var t=setTimeout(h,600);if(document.readyState==='complete'||document.readyState==='interactive'){h()}else{document.addEventListener('DOMContentLoaded',function(){clearTimeout(t);h()})}}()`,
         }} />
         <Providers>{children}</Providers>
       </body>

@@ -209,13 +209,24 @@ export function buildBibliotecaAppSnapshot(
 
 export const FALLBACK_SNAPSHOT = buildBibliotecaAppSnapshot(FALLBACK_BIBLIOTECA_CATALOGO, false);
 
+let cachedSnapshot: BibliotecaAppSnapshot | null = null;
+let cachedSnapshotTimestamp = 0;
+const SNAPSHOT_CACHE_TTL = 30_000; // 30 segundos de caché en memoria
+
 export async function loadBibliotecaAppSnapshot(): Promise<BibliotecaAppSnapshot> {
+  const now = Date.now();
+  if (cachedSnapshot && now - cachedSnapshotTimestamp < SNAPSHOT_CACHE_TTL) {
+    return cachedSnapshot;
+  }
   try {
     const catalog = await loadBibliotecaCompleta();
     if (!catalog.length) return FALLBACK_SNAPSHOT;
-    return buildBibliotecaAppSnapshot(catalog, true);
+    const snap = buildBibliotecaAppSnapshot(catalog, true);
+    cachedSnapshot = snap;
+    cachedSnapshotTimestamp = now;
+    return snap;
   } catch {
-    return FALLBACK_SNAPSHOT;
+    return cachedSnapshot || FALLBACK_SNAPSHOT;
   }
 }
 

@@ -3,7 +3,16 @@
 import { createServerClient } from '@/lib/supabase-server';
 import { buildDashboardAlerts, DashboardAlert } from '@/lib/dashboard-alerts';
 
+let cachedAlerts: DashboardAlert[] | null = null;
+let cachedAlertsTimestamp = 0;
+const ALERTS_CACHE_TTL = 15_000; // 15 segundos de caché en memoria
+
 export async function getSystemAlerts(): Promise<DashboardAlert[]> {
+  const now = Date.now();
+  if (cachedAlerts && now - cachedAlertsTimestamp < ALERTS_CACHE_TTL) {
+    return cachedAlerts;
+  }
+
   const supabase = await createServerClient();
 
   // Obtenemos solo la data necesaria para las alertas
@@ -61,5 +70,7 @@ export async function getSystemAlerts(): Promise<DashboardAlert[]> {
     })),
   });
 
+  cachedAlerts = alerts;
+  cachedAlertsTimestamp = now;
   return alerts;
 }
