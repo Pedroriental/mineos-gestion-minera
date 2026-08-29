@@ -42,13 +42,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    Promise.resolve().then(() => {
+    try {
       const guestStored = sessionStorage.getItem(GUEST_KEY);
       if (guestStored === 'true') {
         setIsGuest(true);
       }
+    } catch {}
+
+    // 1. Obtener la sesión local de inmediato en < 1ms
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+      if (session?.user) {
+        fetchProfile(session.user.id, session.user);
+      }
+    }).catch(() => {
+      setLoading(false);
     });
 
+    // 2. Suscribirse a cambios futuros
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -63,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const slowNetworkGuard = window.setTimeout(() => {
       setLoading(false);
-    }, 1200);
+    }, 1000);
 
     return () => {
       window.clearTimeout(slowNetworkGuard);
