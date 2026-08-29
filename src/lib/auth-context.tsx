@@ -85,57 +85,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
-    sessionStorage.removeItem(GUEST_KEY);
-    setIsGuest(false);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message, role: undefined };
-
-    // Sync JWT user_metadata with DB profile (role + complex_id)
-    // RLS reads both from JWT — if missing, policies silently reject rows
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role, complex_id')
-      .eq('id', data.user!.id)
-      .single();
-
-    const dbRole: UserRole = profile?.role ?? 'admin';
-    const dbComplexId: string | null = profile?.complex_id ?? null;
-
-    const needsRoleSync = data.user?.user_metadata?.role !== dbRole;
-    const needsComplexSync = data.user?.user_metadata?.complex_id !== dbComplexId;
-
-    if (needsRoleSync || needsComplexSync) {
-      await supabase.auth.updateUser({
-        data: { role: dbRole, complex_id: dbComplexId },
-      });
-      // Force a fresh JWT so RLS reads the new claims on the very next
-      // server action. Without this, the user keeps the old token until
-      // it expires (default 1h) — and RLS would silently filter rows
-      // against the previous role/complex.
-      const { data: refreshData } = await supabase.auth.refreshSession();
-      if (refreshData.session) {
-        setSession(refreshData.session);
-        setUser(refreshData.session.user);
+    try {
+      sessionStorage.removeItem(GUEST_KEY);
+      setIsGuest(false);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error || !data.user) {
+        return { error: error?.message || 'Credenciales inválidas.', role: undefined };
       }
-    }
 
-    return { error: null, role: dbRole };
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.user);
+      }
+
+      // Sync JWT user_metadata with DB profile (role + complex_id)
+      let dbRole: UserRole = (data.user.user_metadata?.role as UserRole) || 'admin';
+      try {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role, complex_id')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profile?.role) {
+          dbRole = profile.role as UserRole;
+        }
+        const dbComplexId: string | null = profile?.complex_id ?? null;
+
+        const needsRoleSync = data.user.user_metadata?.role !== dbRole;
+        const needsComplexSync = data.user.user_metadata?.complex_id !== dbComplexId;
+
+        if (needsRoleSync || needsComplexSync) {
+          await supabase.auth.updateUser({
+            data: { role: dbRole, complex_id: dbComplexId },
+          });
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          if (refreshData?.session) {
+            setSession(refreshData.session);
+            setUser(refreshData.session.user);
+          }
+        }
+      } catch (profileErr) {
+        console.warn('Profile sync non-fatal warning:', profileErr);
+      }
+
+      return { error: null, role: dbRole };
+    } catch (err: any) {
+      return { error: err?.message || 'Error inesperado al iniciar sesión', role: undefined };
+    }
   };
 
   const signInAsGuest = async () => {
     if (!GUEST_EMAIL || !GUEST_PASSWORD) {
       return { error: 'Las credenciales de invitado no están configuradas. Contacte al administrador.' };
     }
-    const { error } = await supabase.auth.signInWithPassword({
-      email: GUEST_EMAIL,
-      password: GUEST_PASSWORD,
-    });
-    if (error) {
-      return { error: 'No se pudo iniciar sesión como observador. Verifique que la cuenta de invitado esté creada en Supabase.' };
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: GUEST_EMAIL,
+        password: GUEST_PASSWORD,
+      });
+      if (error || !data.user) {
+        return { error: 'No se pudo iniciar sesión como observador.' };
+      }
+      sessionStorage.setItem(GUEST_KEY, 'true');
+      setIsGuest(true);
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.user);
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: err?.message || 'Error al iniciar sesión como invitado' };
     }
-    sessionStorage.setItem(GUEST_KEY, 'true');
-    setIsGuest(true);
-    return { error: null };
   };
 
   const signOut = async () => {

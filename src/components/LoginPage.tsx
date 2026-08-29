@@ -44,23 +44,34 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: signInError, role } = await signIn(email, password);
-    if (signInError) {
-      setError('Credenciales inválidas. Contacte al administrador.');
+    try {
+      const { error: signInError, role } = await signIn(email, password);
+      if (signInError) {
+        setError('Credenciales inválidas. Contacte al administrador.');
+        setLoading(false);
+      } else {
+        const target = role === 'admin_developer' ? '/admin-dev' : '/dashboard';
+        window.location.href = target;
+      }
+    } catch {
+      setError('Ocurrió un error al conectar con el servidor.');
       setLoading(false);
-    } else {
-      router.push(role === 'admin_developer' ? '/admin-dev' : '/dashboard');
     }
   };
 
   const handleGuestLogin = async () => {
     setLoading(true);
-    const { error: guestError } = await signInAsGuest();
-    if (guestError) {
-      setError('No se pudo iniciar sesión como observador. Verifica la configuración de Supabase.');
+    try {
+      const { error: guestError } = await signInAsGuest();
+      if (guestError) {
+        setError('No se pudo iniciar sesión como observador.');
+        setLoading(false);
+      } else {
+        window.location.href = '/dashboard';
+      }
+    } catch {
+      setError('Error al ingresar como observador.');
       setLoading(false);
-    } else {
-      router.push('/dashboard');
     }
   };
 

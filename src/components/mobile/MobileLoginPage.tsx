@@ -27,23 +27,34 @@ export function MobileLoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: signInError, role } = await signIn(email, password);
-    if (signInError) {
-      setError('Credenciales inválidas.');
+    try {
+      const { error: signInError, role } = await signIn(email, password);
+      if (signInError) {
+        setError('Credenciales inválidas.');
+        setLoading(false);
+      } else {
+        const target = role === 'admin_developer' ? '/admin-dev' : '/dashboard';
+        window.location.href = target;
+      }
+    } catch {
+      setError('Error al conectar con el servidor.');
       setLoading(false);
-    } else {
-      router.push(role === 'admin_developer' ? '/admin-dev' : '/dashboard');
     }
   };
 
   const handleGuestLogin = async () => {
     setLoading(true);
-    const { error: guestError } = await signInAsGuest();
-    if (guestError) {
-      setError('No se pudo acceder como observador.');
+    try {
+      const { error: guestError } = await signInAsGuest();
+      if (guestError) {
+        setError('No se pudo acceder como observador.');
+        setLoading(false);
+      } else {
+        window.location.href = '/dashboard';
+      }
+    } catch {
+      setError('Error al acceder como observador.');
       setLoading(false);
-    } else {
-      router.push('/dashboard');
     }
   };
 
