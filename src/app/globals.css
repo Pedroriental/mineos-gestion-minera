@@ -3375,6 +3375,17 @@ input, textarea, select {
   align-items: center;
 }
 
+@keyframes smoothPageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .app-page-inner {
   width: 100%;
   max-width: var(--app-canvas-max-width);
@@ -3386,6 +3397,7 @@ input, textarea, select {
   flex: 1;
   display: flex;
   flex-direction: column;
+  animation: smoothPageFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Páginas gerenciales: el tope lo pone .app-page-inner, no un segundo max-width */
@@ -3402,6 +3414,7 @@ input, textarea, select {
   width: 100%;
   max-width: 100%;
   margin-inline: auto;
+  animation: smoothPageFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (min-width: 768px) {
