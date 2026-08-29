@@ -18,10 +18,8 @@ function displayNameFromUser(user: {
   return 'Usuario';
 }
 
-/**
- * Resuelve UUID de auth.users → nombre legible para "Registrado por".
- * Usa service role si está disponible; si no, al menos el usuario de la sesión actual.
- */
+const userLabelCache = new Map<string, string>();
+
 export async function resolveRegistradoPorLabels(
   ids: string[],
 ): Promise<Record<string, string>> {
@@ -29,11 +27,24 @@ export async function resolveRegistradoPorLabels(
   if (unique.length === 0) return {};
 
   const labels: Record<string, string> = {};
+  const missingIds: string[] = [];
+
+  for (const id of unique) {
+    if (userLabelCache.has(id)) {
+      labels[id] = userLabelCache.get(id)!;
+    } else {
+      missingIds.push(id);
+    }
+  }
+
+  if (missingIds.length === 0) return labels;
 
   const supabase = await createServerClient();
   const { data: { user: sessionUser } } = await supabase.auth.getUser();
   if (sessionUser?.id) {
-    labels[sessionUser.id] = displayNameFromUser(sessionUser);
+    const name = displayNameFromUser(sessionUser);
+    labels[sessionUser.id] = name;
+    userLabelCache.set(sessionUser.id, name);
   }
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -46,14 +57,17 @@ export async function resolveRegistradoPorLabels(
   );
 
   await Promise.all(
-    unique.map(async (id) => {
+    missingIds.map(async (id) => {
       if (labels[id]) return;
       const { data, error } = await admin.auth.admin.getUserById(id);
       if (error || !data?.user) {
         labels[id] = 'Usuario desconocido';
+        userLabelCache.set(id, 'Usuario desconocido');
         return;
       }
-      labels[id] = displayNameFromUser(data.user);
+      const name = displayNameFromUser(data.user);
+      labels[id] = name;
+      userLabelCache.set(id, name);
     }),
   );
 

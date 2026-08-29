@@ -15,7 +15,6 @@ export default async function ProduccionPage(props: {
   const hasParams = !!searchParams?.desde && !!searchParams?.hasta;
   const hoy = new Date();
 
-  // 2. Consulta Única a Supabase
   let query = supabase
     .from('reportes_produccion')
     .select('*')
@@ -26,17 +25,17 @@ export default async function ProduccionPage(props: {
     query = query.gte('fecha', searchParams.desde!).lte('fecha', searchParams.hasta!);
   }
 
-  const { data } = await query;
-  const reportes: ReporteProduccion[] = (data as ReporteProduccion[]) ?? [];
+  // 2. Consulta en paralelo a Supabase
+  const [{ data }, { data: quemadoData }] = await Promise.all([
+    query,
+    supabase
+      .from('reportes_quemado')
+      .select('total_oro_g, fecha')
+      .order('fecha', { ascending: false })
+      .limit(2),
+  ]);
 
-  // 2b. Cargar las 2 últimas quemadas registradas (independiente del período).
-  // De ahora en adelante hay 2 quemadas por mes y el balance siempre debe
-  // reflejar las 2 más recientes.
-  const { data: quemadoData } = await supabase
-    .from('reportes_quemado')
-    .select('total_oro_g, fecha')
-    .order('fecha', { ascending: false })
-    .limit(2);
+  const reportes: ReporteProduccion[] = (data as ReporteProduccion[]) ?? [];
   const totalOroQuemado = (quemadoData ?? []).reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
   const countQuemado    = (quemadoData ?? []).length;
 
