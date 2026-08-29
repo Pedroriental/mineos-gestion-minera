@@ -117,7 +117,17 @@ export default function AppLayoutClient({
     setBellOpen(false);
   }, [pathname]);
 
-  if (!user && !isGuest) return null;
+  if (!user && !isGuest) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-[#09090b] p-4 text-center">
+        <div className="flex flex-col items-center gap-4">
+          <img src="/brand/mineos-logotipo-dark.svg" alt="MineOS" className="h-10 w-auto animate-pulse" />
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+          <p className="text-xs font-medium text-zinc-500">Cargando Sistema de Gestión Minera...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isMobile) {
     return (

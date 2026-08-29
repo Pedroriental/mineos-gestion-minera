@@ -32,28 +32,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
 
-  const fetchProfile = useCallback(async (userId: string, currentUser: User) => {
+  const fetchProfile = useCallback(async (userId: string, _currentUser: User) => {
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('id, display_name, role, complex_id, active')
       .eq('id', userId)
       .single();
     setProfile(profile ?? null);
-
-    if (profile) {
-      const dbRole = profile.role;
-      const dbComplexId = profile.complex_id;
-      const needsRoleSync = currentUser.user_metadata?.role !== dbRole;
-      const needsComplexSync = currentUser.user_metadata?.complex_id !== dbComplexId;
-
-      if (needsRoleSync || needsComplexSync) {
-        console.log('Syncing stale JWT user_metadata with DB profile...');
-        await supabase.auth.updateUser({
-          data: { role: dbRole, complex_id: dbComplexId },
-        });
-        await supabase.auth.refreshSession();
-      }
-    }
   }, []);
 
   useEffect(() => {

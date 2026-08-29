@@ -4,6 +4,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', 'sonner'],
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
