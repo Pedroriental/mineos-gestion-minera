@@ -94,13 +94,20 @@ export default function AppError({
           </div>
         ) : null}
 
-        <div className="flex justify-center gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
           <button
             type="button"
             onClick={() => (staleBundle ? void clearAppCachesAndReload() : reset())}
             className="btn-primary text-sm"
           >
             {staleBundle ? 'Actualizar ahora' : 'Reintentar'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void clearAppCachesAndReload()}
+            className="btn-secondary text-sm border border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+          >
+            Limpiar caché y recargar
           </button>
           <a
             href="/dashboard"

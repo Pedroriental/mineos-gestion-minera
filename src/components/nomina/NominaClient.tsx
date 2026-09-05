@@ -315,7 +315,7 @@ function RotacionPredBadge({
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
-interface NominaClientProps {
+export interface NominaClientProps {
   data: Personal[];
   masterCatalog: Personal[];
   perfilesCompensacion?: PerfilCompensacion[];
