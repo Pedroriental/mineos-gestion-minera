@@ -1,13 +1,13 @@
-// MineOS Service Worker — v14
+// MineOS Service Worker — v15
 // Network-first para /_next/static/; solo cachea respuestas OK (evita 500/404 cacheados tras deploy).
 
-const STATIC_CACHE = 'mineos-static-v14';
+const STATIC_CACHE = 'mineos-static-v15';
 
 function isLocalDevHost(hostname) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 }
 
-const PRECACHE = ['/'];
+const PRECACHE = [];
 
 const BYPASS_HOSTS = ['supabase.co', 'supabase.io', 'googleapis.com', 'gstatic.com'];
 

@@ -22,7 +22,6 @@ import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import {
   cerrarNominaMesAction,
   eliminarCierreMesAction,
-  listNominaMesesPanelAction,
   type NominaMesPanelData,
 } from '@/lib/actions/nomina-actions';
 import {
@@ -154,6 +153,7 @@ export function NominaMesCierrePanel({
   const [expandedMesId, setExpandedMesId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [localRefreshKey, setLocalRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -253,7 +253,7 @@ export function NominaMesCierrePanel({
     return () => {
       cancelled = true;
     };
-  }, [area, refreshKey]);
+  }, [area, refreshKey, localRefreshKey]);
 
   const selectedCiclos = useMemo(
     () => data.ciclosDisponibles.filter((c) => selectedIds.has(c.id)),
@@ -324,12 +324,9 @@ export function NominaMesCierrePanel({
       if (res.ok) {
         toast.success(res.message);
         onMesClosed?.();
-        const reload = await listNominaMesesPanelAction(area);
-        if (reload.ok) {
-          setData(reload.data);
-          setSelectedIds(new Set());
-          setLabel('');
-        }
+        setSelectedIds(new Set());
+        setLabel('');
+        setLocalRefreshKey((k) => k + 1);
       } else {
         toast.error(res.message);
       }
@@ -352,8 +349,7 @@ export function NominaMesCierrePanel({
     if (res.ok) {
       toast.success(res.message);
       onMesClosed?.();
-      const reload = await listNominaMesesPanelAction(area);
-      if (reload.ok) setData(reload.data);
+      setLocalRefreshKey((k) => k + 1);
     } else {
       toast.error(res.message);
     }
