@@ -161,20 +161,6 @@ export function NominaMesCierrePanel({
 
     async function loadMeses() {
       try {
-        const timeoutPromise = new Promise<{ ok: false; message: string }>((resolve) =>
-          setTimeout(() => resolve({ ok: false, message: 'timeout' }), 3500)
-        );
-        const res = await Promise.race([listNominaMesesPanelAction(area), timeoutPromise]);
-
-        if (res && res.ok && 'data' in res && res.data) {
-          if (cancelled) return;
-          setData(res.data);
-          setSelectedIds(new Set());
-          setLabel('');
-          return;
-        }
-
-        // Fallback directo a Supabase
         const { data: dbPeriodos } = await supabase
           .from('nomina_periodos')
           .select(`

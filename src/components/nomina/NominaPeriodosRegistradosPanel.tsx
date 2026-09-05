@@ -19,7 +19,6 @@ import { AppMonthPicker } from '@/components/ui/AppMonthPicker';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import {
   eliminarPeriodoConsolidadoAction,
-  listNominaPeriodosAction,
 } from '@/lib/actions/nomina-actions';
 import {
   computeManualPeriodProgress,
@@ -100,41 +99,29 @@ export function NominaPeriodosRegistradosPanel({
 
     async function loadData() {
       try {
-        const timeoutPromise = new Promise<{ ok: false; message: string }>((resolve) =>
-          setTimeout(() => resolve({ ok: false, message: 'timeout' }), 3500)
-        );
-        const res = await Promise.race([listNominaPeriodosAction(), timeoutPromise]);
+        const { data: dbData, error: dbError } = await supabase
+          .from('nomina_periodos')
+          .select(`
+            id, label, range_start, range_end, total_usd, origen, metadata, created_at,
+            nomina_periodo_semanas ( semana_id )
+          `)
+          .order('range_start', { ascending: false });
 
-        let periodosRaw: NominaPeriodoSummary[] = [];
-
-        if (res && res.ok && 'periodos' in res && Array.isArray(res.periodos)) {
-          periodosRaw = res.periodos;
-        } else {
-          // Fallback directo a Supabase en cliente
-          const { data: dbData, error: dbError } = await supabase
-            .from('nomina_periodos')
-            .select(`
-              id, label, range_start, range_end, total_usd, origen, metadata, created_at,
-              nomina_periodo_semanas ( semana_id )
-            `)
-            .order('range_start', { ascending: false });
-
-          if (dbError) {
-            if (active) setError(dbError.message);
-            return;
-          }
-
-          periodosRaw = (dbData || []).map((row: any) => {
-            const semanaIds = row.nomina_periodo_semanas
-              ?.map((link: any) => link.semana_id)
-              .filter((id: any): id is string => typeof id === 'string') ?? [];
-            return mapPeriodoRow({
-              ...row,
-              semana_count: semanaIds.length,
-              semana_ids: semanaIds,
-            });
-          });
+        if (dbError) {
+          if (active) setError(dbError.message);
+          return;
         }
+
+        const periodosRaw = (dbData || []).map((row: any) => {
+          const semanaIds = row.nomina_periodo_semanas
+            ?.map((link: any) => link.semana_id)
+            .filter((id: any): id is string => typeof id === 'string') ?? [];
+          return mapPeriodoRow({
+            ...row,
+            semana_count: semanaIds.length,
+            semana_ids: semanaIds,
+          });
+        });
 
         if (!active) return;
 
