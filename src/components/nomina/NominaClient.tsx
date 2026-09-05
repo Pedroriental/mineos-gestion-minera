@@ -29,7 +29,16 @@ import type { ManualPeriodPlantillaContext } from '@/lib/nomina/nomina-preview-p
 import type { NominaPreviewRange } from '@/components/nomina/NominaVistaPreviaContent';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
-import { MINEOS_BTN_NOMINA_PRIMARY } from '@/lib/mineos-visual';
+import { MINEOS_BTN_NOMINA_PRIMARY, mineosBtnSubtleClass } from '@/lib/mineos-visual';
+import {
+  type NominaNovedadManual,
+  readNovedadesManuales,
+  writeNovedadesManuales,
+  totalNovedadesManuales,
+  mapNovedadManualToPreview,
+} from '@/lib/nomina-novedades-manuales';
+import { NominaNovedadModal } from '@/components/nomina/NominaNovedadModal';
+import { NominaNovedadesManualesSection } from '@/components/nomina/NominaNovedadesManualesSection';
 import {
   hasNovedadTurno,
   nominaNovedadDraftKey,
@@ -575,6 +584,9 @@ export default function NominaClient({
   const [showHistorial, setShowHistorial] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<PreNominaRowState | null>(null);
   const [copiedReceipt, setCopiedReceipt] = useState(false);
+  const [novedadesManuales, setNovedadesManuales] = useState<NominaNovedadManual[]>([]);
+  const [showNovedadModal, setShowNovedadModal] = useState(false);
+  const [editingNovedad, setEditingNovedad] = useState<NominaNovedadManual | null>(null);
 
   // Slide-over Drawer
   const [drawerPersonalId, setDrawerPersonalId] = useState<string | null>(null);
@@ -672,6 +684,28 @@ export default function NominaClient({
     const w = resolveWorkingWeek(semanas);
     return { inicio: w.inicio, fin: w.fin };
   });
+
+  useEffect(() => {
+    if (!weekRange.inicio) return;
+    setNovedadesManuales(readNovedadesManuales(area, weekRange.inicio));
+  }, [area, weekRange.inicio]);
+
+  const handleSaveNovedad = useCallback((item: NominaNovedadManual) => {
+    setNovedadesManuales((prev) => {
+      const idx = prev.findIndex((n) => n.id === item.id);
+      const updated = idx >= 0 ? [...prev.slice(0, idx), item, ...prev.slice(idx + 1)] : [...prev, item];
+      writeNovedadesManuales(area, weekRange.inicio, updated);
+      return updated;
+    });
+  }, [area, weekRange.inicio]);
+
+  const handleDeleteNovedad = useCallback((id: string) => {
+    setNovedadesManuales((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      writeNovedadesManuales(area, weekRange.inicio, updated);
+      return updated;
+    });
+  }, [area, weekRange.inicio]);
 
   useEffect(() => {
     setManualPeriodSession(loadManualPeriodsSession(area));
@@ -1664,7 +1698,9 @@ export default function NominaClient({
     });
   };
 
-  const totalSemana = useMemo(() => preNominaRows.reduce((s, r) => s + r.total, 0), [preNominaRows]);
+  const subtotalFilas = useMemo(() => preNominaRows.reduce((s, r) => s + r.total, 0), [preNominaRows]);
+  const subtotalNovedades = useMemo(() => totalNovedadesManuales(novedadesManuales), [novedadesManuales]);
+  const totalSemana = useMemo(() => subtotalFilas + subtotalNovedades, [subtotalFilas, subtotalNovedades]);
   const distribucion = useNominaDivisionesConfig(totalSemana);
   const semanaActualCerradaId = semanaActualCerrada?.id;
   const applyDistribucionPlantilla = distribucion.applyPlantilla;
@@ -2592,6 +2628,18 @@ export default function NominaClient({
       <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
         <Plus className="w-3.5 h-3.5 shrink-0" /> Trabajador
       </button>
+      <button
+        type="button"
+        onClick={() => {
+          setEditingNovedad(null);
+          setShowNovedadModal(true);
+        }}
+        disabled={!canEdit || semanaActualProcesada}
+        title="Registrar pago extraordinario o novedad"
+        className={`${mineosBtnSubtleClass('general')} h-9 shrink-0 px-3 text-xs`}
+      >
+        <FileText className="w-3.5 h-3.5 shrink-0" /> Novedad
+      </button>
     </>
   );
 
@@ -3479,6 +3527,20 @@ export default function NominaClient({
                 ) : null}
               </div>
             ) : null}
+
+            <NominaNovedadesManualesSection
+              items={novedadesManuales}
+              canEdit={canEdit && !semanaActualProcesada}
+              onAdd={() => {
+                setEditingNovedad(null);
+                setShowNovedadModal(true);
+              }}
+              onEdit={(item) => {
+                setEditingNovedad(item);
+                setShowNovedadModal(true);
+              }}
+              onDelete={handleDeleteNovedad}
+            />
           </div>
           </div>
             )}
@@ -3553,6 +3615,10 @@ export default function NominaClient({
         onClose={() => setMobileMoreOpen(false)}
         canEdit={canEdit}
         hasData={preNominaRows.length > 0 && !semanaActualProcesada}
+        onNovedad={() => {
+          setEditingNovedad(null);
+          setShowNovedadModal(true);
+        }}
         onCsv={handleExportCSV}
         onExcel={() => {
           setMobileMoreOpen(false);
@@ -3644,8 +3710,24 @@ export default function NominaClient({
           activeRegistros={previewActiveRegistros}
           activePlantilla={manualPlantillaActiva}
           activeManualPeriod={previewManualPeriod}
+          novedadesManuales={novedadesManuales.map(mapNovedadManualToPreview)}
         />
       ) : null}
+
+      {showNovedadModal && (
+        <NominaNovedadModal
+          open={showNovedadModal}
+          onClose={() => {
+            setShowNovedadModal(false);
+            setEditingNovedad(null);
+          }}
+          onSave={handleSaveNovedad}
+          personalCatalog={personalCatalogMerged}
+          initialData={editingNovedad}
+          area={area}
+          weekStart={weekRange.inicio}
+        />
+      )}
 
       {showArchivo ? (
         <NominaArchivoModal

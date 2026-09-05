@@ -28,6 +28,7 @@ type Props = {
   /** Plantilla del ciclo manual en curso (si aún no está en periodos archivados). */
   activePlantilla?: RotacionPlantillaRecord | null;
   activeManualPeriod?: ManualPeriodPlantillaContext;
+  novedadesManuales?: import('@/lib/nomina-preview').NominaPreviewNovedad[];
 };
 
 function filterRegistrosByArea(
@@ -130,6 +131,7 @@ export function NominaVistaPreviaModal({
   areaLabel,
   activePlantilla,
   activeManualPeriod,
+  novedadesManuales,
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -327,6 +329,7 @@ export function NominaVistaPreviaModal({
             areaLabel={areaLabel}
             fallbackPlantilla={activePlantilla}
             fallbackManualPeriod={activeManualPeriod}
+            novedadesManuales={novedadesManuales}
           />
         </div>
       )}

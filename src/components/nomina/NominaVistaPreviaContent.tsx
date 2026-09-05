@@ -60,6 +60,7 @@ type Props = {
   areaLabel?: string;
   fallbackPlantilla?: RotacionPlantillaRecord | null;
   fallbackManualPeriod?: ManualPeriodPlantillaContext;
+  novedadesManuales?: import('@/lib/nomina-preview').NominaPreviewNovedad[];
 };
 
 function isoDate(d: Date) {
@@ -91,6 +92,7 @@ export default function NominaVistaPreviaContent({
   areaLabel,
   fallbackPlantilla = null,
   fallbackManualPeriod,
+  novedadesManuales,
 }: Props) {
   const temporalCtx = useMemo(
     () => resolveNominaTemporalContext(semanasCerradas),
@@ -329,6 +331,7 @@ export default function NominaVistaPreviaContent({
       personalSnapshots,
       plantilla: effectivePlantilla,
       manualPeriodPlantilla,
+      novedadesManuales,
     });
   }, [
     awaitingArchivedPlantilla,
@@ -345,6 +348,7 @@ export default function NominaVistaPreviaContent({
     filterArea,
     effectivePlantilla,
     manualPeriodPlantilla,
+    novedadesManuales,
   ]);
 
   const previewEmpty = !report || isNominaPreviewEmpty({ report, includeProjection });

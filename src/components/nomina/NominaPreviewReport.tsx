@@ -286,7 +286,7 @@ export default function NominaPreviewReport({
           <thead>
             <tr>
               <th
-                colSpan={5}
+                colSpan={6}
                 className="border border-slate-700 bg-[#fde68a] px-3 py-2 text-left text-sm font-bold text-slate-900"
               >
                 Novedades del periodo
@@ -298,13 +298,14 @@ export default function NominaPreviewReport({
               <th className="border border-slate-600 px-2 py-1.5 text-left">Área</th>
               <th className="border border-slate-600 px-2 py-1.5 text-left">Tipo</th>
               <th className="border border-slate-600 px-2 py-1.5 text-left">Detalle</th>
+              <th className="border border-slate-600 px-2 py-1.5 text-right">Monto</th>
             </tr>
           </thead>
           <tbody>
             {report.novedades.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="border border-slate-300 px-3 py-5 text-center text-slate-500"
                 >
                   Sin novedades registradas para este periodo.
@@ -327,6 +328,9 @@ export default function NominaPreviewReport({
                   </td>
                   <td className="border border-slate-300 px-2 py-1.5 text-[11px] text-slate-600">
                     {n.detalle}
+                  </td>
+                  <td className="border border-slate-300 px-2 py-1.5 text-right font-semibold tabular-nums text-slate-900">
+                    {typeof n.monto === 'number' && n.monto > 0 ? `$${fmtMoney(n.monto)}` : '—'}
                   </td>
                 </tr>
               ))

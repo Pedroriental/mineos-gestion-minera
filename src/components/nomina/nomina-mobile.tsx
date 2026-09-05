@@ -650,6 +650,7 @@ export function NominaMobileMoreSheet({
   onExcel,
   onBorrar,
   onInicio,
+  onNovedad,
 }: {
   open: boolean;
   onClose: () => void;
@@ -659,10 +660,14 @@ export function NominaMobileMoreSheet({
   onExcel?: () => void;
   onBorrar: () => void;
   onInicio?: () => void;
+  onNovedad?: () => void;
 }) {
   const items = [
     ...(onInicio
       ? [{ label: 'Ir al inicio', icon: Home, onClick: onInicio, needsEdit: false }]
+      : []),
+    ...(onNovedad
+      ? [{ label: 'Registrar novedad / pago', icon: FileText, onClick: onNovedad, needsEdit: true }]
       : []),
     ...(onExcel
       ? [{ label: 'Previsualización', icon: FileSpreadsheet, onClick: onExcel, needsEdit: false }]
