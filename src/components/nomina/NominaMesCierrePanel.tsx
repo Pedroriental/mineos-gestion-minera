@@ -26,6 +26,8 @@ import {
   type NominaMesPanelData,
 } from '@/lib/actions/nomina-actions';
 import {
+  periodoEsCierreMes,
+  periodoEsCicloConsolidado,
   rangoDesdeCiclos,
   semanaCountDesdeCiclos,
   sugerirEtiquetaMes,
@@ -33,6 +35,8 @@ import {
 } from '@/lib/nomina/cierre-mes';
 import { stripPeriodoLabelPrefix } from '@/lib/nomina/manual-period';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
+import { supabase } from '@/lib/supabase';
+import { mapPeriodoRow } from '@/lib/nomina/archive';
 import {
   mineosBtnSubtleClass,
   mineosKpiGlow,
@@ -153,17 +157,113 @@ export function NominaMesCierrePanel({
 
   useEffect(() => {
     let cancelled = false;
-    listNominaMesesPanelAction(area).then((res) => {
-      if (cancelled) return;
-      setLoading(false);
-      if (res.ok) {
-        setData(res.data);
-        setSelectedIds(new Set());
-        setLabel('');
-      } else {
-        toast.error(res.message ?? 'Error al cargar meses');
+    setLoading(true);
+
+    async function loadMeses() {
+      try {
+        const timeoutPromise = new Promise<{ ok: false; message: string }>((resolve) =>
+          setTimeout(() => resolve({ ok: false, message: 'timeout' }), 3500)
+        );
+        const res = await Promise.race([listNominaMesesPanelAction(area), timeoutPromise]);
+
+        if (res && res.ok && 'data' in res && res.data) {
+          if (cancelled) return;
+          setData(res.data);
+          setSelectedIds(new Set());
+          setLabel('');
+          return;
+        }
+
+        // Fallback directo a Supabase
+        const { data: dbPeriodos } = await supabase
+          .from('nomina_periodos')
+          .select(`
+            id, label, range_start, range_end, total_usd, origen, metadata, created_at,
+            nomina_periodo_semanas ( semana_id )
+          `)
+          .order('range_start', { ascending: false });
+
+        const rawPeriodos: NominaPeriodoSummary[] = (dbPeriodos || []).map((row: any) => {
+          const semanaIds = row.nomina_periodo_semanas
+            ?.map((link: any) => link.semana_id)
+            .filter((id: any): id is string => typeof id === 'string') ?? [];
+          return mapPeriodoRow({
+            ...row,
+            semana_count: semanaIds.length,
+            semana_ids: semanaIds,
+          });
+        });
+
+        const scoped = rawPeriodos.filter((p) => {
+          const metaArea = p.metadata?.area;
+          if (metaArea && metaArea !== area) return false;
+          return true;
+        });
+
+        const byId = new Map(scoped.map((p) => [p.id, p]));
+
+        const { data: links } = await supabase
+          .from('nomina_mes_periodos')
+          .select('mes_periodo_id, ciclo_periodo_id');
+
+        const cicloIdsEnMes = new Set((links ?? []).map((l: any) => l.ciclo_periodo_id as string));
+        const mesIds = new Set(scoped.filter(periodoEsCierreMes).map((p) => p.id));
+
+        const ciclosPorMes = new Map<string, NominaPeriodoSummary[]>();
+        for (const link of links ?? []) {
+          const mesId = link.mes_periodo_id as string;
+          const cicloId = link.ciclo_periodo_id as string;
+          if (!mesIds.has(mesId)) continue;
+          const ciclo = byId.get(cicloId);
+          if (!ciclo) continue;
+          const list = ciclosPorMes.get(mesId) ?? [];
+          list.push(ciclo);
+          ciclosPorMes.set(mesId, list);
+        }
+
+        const meses = scoped
+          .filter(periodoEsCierreMes)
+          .map((p) => {
+            const ciclos = (ciclosPorMes.get(p.id) ?? []).sort((a, b) =>
+              a.rangeStart.localeCompare(b.rangeStart),
+            );
+            return {
+              id: p.id,
+              label: stripPeriodoLabelPrefix(p.label),
+              rangeStart: p.rangeStart,
+              rangeEnd: p.rangeEnd,
+              totalUsd: Number(p.totalUsd),
+              createdAt: p.createdAt,
+              cicloCount: ciclos.length,
+              semanaCount:
+                typeof p.metadata?.semana_count === 'number'
+                  ? Number(p.metadata.semana_count)
+                  : semanaCountDesdeCiclos(ciclos),
+              cicloPeriodoIds: ciclos.map((c) => c.id),
+              ciclos,
+            };
+          })
+          .sort((a, b) => b.rangeStart.localeCompare(a.rangeStart));
+
+        const ciclosDisponibles = scoped.filter(
+          (p) => periodoEsCicloConsolidado(p) && !cicloIdsEnMes.has(p.id),
+        );
+
+        if (!cancelled) {
+          setData({ meses, ciclosDisponibles });
+          setSelectedIds(new Set());
+          setLabel('');
+        }
+      } catch (err: any) {
+        console.error('Error cargando meses:', err);
+        if (!cancelled) toast.error(err?.message ?? 'Error al cargar meses');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    });
+    }
+
+    loadMeses();
+
     return () => {
       cancelled = true;
     };

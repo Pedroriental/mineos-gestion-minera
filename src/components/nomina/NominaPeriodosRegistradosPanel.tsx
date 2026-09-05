@@ -32,9 +32,11 @@ import {
 } from '@/lib/nomina/manual-period';
 import { periodoEsCierreMes } from '@/lib/nomina/cierre-mes';
 import { estatusRotacionShort } from '@/lib/rotacion-plantillas/types';
-import type { NominaSemana } from '@/lib/types';
 import { mineosKpiValue, mineosPanel } from '@/lib/mineos-visual';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+import { mapPeriodoRow } from '@/lib/nomina/archive';
+import type { NominaPeriodoSummary } from '@/lib/nomina/types';
 
 type Props = {
   area: string;
@@ -92,12 +94,52 @@ export function NominaPeriodosRegistradosPanel({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     setLoading(true);
-    listNominaPeriodosAction().then((res) => {
-      setLoading(false);
-      if (res.ok) {
-        const areaSemanaIds = new Set(semanas.filter((s) => s.area === area).map((s) => s.id));
-        const filtered = res.periodos.filter((p) => {
+    setError(null);
+
+    async function loadData() {
+      try {
+        const timeoutPromise = new Promise<{ ok: false; message: string }>((resolve) =>
+          setTimeout(() => resolve({ ok: false, message: 'timeout' }), 3500)
+        );
+        const res = await Promise.race([listNominaPeriodosAction(), timeoutPromise]);
+
+        let periodosRaw: NominaPeriodoSummary[] = [];
+
+        if (res && res.ok && 'periodos' in res && Array.isArray(res.periodos)) {
+          periodosRaw = res.periodos;
+        } else {
+          // Fallback directo a Supabase en cliente
+          const { data: dbData, error: dbError } = await supabase
+            .from('nomina_periodos')
+            .select(`
+              id, label, range_start, range_end, total_usd, origen, metadata, created_at,
+              nomina_periodo_semanas ( semana_id )
+            `)
+            .order('range_start', { ascending: false });
+
+          if (dbError) {
+            if (active) setError(dbError.message);
+            return;
+          }
+
+          periodosRaw = (dbData || []).map((row: any) => {
+            const semanaIds = row.nomina_periodo_semanas
+              ?.map((link: any) => link.semana_id)
+              .filter((id: any): id is string => typeof id === 'string') ?? [];
+            return mapPeriodoRow({
+              ...row,
+              semana_count: semanaIds.length,
+              semana_ids: semanaIds,
+            });
+          });
+        }
+
+        if (!active) return;
+
+        const areaSemanaIds = new Set((semanas || []).filter((s) => s.area === area).map((s) => s.id));
+        const filtered = periodosRaw.filter((p) => {
           if (periodoEsCierreMes(p)) return false;
           const metaArea = p.metadata?.area;
           if (typeof metaArea === 'string' && metaArea !== area) return false;
@@ -107,8 +149,19 @@ export function NominaPeriodosRegistradosPanel({
           return true;
         });
         setPeriodos(dedupeNominaPeriodoSummaries(filtered));
-      } else setError(res.message ?? 'Error al cargar');
-    });
+      } catch (err: any) {
+        console.error('Error cargando periodos registrados:', err);
+        if (active) setError(err?.message ?? 'Error al cargar periodos');
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      active = false;
+    };
   }, [area, semanas, refreshKey]);
 
   const enriched = useMemo(
