@@ -118,15 +118,19 @@ export function buildInstanciaSnapshot(
     modo_repeticion?: string;
   }>,
 ): InstanciaActivaSnapshot {
-  const cuadrillaMeta = new Map(cuadrillasDb.map((c) => [c.id, c]));
-  const plantillaCuadrillaMap = new Map(plantilla.cuadrillas.map((c) => [c.id, c]));
+  const cuadrillaMeta = new Map((cuadrillasDb ?? []).map((c) => [c.id, c]));
+  const plantillaCuadrillaMap = new Map((plantilla?.cuadrillas ?? []).map((c) => [c.id, c]));
 
   const personalCuadrillaMap = new Map<string, string>();
-  plantilla.cuadrillas.forEach((c) => {
-    c.filas.forEach((f) => personalCuadrillaMap.set(f.personalId, c.id));
+  (plantilla?.cuadrillas ?? []).forEach((c) => {
+    (c?.filas ?? []).forEach((f) => {
+      if (f?.personalId && c?.id) {
+        personalCuadrillaMap.set(f.personalId, c.id);
+      }
+    });
   });
 
-  const cuadrillas: InstanciaCuadrillaSnapshot[] = instanciaCuadrillas.map((ic) => {
+  const cuadrillas: InstanciaCuadrillaSnapshot[] = (instanciaCuadrillas ?? []).map((ic) => {
     const meta = cuadrillaMeta.get(ic.cuadrilla_id);
     const cuadrilla = plantillaCuadrillaMap.get(ic.cuadrilla_id);
     return {
@@ -135,8 +139,8 @@ export function buildInstanciaSnapshot(
       cuadrillaNombre: meta?.nombre ?? cuadrilla?.nombre ?? 'Cuadrilla',
       asignacionKey: meta?.asignacion_key ?? cuadrilla?.asignacionKey ?? '',
       posicionActiva: ic.posicion_activa,
-      estado: ic.estado as InstanciaCuadrillaSnapshot['estado'],
-      ciclosCompletados: ic.ciclos_completados,
+      estado: (ic.estado as InstanciaCuadrillaSnapshot['estado']) || 'ACTIVA',
+      ciclosCompletados: ic.ciclos_completados ?? 0,
       desfaseInicial: meta?.desfase_inicial ?? 0,
       modoRepeticion: (meta?.modo_repeticion as 'continua' | 'pausa') ?? 'continua',
       semanas: cuadrilla?.semanas ?? [],

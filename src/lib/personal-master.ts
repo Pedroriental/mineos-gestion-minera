@@ -47,9 +47,10 @@ export const ESTADO_LABORAL_LABEL: Record<string, string> = {
 
 /** Visible en la tabla semanal de pago del área (excluye retirados del maestro). */
 export function isPersonalVisibleInNomina(
-  p: Pick<Personal, 'area' | 'estado_laboral' | 'activo' | 'estatus'>,
+  p: Pick<Personal, 'area' | 'estado_laboral' | 'activo' | 'estatus'> | null | undefined,
   area: string,
 ): boolean {
+  if (!p) return false;
   if (p.area !== area) return false;
   const estado = getEstadoLaboral(p);
   if (estado === 'DESPEDIDO' || estado === 'INACTIVO' || estado === 'HISTORICO') return false;
@@ -134,14 +135,15 @@ export function normalizeAreaDetalle(value: string, area: string): string | null
   return t;
 }
 
-export function normalizeCedula(value: string): string {
-  return value.replace(/\D/g, '');
+export function normalizeCedula(value: unknown): string {
+  return String(value ?? '').replace(/\D/g, '');
 }
 
 /** «Cedeño Alexander» desde CEDENO ALEXANDER, cedeño alexander, etc. */
-export function formatNombrePropio(value: string): string {
+export function formatNombrePropio(value: unknown): string {
   if (!value) return '';
-  return value
+  const str = typeof value === 'string' ? value : String(value);
+  return str
     .trim()
     .toLowerCase()
     .split(/\s+/)

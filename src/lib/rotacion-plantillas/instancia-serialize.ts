@@ -8,9 +8,19 @@ export function serializeInstanciaSnapshot(
   snapshot: InstanciaActivaSnapshot | null,
 ): InstanciaActivaSerialized | null {
   if (!snapshot) return null;
+  let mapObj: Record<string, string> = {};
+  try {
+    if (snapshot.personalCuadrillaMap instanceof Map) {
+      mapObj = Object.fromEntries(snapshot.personalCuadrillaMap.entries());
+    } else if (snapshot.personalCuadrillaMap && typeof snapshot.personalCuadrillaMap === 'object') {
+      mapObj = snapshot.personalCuadrillaMap as Record<string, string>;
+    }
+  } catch {
+    mapObj = {};
+  }
   return {
     ...snapshot,
-    personalCuadrillaMap: Object.fromEntries(snapshot.personalCuadrillaMap.entries()),
+    personalCuadrillaMap: mapObj,
   };
 }
 
