@@ -57,16 +57,23 @@ export default async function MinaNominaPage() {
       rotacionMigrationRequired: false,
     };
 
+    const safeData = JSON.parse(JSON.stringify(personal));
+    const safeMaster = JSON.parse(JSON.stringify(masterRows.length ? masterRows : personalRows));
+    const safePerfiles = JSON.parse(JSON.stringify(perfiles));
+    const safeSemanas = JSON.parse(JSON.stringify(semanas));
+    const safeInstancia = instanciaActiva ? JSON.parse(JSON.stringify(instanciaActiva)) : null;
+    const safePlantillas = JSON.parse(JSON.stringify(rotacionPlantillas));
+
     return (
       <NominaWorkspace
         area={area}
-        data={personal}
-        masterCatalog={masterRows.length ? masterRows : personalRows}
-        perfilesCompensacion={perfiles}
-        semanas={semanas}
-        instanciaActiva={instanciaActiva}
-        rotacionPlantillas={rotacionPlantillas}
-        rotacionMigrationRequired={rotacionMigrationRequired}
+        data={safeData}
+        masterCatalog={safeMaster}
+        perfilesCompensacion={safePerfiles}
+        semanas={safeSemanas}
+        instanciaActiva={safeInstancia}
+        rotacionPlantillas={safePlantillas}
+        rotacionMigrationRequired={Boolean(rotacionMigrationRequired)}
       />
     );
   } catch (err: any) {

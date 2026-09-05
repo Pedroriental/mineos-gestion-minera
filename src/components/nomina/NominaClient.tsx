@@ -3694,7 +3694,6 @@ export default function NominaClient({
             );
             appendAssignedWorker(personalId, areaDetalle, createdPersonal);
             setManualRosterTick((t) => t + 1);
-            router.refresh();
           }}
         />
       ) : null}
