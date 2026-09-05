@@ -10,6 +10,9 @@ export const ASIGNACION_NOMINA_OPCIONES = [
   'Administración',
   'Cocina',
   'Técnicos',
+  'Supervisores',
+  'Supervisor',
+  'Supervisión',
 ] as const;
 
 export type AsignacionNominaOpcion = (typeof ASIGNACION_NOMINA_OPCIONES)[number];

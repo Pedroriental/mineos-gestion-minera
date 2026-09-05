@@ -34,7 +34,7 @@ type Props = {
   masterCatalog: Personal[];
   perfilesCompensacion: PerfilCompensacion[];
   assignedIds: Set<string>;
-  onAssigned: (personalId: string, areaDetalle: string) => void;
+  onAssigned: (personalId: string, areaDetalle: string, createdPersonal?: Personal) => void;
   preselectedPersonalId?: string | null;
   /** Asignaciones actuales de los trabajadores ya cargados (personalId -> areaDetalle) */
   currentAssignments?: Record<string, string>;
@@ -303,9 +303,14 @@ export function PersonalQuickAssignModal({
     }
   }, [query, searchableCatalog, selected?.id, mode]);
 
-  function finishAssign(personalId: string, areaDetalle: string, message: string) {
+  function finishAssign(
+    personalId: string,
+    areaDetalle: string,
+    message: string,
+    createdPersonal?: Personal,
+  ) {
     toast.success(message);
-    onAssigned(personalId, areaDetalle);
+    onAssigned(personalId, areaDetalle, createdPersonal);
     onClose();
   }
 
@@ -391,7 +396,12 @@ export function PersonalQuickAssignModal({
         toast.error(res.message);
         return;
       }
-      finishAssign(res.personalId, asignacionNomina, res.message);
+      finishAssign(
+        res.personalId,
+        asignacionNomina,
+        res.message,
+        (res as any).data?.personal as Personal | undefined,
+      );
     });
   }
 

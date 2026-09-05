@@ -151,7 +151,19 @@ export async function upsertPersonalV3Action(raw: {
     const targetId = hasId ? (parsed.data as any).id : existingByCedula?.id;
     const estadoActual = (existingByCedula?.estado_laboral || 'ACTIVO') as string;
 
+    const { data: { user } } = await supabase.auth.getUser();
+    let complexId = (user?.user_metadata?.complex_id as string | null) ?? null;
+    if (!complexId && user?.id) {
+      const { data: prof } = await supabase.from('user_profiles').select('complex_id').eq('id', user.id).maybeSingle();
+      complexId = prof?.complex_id ?? null;
+    }
+    if (!complexId) {
+      const { data: c } = await supabase.from('complexes').select('id').eq('active', true).limit(1).maybeSingle();
+      complexId = c?.id ?? '86ef53c0-25d4-499e-9691-e572693cda74';
+    }
+
     const payload: Record<string, unknown> = {
+      complex_id: complexId,
       cedula: data.cedula,
       nombre_completo: data.nombre_completo,
       cargo: data.cargo,
@@ -210,7 +222,8 @@ export async function upsertPersonalV3Action(raw: {
     revalidateAll();
     return { ok: true, message: hasId ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
   } catch (e) {
-    return { ok: false, message: 'Error interno del servidor.' };
+    console.error('[upsertPersonalV3Action] error:', e);
+    return { ok: false, message: e instanceof Error ? e.message : 'Error interno del servidor.' };
   }
 }
 
@@ -350,7 +363,19 @@ export async function createAndAssignPersonalNominaAction(
     const esquemaDefault = String(perfil.esquema_rotacion_default);
     const asignacionFields = deriveAsignacionNominaFields(areaDetalle);
 
+    const { data: { user } } = await supabase.auth.getUser();
+    let complexId = (user?.user_metadata?.complex_id as string | null) ?? null;
+    if (!complexId && user?.id) {
+      const { data: prof } = await supabase.from('user_profiles').select('complex_id').eq('id', user.id).maybeSingle();
+      complexId = prof?.complex_id ?? null;
+    }
+    if (!complexId) {
+      const { data: c } = await supabase.from('complexes').select('id').eq('active', true).limit(1).maybeSingle();
+      complexId = c?.id ?? '86ef53c0-25d4-499e-9691-e572693cda74';
+    }
+
     const payload: Record<string, unknown> = {
+      complex_id: complexId,
       cedula: data.cedula.trim(),
       nombre_completo: data.nombre_completo.trim(),
       cargo: data.cargo.trim() || 'General',
@@ -393,14 +418,21 @@ export async function createAndAssignPersonalNominaAction(
     if (error) return { ok: false, message: error.message };
 
     revalidateAll();
+    const createdPersonal: Personal = {
+      id: inserted.id,
+      complex_id: complexId,
+      ...payload,
+    } as Personal;
+
     return {
       ok: true,
       message: `${data.nombre_completo.trim()} registrado y asignado a esta nómina.`,
       personalId: inserted.id,
-      data: { personalId: inserted.id },
+      data: { personalId: inserted.id, personal: createdPersonal },
     };
-  } catch {
-    return { ok: false, message: 'Error interno del servidor.' };
+  } catch (err) {
+    console.error('[createAndAssignPersonalNominaAction] error:', err);
+    return { ok: false, message: err instanceof Error ? err.message : 'Error interno del servidor.' };
   }
 }
 

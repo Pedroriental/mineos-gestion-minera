@@ -252,6 +252,9 @@ function fmtMoney(n: number): string {
 // ── Avatar Color Generator ─────────────────────────────────────────────────
 function getAvatarColor(cargo: string): string {
   const c = (cargo || '').toUpperCase();
+  if (c.includes('SUPERVISOR') || c.includes('SUPERVISION') || c.includes('SUPERVISIÓN')) {
+    return 'bg-amber-600 border border-amber-500/30';
+  }
   if (c.includes('ADMIN')) return 'bg-rose-600 border border-rose-500/30';
   if (c.includes('MINA') || c.includes('MINER') || c.includes('PERFOR') || c.includes('PALA')) return 'bg-amber-600 border border-amber-500/30';
   if (c.includes('PLANT') || c.includes('MOLIN') || c.includes('OPERAD')) return 'bg-emerald-600 border border-emerald-500/30';
@@ -473,7 +476,10 @@ const TITLES = {
 };
 
 function getCargoTheme(cargo: string): { bg: string; text: string; border: string } {
-  const l = cargo.toLowerCase();
+  const l = (cargo || '').toLowerCase();
+  if (l.includes('supervisor') || l.includes('supervisión') || l.includes('supervision')) {
+    return { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' };
+  }
   if (l.includes('administrativo') || l === 'administración' || l === 'administracion') {
     return { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' };
   }
@@ -1059,8 +1065,9 @@ export default function NominaClient({
   );
 
   const appendAssignedWorker = useCallback(
-    (personalId: string, areaDetalle: string) => {
+    (personalId: string, areaDetalle: string, createdPersonal?: Personal) => {
       const source =
+        createdPersonal ??
         baseTrabajadores.find((p) => p.id === personalId) ??
         personalCatalog.find((p) => p.id === personalId);
       if (!source) return;
@@ -3676,7 +3683,7 @@ export default function NominaClient({
           assignedIds={assignedIds}
           currentAssignments={currentAssignments}
           preselectedPersonalId={assignModalPreselectedId}
-          onAssigned={(personalId, areaDetalle) => {
+          onAssigned={(personalId, areaDetalle, createdPersonal) => {
             markOperationalWeekEmptied(area, weekRange.inicio, false);
             addToManualWeekRoster(
               area,
@@ -3685,8 +3692,9 @@ export default function NominaClient({
               areaDetalle,
               manualPeriodId,
             );
-            appendAssignedWorker(personalId, areaDetalle);
+            appendAssignedWorker(personalId, areaDetalle, createdPersonal);
             setManualRosterTick((t) => t + 1);
+            router.refresh();
           }}
         />
       ) : null}

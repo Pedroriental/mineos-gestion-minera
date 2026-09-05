@@ -176,7 +176,15 @@ export async function upsertTrabajadorRegistroAction(formData: FormData): Promis
     const supabase = await createServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    const complexId = (user?.user_metadata?.complex_id as string | null) ?? null;
+    let complexId = (user?.user_metadata?.complex_id as string | null) ?? null;
+    if (!complexId && user?.id) {
+      const { data: prof } = await supabase.from('user_profiles').select('complex_id').eq('id', user.id).maybeSingle();
+      complexId = prof?.complex_id ?? null;
+    }
+    if (!complexId) {
+      const { data: c } = await supabase.from('complexes').select('id').eq('active', true).limit(1).maybeSingle();
+      complexId = c?.id ?? '86ef53c0-25d4-499e-9691-e572693cda74';
+    }
 
     const { data: perfil, error: perfilError } = await supabase
       .from('perfiles_compensacion')

@@ -78,11 +78,22 @@ export default function AppError({
         <h2 className="mb-2 text-lg font-semibold text-red-600">
           {staleBundle ? 'Actualización pendiente' : 'Error inesperado'}
         </h2>
-        <p className="mb-6 text-sm text-gray-500">
+        <p className="mb-4 text-sm text-gray-400">
           {staleBundle
             ? 'La aplicación se actualizó en el servidor. Recarga para obtener la versión nueva.'
             : 'Ocurrió un error al cargar esta sección. Puedes intentar recargar o volver al inicio.'}
         </p>
+
+        {error?.message ? (
+          <div className="mx-auto mb-5 max-w-lg rounded-xl border border-red-500/25 bg-red-950/40 p-3.5 text-left text-xs font-mono text-red-200">
+            <div className="flex items-center justify-between gap-2 border-b border-red-500/20 pb-1.5 mb-1.5">
+              <span className="font-bold text-red-400">Detalle del error</span>
+              {error.digest && <span className="text-[10px] text-zinc-400">Digest: {error.digest}</span>}
+            </div>
+            <p className="break-words whitespace-pre-wrap leading-relaxed">{error.message}</p>
+          </div>
+        ) : null}
+
         <div className="flex justify-center gap-3">
           <button
             type="button"

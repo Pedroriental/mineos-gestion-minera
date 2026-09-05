@@ -66,6 +66,9 @@ function getInitials(name: string): string {
 
 function getCargoTheme(cargo: string): { bg: string; text: string; border: string } {
   const c = cargo.toUpperCase();
+  if (c.includes('SUPERVISOR') || c.includes('SUPERVISION') || c.includes('SUPERVISIÓN')) {
+    return { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/25' };
+  }
   if (c.includes('VERTICAL 1PD') || c.includes('V1PD')) {
     return { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/25' };
   }
