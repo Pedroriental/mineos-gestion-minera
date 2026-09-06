@@ -24,7 +24,11 @@ export type RegistryActionResult =
   | { ok: false; message: string };
 
 function revalidateAll() {
-  PERSONAL_SYNC_PATHS.forEach((p) => revalidatePath(p));
+  try {
+    revalidatePath('/admin/trabajadores');
+  } catch (err) {
+    console.warn('[trabajadores-registry] revalidate path error:', err);
+  }
 }
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];

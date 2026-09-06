@@ -2009,7 +2009,7 @@ export default function NominaClient({
 
   const handleAddVale = useCallback(async () => {
     if (!drawerPersonalId || !newValeMonto) return;
-    startTransition(async () => {
+    try {
       await crearValeAction(drawerPersonalId, Number(newValeMonto), newValeMotivo || 'Adelanto');
       await registrarAuditAction('CREAR_VALE', 'nomina_vales', drawerPersonalId, `Monto: $${newValeMonto} - ${newValeMotivo || 'Adelanto'}`, user?.id, user?.email);
       const vRes = await getValesPendientesBulkAction([drawerPersonalId]);
@@ -2026,12 +2026,15 @@ export default function NominaClient({
               }),
         ),
       );
-    });
-  }, [drawerPersonalId, newValeMonto, newValeMotivo, startTransition, user, weekRange.inicio]);
+    } catch (err: any) {
+      console.error('[handleAddVale] error:', err);
+      toastError(err?.message || 'Error al agregar vale');
+    }
+  }, [drawerPersonalId, newValeMonto, newValeMotivo, user, weekRange.inicio]);
 
   const handleDeleteVale = useCallback(async (valeId: string) => {
     if (!drawerPersonalId) return;
-    startTransition(async () => {
+    try {
       await eliminarValeAction(valeId);
       await registrarAuditAction('ELIMINAR_VALE', 'nomina_vales', valeId, `Eliminado por ${user?.email}`, user?.id, user?.email);
       const vRes = await getValesPendientesBulkAction([drawerPersonalId]);
@@ -2048,8 +2051,11 @@ export default function NominaClient({
               }),
         ),
       );
-    });
-  }, [drawerPersonalId, startTransition, user, weekRange.inicio]);
+    } catch (err: any) {
+      console.error('[handleDeleteVale] error:', err);
+      toastError(err?.message || 'Error al eliminar vale');
+    }
+  }, [drawerPersonalId, user, weekRange.inicio]);
 
   const drawerRow = useMemo(() => {
     if (!drawerPersonalId) return null;
@@ -2109,13 +2115,13 @@ export default function NominaClient({
     setFormError(null);
   }
 
-  function handleSave() {
+  async function handleSave() {
     setFormError(null);
     if (!form.perfil_compensacion_id) {
       setFormError('Selecciona un perfil de compensación.');
       return;
     }
-    startTransition(async () => {
+    try {
       const res = await upsertPersonalV3Action({
         id: editItem?.id,
         cedula: form.cedula,
@@ -2140,12 +2146,88 @@ export default function NominaClient({
             ? null
             : Number(form.rotacion_estado_referencia_posicion),
       });
-      if (res.ok) {
-        await registrarAuditAction(editItem ? 'EDITAR_PERSONAL' : 'CREAR_PERSONAL', 'personal', editItem?.id || form.cedula, `${form.nombre_completo} - ${form.cargo}`, user?.id, user?.email);
-        router.refresh();
-        setShowModal(false); resetForm();
-      } else setFormError(res.message);
-    });
+
+      if (!res.ok) {
+        setFormError(res.message);
+        return;
+      }
+
+      await registrarAuditAction(
+        editItem ? 'EDITAR_PERSONAL' : 'CREAR_PERSONAL',
+        'personal',
+        editItem?.id || form.cedula,
+        `${form.nombre_completo} - ${form.cargo}`,
+        user?.id,
+        user?.email,
+      );
+
+      const targetId = editItem?.id || (res.data?.id as string | undefined);
+      if (editItem && targetId) {
+        setPreNominaRows((prev) =>
+          prev.map((row) => {
+            if (row.personal.id !== targetId) return row;
+            const updatedPersonal: Personal = {
+              ...row.personal,
+              cedula: form.cedula,
+              nombre_completo: form.nombre_completo,
+              cargo: form.cargo,
+              area: area as any,
+              area_detalle: form.area_detalle,
+              perfil_compensacion_id: form.perfil_compensacion_id,
+              salario_base: Number(form.salario_base) || 0,
+              salario_libre: Number(form.salario_libre) || 0,
+              bono_transporte: Number(form.bono_transporte) || 0,
+              telefono: form.telefono,
+              notas: form.notas,
+              fecha_nacimiento: form.fecha_nacimiento || null,
+              fecha_ingreso: form.fecha_ingreso,
+              ajuste_antiguedad_dias: Number(form.ajuste_antiguedad_dias || 0),
+              ubicacion_laboral: form.ubicacion_laboral,
+              rotacion_inicio_fecha:
+                editRotacionInicioDeducido ||
+                form.rotacion_inicio_fecha ||
+                row.personal.rotacion_inicio_fecha,
+            };
+            return recomputePreNominaRow(row, weekRange.inicio, {
+              personal: updatedPersonal,
+            });
+          }),
+        );
+      } else if (targetId) {
+        const newPersonal: Personal = {
+          id: targetId,
+          cedula: form.cedula,
+          nombre_completo: form.nombre_completo,
+          cargo: form.cargo,
+          area: area as any,
+          area_detalle: form.area_detalle,
+          perfil_compensacion_id: form.perfil_compensacion_id,
+          salario_base: Number(form.salario_base) || 0,
+          salario_libre: Number(form.salario_libre) || 0,
+          bono_transporte: Number(form.bono_transporte) || 0,
+          telefono: form.telefono,
+          notas: form.notas,
+          fecha_nacimiento: form.fecha_nacimiento || null,
+          fecha_ingreso: form.fecha_ingreso,
+          ajuste_antiguedad_dias: Number(form.ajuste_antiguedad_dias || 0),
+          ubicacion_laboral: form.ubicacion_laboral,
+          rotacion_inicio_fecha: form.rotacion_inicio_fecha,
+          esquema_rotacion: 'FIJO_SEMANAL',
+          estatus: 'ACTIVO',
+          activo: true,
+          estado_laboral: 'ACTIVO',
+        };
+        const newRow = buildOperationalNominaRow(newPersonal, weekRange.inicio, {});
+        setPreNominaRows((prev) => [...prev, newRow]);
+      }
+
+      toast.success(editItem ? 'Trabajador actualizado exitosamente' : 'Trabajador creado exitosamente');
+      setShowModal(false);
+      resetForm();
+    } catch (err: any) {
+      console.error('[handleSave] error:', err);
+      setFormError(err?.message || 'Error al guardar los cambios.');
+    }
   }
 
   function openAssignForReassign(personalId: string) {
@@ -2181,10 +2263,13 @@ export default function NominaClient({
     removeFromManualWeekRoster(area, weekRange.inicio, id, manualPeriodId);
     setManualRosterTick(t => t + 1);
     
-    startTransition(async () => {
+    try {
       await updatePersonalEstatusAction(id, 'INACTIVO');
       await registrarAuditAction('DESACTIVAR_PERSONAL', 'personal', id, `Desactivado por ${user?.email}`, user?.id, user?.email);
-    });
+      toast.success('Trabajador desactivado.');
+    } catch (err) {
+      console.error('[handleDelete] error:', err);
+    }
   }
 
   async function handleProcesarNomina() {

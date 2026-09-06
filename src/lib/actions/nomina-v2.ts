@@ -18,7 +18,11 @@ export type ActionResult =
   | { ok: false; message: string };
 
 function revalidateAll() {
-  PERSONAL_SYNC_PATHS.forEach((p) => revalidatePath(p));
+  try {
+    revalidatePath('/admin/trabajadores');
+  } catch (err) {
+    console.warn('[nomina-v2] revalidate path error:', err);
+  }
 }
 
 // ── Actualizar estado de trabajador ─────────────────────────

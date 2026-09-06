@@ -222,20 +222,30 @@ export async function upsertPersonalV3Action(raw: {
     }
 
     let error;
+    let finalId = targetId;
     if (targetId) {
       ({ error } = await supabase.from('personal').update(payload).eq('id', targetId));
     } else {
-      ({ error } = await supabase.from('personal').insert({
-        ...payload,
-        estado_laboral: 'ACTIVO',
-        activo: true,
-        estatus: 'ACTIVO',
-      }));
+      const insRes = await supabase
+        .from('personal')
+        .insert({
+          ...payload,
+          estado_laboral: 'ACTIVO',
+          activo: true,
+          estatus: 'ACTIVO',
+        })
+        .select('id')
+        .single();
+      error = insRes.error;
+      finalId = insRes.data?.id;
     }
 
     if (error) return { ok: false, message: error.message };
-    safeRevalidateNomina(data.area);
-    return { ok: true, message: hasId ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
+    return {
+      ok: true,
+      message: hasId ? 'Trabajador actualizado.' : 'Trabajador registrado.',
+      data: { id: finalId },
+    };
   } catch (e) {
     console.error('[upsertPersonalV3Action] error:', e);
     return { ok: false, message: e instanceof Error ? e.message : 'Error interno del servidor.' };
@@ -516,7 +526,6 @@ export async function crearValeAction(
       estado: 'PENDIENTE',
     });
     if (error) return { ok: false, message: error.message };
-    safeRevalidateNomina();
     return { ok: true, message: 'Vale registrado correctamente.' };
   } catch {
     return { ok: false, message: 'Error interno.' };
@@ -532,7 +541,6 @@ export async function eliminarValeAction(valeId: string): Promise<ActionResult> 
     const supabase = await createServerClient();
     const { error } = await supabase.from('nomina_vales').delete().eq('id', id);
     if (error) return { ok: false, message: error.message };
-    safeRevalidateNomina();
     return { ok: true, message: 'Vale eliminado.' };
   } catch {
     return { ok: false, message: 'Error interno.' };
