@@ -268,7 +268,25 @@ function TrabajadoresRegistryContent({
   const [estadoModal, setEstadoModal] = useState<EstadoModal>(emptyEstadoModal());
   const [estadoMenu, setEstadoMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [isSyncingMina, setIsSyncingMina] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const handleSyncMina = async () => {
+    try {
+      setIsSyncingMina(true);
+      const res = await fetch('/api/trabajadores/seed-nuevos', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.message || 'Error al sincronizar');
+      }
+      toast.success(data.message || 'Trabajadores sincronizados correctamente');
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al sincronizar trabajadores');
+    } finally {
+      setIsSyncingMina(false);
+    }
+  };
 
   useEffect(() => {
     setLocalTrabajadores(Array.isArray(trabajadores) ? trabajadores.filter(Boolean) : []);
@@ -1181,6 +1199,16 @@ function TrabajadoresRegistryContent({
               >
                 <Download className="h-3.5 w-3.5" />
                 Descargar Listado
+              </button>
+              <button
+                type="button"
+                onClick={handleSyncMina}
+                disabled={isSyncingMina}
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-3 text-[11px] font-bold text-emerald-300 transition-colors hover:bg-emerald-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Sincronizar y registrar los nuevos trabajadores de las listas de Mina V1-V2 y Nómina Extraordinaria"
+              >
+                <Users className="h-3.5 w-3.5" />
+                {isSyncingMina ? 'Sincronizando...' : 'Sincronizar Lista Mina'}
               </button>
               {selectedIds.size > 0 && (
                 <button
