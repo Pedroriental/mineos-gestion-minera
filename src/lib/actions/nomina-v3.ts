@@ -337,10 +337,10 @@ export async function assignPersonalToNominaAreaAction(input: {
     const { error } = await supabase.from('personal').update(payload).eq('id', data.personalId);
     if (error) return { ok: false, message: error.message };
 
-    safeRevalidateNomina(data.targetArea);
     return { ok: true, message: `${row.nombre_completo} asignado a esta nómina.` };
-  } catch {
-    return { ok: false, message: 'Error interno del servidor.' };
+  } catch (e) {
+    console.error('[assignPersonalToNominaAreaAction] error:', e);
+    return { ok: false, message: e instanceof Error ? e.message : 'Error interno del servidor.' };
   }
 }
 
@@ -431,8 +431,6 @@ export async function createAndAssignPersonalNominaAction(
       .single();
 
     if (error) return { ok: false, message: error.message };
-
-    safeRevalidateNomina(data.targetArea);
     const createdPersonal: Personal = {
       id: inserted.id,
       complex_id: complexId,
