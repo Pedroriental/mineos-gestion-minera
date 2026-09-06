@@ -17,10 +17,6 @@ import {
   normalizeCedula,
   searchPersonalMaster,
 } from '@/lib/personal-master';
-import {
-  assignPersonalToNominaAreaAction,
-  createAndAssignPersonalNominaAction,
-} from '@/lib/actions/nomina-v3';
 import type { PerfilCompensacion, Personal } from '@/lib/types';
 import {
   estadoObservadoOpcionesPorEsquema,
@@ -336,17 +332,22 @@ export function PersonalQuickAssignModal({
 
     setIsSaving(true);
     try {
-      const res = await assignPersonalToNominaAreaAction({
-        personalId: selected.id,
-        targetArea: area,
-        areaDetalle: asignacionNomina,
+      const response = await fetch('/api/nomina/assign-worker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personalId: selected.id,
+          targetArea: area,
+          areaDetalle: asignacionNomina,
+        }),
       });
+      const res = await response.json();
       if (!res.ok) {
-        setError(res.message);
-        toast.error(res.message);
+        setError(res.message || 'Error al asignar trabajador.');
+        toast.error(res.message || 'Error al asignar trabajador.');
         return;
       }
-      finishAssign(selected.id, asignacionNomina, res.message, selected);
+      finishAssign(selected.id, asignacionNomina, res.message || `${displayNombrePersonal(selected)} asignado a esta nómina.`, selected);
     } catch (err: any) {
       console.error('[PersonalQuickAssignModal] assignExisting error:', err);
       const msg = err?.message || 'Error al asignar trabajador.';
@@ -378,31 +379,36 @@ export function PersonalQuickAssignModal({
 
     setIsSaving(true);
     try {
-      const res = await createAndAssignPersonalNominaAction({
-        cedula: createForm.cedula.trim(),
-        nombre_completo: createForm.nombre_completo.trim(),
-        cargo: createForm.cargo.trim(),
-        targetArea: area,
-        areaDetalle: asignacionNomina,
-        perfil_compensacion_id: createForm.perfil_compensacion_id,
-        salario_base: Number(createForm.salario_base),
-        salario_libre: createForm.salario_libre ? Number(createForm.salario_libre) : 0,
-        bono_transporte: createForm.bono_transporte ? Number(createForm.bono_transporte) : 0,
-        rotacion_inicio_fecha: createForm.rotacion_inicio_fecha || null,
-        rotacion_estado_referencia_semana: createForm.rotacion_estado_referencia_semana || null,
-        rotacion_estado_referencia_posicion:
-          createForm.rotacion_estado_referencia_posicion === ''
-            ? null
-            : Number(createForm.rotacion_estado_referencia_posicion),
-        fecha_nacimiento: createForm.fecha_nacimiento || null,
-        fecha_ingreso: createForm.fecha_ingreso || null,
-        ajuste_antiguedad_dias: Number(createForm.ajuste_antiguedad_dias || 0),
-        ubicacion_laboral: createForm.ubicacion_laboral.trim(),
-        notas: createForm.notas.trim(),
+      const response = await fetch('/api/nomina/create-worker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cedula: createForm.cedula.trim(),
+          nombre_completo: createForm.nombre_completo.trim(),
+          cargo: createForm.cargo.trim(),
+          targetArea: area,
+          areaDetalle: asignacionNomina,
+          perfil_compensacion_id: createForm.perfil_compensacion_id,
+          salario_base: Number(createForm.salario_base),
+          salario_libre: createForm.salario_libre ? Number(createForm.salario_libre) : 0,
+          bono_transporte: createForm.bono_transporte ? Number(createForm.bono_transporte) : 0,
+          rotacion_inicio_fecha: createForm.rotacion_inicio_fecha || null,
+          rotacion_estado_referencia_semana: createForm.rotacion_estado_referencia_semana || null,
+          rotacion_estado_referencia_posicion:
+            createForm.rotacion_estado_referencia_posicion === ''
+              ? null
+              : Number(createForm.rotacion_estado_referencia_posicion),
+          fecha_nacimiento: createForm.fecha_nacimiento || null,
+          fecha_ingreso: createForm.fecha_ingreso || null,
+          ajuste_antiguedad_dias: Number(createForm.ajuste_antiguedad_dias || 0),
+          ubicacion_laboral: createForm.ubicacion_laboral.trim(),
+          notas: createForm.notas.trim(),
+        }),
       });
+      const res = await response.json();
       if (!res.ok || !res.personalId) {
-        setError(res.message);
-        toast.error(res.message);
+        setError(res.message || 'Error al crear trabajador.');
+        toast.error(res.message || 'Error al crear trabajador.');
         return;
       }
       finishAssign(
