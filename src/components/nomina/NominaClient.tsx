@@ -1758,7 +1758,7 @@ export default function NominaClient({
 
   const subtotalFilas = useMemo(() => preNominaRows.reduce((s, r) => s + r.total, 0), [preNominaRows]);
   const subtotalNovedades = useMemo(() => totalNovedadesManuales(novedadesManuales), [novedadesManuales]);
-  const totalSemana = useMemo(() => subtotalFilas + subtotalNovedades, [subtotalFilas, subtotalNovedades]);
+  const totalSemana = useMemo(() => subtotalFilas, [subtotalFilas]);
   const distribucion = useNominaDivisionesConfig(totalSemana);
   const semanaActualCerradaId = semanaActualCerrada?.id;
   const applyDistribucionPlantilla = distribucion.applyPlantilla;

@@ -55,7 +55,7 @@ export function NominaNovedadesManualesSection({
                 )}
               </div>
               <p className="text-[11px] text-[var(--text-muted)]">
-                Pagos adicionales, bonos o trabajadores eventuales fuera de cuadrilla fija
+                Pagos adicionales o novedades de referencia (no se suman al total de la nómina)
               </p>
             </div>
           </div>
@@ -164,7 +164,7 @@ export function NominaNovedadesManualesSection({
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="text-xs font-semibold text-[var(--text-secondary)]">
-                  Subtotal Novedades:
+                  Subtotal Novedades (no sumado a nómina):
                 </span>
                 <span className={cn(mineosKpiValue('general'), 'text-sm font-bold')}>
                   ${fmtMoney(total)}

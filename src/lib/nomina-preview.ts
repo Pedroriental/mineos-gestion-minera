@@ -1120,18 +1120,6 @@ export function buildNominaPreviewReport(input: {
 
   if (input.novedadesManuales && input.novedadesManuales.length > 0) {
     novedades = [...novedades, ...input.novedadesManuales];
-    const totalExtra = input.novedadesManuales.reduce(
-      (acc, n) => acc + (Number(n.monto) || 0),
-      0,
-    );
-    if (totalExtra > 0) {
-      grandTotal = parseFloat((grandTotal + totalExtra).toFixed(2));
-      summary.push({
-        id: 'novedades_extraordinarias',
-        label: 'Novedades / Pagos Extraordinarios',
-        total: totalExtra,
-      });
-    }
   }
 
   const despedidosSection = buildDespedidosPreviewSection(
