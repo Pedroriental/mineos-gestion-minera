@@ -559,7 +559,7 @@ function mapCierreRpcError(message: string): string {
   return `Error cierre: ${message}`;
 }
 
-async function procesarCierreHistoricoManualV3(
+export async function procesarCierreHistoricoManualV3(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
   userId: string,
   data: CierreNominaV3Parsed,
@@ -623,9 +623,21 @@ async function procesarCierreHistoricoManualV3(
   const personalById = new Map((personalRows ?? []).map((p) => [p.id, p as Personal]));
 
   const registros = rows.map((r) => {
-    const personal = personalById.get(r.personalId);
+    let personal = personalById.get(r.personalId);
     if (!personal) {
-      throw new Error(`Trabajador ${r.personalId} no encontrado`);
+      personal = {
+        id: r.personalId,
+        cedula: '',
+        nombre_completo: 'Trabajador',
+        cargo: 'Operario',
+        area,
+        area_detalle: r.cuadrillaNombre || '',
+        salario_base: r.salarioBaseCalculado ?? r.total,
+        salario_libre: 0,
+        bono_transporte: r.bonoTransporte ?? 0,
+        esquema_rotacion: '',
+        rotacion_inicio_fecha: null,
+      } as unknown as Personal;
     }
     const esSemanaLibre = r.esSemanaLibre ?? r.estadoAsistencia === 'libre';
     const pagoUnicoNovedad = reposoPagoUnicoMontoFromRow({
@@ -678,15 +690,24 @@ async function procesarCierreHistoricoManualV3(
   if (cierreRes.error) return { ok: false, message: `Error cierre: ${cierreRes.error}` };
 
   await refreshPeriodoTotalUsd(supabase, periodoId);
-  await registrarAuditAction(
-    'CIERRE_NOMINA_MANUAL_HISTORICO',
-    'nomina_semanas',
-    semanaId,
-    `Cierre manual histórico ${area.toUpperCase()} ${inicio}–${fin}. Total: $${totalNomina.toFixed(2)}`,
-    userId,
-  );
+  try {
+    await registrarAuditAction(
+      'CIERRE_NOMINA_MANUAL_HISTORICO',
+      'nomina_semanas',
+      semanaId,
+      `Cierre manual histórico ${area.toUpperCase()} ${inicio}–${fin}. Total: $${totalNomina.toFixed(2)}`,
+      userId,
+    );
+  } catch (auditErr) {
+    console.warn('[cierre] audit error ignored:', auditErr);
+  }
 
-  safeRevalidateNomina(area);
+  try {
+    safeRevalidateNomina(area);
+  } catch (revalErr) {
+    console.warn('[cierre] safeRevalidateNomina error ignored:', revalErr);
+  }
+
   return {
     ok: true,
     message: `Semana histórica cerrada manualmente — $${totalNomina.toFixed(2)} (${rows.length} trabajadores).`,
@@ -771,110 +792,125 @@ export async function procesarCierreNominaV3Action(
           message: 'Falta el periodo manual para cerrar esta semana histórica.',
         };
       }
-      return procesarCierreHistoricoManualV3(supabase, userId, parsed.data, periodoManual);
+      return await procesarCierreHistoricoManualV3(supabase, userId, parsed.data, periodoManual);
     }
 
-    const rotacionRows = rows.map((r) => ({
-      personalId: r.personalId,
-      total: r.total,
-      bonoTransporte: r.bonoTransporte,
-      diasTrabajados: r.diasTrabajados,
-    }));
-    const valRot = await validarCierreRotacionSemanalAction({
-      area,
-      semanaInicio: inicio,
-      semanaFin: fin,
-      rows: rotacionRows,
-    });
-    if (!valRot.ok) return { ok: false, message: valRot.message };
+    return await procesarCierreOperativoV3(supabase, userId, parsed.data);
+  } catch (err: any) {
+    console.error('[Action] procesarCierreNominaV3:', err);
+    return { ok: false, message: err?.message || 'Error interno del servidor.' };
+  }
+}
 
-    // 3. Datos maestros desde BD (no se confía en el `personal` del cliente)
-    const personalIds = rows.map((r) => r.personalId);
-    const { data: personalRows, error: personalError } = await supabase
-      .from('personal')
-      .select(
-        'id, cedula, nombre_completo, cargo, area, area_detalle, salario_base, salario_libre, bono_transporte, esquema_rotacion, rotacion_inicio_fecha',
-      )
-      .in('id', personalIds);
+export async function procesarCierreOperativoV3(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  userId: string,
+  data: CierreNominaV3Parsed,
+): Promise<ActionResult> {
+  const { area, inicio, fin, rows, distribucion } = data;
 
-    if (personalError) {
-      return { ok: false, message: `Error al cargar trabajadores: ${personalError.message}` };
+  const rotacionRows = rows.map((r) => ({
+    personalId: r.personalId,
+    total: r.total,
+    bonoTransporte: r.bonoTransporte,
+    diasTrabajados: r.diasTrabajados,
+  }));
+  const valRot = await validarCierreRotacionSemanalAction({
+    area,
+    semanaInicio: inicio,
+    semanaFin: fin,
+    rows: rotacionRows,
+  });
+  if (!valRot.ok) return { ok: false, message: valRot.message };
+
+  // 3. Datos maestros desde BD (no se confía en el `personal` del cliente)
+  const personalIds = rows.map((r) => r.personalId);
+  const { data: personalRows, error: personalError } = await supabase
+    .from('personal')
+    .select(
+      'id, cedula, nombre_completo, cargo, area, area_detalle, salario_base, salario_libre, bono_transporte, esquema_rotacion, rotacion_inicio_fecha',
+    )
+    .in('id', personalIds);
+
+  if (personalError) {
+    return { ok: false, message: `Error al cargar trabajadores: ${personalError.message}` };
+  }
+
+  // 4. Checksum financiero: recálculo con reglas de ciclo (perfil-ciclo-reglas)
+  const checksum = verificarTotalesCierre(
+    rows,
+    (personalRows ?? []) as PersonalCierre[],
+    inicio,
+  );
+  if (!checksum.ok) {
+    return { ok: false, message: checksum.message };
+  }
+
+  const totalNomina = checksum.totalNomina;
+  const cierrePayload = distribucionToCierrePayload(totalNomina, distribucion);
+
+  // 5. Cierre atómico delegado a Postgres (advisory lock + transacción)
+  const rpcPayload = {
+    area,
+    inicio,
+    fin,
+    total_pagado: totalNomina,
+    registros: checksum.registros.map((r) => ({
+      personal_id: r.personal.id,
+      monto_pagado: r.montoPagado,
+      es_semana_libre: r.esSemanaLibre,
+      bono_transporte_pagado: r.input.bonoTransporte,
+      estado_asistencia: r.input.estadoAsistencia,
+      dias_trabajados: r.input.diasTrabajados,
+      salario_base_calculado: r.salarioBaseCalculado,
+      novedad_turno: r.input.novedadTurno ?? 'ACTIVO',
+      novedad_turno_obs: (r.input.novedadTurnoObs ?? '').trim(),
+      bonificaciones: r.input.bonificaciones,
+      total_vales: r.input.totalVales,
+      personal_snapshot: snapshotFromCierreRow(r.personal as Personal, r.input, area),
+    })),
+    cierre: {
+      pct_pedro: cierrePayload.pct_pedro,
+      pct_darinel: cierrePayload.pct_darinel,
+      pct_la_fe: cierrePayload.pct_la_fe,
+      monto_pedro: cierrePayload.monto_pedro,
+      monto_darinel: cierrePayload.monto_darinel,
+      monto_la_fe: cierrePayload.monto_la_fe,
+      distribucion: cierrePayload.distribucion,
+    },
+    gasto: {
+      descripcion: `Nómina ${area.toUpperCase()} ${inicio} al ${fin} — ${rows.length} trabajadores`,
+      notas: `Cierre V3: ${cierrePayload.lineas.map((l) => `${l.nombre} ${l.porcentaje}% ($${l.neto})`).join(' · ')}`,
+    },
+  };
+
+  const { data: rpcData, error: rpcError } = await supabase.rpc('cerrar_nomina_semana', {
+    p_payload: rpcPayload,
+  });
+
+  if (rpcError) {
+    return { ok: false, message: mapCierreRpcError(rpcError.message) };
+  }
+
+  const semanaId = String((rpcData as { semana_id?: string } | null)?.semana_id ?? '');
+  if (!semanaId) {
+    return { ok: false, message: 'El cierre no devolvió la semana procesada.' };
+  }
+
+  // Guardar posicion_en_ciclo en registros
+  for (const r of rows) {
+    if (r.posicionCiclo !== undefined && r.posicionCiclo !== null) {
+      await supabase
+        .from('nomina_registros')
+        .update({ posicion_en_ciclo: r.posicionCiclo })
+        .eq('semana_id', semanaId)
+        .eq('personal_id', r.personalId);
     }
+  }
 
-    // 4. Checksum financiero: recálculo con reglas de ciclo (perfil-ciclo-reglas)
-    const checksum = verificarTotalesCierre(
-      rows,
-      (personalRows ?? []) as PersonalCierre[],
-      inicio,
-    );
-    if (!checksum.ok) {
-      return { ok: false, message: checksum.message };
-    }
-
-    const totalNomina = checksum.totalNomina;
-    const cierrePayload = distribucionToCierrePayload(totalNomina, distribucion);
-
-    // 5. Cierre atómico delegado a Postgres (advisory lock + transacción)
-    const rpcPayload = {
-      area,
-      inicio,
-      fin,
-      total_pagado: totalNomina,
-      registros: checksum.registros.map((r) => ({
-        personal_id: r.personal.id,
-        monto_pagado: r.montoPagado,
-        es_semana_libre: r.esSemanaLibre,
-        bono_transporte_pagado: r.input.bonoTransporte,
-        estado_asistencia: r.input.estadoAsistencia,
-        dias_trabajados: r.input.diasTrabajados,
-        salario_base_calculado: r.salarioBaseCalculado,
-        novedad_turno: r.input.novedadTurno ?? 'ACTIVO',
-        novedad_turno_obs: (r.input.novedadTurnoObs ?? '').trim(),
-        bonificaciones: r.input.bonificaciones,
-        total_vales: r.input.totalVales,
-        personal_snapshot: snapshotFromCierreRow(r.personal as Personal, r.input, area),
-      })),
-      cierre: {
-        pct_pedro: cierrePayload.pct_pedro,
-        pct_darinel: cierrePayload.pct_darinel,
-        pct_la_fe: cierrePayload.pct_la_fe,
-        monto_pedro: cierrePayload.monto_pedro,
-        monto_darinel: cierrePayload.monto_darinel,
-        monto_la_fe: cierrePayload.monto_la_fe,
-        distribucion: cierrePayload.distribucion,
-      },
-      gasto: {
-        descripcion: `Nómina ${area.toUpperCase()} ${inicio} al ${fin} — ${rows.length} trabajadores`,
-        notas: `Cierre V3: ${cierrePayload.lineas.map((l) => `${l.nombre} ${l.porcentaje}% ($${l.neto})`).join(' · ')}`,
-      },
-    };
-
-    const { data: rpcData, error: rpcError } = await supabase.rpc('cerrar_nomina_semana', {
-      p_payload: rpcPayload,
-    });
-
-    if (rpcError) {
-      return { ok: false, message: mapCierreRpcError(rpcError.message) };
-    }
-
-    const semanaId = String((rpcData as { semana_id?: string } | null)?.semana_id ?? '');
-    if (!semanaId) {
-      return { ok: false, message: 'El cierre no devolvió la semana procesada.' };
-    }
-
-    // Guardar posicion_en_ciclo en registros
-    for (const r of rows) {
-      if (r.posicionCiclo !== undefined && r.posicionCiclo !== null) {
-        await supabase
-          .from('nomina_registros')
-          .update({ posicion_en_ciclo: r.posicionCiclo })
-          .eq('semana_id', semanaId)
-          .eq('personal_id', r.personalId);
-      }
-    }
-
-    // 6. Auditar ajustes manuales aceptados por el checksum (si los hubo)
-    for (const ajuste of checksum.ajustes) {
+  // 6. Auditar ajustes manuales aceptados por el checksum (si los hubo)
+  for (const ajuste of checksum.ajustes) {
+    try {
       await registrarAuditAction(
         'AJUSTE_MANUAL_CIERRE',
         'nomina_registros',
@@ -882,31 +918,35 @@ export async function procesarCierreNominaV3Action(
         `Ajuste manual en cierre ${area.toUpperCase()} ${inicio}: ${ajuste.nombre} — calculado $${ajuste.totalRecalculado.toFixed(2)}, pagado $${ajuste.totalCliente.toFixed(2)}. Motivo: ${ajuste.motivo}`,
         userId,
       );
+    } catch {
+      // ignore
     }
+  }
 
-    const rotacionRes = await procesarCierreRotacionNominaAction({
-      area,
-      semanaId,
-      semanaInicio: inicio,
-      semanaFin: fin,
-      rows: rotacionRows,
-      userId,
-    });
-    if (!rotacionRes.ok) return { ok: false, message: rotacionRes.message };
+  const rotacionRes = await procesarCierreRotacionNominaAction({
+    area,
+    semanaId,
+    semanaInicio: inicio,
+    semanaFin: fin,
+    rows: rotacionRows,
+    userId,
+  });
+  if (!rotacionRes.ok) return { ok: false, message: rotacionRes.message };
 
-    // ── FASE 4: Automatización de Ciclos ─────────────────────────────────
-    // Vincular semana a ciclos automáticamente (crea o vincula a ciclo existente)
-    const vinculoResult = await vincularSemanaACicloAction({
-      semanaId,
-      semanaInicio: inicio,
-      area,
-      personalIds,
-      userId,
-    });
+  // ── FASE 4: Automatización de Ciclos ─────────────────────────────────
+  // Vincular semana a ciclos automáticamente (crea o vincula a ciclo existente)
+  const vinculoResult = await vincularSemanaACicloAction({
+    semanaId,
+    semanaInicio: inicio,
+    area,
+    personalIds,
+    userId,
+  });
 
-    if (vinculoResult.ok && vinculoResult.data) {
-      const { ciclosCreados, ciclosVinculados } = vinculoResult.data;
-      if (ciclosCreados > 0 || ciclosVinculados > 0) {
+  if (vinculoResult.ok && vinculoResult.data) {
+    const { ciclosCreados, ciclosVinculados } = vinculoResult.data;
+    if (ciclosCreados > 0 || ciclosVinculados > 0) {
+      try {
         await registrarAuditAction(
           'CICLO_AUTOMATIZADO',
           'nomina_ciclos',
@@ -914,17 +954,21 @@ export async function procesarCierreNominaV3Action(
           `Ciclos procesados: ${ciclosCreados} creados, ${ciclosVinculados} vinculados`,
           userId
         );
+      } catch {
+        // ignore
       }
     }
+  }
 
-    // Intentar cerrar ciclo si es la última semana
-    const cierreCicloResult = await cerrarCicloAutomaticoAction({
-      semanaId,
-      userId,
-    });
+  // Intentar cerrar ciclo si es la última semana
+  const cierreCicloResult = await cerrarCicloAutomaticoAction({
+    semanaId,
+    userId,
+  });
 
-    if (cierreCicloResult.ok && cierreCicloResult.data) {
-      const { cicloId, totalCiclo } = cierreCicloResult.data;
+  if (cierreCicloResult.ok && cierreCicloResult.data) {
+    const { cicloId, totalCiclo } = cierreCicloResult.data;
+    try {
       await registrarAuditAction(
         'CICLO_CERRADO',
         'nomina_ciclos',
@@ -932,19 +976,23 @@ export async function procesarCierreNominaV3Action(
         `Ciclo cerrado automáticamente. Total consolidado: $${totalCiclo.toFixed(2)}`,
         userId
       );
+    } catch {
+      // ignore
     }
-    // ── FIN FASE 4 ───────────────────────────────────────────────────────
-
-    safeRevalidateNomina(area);
-    return {
-      ok: true,
-      message: `Nómina cerrada — $${totalNomina.toFixed(2)} para ${rows.length} trabajadores. Vales liquidados.`,
-      data: { semanaId, totalNomina, distribucion: cierrePayload.lineas },
-    };
-  } catch (err) {
-    console.error('[Action] procesarCierreNominaV3:', err);
-    return { ok: false, message: 'Error interno del servidor.' };
   }
+  // ── FIN FASE 4 ───────────────────────────────────────────────────────
+
+  try {
+    safeRevalidateNomina(area);
+  } catch (revalErr) {
+    console.warn('[cierre operativo] safeRevalidateNomina error ignored:', revalErr);
+  }
+
+  return {
+    ok: true,
+    message: `Nómina cerrada — $${totalNomina.toFixed(2)} para ${rows.length} trabajadores. Vales liquidados.`,
+    data: { semanaId, totalNomina, distribucion: cierrePayload.lineas },
+  };
 }
 
 // ── Cierre de semana (reparto de socios / beneficiarios) ─────

@@ -79,7 +79,7 @@ export const RegistroCierreSchema = z
       ])
       .optional(),
     /** Cuadrilla de plantilla al cerrar (persistida en personal_snapshot). */
-    cuadrillaId: z.string().uuid('ID de cuadrilla inválido').optional(),
+    cuadrillaId: z.string().nullish().transform((v) => v?.trim() || undefined),
     cuadrillaNombre: z.string().trim().min(1).max(200).optional(),
     posicionCiclo: z.number().int().min(0).max(20).nullable().optional(),
   })
@@ -144,7 +144,7 @@ export const CierreNominaV3Schema = z
         label: z.string(),
         rangeStart: fechaIso,
         rangeEnd: fechaIso,
-        plantillaId: z.string().uuid().optional(),
+        plantillaId: z.string().nullish().transform((v) => v?.trim() || undefined),
       })
       .optional(),
   })

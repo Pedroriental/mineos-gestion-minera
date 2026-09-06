@@ -177,7 +177,7 @@ export async function ensureManualVistaPeriodoId(
 
   if (listError) return { error: listError.message };
 
-  const existing = (candidates ?? []).find((row) => {
+  let existing = (candidates ?? []).find((row) => {
     if (!row.metadata || typeof row.metadata !== 'object') return false;
     const meta = row.metadata as Record<string, unknown>;
     return (
@@ -187,11 +187,35 @@ export async function ensureManualVistaPeriodoId(
     );
   });
 
+  if (!existing) {
+    existing = (candidates ?? []).find((row) => {
+      const meta = (row.metadata as Record<string, unknown>) || {};
+      const rowArea = String(meta.area ?? '').trim();
+      return (
+        (!rowArea || rowArea === input.area) &&
+        String(row.label ?? '').trim() === label
+      );
+    });
+  }
+
   if (existing?.id) {
+    const meta = (existing.metadata as Record<string, unknown>) || {};
+    if (!meta.area) {
+      await supabase
+        .from('nomina_periodos')
+        .update({ metadata: { ...meta, area: input.area, source: 'vista_manual' } })
+        .eq('id', existing.id);
+    }
     const check = await verifyPeriodoMatchesNominaArea(supabase, existing.id, input.area);
     if (check.error) return { error: check.error };
     return { periodoId: existing.id };
   }
+
+  const validUserId =
+    input.userId &&
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(input.userId)
+      ? input.userId
+      : null;
 
   const { data: created, error: createError } = await supabase
     .from('nomina_periodos')
@@ -206,7 +230,7 @@ export async function ensureManualVistaPeriodoId(
         plantilla_id: input.periodo.plantillaId ?? null,
         plantillaId: input.periodo.plantillaId ?? null,
       },
-      created_by: input.userId ?? null,
+      created_by: validUserId,
     })
     .select('id')
     .maybeSingle();

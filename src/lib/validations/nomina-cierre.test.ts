@@ -131,6 +131,24 @@ describe('CierreNominaV3Schema', () => {
   it('rechaza cierres sin filas', () => {
     assert.equal(CierreNominaV3Schema.safeParse(basePayload([])).success, false);
   });
+
+  it('acepta plantillaId y cuadrillaId vacíos o no-UUID sin fallar validación', () => {
+    const payload = {
+      ...basePayload([baseRow({ cuadrillaId: '' })]),
+      periodoManual: {
+        label: 'Periodo test',
+        rangeStart: '2026-06-01',
+        rangeEnd: '2026-06-07',
+        plantillaId: '',
+      },
+    };
+    const res = CierreNominaV3Schema.safeParse(payload);
+    assert.equal(res.success, true);
+    if (res.success) {
+      assert.equal(res.data.periodoManual?.plantillaId, undefined);
+      assert.equal(res.data.rows[0].cuadrillaId, undefined);
+    }
+  });
 });
 
 describe('verificarTotalesCierre (checksum server-side)', () => {

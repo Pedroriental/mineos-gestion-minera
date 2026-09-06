@@ -2253,28 +2253,33 @@ export default function NominaClient({
             estatusPlantilla: r.estatusPlantilla,
             cuadrillaId: manualPlantillaActiva?.cuadrillas.find(
               (c) => c.nombre === r.cuadrillaNombre,
-            )?.id,
+            )?.id || undefined,
             cuadrillaNombre: r.cuadrillaNombre?.trim() || undefined,
             posicionCiclo: r.cicloPosicion ?? null,
           };
         });
-        const res = await procesarCierreNominaV3Action({
-          area,
-          inicio: weekRange.inicio,
-          fin: weekRange.fin,
-          rows: formattedRows,
-          distribucion: distribucion.partes,
-          modoCierre: isHistoricalManualWeek ? 'historico_manual' : 'operativo',
-          periodoManual:
-            isHistoricalManualWeek && manualPeriodForView
-              ? {
-                  label: manualPeriodForView.label,
-                  rangeStart: manualPeriodForView.rangeStart,
-                  rangeEnd: manualPeriodForView.rangeEnd,
-                  plantillaId: manualPeriodForView.plantillaId,
-                }
-              : undefined,
+        const response = await fetch('/api/nomina/cierre', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            area,
+            inicio: weekRange.inicio,
+            fin: weekRange.fin,
+            rows: formattedRows,
+            distribucion: distribucion.partes,
+            modoCierre: isHistoricalManualWeek ? 'historico_manual' : 'operativo',
+            periodoManual:
+              isHistoricalManualWeek && manualPeriodForView
+                ? {
+                    label: manualPeriodForView.label,
+                    rangeStart: manualPeriodForView.rangeStart,
+                    rangeEnd: manualPeriodForView.rangeEnd,
+                    plantillaId: manualPeriodForView.plantillaId || undefined,
+                  }
+                : undefined,
+          }),
         });
+        const res = await response.json();
         if (res.ok) {
           try {
             localStorage.removeItem(novedadDraftKeyForWeek(weekRange.inicio));
@@ -2322,7 +2327,11 @@ export default function NominaClient({
             /* ignore */
           }
           distribucion.saveAsDefault();
-          await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
+          try {
+            await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
+          } catch {
+            /* ignore audit error */
+          }
           setProcesadoOk(`✓ ${res.message}`);
           setShowProcesarModal(false);
           if (closedWasWorkingWeek) {
@@ -2337,11 +2346,11 @@ export default function NominaClient({
           }
           router.refresh();
         } else {
-          toastError(res.message);
+          toastError(res.message || 'Error al procesar el cierre.');
         }
-      } catch (err) {
-        console.error('[NominaClient] Error inesperado al cerrar nómina:', err);
-        toastError('No se pudo procesar el cierre. Verifica tu conexión e intenta de nuevo.');
+      } catch (err: any) {
+        console.error('[NominaClient] Error al procesar cierre nómina:', err);
+        toastError(err?.message || 'Error de conexión con el servidor al procesar el cierre.');
       }
     });
   }
@@ -2433,9 +2442,9 @@ export default function NominaClient({
         } else {
           toastError(res.message || 'Error al revertir');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('[NominaClient] Error inesperado al revertir semana:', err);
-        toastError('No se pudo revertir la semana. Verifica tu conexión e intenta de nuevo.');
+        toastError(err?.message || 'No se pudo revertir la semana.');
       }
     });
   }
