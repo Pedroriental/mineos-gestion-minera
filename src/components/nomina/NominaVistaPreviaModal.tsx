@@ -213,35 +213,42 @@ export function NominaVistaPreviaModal({
     const periodoToKeep = selectedPeriodoId;
 
     (async () => {
-      const periodosRes = await listNominaPeriodosAction();
-      if (cancelled) return;
+      try {
+        const periodosRes = await listNominaPeriodosAction();
+        if (cancelled) return;
 
-      const periodos = periodosRes.ok
-        ? periodosRes.periodos.filter((p) => p.totalUsd > 0 || p.semanaCount > 0)
-        : [];
-      const archived = filterArea
-        ? periodos.filter((p) => nominaPeriodoMatchesArea(p, filterArea))
-        : periodos;
-      setArchivedPeriods(archived);
+        const periodos = periodosRes.ok
+          ? periodosRes.periodos.filter((p) => p.totalUsd > 0 || p.semanaCount > 0)
+          : [];
+        const archived = filterArea
+          ? periodos.filter((p) => nominaPeriodoMatchesArea(p, filterArea))
+          : periodos;
+        setArchivedPeriods(archived);
 
-      const matchedPeriod =
-        (periodoToKeep ? archived.find((p) => p.id === periodoToKeep) : null) ??
-        resolvePeriodForRange(archived, initialRange);
+        const matchedPeriod =
+          (periodoToKeep ? archived.find((p) => p.id === periodoToKeep) : null) ??
+          resolvePeriodForRange(archived, initialRange);
 
-      const previewRes = await loadNominaVistaPreviaDataAction(
-        matchedPeriod
-          ? { periodoId: matchedPeriod.id, filterArea }
-          : loadOptions,
-      );
-      if (cancelled) return;
+        const previewRes = await loadNominaVistaPreviaDataAction(
+          matchedPeriod
+            ? { periodoId: matchedPeriod.id, filterArea }
+            : loadOptions,
+        );
+        if (cancelled) return;
 
-      setLoading(false);
-      if (!previewRes.ok) {
-        setError(previewRes.message || 'No se pudo cargar la vista previa');
-        return;
+        if (!previewRes.ok) {
+          setError(previewRes.message || 'No se pudo cargar la vista previa');
+          return;
+        }
+
+        applyPreviewPayload(previewRes, matchedPeriod?.id ?? null);
+      } catch (err: any) {
+        console.error('[NominaVistaPreviaModal] Error cargando vista previa:', err);
+        if (cancelled) return;
+        setError(err?.message || 'Error de conexión al cargar la vista previa.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      applyPreviewPayload(previewRes, matchedPeriod?.id ?? null);
     })();
 
     return () => {
@@ -267,20 +274,36 @@ export function NominaVistaPreviaModal({
 
   function handlePeriodSelect(period: NominaPeriodoSummary) {
     startPeriodSwitch(async () => {
-      const res = await loadNominaVistaPreviaDataAction({
-        periodoId: period.id,
-        filterArea,
-      });
-      if (!res.ok) return;
-      applyPreviewPayload(res, period.id);
+      try {
+        const res = await loadNominaVistaPreviaDataAction({
+          periodoId: period.id,
+          filterArea,
+        });
+        if (!res.ok) {
+          setError(res.message || 'No se pudo cargar el periodo.');
+          return;
+        }
+        applyPreviewPayload(res, period.id);
+      } catch (err: any) {
+        console.error('[NominaVistaPreviaModal] Error cambiando periodo:', err);
+        setError(err?.message || 'Error de conexión al cambiar periodo.');
+      }
     });
   }
 
   function handleClearPeriod() {
     startPeriodSwitch(async () => {
-      const res = await loadNominaVistaPreviaDataAction(loadOptions);
-      if (!res.ok) return;
-      applyPreviewPayload(res, null);
+      try {
+        const res = await loadNominaVistaPreviaDataAction(loadOptions);
+        if (!res.ok) {
+          setError(res.message || 'No se pudo restablecer el periodo.');
+          return;
+        }
+        applyPreviewPayload(res, null);
+      } catch (err: any) {
+        console.error('[NominaVistaPreviaModal] Error limpiando periodo:', err);
+        setError(err?.message || 'Error de conexión al restablecer.');
+      }
     });
   }
 

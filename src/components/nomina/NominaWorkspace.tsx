@@ -37,15 +37,15 @@ class NominaErrorBoundary extends Component<
                 {this.state.error.message}
               </div>
             )}
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
               <button
                 type="button"
                 onClick={() => {
                   this.setState({ hasError: false, error: null });
                 }}
-                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500 transition-colors shadow-sm"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-3.5 w-3.5" />
                 Restablecer vista
               </button>
               <button
@@ -54,9 +54,27 @@ class NominaErrorBoundary extends Component<
                   this.setState({ hasError: false, error: null });
                   window.location.reload();
                 }}
-                className="inline-flex items-center gap-2 rounded-lg bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-300 hover:bg-neutral-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 transition-colors"
               >
                 Recargar página
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    for (let i = localStorage.length - 1; i >= 0; i--) {
+                      const key = localStorage.key(i);
+                      if (key && (key.startsWith('mineos_manual_') || key.startsWith('mineos_novedad_'))) {
+                        localStorage.removeItem(key);
+                      }
+                    }
+                  } catch {}
+                  window.location.reload();
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/20 transition-colors"
+                title="Borrar borradores locales corruptos y recargar"
+              >
+                Limpiar borradores y recargar
               </button>
             </div>
           </div>

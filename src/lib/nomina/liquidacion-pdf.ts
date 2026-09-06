@@ -60,7 +60,7 @@ let cachedLogoPng: string | null = null;
 let logoFetchPromise: Promise<string | null> | null = null;
 
 async function getLogoPngBase64(): Promise<string | null> {
-  if (cachedLogoPng !== null) return cachedLogoPng;
+  if (cachedLogoPng !== null) return cachedLogoPng || null;
   if (typeof window === 'undefined' || typeof document === 'undefined') return null;
   if (logoFetchPromise) return logoFetchPromise;
   logoFetchPromise = (async () => {
@@ -69,25 +69,34 @@ async function getLogoPngBase64(): Promise<string | null> {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.src = svgUrl;
-      await new Promise<void>((resolve, reject) => {
-        if (img.complete) resolve();
-        else {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error('Logo load failed'));
-        }
-      });
+      await Promise.race([
+        new Promise<void>((resolve, reject) => {
+          if (img.complete && img.naturalWidth > 0) resolve();
+          else {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error('Logo load failed'));
+          }
+        }),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('Logo load timeout')), 1200),
+        ),
+      ]);
       const scale = 3;
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, img.naturalWidth * scale);
-      canvas.height = Math.max(1, img.naturalHeight * scale);
+      canvas.width = Math.max(1, (img.naturalWidth || 100) * scale);
+      canvas.height = Math.max(1, (img.naturalHeight || 30) * scale);
       const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
+      if (!ctx) {
+        cachedLogoPng = '';
+        return null;
+      }
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       cachedLogoPng = canvas.toDataURL('image/png');
       return cachedLogoPng;
     } catch {
+      cachedLogoPng = '';
       return null;
     }
   })();

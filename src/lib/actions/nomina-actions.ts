@@ -783,6 +783,7 @@ export async function consolidarNominaPeriodoAction(input: {
         .map((r) => r.id)
         .filter((id) => id !== periodoId);
       if (duplicateIds.length) {
+        await supabase.from('nomina_semanas').update({ periodo_id: periodoId }).in('periodo_id', duplicateIds);
         await supabase.from('nomina_periodo_semanas').delete().in('periodo_id', duplicateIds);
         await supabase.from('nomina_periodos').delete().in('id', duplicateIds);
       }
@@ -839,7 +840,11 @@ export async function consolidarNominaPeriodoAction(input: {
       );
     }
 
-    revalidateNominaPaths();
+    try {
+      revalidateNominaPaths();
+    } catch (revErr) {
+      console.warn('[consolidarNominaPeriodoAction] Advertencia de revalidación ignorada:', revErr);
+    }
     return {
       ok: true,
       message: canonical?.id ? 'Periodo re-consolidado' : 'Periodo consolidado',

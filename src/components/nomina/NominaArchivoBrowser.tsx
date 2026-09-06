@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Archive, Calendar, Loader2, Trash2 } from 'lucide-react';
 import {
-  consolidarNominaPeriodoAction,
+  consolidarPeriodoClient,
   eliminarImportNominaAction,
   listNominaPeriodosAction,
 } from '@/lib/actions/nomina-actions';
@@ -46,15 +46,18 @@ export function NominaArchivoBrowser({
   function handleConsolidate() {
     if (!consolidateStart || !consolidateEnd || !consolidateLabel.trim()) return;
     startTransition(async () => {
-      const res = await consolidarNominaPeriodoAction({
-        label: consolidateLabel.trim(),
-        rangeStart: consolidateStart,
-        rangeEnd: consolidateEnd,
-        userId,
-        area,
-      });
-      setMsg(res.ok ? res.message : res.message);
-      if (res.ok) refresh();
+      try {
+        const res = await consolidarPeriodoClient({
+          label: consolidateLabel.trim(),
+          rangeStart: consolidateStart,
+          rangeEnd: consolidateEnd,
+          area,
+        });
+        setMsg(res.message);
+        if (res.ok) refresh();
+      } catch (err: any) {
+        setMsg(err?.message || 'Error al consolidar.');
+      }
     });
   }
 

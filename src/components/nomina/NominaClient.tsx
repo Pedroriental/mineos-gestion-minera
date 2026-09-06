@@ -2703,7 +2703,20 @@ export default function NominaClient({
       meta: built.meta,
     });
     try {
-      const { blob, url } = await previewNominaPlantillaPdf(built.data);
+      const { blob, url } = await Promise.race([
+        previewNominaPlantillaPdf(built.data),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  'La generación del PDF tardó demasiado tiempo. Puedes usar el botón de Descargar.',
+                ),
+              ),
+            8000,
+          ),
+        ),
+      ]);
       setPdfPreview((prev) => ({ ...prev, loading: false, blob, url }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo generar el PDF.';

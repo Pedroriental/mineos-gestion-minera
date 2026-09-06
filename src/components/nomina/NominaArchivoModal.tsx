@@ -17,10 +17,10 @@ import {
 import { PageFormModal } from '@/components/ui/PageFormModal';
 import { NominaPeriodPreviewPane } from '@/components/nomina/NominaPeriodPreviewPane';
 import {
-  consolidarNominaPeriodoAction,
   eliminarImportNominaAction,
   listNominaPeriodosAction,
 } from '@/lib/actions/nomina-actions';
+import { consolidarPeriodoClient } from '@/lib/nomina/consolidar-client';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
 import { cn } from '@/lib/utils';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
@@ -74,15 +74,18 @@ export function NominaArchivoModal({ open, onClose, userId, area, onImport, onPe
   function handleConsolidate() {
     if (!consolidateStart || !consolidateEnd || !consolidateLabel.trim()) return;
     startTransition(async () => {
-      const res = await consolidarNominaPeriodoAction({
-        label: consolidateLabel.trim(),
-        rangeStart: consolidateStart,
-        rangeEnd: consolidateEnd,
-        userId,
-        area,
-      });
-      setMsg(res.ok ? res.message : res.message);
-      if (res.ok) refresh();
+      try {
+        const res = await consolidarPeriodoClient({
+          label: consolidateLabel.trim(),
+          rangeStart: consolidateStart,
+          rangeEnd: consolidateEnd,
+          area,
+        });
+        setMsg(res.message);
+        if (res.ok) refresh();
+      } catch (err: any) {
+        setMsg(err?.message || 'Error al consolidar.');
+      }
     });
   }
 

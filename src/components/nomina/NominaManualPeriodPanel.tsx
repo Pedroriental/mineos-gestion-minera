@@ -17,7 +17,7 @@ import {
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { AppCheckbox } from '@/components/ui/AppCheckbox';
 import { AppSelect } from '@/components/ui/AppSelect';
-import { consolidarNominaPeriodoAction } from '@/lib/actions/nomina-actions';
+import { consolidarPeriodoClient } from '@/lib/nomina/consolidar-client';
 import { ensureManualPeriodoVistaAction } from '@/lib/actions/nomina-v3';
 import {
   buildDefaultWeekColumnAssignment,
@@ -119,6 +119,7 @@ export function NominaManualPeriodPanel({
   canEdit = true,
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const [isConsolidando, setIsConsolidando] = useState(false);
   const [draft, setDraft] = useState<ManualNominaPeriod>(() =>
     defaultManualPeriod(undefined, plantillas[0]),
   );
@@ -356,19 +357,19 @@ export function NominaManualPeriodPanel({
     onOpenSemanal?.();
   }
 
-  function handleConsolidate() {
-    if (!period || !progress?.allClosed) return;
+  async function handleConsolidate() {
+    if (!period || !progress?.allClosed || isConsolidando) return;
     const pl =
       plantillaActiva ?? plantillas.find((p) => p.id === period.plantillaId) ?? null;
-    startTransition(async () => {
+    setIsConsolidando(true);
+    try {
       const weekEstatus = pl
         ? buildWeekColumnEstatusForPeriod(period, pl)
         : period.weekColumnEstatus;
-      const res = await consolidarNominaPeriodoAction({
+      const res = await consolidarPeriodoClient({
         label: manualPeriodConsolidateLabel(period),
         rangeStart: period.rangeStart,
         rangeEnd: period.rangeEnd,
-        userId,
         area: area as 'mina' | 'planta',
         metadata: {
           plantilla_id: period.plantillaId,
@@ -387,8 +388,15 @@ export function NominaManualPeriodPanel({
         resetManualPeriodSession(area);
         onPeriodChange(null);
         onConsolidated?.();
-      } else toast.error(res.message);
-    });
+      } else {
+        toast.error(res.message || 'Error al consolidar periodo');
+      }
+    } catch (err: any) {
+      console.error('[NominaManualPeriodPanel] Error consolidando:', err);
+      toast.error(err?.message || 'Error inesperado al consolidar periodo.');
+    } finally {
+      setIsConsolidando(false);
+    }
   }
 
   if (!period) {
@@ -828,7 +836,7 @@ export function NominaManualPeriodPanel({
                 <button
                   type="button"
                   onClick={handleConsolidate}
-                  disabled={pending}
+                  disabled={pending || isConsolidando}
                   className={cn(
                     mineosBtnSubtleClass(editedAfterConsolidation ? 'general' : 'benefit'),
                     'h-7 px-2 text-[10px]',
@@ -841,8 +849,8 @@ export function NominaManualPeriodPanel({
                       : 'Consolidar este periodo en archivo'
                   }
                 >
-                  {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  {editedAfterConsolidation ? 'Re-consolidar' : 'Consolidar'}
+                  {(pending || isConsolidando) ? <Loader2 className="h-3 w-3 animate-spin mr-1 inline" /> : null}
+                  {isConsolidando ? 'Consolidando...' : editedAfterConsolidation ? 'Re-consolidar' : 'Consolidar'}
                 </button>
               ))}
             {!activeWeekInPeriod && (

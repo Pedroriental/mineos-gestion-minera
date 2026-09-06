@@ -362,7 +362,20 @@ export function LiquidacionDespedidosPanel({ area, personal, distribucionPartes,
     const { pdfRows, meta, distLineas } = buildLiquidacionPdfPayload();
     setPdfPreview({ open: true, loading: true, error: null, blob: null, url: null, title: `Liquidación · ${meta.areaLabel}` });
     try {
-      const { blob, url } = await previewLiquidacionPdf(pdfRows, meta, distLineas);
+      const { blob, url } = await Promise.race([
+        previewLiquidacionPdf(pdfRows, meta, distLineas),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  'La generación del PDF tardó demasiado tiempo. Puedes usar el botón de Descargar.',
+                ),
+              ),
+            8000,
+          ),
+        ),
+      ]);
       setPdfPreview((prev) => ({ ...prev, loading: false, blob, url }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo generar el PDF.';
