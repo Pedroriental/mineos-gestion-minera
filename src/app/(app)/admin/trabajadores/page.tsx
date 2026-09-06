@@ -1,6 +1,6 @@
 import { createServerClient } from '@/lib/supabase-server';
 import type { PerfilCompensacion, Personal } from '@/lib/types';
-import TrabajadoresRegistryClient from '@/components/nomina/TrabajadoresRegistryClient';
+import TrabajadoresWorkspace from '@/components/nomina/TrabajadoresWorkspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +67,7 @@ export default async function AdminTrabajadoresPage() {
     const safePerfiles = JSON.parse(JSON.stringify(perfiles));
 
     return (
-      <TrabajadoresRegistryClient
+      <TrabajadoresWorkspace
         trabajadores={safeTrabajadores}
         perfilesCompensacion={safePerfiles}
       />
@@ -75,7 +75,7 @@ export default async function AdminTrabajadoresPage() {
   } catch (err) {
     console.error('[AdminTrabajadoresPage] Fatal error rendering trabajadores page:', err);
     return (
-      <TrabajadoresRegistryClient
+      <TrabajadoresWorkspace
         trabajadores={[]}
         perfilesCompensacion={[]}
       />

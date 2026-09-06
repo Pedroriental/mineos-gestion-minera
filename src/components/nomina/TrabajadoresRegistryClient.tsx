@@ -210,11 +210,12 @@ const ESTADOS_FILTRO: { value: EstadoLaboral; label: string }[] = [
   { value: 'REENGANCHADO', label: 'Reenganchado' },
 ];
 
-function estadoLabel(estado: EstadoLaboral): string {
+function estadoLabel(estado?: EstadoLaboral | null): string {
+  if (!estado) return 'Activo';
   const found = ESTADOS_FILTRO.find((e) => e.value === estado);
   if (found) return found.label;
-  const raw = estado.trim().toLowerCase();
-  return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : estado;
+  const raw = String(estado).trim().toLowerCase();
+  return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Activo';
 }
 
 function filterPillClass(active: boolean) {

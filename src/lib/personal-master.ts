@@ -59,7 +59,8 @@ export function isPersonalVisibleInNomina(
 }
 
 /** Asignación en nómina (vertical/sector). No confundir con cargo (puesto). */
-export function getAsignacionNomina(p: Pick<Personal, 'area_detalle' | 'area'>): string | null {
+export function getAsignacionNomina(p?: Pick<Personal, 'area_detalle' | 'area'> | null): string | null {
+  if (!p) return null;
   return normalizeAreaDetalle(p.area_detalle || '', p.area);
 }
 
@@ -130,11 +131,12 @@ export function getUbicacionLaboralLabel(
   return snapshot?.ubicacionDefaultPorArea?.[area] ?? area;
 }
 
-export function normalizeAreaDetalle(value: string, area: string): string | null {
-  const t = value.trim();
+export function normalizeAreaDetalle(value?: string | null, area?: string | null): string | null {
+  const t = (value || '').trim();
   if (!t) return null;
   const n = t.toLowerCase();
-  if (n === 'general' || n === area.toLowerCase()) return null;
+  const a = (area || '').toLowerCase();
+  if (n === 'general' || (a && n === a)) return null;
   return t;
 }
 
@@ -160,8 +162,8 @@ export function formatNombrePropio(value: unknown): string {
     .join(' ');
 }
 
-export function displayNombrePersonal(p: Pick<Personal, 'nombre_completo'>): string {
-  return formatNombrePropio(p.nombre_completo || '');
+export function displayNombrePersonal(p?: Pick<Personal, 'nombre_completo'> | null): string {
+  return formatNombrePropio(p?.nombre_completo || '');
 }
 
 function normalizeNombreText(value: string): string {
