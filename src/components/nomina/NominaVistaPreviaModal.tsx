@@ -6,8 +6,10 @@ import { PageFormModal } from '@/components/ui/PageFormModal';
 import NominaVistaPreviaContent, {
   type NominaPreviewRange,
 } from '@/components/nomina/NominaVistaPreviaContent';
-import { loadNominaVistaPreviaDataAction } from '@/lib/actions/nomina-preview-data';
-import { listNominaPeriodosAction } from '@/lib/actions/nomina-actions';
+import {
+  fetchNominaVistaPreviaClient,
+  type VistaPreviaClientResponse,
+} from '@/lib/nomina/vista-previa-client';
 import { nominaPeriodoMatchesArea, dedupePreviewRegistros } from '@/lib/nomina-preview';
 import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
@@ -143,7 +145,6 @@ export function NominaVistaPreviaModal({
   const [selectedPeriodoId, setSelectedPeriodoId] = useState<string | null>(null);
   const [isPeriodSwitching, startPeriodSwitch] = useTransition();
 
-  const loadOptions = { filterArea };
   const activeWeekRef = useRef(activeWeek);
   const activeRegistrosRef = useRef(activeRegistros);
   activeWeekRef.current = activeWeek;
@@ -151,7 +152,7 @@ export function NominaVistaPreviaModal({
 
   const applyPreviewPayload = useCallback(
     (
-      previewRes: Awaited<ReturnType<typeof loadNominaVistaPreviaDataAction>>,
+      previewRes: VistaPreviaClientResponse,
       periodoId: string | null,
     ) => {
       if (!previewRes.ok) return false;
@@ -200,7 +201,9 @@ export function NominaVistaPreviaModal({
     const scoped = filterArea
       ? periodos.filter((p) => nominaPeriodoMatchesArea(p, filterArea))
       : periodos;
-    return scoped.find((p) => p.rangeStart === range.start && p.rangeEnd === range.end) ?? null;
+    const exact = scoped.find((p) => p.rangeStart === range.start && p.rangeEnd === range.end);
+    if (exact) return exact;
+    return scoped.find((p) => p.rangeStart <= range.start && p.rangeEnd >= range.end) ?? null;
   }
 
   // Carga inicial al abrir o cuando refreshKey cambia (sin depender de activeRegistros).
@@ -214,26 +217,12 @@ export function NominaVistaPreviaModal({
 
     (async () => {
       try {
-        const periodosRes = await listNominaPeriodosAction();
-        if (cancelled) return;
-
-        const periodos = periodosRes.ok
-          ? periodosRes.periodos.filter((p) => p.totalUsd > 0 || p.semanaCount > 0)
-          : [];
-        const archived = filterArea
-          ? periodos.filter((p) => nominaPeriodoMatchesArea(p, filterArea))
-          : periodos;
-        setArchivedPeriods(archived);
-
-        const matchedPeriod =
-          (periodoToKeep ? archived.find((p) => p.id === periodoToKeep) : null) ??
-          resolvePeriodForRange(archived, initialRange);
-
-        const previewRes = await loadNominaVistaPreviaDataAction(
-          matchedPeriod
-            ? { periodoId: matchedPeriod.id, filterArea }
-            : loadOptions,
-        );
+        const previewRes = await fetchNominaVistaPreviaClient({
+          filterArea,
+          periodoId: periodoToKeep ?? undefined,
+          rangeStart: initialRange?.start,
+          rangeEnd: initialRange?.end,
+        });
         if (cancelled) return;
 
         if (!previewRes.ok) {
@@ -241,7 +230,18 @@ export function NominaVistaPreviaModal({
           return;
         }
 
-        applyPreviewPayload(previewRes, matchedPeriod?.id ?? null);
+        const periodos = previewRes.periodos.filter((p) => p.totalUsd > 0 || p.semanaCount > 0);
+        const archived = filterArea
+          ? periodos.filter((p) => nominaPeriodoMatchesArea(p, filterArea))
+          : periodos;
+        setArchivedPeriods(archived);
+
+        const matchedPeriod =
+          (periodoToKeep ? archived.find((p) => p.id === periodoToKeep) : null) ??
+          (previewRes.activePeriodoId ? archived.find((p) => p.id === previewRes.activePeriodoId) : null) ??
+          resolvePeriodForRange(archived, initialRange);
+
+        applyPreviewPayload(previewRes, matchedPeriod?.id ?? previewRes.activePeriodoId ?? null);
       } catch (err: any) {
         console.error('[NominaVistaPreviaModal] Error cargando vista previa:', err);
         if (cancelled) return;
@@ -275,7 +275,7 @@ export function NominaVistaPreviaModal({
   function handlePeriodSelect(period: NominaPeriodoSummary) {
     startPeriodSwitch(async () => {
       try {
-        const res = await loadNominaVistaPreviaDataAction({
+        const res = await fetchNominaVistaPreviaClient({
           periodoId: period.id,
           filterArea,
         });
@@ -294,7 +294,11 @@ export function NominaVistaPreviaModal({
   function handleClearPeriod() {
     startPeriodSwitch(async () => {
       try {
-        const res = await loadNominaVistaPreviaDataAction(loadOptions);
+        const res = await fetchNominaVistaPreviaClient({
+          filterArea,
+          rangeStart: initialRange?.start,
+          rangeEnd: initialRange?.end,
+        });
         if (!res.ok) {
           setError(res.message || 'No se pudo restablecer el periodo.');
           return;

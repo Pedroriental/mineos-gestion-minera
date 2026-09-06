@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import NominaVistaPreviaContent from '@/components/nomina/NominaVistaPreviaContent';
-import { loadNominaVistaPreviaDataAction } from '@/lib/actions/nomina-preview-data';
-import { listNominaPeriodosAction } from '@/lib/actions/nomina-actions';
+import { fetchNominaVistaPreviaClient } from '@/lib/nomina/vista-previa-client';
 import type { NominaRegistroCerrado } from '@/lib/nomina-preview';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
 import type { Personal } from '@/lib/types';
@@ -38,24 +37,30 @@ export function NominaPeriodPreviewPane({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([
-      loadNominaVistaPreviaDataAction({ rangeStart, rangeEnd, periodoId, filterArea }),
-      listNominaPeriodosAction(),
-    ]).then(([previewRes, periodosRes]) => {
-      if (cancelled) return;
-      setLoading(false);
-      if (!previewRes.ok) {
-        setError(previewRes.message || 'No se pudo cargar la vista previa');
-        return;
-      }
-      setPersonal(previewRes.personal);
-      setRegistrosCerrados(previewRes.registrosCerrados);
-      setSemanasCerradas(previewRes.semanasCerradas);
-      setTotalRegistrosHistoricos(previewRes.totalRegistrosHistoricos);
-      if (periodosRes.ok) {
-        setArchivedPeriods(periodosRes.periodos.filter((p) => p.totalUsd > 0 || p.semanaCount > 0));
-      }
-    });
+
+    fetchNominaVistaPreviaClient({ rangeStart, rangeEnd, periodoId, filterArea })
+      .then((previewRes) => {
+        if (cancelled) return;
+        setLoading(false);
+        if (!previewRes.ok) {
+          setError(previewRes.message || 'No se pudo cargar la vista previa');
+          return;
+        }
+        setPersonal(previewRes.personal);
+        setRegistrosCerrados(previewRes.registrosCerrados);
+        setSemanasCerradas(previewRes.semanasCerradas);
+        setTotalRegistrosHistoricos(previewRes.totalRegistrosHistoricos);
+        const periodos = (previewRes.periodos || []).filter(
+          (p) => p.totalUsd > 0 || p.semanaCount > 0,
+        );
+        setArchivedPeriods(periodos);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoading(false);
+        setError(err?.message || 'Error de conexión al cargar la vista previa.');
+      });
+
     return () => {
       cancelled = true;
     };

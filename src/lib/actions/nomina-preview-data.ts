@@ -16,23 +16,33 @@ async function resolvePeriodoIdForPreview(
   },
 ): Promise<string | undefined> {
   if (options?.periodoId) return options.periodoId;
-  if (!options?.rangeStart || !options?.rangeEnd) return undefined;
-
-  const { data: periodos } = await supabase
+  let query = supabase
     .from('nomina_periodos')
     .select('id, range_start, range_end, metadata, total_usd, semana_count')
-    .eq('range_start', options.rangeStart)
-    .eq('range_end', options.rangeEnd);
+    .order('range_start', { ascending: false });
 
+  const { data: periodos } = await query;
   if (!periodos?.length) return undefined;
 
   const scoped = periodos.filter((p) => {
     const metaArea = (p.metadata as { area?: string } | null)?.area;
-    if (options.filterArea && typeof metaArea === 'string') {
+    if (options?.filterArea && typeof metaArea === 'string') {
       return metaArea === options.filterArea;
     }
     return true;
   });
+
+  if (options?.rangeStart && options?.rangeEnd) {
+    const exact = scoped.find(
+      (p) => p.range_start === options.rangeStart && p.range_end === options.rangeEnd,
+    );
+    if (exact) return exact.id as string;
+
+    const containing = scoped.find(
+      (p) => p.range_start <= options.rangeStart! && p.range_end >= options.rangeEnd!,
+    );
+    if (containing) return containing.id as string;
+  }
 
   const withData = scoped.filter(
     (p) => Number(p.total_usd) > 0 || Number(p.semana_count) > 0,
@@ -86,6 +96,7 @@ export async function loadNominaVistaPreviaDataAction(options?: {
       if (options?.rangeEnd) {
         semanasQuery = semanasQuery.lte('semana_inicio', options.rangeEnd);
       }
+      semanasQuery = semanasQuery.limit(12);
     }
 
     const { data: semanasRows } = await semanasQuery;
