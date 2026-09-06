@@ -89,10 +89,11 @@ export function getGrupoNominaKey(p: Pick<Personal, 'area_detalle' | 'area' | 'c
 
 /** Etiqueta del módulo de nómina (uso interno / menú). */
 export function areaNominaLabel(
-  area: string,
+  area?: string | null,
   snapshot: BibliotecaAppSnapshot = FALLBACK_SNAPSHOT,
 ): string {
-  const base = snapshot.areaNominaLabels[area];
+  if (!area) return 'Nómina';
+  const base = snapshot?.areaNominaLabels?.[area];
   if (base) return `Nómina ${base}`;
   return `Nómina ${area}`;
 }
@@ -119,12 +120,14 @@ export const UBICACION_SUGERENCIAS_POR_AREA = FALLBACK_SNAPSHOT.ubicacionSugeren
 
 /** Sitio donde labora el trabajador (lo que se muestra bajo el nombre en la base). */
 export function getUbicacionLaboralLabel(
-  p: Pick<Personal, 'area' | 'ubicacion_laboral'>,
+  p?: Pick<Personal, 'area' | 'ubicacion_laboral'> | null,
   snapshot: BibliotecaAppSnapshot = FALLBACK_SNAPSHOT,
 ): string {
+  if (!p) return '';
   const custom = (p.ubicacion_laboral || '').trim();
   if (custom) return custom;
-  return snapshot.ubicacionDefaultPorArea[p.area] ?? p.area;
+  const area = p.area || '';
+  return snapshot?.ubicacionDefaultPorArea?.[area] ?? area;
 }
 
 export function normalizeAreaDetalle(value: string, area: string): string | null {

@@ -243,14 +243,16 @@ function emptyEstadoModal(): EstadoModal {
 }
 
 export default function TrabajadoresRegistryClient({
-  trabajadores,
-  perfilesCompensacion,
+  trabajadores = [],
+  perfilesCompensacion = [],
 }: Props) {
   const router = useRouter();
   const biblioteca = useBiblioteca();
   const areaOptions = useBibliotecaOptions('areas_nomina');
   const asignacionOptions = useBibliotecaOptions('asignacion_nomina');
-  const [localTrabajadores, setLocalTrabajadores] = useState(trabajadores);
+  const [localTrabajadores, setLocalTrabajadores] = useState<Personal[]>(() =>
+    Array.isArray(trabajadores) ? trabajadores.filter(Boolean) : [],
+  );
   const [search, setSearch] = useState('');
   const [filterNomina, setFilterNomina] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
@@ -272,21 +274,26 @@ export default function TrabajadoresRegistryClient({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setLocalTrabajadores(trabajadores);
+    setLocalTrabajadores(Array.isArray(trabajadores) ? trabajadores.filter(Boolean) : []);
   }, [trabajadores]);
 
   const cargoOptions = useMemo(
     () =>
       mergeSuggestions(
-        biblioteca.cargoSuggestions,
-        localTrabajadores.map((t) => (t.cargo || '').trim()).filter(Boolean),
+        biblioteca?.cargoSuggestions || [],
+        (localTrabajadores || []).map((t) => (t?.cargo || '').trim()).filter(Boolean),
       ),
-    [biblioteca.cargoSuggestions, localTrabajadores],
+    [biblioteca?.cargoSuggestions, localTrabajadores],
+  );
+
+  const safePerfiles = useMemo(
+    () => (Array.isArray(perfilesCompensacion) ? perfilesCompensacion.filter(Boolean) : []),
+    [perfilesCompensacion],
   );
 
   const selectedPerfil = useMemo(
-    () => perfilesCompensacion.find((p) => p.id === form.perfil_compensacion_id) ?? null,
-    [perfilesCompensacion, form.perfil_compensacion_id],
+    () => safePerfiles.find((p) => p.id === form.perfil_compensacion_id) ?? null,
+    [safePerfiles, form.perfil_compensacion_id],
   );
   const selectedPerfilTieneRotacion =
     !!selectedPerfil &&
@@ -334,7 +341,8 @@ export default function TrabajadoresRegistryClient({
 
   const sitiosDisponibles = useMemo(() => {
     const set = new Set<string>();
-    for (const t of localTrabajadores) {
+    for (const t of localTrabajadores || []) {
+      if (!t) continue;
       const u = getUbicacionLaboralLabel(t);
       if (u) set.add(u);
     }
@@ -343,7 +351,8 @@ export default function TrabajadoresRegistryClient({
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return localTrabajadores.filter((t) => {
+    return (localTrabajadores || []).filter((t) => {
+      if (!t) return false;
       const estado = (t.estado_laboral || 'ACTIVO') as EstadoLaboral;
       if (filterNomina && t.area !== filterNomina) return false;
       if (filterEstado && estado !== filterEstado) return false;
@@ -351,9 +360,9 @@ export default function TrabajadoresRegistryClient({
       if (filterCuadrilla && (t.cuadrilla || '').trim() !== filterCuadrilla) return false;
       if (!q) return true;
       return [
-        t.nombre_completo,
-        t.cedula,
-        t.cargo,
+        t.nombre_completo || '',
+        t.cedula || '',
+        t.cargo || '',
         t.area_detalle || '',
         getAsignacionNomina(t) || '',
         getUbicacionLaboralLabel(t),
@@ -382,7 +391,8 @@ export default function TrabajadoresRegistryClient({
   /** Cuadrillas únicas en el dataset actual (para filtro y listado). */
   const cuadrillasUnicas = useMemo(() => {
     const set = new Set<string>();
-    for (const t of localTrabajadores) {
+    for (const t of localTrabajadores || []) {
+      if (!t) continue;
       const c = (t.cuadrilla || '').trim();
       if (c) set.add(c);
     }
@@ -440,9 +450,9 @@ export default function TrabajadoresRegistryClient({
   const trabajadoresById = useMemo(
     () =>
       new Map(
-        localTrabajadores.map((t) => [
+        (localTrabajadores || []).filter(Boolean).map((t) => [
           t.id,
-          { nombre_completo: t.nombre_completo, cedula: t.cedula },
+          { nombre_completo: t.nombre_completo || '', cedula: t.cedula || '' },
         ]),
       ),
     [localTrabajadores],
@@ -508,7 +518,7 @@ export default function TrabajadoresRegistryClient({
   function openCreate() {
     setForm({
       ...EMPTY_FORM,
-      ubicacion_laboral: biblioteca.ubicacionDefaultPorArea.administracion || '',
+      ubicacion_laboral: biblioteca?.ubicacionDefaultPorArea?.administracion || '',
     });
     setDocCedula(null);
     setFotoCarnet(null);
