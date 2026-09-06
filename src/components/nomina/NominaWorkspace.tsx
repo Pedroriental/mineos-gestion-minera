@@ -37,17 +37,28 @@ class NominaErrorBoundary extends Component<
                 {this.state.error.message}
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                this.setState({ hasError: false, error: null });
-                window.location.reload();
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Recargar nómina
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 transition-colors shadow-sm"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Restablecer vista
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                  window.location.reload();
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-300 hover:bg-neutral-700 transition-colors"
+              >
+                Recargar página
+              </button>
+            </div>
           </div>
         </div>
       );

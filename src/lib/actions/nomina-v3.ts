@@ -53,8 +53,23 @@ export type ActionResult =
   | { ok: true;  message: string; data?: any }
   | { ok: false; message: string };
 
-function revalidateAll() {
-  PERSONAL_SYNC_PATHS.forEach((p) => revalidatePath(p));
+function safeRevalidateNomina(targetArea?: string) {
+  const paths = ['/admin/trabajadores'];
+  if (targetArea) {
+    const area = targetArea.toLowerCase().trim();
+    if (area === 'mina') paths.push('/mina/nomina');
+    else if (area === 'planta' || area === 'molino') paths.push('/planta/nomina');
+    else if (area === 'administracion' || area === 'admin') paths.push('/admin/nomina');
+  } else {
+    paths.push('/mina/nomina', '/planta/nomina', '/admin/nomina');
+  }
+  for (const p of paths) {
+    try {
+      revalidatePath(p);
+    } catch (err) {
+      console.warn('[safeRevalidateNomina] error revalidating path:', p, err);
+    }
+  }
 }
 
 function snapshotFromCierreRow(
@@ -219,7 +234,7 @@ export async function upsertPersonalV3Action(raw: {
     }
 
     if (error) return { ok: false, message: error.message };
-    revalidateAll();
+    safeRevalidateNomina(data.area);
     return { ok: true, message: hasId ? 'Trabajador actualizado.' : 'Trabajador registrado.' };
   } catch (e) {
     console.error('[upsertPersonalV3Action] error:', e);
@@ -322,7 +337,7 @@ export async function assignPersonalToNominaAreaAction(input: {
     const { error } = await supabase.from('personal').update(payload).eq('id', data.personalId);
     if (error) return { ok: false, message: error.message };
 
-    revalidateAll();
+    safeRevalidateNomina(data.targetArea);
     return { ok: true, message: `${row.nombre_completo} asignado a esta nómina.` };
   } catch {
     return { ok: false, message: 'Error interno del servidor.' };
@@ -417,7 +432,7 @@ export async function createAndAssignPersonalNominaAction(
 
     if (error) return { ok: false, message: error.message };
 
-    revalidateAll();
+    safeRevalidateNomina(data.targetArea);
     const createdPersonal: Personal = {
       id: inserted.id,
       complex_id: complexId,
@@ -503,7 +518,7 @@ export async function crearValeAction(
       estado: 'PENDIENTE',
     });
     if (error) return { ok: false, message: error.message };
-    revalidateAll();
+    safeRevalidateNomina();
     return { ok: true, message: 'Vale registrado correctamente.' };
   } catch {
     return { ok: false, message: 'Error interno.' };
@@ -519,7 +534,7 @@ export async function eliminarValeAction(valeId: string): Promise<ActionResult> 
     const supabase = await createServerClient();
     const { error } = await supabase.from('nomina_vales').delete().eq('id', id);
     if (error) return { ok: false, message: error.message };
-    revalidateAll();
+    safeRevalidateNomina();
     return { ok: true, message: 'Vale eliminado.' };
   } catch {
     return { ok: false, message: 'Error interno.' };
@@ -673,7 +688,7 @@ async function procesarCierreHistoricoManualV3(
     userId,
   );
 
-  revalidateAll();
+  safeRevalidateNomina(area);
   return {
     ok: true,
     message: `Semana histórica cerrada manualmente — $${totalNomina.toFixed(2)} (${rows.length} trabajadores).`,
@@ -922,7 +937,7 @@ export async function procesarCierreNominaV3Action(
     }
     // ── FIN FASE 4 ───────────────────────────────────────────────────────
 
-    revalidateAll();
+    safeRevalidateNomina(area);
     return {
       ok: true,
       message: `Nómina cerrada — $${totalNomina.toFixed(2)} para ${rows.length} trabajadores. Vales liquidados.`,

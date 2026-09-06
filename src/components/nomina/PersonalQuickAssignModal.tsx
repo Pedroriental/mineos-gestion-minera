@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, Search, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageFormModal } from '@/components/ui/PageFormModal';
@@ -100,7 +100,7 @@ export function PersonalQuickAssignModal({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
-  const [isPending, startTransition] = useTransition();
+  const [isSaving, setIsSaving] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const asignacionBiblioteca = useBibliotecaOptions('asignacion_nomina');
 
@@ -310,11 +310,11 @@ export function PersonalQuickAssignModal({
     createdPersonal?: Personal,
   ) {
     toast.success(message);
-    onAssigned(personalId, areaDetalle, createdPersonal);
+    onAssigned(personalId, areaDetalle, createdPersonal || selected || undefined);
     onClose();
   }
 
-  function assignExisting() {
+  async function assignExisting() {
     setError(null);
     if (!selected) {
       setError('Selecciona un trabajador de la lista.');
@@ -334,7 +334,8 @@ export function PersonalQuickAssignModal({
       return;
     }
 
-    startTransition(async () => {
+    setIsSaving(true);
+    try {
       const res = await assignPersonalToNominaAreaAction({
         personalId: selected.id,
         targetArea: area,
@@ -345,11 +346,18 @@ export function PersonalQuickAssignModal({
         toast.error(res.message);
         return;
       }
-      finishAssign(selected.id, asignacionNomina, res.message);
-    });
+      finishAssign(selected.id, asignacionNomina, res.message, selected);
+    } catch (err: any) {
+      console.error('[PersonalQuickAssignModal] assignExisting error:', err);
+      const msg = err?.message || 'Error al asignar trabajador.';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
-  function createNew() {
+  async function createNew() {
     setError(null);
     if (!createForm.nombre_completo.trim() || !createForm.cedula.trim()) {
       setError('Nombre y cédula son obligatorios.');
@@ -368,7 +376,8 @@ export function PersonalQuickAssignModal({
       return;
     }
 
-    startTransition(async () => {
+    setIsSaving(true);
+    try {
       const res = await createAndAssignPersonalNominaAction({
         cedula: createForm.cedula.trim(),
         nombre_completo: createForm.nombre_completo.trim(),
@@ -402,7 +411,14 @@ export function PersonalQuickAssignModal({
         res.message,
         (res as any).data?.personal as Personal | undefined,
       );
-    });
+    } catch (err: any) {
+      console.error('[PersonalQuickAssignModal] createNew error:', err);
+      const msg = err?.message || 'Error al crear trabajador.';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function submit() {
@@ -827,10 +843,10 @@ export function PersonalQuickAssignModal({
           <button
             type="button"
             onClick={submit}
-            disabled={isPending || !canSubmit}
+            disabled={isSaving || !canSubmit}
             className="btn-primary w-full py-3 text-sm disabled:opacity-50"
           >
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {mode === 'create'
               ? 'Crear y agregar a nómina'
               : selected && assignedIds.has(selected.id)

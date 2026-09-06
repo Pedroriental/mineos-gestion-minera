@@ -18,6 +18,11 @@ import type {
   EstatusRotacionPlantilla,
 } from '@/lib/rotacion-plantillas/types';
 import { isMissingRotacionTableError } from '@/lib/rotacion-plantillas/db-compat';
+export type { RotacionPlantillaListResult } from '@/lib/rotacion-plantillas/rotacion-data.server';
+import {
+  listRotacionPlantillasWithMetaData,
+  listRotacionPlantillasData,
+} from '@/lib/rotacion-plantillas/rotacion-data.server';
 
 export type RotacionPlantillaActionResult =
   | { ok: true; message: string; id?: string }
@@ -276,90 +281,14 @@ async function tryPatchPlantillaInPlace(
   return { ok: true, message: 'Plantilla actualizada.', id: plantillaId };
 }
 
-export type RotacionPlantillaListResult = {
-  plantillas: RotacionPlantillaRecord[];
-  migrationRequired: boolean;
-};
-
 export async function listRotacionPlantillasAction(area: string): Promise<RotacionPlantillaRecord[]> {
-  const result = await listRotacionPlantillasWithMetaAction(area);
-  return result.plantillas;
+  return await listRotacionPlantillasData(area);
 }
 
 export async function listRotacionPlantillasWithMetaAction(
   area: string,
 ): Promise<RotacionPlantillaListResult> {
-  const supabase = await createServerClient();
-  const { data: plantillas } = await supabase
-    .from('rotacion_plantillas')
-    .select('*')
-    .eq('area', area)
-    .eq('activo', true)
-    .order('nombre');
-
-  if (!plantillas?.length) return { plantillas: [], migrationRequired: false };
-
-  const ids = plantillas.map((p) => p.id);
-
-  const cuadrillasRes = await supabase
-    .from('rotacion_plantilla_cuadrillas')
-    .select('*')
-    .in('plantilla_id', ids)
-    .order('orden');
-
-  const migrationRequired = isMissingRotacionTableError(cuadrillasRes.error);
-
-  const [{ data: semanas }, { data: asignaciones }] = await Promise.all([
-    supabase.from('rotacion_plantilla_semanas').select('*').in('plantilla_id', ids).order('orden'),
-    supabase.from('rotacion_plantilla_asignaciones').select('*').in('plantilla_id', ids),
-  ]);
-
-  const cuadrillas = migrationRequired ? [] : (cuadrillasRes.data ?? []);
-
-  const plantillasBuilt = plantillas.map((p) => {
-    const pCuadrillas = (cuadrillas ?? []).filter((c) => c.plantilla_id === p.id) as DbCuadrilla[];
-    const pSemanas = (semanas ?? []).filter((s) => s.plantilla_id === p.id) as DbSemana[];
-    const pAsig = (asignaciones ?? []).filter((a) => a.plantilla_id === p.id) as DbAsignacion[];
-
-    const plantillaColumnas = normalizeColumnasVista(
-      (p as { columnas_vista?: unknown }).columnas_vista,
-    );
-    let cuadrillasBuilt = buildCuadrillasFromDb(pCuadrillas, pSemanas, pAsig, plantillaColumnas);
-
-    // Legacy sin tabla cuadrillas: agrupar todo en General
-    if (!cuadrillasBuilt.length && pSemanas.length) {
-      cuadrillasBuilt = buildCuadrillasFromDb(
-        [
-          {
-            id: `legacy-${p.id}`,
-            plantilla_id: p.id,
-            nombre: 'General',
-            asignacion_key: null,
-            orden: 0,
-          },
-        ],
-        pSemanas.map((s) => ({ ...s, cuadrilla_id: `legacy-${p.id}` })),
-        pAsig.map((a) => ({ ...a, cuadrilla_id: `legacy-${p.id}` })),
-        plantillaColumnas,
-      );
-    }
-
-    return {
-      id: p.id,
-      nombre: p.nombre,
-      descripcion: p.descripcion ?? '',
-      area: p.area,
-      activo: p.activo,
-      created_at: p.created_at,
-      updated_at: p.updated_at,
-      columnasVista: normalizeColumnasVista(
-        (p as { columnas_vista?: unknown }).columnas_vista,
-      ),
-      cuadrillas: cuadrillasBuilt,
-    } as RotacionPlantillaRecord;
-  });
-
-  return { plantillas: plantillasBuilt, migrationRequired };
+  return await listRotacionPlantillasWithMetaData(area);
 }
 
 export async function saveRotacionPlantillaAction(

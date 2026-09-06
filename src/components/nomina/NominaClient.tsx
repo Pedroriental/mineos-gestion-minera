@@ -1082,17 +1082,43 @@ export default function NominaClient({
       };
 
       setPreNominaRows((prev) => {
-        const existingIdx = prev.findIndex((r) => r.personal.id === personalId);
-        if (existingIdx >= 0) {
-          const updated = prev.map((r) =>
-            r.personal.id === personalId
-              ? { ...r, personal: { ...r.personal, area_detalle: areaDetalle } }
-              : r,
-          );
+        try {
+          const existingIdx = prev.findIndex((r) => r.personal.id === personalId);
+          if (existingIdx >= 0) {
+            const updated = prev.map((r) =>
+              r.personal.id === personalId
+                ? { ...r, personal: { ...r.personal, area_detalle: areaDetalle } }
+                : r,
+            );
+            if (isManualPeriodWeek && manualPlantillaActiva && manualPeriodForView) {
+              const rebuilt = buildManualPlantillaNominaRows({
+                plantilla: manualPlantillaActiva,
+                personalCatalog: updated.map((r) => r.personal),
+                personalIds: [personalId],
+                weekStart: weekRange.inicio,
+                periodStart: manualPeriodForView.rangeStart,
+                periodEnd: manualPeriodForView.rangeEnd,
+                weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
+                weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
+                valesMap: {},
+                weekEnd: weekRange.fin,
+                forceIncludeIds: [personalId],
+              });
+              if (rebuilt.length) {
+                const weekDraft = readNominaNovedadDraft(
+                  novedadDraftKeyForWeek(weekRange.inicio),
+                );
+                const nextRow = applyWeekDraft(rebuilt[0], weekRange.inicio, weekDraft[personalId]);
+                return prev.map((r) => (r.personal.id === personalId ? nextRow : r));
+              }
+            }
+            return updated;
+          }
+
           if (isManualPeriodWeek && manualPlantillaActiva && manualPeriodForView) {
-            const rebuilt = buildManualPlantillaNominaRows({
+            const built = buildManualPlantillaNominaRows({
               plantilla: manualPlantillaActiva,
-              personalCatalog: updated.map((r) => r.personal),
+              personalCatalog: [personal],
               personalIds: [personalId],
               weekStart: weekRange.inicio,
               periodStart: manualPeriodForView.rangeStart,
@@ -1103,45 +1129,32 @@ export default function NominaClient({
               weekEnd: weekRange.fin,
               forceIncludeIds: [personalId],
             });
-            if (rebuilt.length) {
-              const weekDraft = readNominaNovedadDraft(
-                novedadDraftKeyForWeek(weekRange.inicio),
-              );
-              const nextRow = applyWeekDraft(rebuilt[0], weekRange.inicio, weekDraft[personalId]);
-              return prev.map((r) => (r.personal.id === personalId ? nextRow : r));
-            }
+            if (!built.length) return prev;
+            const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
+            return [...prev, applyWeekDraft(built[0], weekRange.inicio, weekDraft[personalId])];
           }
-          return updated;
-        }
 
-        if (isManualPeriodWeek && manualPlantillaActiva && manualPeriodForView) {
-          const built = buildManualPlantillaNominaRows({
-            plantilla: manualPlantillaActiva,
-            personalCatalog: [personal],
-            personalIds: [personalId],
-            weekStart: weekRange.inicio,
-            periodStart: manualPeriodForView.rangeStart,
-            periodEnd: manualPeriodForView.rangeEnd,
-            weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
-            weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
-            valesMap: {},
-            weekEnd: weekRange.fin,
-            forceIncludeIds: [personalId],
-          });
-          if (!built.length) return prev;
           const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
-          return [...prev, applyWeekDraft(built[0], weekRange.inicio, weekDraft[personalId])];
+          return [
+            ...prev,
+            applyWeekDraft(
+              buildOperationalNominaRow(personal, weekRange.inicio, {}),
+              weekRange.inicio,
+              weekDraft[personalId],
+            ),
+          ];
+        } catch (err) {
+          console.error('[appendAssignedWorker] error adding row, falling back to operational row:', err);
+          const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
+          return [
+            ...prev,
+            applyWeekDraft(
+              buildOperationalNominaRow(personal, weekRange.inicio, {}),
+              weekRange.inicio,
+              weekDraft[personalId],
+            ),
+          ];
         }
-
-        const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
-        return [
-          ...prev,
-          applyWeekDraft(
-            buildOperationalNominaRow(personal, weekRange.inicio, {}),
-            weekRange.inicio,
-            weekDraft[personalId],
-          ),
-        ];
       });
     },
     [

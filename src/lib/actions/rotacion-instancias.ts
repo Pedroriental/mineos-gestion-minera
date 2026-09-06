@@ -11,6 +11,10 @@ import {
   type InstanciaActivaSnapshot,
 } from '@/lib/rotacion-plantillas/projection';
 import {
+  getInstanciaActivaData,
+  loadInstanciaSnapshotByIdData,
+} from '@/lib/rotacion-plantillas/rotacion-data.server';
+import {
   avanzarPosicionCuadrilla,
   buildBalanceExportCuadrilla,
   calcularSubtotalesCuadrilla,
@@ -34,69 +38,11 @@ function revalidateNomina() {
 }
 
 async function loadInstanciaSnapshotById(instanciaId: string): Promise<InstanciaActivaSnapshot | null> {
-  try {
-    const supabase = await createServerClient();
-
-    const { data: instancia } = await supabase
-      .from('rotacion_plantilla_instancias')
-      .select('*')
-      .eq('id', instanciaId)
-      .maybeSingle();
-
-    if (!instancia) return null;
-
-    const { data: pRow } = await supabase
-      .from('rotacion_plantillas')
-      .select('area')
-      .eq('id', instancia.plantilla_id)
-      .maybeSingle();
-
-    const plantillas = await listRotacionPlantillasAction(pRow?.area ?? 'mina');
-    const plantilla = plantillas.find((p) => p.id === instancia.plantilla_id);
-    if (!plantilla) return null;
-
-    const [{ data: icRows }, { data: cuadrillasDb }] = await Promise.all([
-      supabase.from('rotacion_instancia_cuadrillas').select('*').eq('instancia_id', instanciaId),
-      supabase.from('rotacion_plantilla_cuadrillas').select('*').eq('plantilla_id', instancia.plantilla_id),
-    ]);
-
-    return buildInstanciaSnapshot(instancia, plantilla, icRows ?? [], cuadrillasDb ?? []);
-  } catch (err) {
-    console.error('[loadInstanciaSnapshotById] error:', err);
-    return null;
-  }
+  return await loadInstanciaSnapshotByIdData(instanciaId);
 }
 
 export async function getInstanciaActivaAction(area: string): Promise<InstanciaActivaSnapshot | null> {
-  try {
-    const supabase = await createServerClient();
-
-    const { data: plantillas, error: pErr } = await supabase
-      .from('rotacion_plantillas')
-      .select('id')
-      .eq('area', area)
-      .eq('activo', true);
-
-    if (pErr || !plantillas?.length) return null;
-
-    const plantillaIds = plantillas.map((p) => p.id);
-
-    const { data: instancia, error: iErr } = await supabase
-      .from('rotacion_plantilla_instancias')
-      .select('*')
-      .in('plantilla_id', plantillaIds)
-      .eq('estado', 'ACTIVA')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (iErr || !instancia) return null;
-
-    return await loadInstanciaSnapshotById(instancia.id);
-  } catch (err) {
-    console.error('[getInstanciaActivaAction] error:', err);
-    return null;
-  }
+  return await getInstanciaActivaData(area);
 }
 
 export async function getEstadoCuadrillasAction(instanciaId: string) {

@@ -1,16 +1,18 @@
-import { getInstanciaActivaAction } from '@/lib/actions/rotacion-instancias';
-import { listRotacionPlantillasWithMetaAction } from '@/lib/actions/rotacion-plantillas';
+import {
+  getInstanciaActivaData,
+  listRotacionPlantillasWithMetaData,
+} from '@/lib/rotacion-plantillas/rotacion-data.server';
 import { serializeInstanciaSnapshot } from '@/lib/rotacion-plantillas/instancia-serialize';
 
 export async function loadNominaRotacionContext(area: string) {
   try {
     const [instanciaActiva, plantillasResult] = await Promise.all([
-      getInstanciaActivaAction(area).catch((err) => {
-        console.error('[loadNominaRotacionContext] getInstanciaActivaAction error:', err);
+      getInstanciaActivaData(area).catch((err) => {
+        console.error('[loadNominaRotacionContext] getInstanciaActivaData error:', err);
         return null;
       }),
-      listRotacionPlantillasWithMetaAction(area).catch((err) => {
-        console.error('[loadNominaRotacionContext] listRotacionPlantillasWithMetaAction error:', err);
+      listRotacionPlantillasWithMetaData(area).catch((err) => {
+        console.error('[loadNominaRotacionContext] listRotacionPlantillasWithMetaData error:', err);
         return { plantillas: [], migrationRequired: false };
       }),
     ]);
