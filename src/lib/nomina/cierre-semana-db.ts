@@ -293,7 +293,6 @@ export type SemanaPeriodoDetachAction =
   | { action: 'delete_conflict' }
   | { action: 'blocked'; reason: string };
 
-/** Decide cómo desvincular una semana antes de borrar su periodo (índice parcial sin periodo_id). */
 export function resolveSemanaPeriodoDetachAction(input: {
   semanaTotalPagado: number;
   semanaRegistrosCount: number;
@@ -301,6 +300,7 @@ export function resolveSemanaPeriodoDetachAction(input: {
   conflictTotalPagado: number;
   conflictRegistrosCount: number;
   periodoTotalUsd?: number;
+  force?: boolean;
 }): SemanaPeriodoDetachAction {
   if (!input.hasNullPeriodConflict) {
     return { action: 'nullify' };
@@ -323,6 +323,16 @@ export function resolveSemanaPeriodoDetachAction(input: {
     return { action: 'delete_conflict' };
   }
 
+  // Semanas duplicadas (mismo monto o misma cantidad de registros):
+  // conservar la semana operativa y descartar la duplicada del ciclo.
+  if (
+    input.semanaTotalPagado === input.conflictTotalPagado ||
+    input.semanaRegistrosCount === input.conflictRegistrosCount ||
+    input.force
+  ) {
+    return { action: 'delete_semana' };
+  }
+
   return {
     action: 'blocked',
     reason:
@@ -337,7 +347,7 @@ export function resolveSemanaPeriodoDetachAction(input: {
 export async function prepareNominaSemanasForPeriodoDelete(
   supabase: SupabaseClient,
   periodoId: string,
-  options?: { periodoTotalUsd?: number },
+  options?: { periodoTotalUsd?: number; force?: boolean },
 ): Promise<{ error?: string }> {
   const { data: semanas, error: listError } = await supabase
     .from('nomina_semanas')
@@ -382,6 +392,7 @@ export async function prepareNominaSemanasForPeriodoDelete(
       conflictTotalPagado: Number(conflict?.total_pagado ?? 0),
       conflictRegistrosCount,
       periodoTotalUsd: options?.periodoTotalUsd,
+      force: options?.force,
     });
 
     if (decision.action === 'blocked') {
@@ -389,6 +400,7 @@ export async function prepareNominaSemanasForPeriodoDelete(
     }
 
     if (decision.action === 'delete_conflict' && conflict?.id) {
+      await supabase.from('nomina_registros').delete().eq('semana_id', conflict.id);
       const { error: delConflictError } = await supabase
         .from('nomina_semanas')
         .delete()
@@ -397,6 +409,7 @@ export async function prepareNominaSemanasForPeriodoDelete(
     }
 
     if (decision.action === 'delete_semana') {
+      await supabase.from('nomina_registros').delete().eq('semana_id', semana.id);
       const { error: delSemanaError } = await supabase
         .from('nomina_semanas')
         .delete()
@@ -411,6 +424,12 @@ export async function prepareNominaSemanasForPeriodoDelete(
       .eq('id', semana.id);
     if (nullifyError) return { error: nullifyError.message };
   }
+
+  // Desvincular cualquier registro que aún conserve periodo_id
+  await supabase
+    .from('nomina_registros')
+    .update({ periodo_id: null })
+    .eq('periodo_id', periodoId);
 
   return {};
 }

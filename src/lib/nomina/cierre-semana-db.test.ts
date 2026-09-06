@@ -56,7 +56,7 @@ describe('cierre semana db (contrato)', () => {
     );
   });
 
-  it('resolveSemanaPeriodoDetachAction bloquea si ambas semanas tienen datos', () => {
+  it('resolveSemanaPeriodoDetachAction bloquea si ambas semanas tienen datos distintos', () => {
     const result = resolveSemanaPeriodoDetachAction({
       semanaTotalPagado: 100,
       semanaRegistrosCount: 2,
@@ -66,6 +66,35 @@ describe('cierre semana db (contrato)', () => {
       periodoTotalUsd: 500,
     });
     assert.equal(result.action, 'blocked');
+  });
+
+  it('resolveSemanaPeriodoDetachAction descarta semana duplicada idéntica sin bloquear', () => {
+    assert.deepEqual(
+      resolveSemanaPeriodoDetachAction({
+        semanaTotalPagado: 1425,
+        semanaRegistrosCount: 13,
+        hasNullPeriodConflict: true,
+        conflictTotalPagado: 1425,
+        conflictRegistrosCount: 13,
+        periodoTotalUsd: 3610.72,
+      }),
+      { action: 'delete_semana' },
+    );
+  });
+
+  it('resolveSemanaPeriodoDetachAction permite force para descartar semana con conflicto', () => {
+    assert.deepEqual(
+      resolveSemanaPeriodoDetachAction({
+        semanaTotalPagado: 100,
+        semanaRegistrosCount: 2,
+        hasNullPeriodConflict: true,
+        conflictTotalPagado: 50,
+        conflictRegistrosCount: 1,
+        periodoTotalUsd: 500,
+        force: true,
+      }),
+      { action: 'delete_semana' },
+    );
   });
 
   it('documenta que el upsert usa búsqueda explícita por periodo_id', () => {

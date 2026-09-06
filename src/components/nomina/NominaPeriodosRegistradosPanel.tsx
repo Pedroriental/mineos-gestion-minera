@@ -210,15 +210,37 @@ export function NominaPeriodosRegistradosPanel({
       return;
     }
     setDeletingId(periodoId);
-    const res = await eliminarPeriodoConsolidadoAction({ periodoId, userId });
-    setDeletingId(null);
-    if (res.ok) {
-      toast.success(res.message);
-      setPeriodos((prev) => prev.filter((p) => p.id !== periodoId));
-      if (expandedId === periodoId) setExpandedId(null);
-      onPeriodDeleted?.();
-    } else {
-      toast.error(res.message);
+    try {
+      let res: { ok: boolean; message: string };
+      try {
+        const response = await fetch('/api/nomina/eliminar-periodo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ periodoId, force: true }),
+        });
+        if (response.ok) {
+          res = await response.json();
+        } else {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.message || `Error ${response.status}`);
+        }
+      } catch {
+        res = await eliminarPeriodoConsolidadoAction({ periodoId, userId, force: true });
+      }
+
+      if (res.ok) {
+        toast.success(res.message);
+        setPeriodos((prev) => prev.filter((p) => p.id !== periodoId));
+        if (expandedId === periodoId) setExpandedId(null);
+        onPeriodDeleted?.();
+      } else {
+        toast.error(res.message);
+      }
+    } catch (err: any) {
+      console.error('[handleDelete] Error al eliminar periodo:', err);
+      toast.error(err?.message || 'Error al eliminar el periodo');
+    } finally {
+      setDeletingId(null);
     }
   }
 

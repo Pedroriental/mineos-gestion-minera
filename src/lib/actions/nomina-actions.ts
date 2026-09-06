@@ -861,10 +861,16 @@ export async function consolidarNominaPeriodoAction(input: {
 export async function eliminarPeriodoConsolidadoAction(input: {
   periodoId: string;
   userId?: string;
+  force?: boolean;
 }): Promise<ActionResult> {
   try {
     const supabase = await createServerClient();
-    const { periodoId, userId } = input;
+    const { periodoId } = input;
+    let userId = input.userId;
+    if (!userId) {
+      const { data: u } = await supabase.auth.getUser();
+      userId = u?.user?.id;
+    }
 
     const { data: periodo, error: pErr } = await supabase
       .from('nomina_periodos')
@@ -885,6 +891,7 @@ export async function eliminarPeriodoConsolidadoAction(input: {
 
     const prepare = await prepareNominaSemanasForPeriodoDelete(supabase, periodoId, {
       periodoTotalUsd: Number(periodo.total_usd ?? 0),
+      force: input.force ?? true,
     });
     if (prepare.error) {
       return { ok: false, message: prepare.error };
@@ -912,9 +919,13 @@ export async function eliminarPeriodoConsolidadoAction(input: {
       userId,
     );
 
-    revalidateNominaPaths();
-    revalidatePath('/operaciones/nomina-archivo');
-    revalidatePath('/operaciones/nomina-vista-previa');
+    try {
+      revalidateNominaPaths();
+      revalidatePath('/operaciones/nomina-archivo');
+      revalidatePath('/operaciones/nomina-vista-previa');
+    } catch (revErr) {
+      console.warn('[eliminarPeriodoConsolidadoAction] Revalidation error (ignoring):', revErr);
+    }
 
     return {
       ok: true,
