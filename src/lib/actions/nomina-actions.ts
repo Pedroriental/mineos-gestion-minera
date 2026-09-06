@@ -1347,15 +1347,26 @@ export async function findConsolidatedPeriodForWeekAction(
     }
 
     const best = matching[0];
-    const semanaIds = best.nomina_periodo_semanas
+    const bridgeSemanaIds = best.nomina_periodo_semanas
       ?.map((link: { semana_id: string }) => link.semana_id)
       .filter((id: string): id is string => typeof id === 'string') ?? [];
 
+    const meta = (best.metadata as Record<string, unknown> | null) ?? {};
+    const metaIds = Array.isArray(meta.semana_ids)
+      ? (meta.semana_ids as string[]).filter((id) => typeof id === 'string')
+      : [];
+
+    // Priorizar la tabla puente como fuente de verdad cuando tiene registros vinculados
+    const activeSemanaIds = bridgeSemanaIds.length > 0 ? bridgeSemanaIds : metaIds;
+
     const periodo = mapPeriodoRow({
       ...best,
-      metadata: best.metadata as Record<string, unknown> | null,
-      semana_count: semanaIds.length,
-      semana_ids: semanaIds,
+      metadata: {
+        ...meta,
+        semana_ids: activeSemanaIds,
+      },
+      semana_count: activeSemanaIds.length,
+      semana_ids: activeSemanaIds,
     });
 
     return { ok: true, periodo };

@@ -515,11 +515,22 @@ export default function NominaClient({
   rotacionMigrationRequired = false,
 }: NominaClientProps) {
   const router = useRouter();
+  const revertedWeeksRef = useRef<Set<string>>(new Set());
   const [semanas, setSemanas] = useState<NominaSemana[]>(semanasProp);
 
   useEffect(() => {
-    setSemanas(semanasProp);
-  }, [semanasProp]);
+    if (!revertedWeeksRef.current.size) {
+      setSemanas(semanasProp);
+    } else {
+      setSemanas(
+        semanasProp.filter(
+          (s) =>
+            !revertedWeeksRef.current.has(s.id) &&
+            !revertedWeeksRef.current.has(`${s.area || area}:${s.semana_inicio}`),
+        ),
+      );
+    }
+  }, [semanasProp, area]);
 
   const [rotacionPlantillas, setRotacionPlantillas] = useState(rotacionPlantillasProp);
 
@@ -2502,22 +2513,56 @@ export default function NominaClient({
       });
       const res = await response.json();
       if (res.ok) {
+        const deletedIds = new Set<string>(
+          [sem.id, ...(res.data?.deletedSemanaIds || [])].filter(Boolean),
+        );
+        for (const id of deletedIds) revertedWeeksRef.current.add(id);
+        revertedWeeksRef.current.add(`${sem.area || area}:${sem.semana_inicio}`);
+        if (sem.id) revertedWeeksRef.current.add(sem.id);
+
         // 1. Remover de memoria todas las semanas que coincidan con este id o con (semana_inicio, area)
         setSemanas((prev) =>
           prev.filter(
             (s) =>
-              s.id !== sem.id &&
+              !deletedIds.has(s.id) &&
               !(s.semana_inicio === sem.semana_inicio && (s.area || area) === (sem.area || area)),
           ),
         );
 
-        // 2. Localizar el periodo que contiene esta semana (no asumir solo el de la vista actual)
+        // 2. Localizar el periodo que contiene esta semana
         const targetPeriod =
           (manualPeriodSession && sem.periodo_id ? getPeriodById(manualPeriodSession, sem.periodo_id) : null) ||
           (manualPeriodSession ? resolveManualPeriodForWeek(manualPeriodSession, sem.semana_inicio, temporalCtx.workingWeekStart) : null) ||
           manualPeriodForView;
 
         const manualPeriodId = targetPeriod?.id ?? null;
+
+        // Limpiar el período en la sesión local (quitar todos los IDs eliminados)
+        setManualPeriodSession((prev) => {
+          if (!prev) return prev;
+          let nextPeriods = { ...prev.periods };
+          let changed = false;
+          for (const [key, p] of Object.entries(nextPeriods)) {
+            if (p.semanaIds?.length) {
+              const filtered = p.semanaIds.filter((id) => !deletedIds.has(id));
+              if (filtered.length !== p.semanaIds.length) {
+                nextPeriods[key] = { ...p, semanaIds: filtered };
+                changed = true;
+              }
+            }
+          }
+          return changed ? { ...prev, periods: nextPeriods } : prev;
+        });
+
+        if (targetPeriod) {
+          setConsolidatedLockedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(targetPeriod.id);
+            return next;
+          });
+        }
+
+        dbHydrateAttemptedRef.current = null;
 
         if (res.data?.registros?.length) {
           const restoredRegs = res.data.registros as Array<{
@@ -2602,20 +2647,6 @@ export default function NominaClient({
             return applyWeekDraft(baseRow, sem.semana_inicio, draftMap[p.id]);
           });
           setPreNominaRows(restoredRows);
-          setManualRosterTick((t) => t + 1);
-        }
-
-        if (targetPeriod) {
-          setManualPeriodSession((prev) => {
-            const period = getPeriodById(prev, targetPeriod.id);
-            if (!period?.semanaIds?.length) return prev;
-            return upsertPeriodInSession(prev, detachSemanaFromManualPeriod(period, sem.id));
-          });
-          setConsolidatedLockedIds((prev) => {
-            const next = new Set(prev);
-            next.delete(targetPeriod.id);
-            return next;
-          });
         }
 
         // Navegar inmediatamente a la semana revertida en Vista Semanal
@@ -2624,6 +2655,7 @@ export default function NominaClient({
           fin: sem.semana_fin || getWeekEnd(sem.semana_inicio),
         });
         setViewMode('semanal');
+        setManualRosterTick((t) => t + 1);
 
         toastSuccess(`Nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)} revertida. Ya puedes editar los trabajadores.`);
         try { router.refresh(); } catch {}
@@ -3245,15 +3277,20 @@ export default function NominaClient({
                       }}
                       periodosRefreshKey={archivoRefreshKey}
                       onRevertirWeek={(ws) => {
-                        const targetSem = semanas.find(
+                        const found = semanas.find(
                           (s) => s.semana_inicio === ws && (s.area || area) === area,
-                        ) || ({
+                        );
+                        const targetSem: NominaSemana = found || {
                           id: '',
                           semana_inicio: ws,
                           semana_fin: getWeekEnd(ws),
                           area: area,
                           total_pagado: 0,
-                        } as NominaSemana);
+                          periodo_id: manualPeriodForView?.id || undefined,
+                        };
+                        if (!targetSem.periodo_id && manualPeriodForView?.id) {
+                          targetSem.periodo_id = manualPeriodForView.id;
+                        }
                         handleRevertirSemana(targetSem);
                       }}
                     />
