@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Component, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { PageFormModal } from '@/components/ui/PageFormModal';
 import NominaVistaPreviaContent, {
   type NominaPreviewRange,
@@ -17,6 +17,55 @@ import type { Personal } from '@/lib/types';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { ManualPeriodPlantillaContext } from '@/lib/nomina/nomina-preview-plantilla';
 
+class ModalErrorBoundary extends Component<
+  { children: ReactNode; onClose: () => void },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode; onClose: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[NominaVistaPreviaModal] Caught render error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 p-8 text-center bg-slate-50 text-slate-700">
+          <AlertTriangle className="h-10 w-10 text-amber-500" />
+          <h3 className="text-base font-bold text-slate-900">Error al renderizar vista previa</h3>
+          <p className="text-xs text-slate-500 max-w-md">
+            {this.state.error?.message || 'Ocurrió un problema inesperado al cargar la vista previa.'}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-500"
+            >
+              Reintentar
+            </button>
+            <button
+              type="button"
+              onClick={this.props.onClose}
+              className="rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -29,6 +78,7 @@ type Props = {
   areaLabel?: string;
   /** Plantilla del ciclo manual en curso (si aún no está en periodos archivados). */
   activePlantilla?: RotacionPlantillaRecord | null;
+  availablePlantillas?: RotacionPlantillaRecord[];
   activeManualPeriod?: ManualPeriodPlantillaContext;
   novedadesManuales?: import('@/lib/nomina-preview').NominaPreviewNovedad[];
 };
@@ -132,6 +182,7 @@ export function NominaVistaPreviaModal({
   filterArea,
   areaLabel,
   activePlantilla,
+  availablePlantillas,
   activeManualPeriod,
   novedadesManuales,
 }: Props) {
@@ -141,6 +192,7 @@ export function NominaVistaPreviaModal({
   const [registrosCerrados, setRegistrosCerrados] = useState<NominaRegistroCerrado[]>([]);
   const [semanasCerradas, setSemanasCerradas] = useState<{ semana_inicio: string; semana_fin?: string }[]>([]);
   const [totalRegistrosHistoricos, setTotalRegistrosHistoricos] = useState(0);
+  const [valesMap, setValesMap] = useState<Record<string, number>>({});
   const [archivedPeriods, setArchivedPeriods] = useState<NominaPeriodoSummary[]>([]);
   const [selectedPeriodoId, setSelectedPeriodoId] = useState<string | null>(null);
   const [isPeriodSwitching, startPeriodSwitch] = useTransition();
@@ -156,6 +208,10 @@ export function NominaVistaPreviaModal({
       periodoId: string | null,
     ) => {
       if (!previewRes.ok) return false;
+
+      if (previewRes.valesMap) {
+        setValesMap(previewRes.valesMap);
+      }
 
       const mergedRegistros = mergeActiveRegistros(
         previewRes.registrosCerrados,
@@ -340,24 +396,28 @@ export function NominaVistaPreviaModal({
               <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
             </div>
           )}
-          <NominaVistaPreviaContent
-            personal={personal}
-            registrosCerrados={registrosCerrados}
-            semanasCerradas={semanasCerradas}
-            totalRegistrosHistoricos={totalRegistrosHistoricos}
-            initialRange={initialRange}
-            archivedPeriods={archivedPeriods}
-            periodoId={selectedPeriodoId ?? undefined}
-            variant="modal"
-            onClose={onClose}
-            onPeriodSelect={handlePeriodSelect}
-            onClearPeriod={handleClearPeriod}
-            filterArea={filterArea}
-            areaLabel={areaLabel}
-            fallbackPlantilla={activePlantilla}
-            fallbackManualPeriod={activeManualPeriod}
-            novedadesManuales={novedadesManuales}
-          />
+          <ModalErrorBoundary onClose={onClose}>
+            <NominaVistaPreviaContent
+              personal={personal}
+              registrosCerrados={registrosCerrados}
+              semanasCerradas={semanasCerradas}
+              totalRegistrosHistoricos={totalRegistrosHistoricos}
+              initialRange={initialRange}
+              archivedPeriods={archivedPeriods}
+              periodoId={selectedPeriodoId ?? undefined}
+              variant="modal"
+              onClose={onClose}
+              onPeriodSelect={handlePeriodSelect}
+              onClearPeriod={handleClearPeriod}
+              filterArea={filterArea}
+              areaLabel={areaLabel}
+              fallbackPlantilla={activePlantilla}
+              availablePlantillas={availablePlantillas}
+              fallbackManualPeriod={activeManualPeriod}
+              initialValesMap={valesMap}
+              novedadesManuales={novedadesManuales}
+            />
+          </ModalErrorBoundary>
         </div>
       )}
     </PageFormModal>

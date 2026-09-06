@@ -59,7 +59,9 @@ type Props = {
   filterArea?: string;
   areaLabel?: string;
   fallbackPlantilla?: RotacionPlantillaRecord | null;
+  availablePlantillas?: RotacionPlantillaRecord[];
   fallbackManualPeriod?: ManualPeriodPlantillaContext;
+  initialValesMap?: Record<string, number>;
   novedadesManuales?: import('@/lib/nomina-preview').NominaPreviewNovedad[];
 };
 
@@ -91,7 +93,9 @@ export default function NominaVistaPreviaContent({
   filterArea,
   areaLabel,
   fallbackPlantilla = null,
+  availablePlantillas,
   fallbackManualPeriod,
+  initialValesMap,
   novedadesManuales,
 }: Props) {
   const temporalCtx = useMemo(
@@ -101,12 +105,18 @@ export default function NominaVistaPreviaContent({
   const defaultRange = useMemo(() => defaultRangeFromContext(semanasCerradas), [semanasCerradas]);
   const [rangeStart, setRangeStart] = useState(initialRange?.start ?? defaultRange.start);
   const [rangeEnd, setRangeEnd] = useState(initialRange?.end ?? defaultRange.end);
-  const [valesMap, setValesMap] = useState<Record<string, number>>({});
+  const [valesMap, setValesMap] = useState<Record<string, number>>(() => initialValesMap ?? {});
   const [lastRefresh, setLastRefresh] = useState<Date>(() => new Date());
   const [contentZoom, setContentZoom] = useState(100);
   const [includeProjection, setIncludeProjection] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [periodPlantilla, setPeriodPlantilla] = useState<RotacionPlantillaRecord | null>(null);
+
+  useEffect(() => {
+    if (initialValesMap && Object.keys(initialValesMap).length > 0) {
+      setValesMap(initialValesMap);
+    }
+  }, [initialValesMap]);
 
   const divisionesConfig = useNominaDivisionesConfig();
   // ya viene del propio padre (no del usuario cambiando las fechas).
@@ -279,15 +289,28 @@ export default function NominaVistaPreviaContent({
       setPeriodPlantilla(null);
       return;
     }
+
+    const localMatch =
+      availablePlantillas?.find((p) => p.id === plantillaId) ??
+      (fallbackPlantilla?.id === plantillaId ? fallbackPlantilla : null);
+    if (localMatch) {
+      setPeriodPlantilla(localMatch);
+      return;
+    }
+
     let cancelled = false;
-    void listRotacionPlantillasAction(filterArea).then((plantillas) => {
-      if (cancelled) return;
-      setPeriodPlantilla(plantillas.find((p) => p.id === plantillaId) ?? null);
-    });
+    void listRotacionPlantillasAction(filterArea)
+      .then((plantillas) => {
+        if (cancelled) return;
+        setPeriodPlantilla(plantillas?.find((p) => p.id === plantillaId) ?? null);
+      })
+      .catch((err) => {
+        console.warn('[NominaVistaPreviaContent] Error consultando plantillas:', err);
+      });
     return () => {
       cancelled = true;
     };
-  }, [matchingArchivedPeriod?.id, matchingArchivedPeriod?.metadata, filterArea]);
+  }, [matchingArchivedPeriod?.id, matchingArchivedPeriod?.metadata, filterArea, availablePlantillas, fallbackPlantilla]);
 
   const isConsolidatedImport = matchingArchivedPeriod?.origen === 'import_historico';
 
@@ -375,24 +398,30 @@ export default function NominaVistaPreviaContent({
 
   function refreshVales() {
     startTransition(async () => {
-      const ids = roster.map((p) => p.id);
-      if (!ids.length) return;
-      const res = await getValesPendientesBulkAction(ids);
-      const map: Record<string, number> = {};
-      if (res.ok && res.data) {
-        for (const v of res.data) {
-          map[v.personal_id] = (map[v.personal_id] || 0) + Number(v.monto);
+      try {
+        const ids = roster.map((p) => p.id);
+        if (!ids.length) return;
+        const res = await getValesPendientesBulkAction(ids);
+        const map: Record<string, number> = {};
+        if (res?.ok && res.data) {
+          for (const v of res.data) {
+            map[v.personal_id] = (map[v.personal_id] || 0) + Number(v.monto);
+          }
         }
+        setValesMap(map);
+        setLastRefresh(new Date());
+      } catch (vErr) {
+        console.warn('[NominaVistaPreviaContent] Error actualizando vales:', vErr);
       }
-      setValesMap(map);
-      setLastRefresh(new Date());
     });
   }
 
   useEffect(() => {
+    // Si ya contamos con vales provistos por el servidor, no disparar Server Action redundante
+    if (initialValesMap && Object.keys(initialValesMap).length > 0) return;
     if (!roster.length) return;
     refreshVales();
-  }, [roster.length]);
+  }, [roster.length, initialValesMap]);
 
   function adjustZoom(delta: number) {
     setContentZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta)));

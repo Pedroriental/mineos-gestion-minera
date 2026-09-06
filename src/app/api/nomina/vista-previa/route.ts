@@ -255,6 +255,27 @@ async function handleVistaPrevia(params: VistaPreviaParams) {
 
     const personal = [...activePersonal, ...historicalPersonal];
 
+    // 5. Vales pendientes para los trabajadores en la vista previa
+    const valesMap: Record<string, number> = {};
+    try {
+      const allPersonalIds = personal.map((p) => p.id);
+      if (allPersonalIds.length > 0) {
+        const { data: valesRows } = await supabase
+          .from('nomina_vales')
+          .select('personal_id, monto')
+          .in('personal_id', allPersonalIds)
+          .eq('estado', 'PENDIENTE');
+
+        for (const v of valesRows || []) {
+          if (v.personal_id) {
+            valesMap[v.personal_id] = (valesMap[v.personal_id] || 0) + Number(v.monto || 0);
+          }
+        }
+      }
+    } catch (vErr) {
+      console.warn('[API /api/nomina/vista-previa] Warning cargando vales:', vErr);
+    }
+
     return NextResponse.json({
       ok: true,
       periodos: scopedPeriodos,
@@ -263,6 +284,7 @@ async function handleVistaPrevia(params: VistaPreviaParams) {
       registrosCerrados,
       semanasCerradas,
       totalRegistrosHistoricos: totalRegistrosHistoricos ?? registrosCerrados.length,
+      valesMap,
     });
   } catch (err: any) {
     console.error('[API /api/nomina/vista-previa] Error:', err);

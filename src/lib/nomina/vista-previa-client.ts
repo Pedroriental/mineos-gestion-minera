@@ -10,6 +10,7 @@ export interface VistaPreviaClientResponse {
   registrosCerrados: NominaRegistroCerrado[];
   semanasCerradas: { semana_inicio: string; semana_fin?: string }[];
   totalRegistrosHistoricos: number;
+  valesMap?: Record<string, number>;
   message?: string;
 }
 

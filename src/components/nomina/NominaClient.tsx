@@ -3935,6 +3935,9 @@ export default function NominaClient({
           onClose={() => {
             setShowExcelPreview(false);
             setPreviewInitialRange(null);
+            if (searchParams.get('tool') === 'vista') {
+              router.replace(pathname, { scroll: false });
+            }
           }}
           initialRange={previewDefaultRange}
           refreshKey={previewRefreshKey}
@@ -3947,6 +3950,7 @@ export default function NominaClient({
           }
           activeRegistros={previewActiveRegistros}
           activePlantilla={manualPlantillaActiva}
+          availablePlantillas={rotacionPlantillas}
           activeManualPeriod={previewManualPeriod}
           novedadesManuales={novedadesManuales.map(mapNovedadManualToPreview)}
         />
