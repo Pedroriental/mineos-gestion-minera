@@ -57,10 +57,10 @@ export const RegistroCierreSchema = z
     novedadTurno: z.string().max(50).optional().default('ACTIVO'),
     novedadTurnoObs: z.string().max(500).optional().default(''),
     esSemanaLibre: z.boolean().optional(),
-    salarioBaseCalculado: montoUsd.optional(),
+    salarioBaseCalculado: montoUsd.nullish(),
     reposoCondicion: z.string().nullable().optional(),
-    reposoDiasPagados: z.number().int().min(0).max(MAX_DIAS_TRABAJADOS).optional(),
-    reposoCompensacionMonto: montoUsd.optional(),
+    reposoDiasPagados: z.number().int().min(0).max(MAX_DIAS_TRABAJADOS).nullish(),
+    reposoCompensacionMonto: montoUsd.nullish(),
     /**
      * Ajuste explícito: permite que `total` difiera del recalculado por el
      * servidor. Obliga a dejar un motivo auditable (mín. 5 caracteres).

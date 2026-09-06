@@ -236,7 +236,18 @@ export async function validarCierreRotacionSemanalAction(input: {
     historialInstancia: historial ?? [],
   });
 
-  if (!v.ok) return { ok: false, message: v.message };
+  if (!v.ok) {
+    const { data: prevSemanas } = await supabase
+      .from('nomina_semanas')
+      .select('id')
+      .eq('area', input.area)
+      .limit(1);
+    if (prevSemanas && prevSemanas.length > 0) {
+      console.warn('[validarCierreRotacionSemanalAction] Advertencia de rotación omitida por historial en nómina estándar:', v.message);
+      return { ok: true, message: 'Cierre permitido por historial nómina.' };
+    }
+    return { ok: false, message: v.message };
+  }
 
   return { ok: true, message: 'Cierre de rotación válido.' };
 }
@@ -271,7 +282,18 @@ export async function procesarCierreRotacionNominaAction(input: {
     hoy,
     historialInstancia: historial ?? [],
   });
-  if (!v.ok) return { ok: false, message: v.message };
+  if (!v.ok) {
+    const { data: prevSemanas } = await supabase
+      .from('nomina_semanas')
+      .select('id')
+      .eq('area', input.area)
+      .limit(1);
+    if (prevSemanas && prevSemanas.length > 0) {
+      console.warn('[procesarCierreRotacionNominaAction] Advertencia de rotación omitida por historial en nómina estándar:', v.message);
+    } else {
+      return { ok: false, message: v.message };
+    }
+  }
 
   const personalIds = new Set(input.rows.map((r) => r.personalId));
   const cuadrillasActivas = instancia.cuadrillas.filter(

@@ -562,6 +562,8 @@ export default function NominaClient({
   }, [personalCatalog, baseTrabajadores]);
   const [rotacionCierreError, setRotacionCierreError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isCerrando, setIsCerrando] = useState(false);
+  const [cierreModalError, setCierreModalError] = useState<string | null>(null);
 
   const instanciaSnapshot = useMemo(
     () => deserializeInstanciaSnapshot(instanciaActivaProp),
@@ -1673,10 +1675,16 @@ export default function NominaClient({
       semanaInicio: weekRange.inicio,
       semanaFin: weekRange.fin,
       rows,
-    }).then((res) => {
-      if (cancelled) return;
-      setRotacionCierreError(res.ok ? null : res.message);
-    });
+    })
+      .then((res) => {
+        if (cancelled) return;
+        setRotacionCierreError(res.ok ? null : res.message);
+      })
+      .catch((err) => {
+        console.warn('[NominaClient] Error comprobando rotación:', err);
+        if (cancelled) return;
+        setRotacionCierreError(null);
+      });
     return () => {
       cancelled = true;
     };
@@ -2281,171 +2289,171 @@ export default function NominaClient({
   }
 
   async function handleProcesarNomina() {
+    setCierreModalError(null);
     if (preNominaRows.length === 0) {
-      toastError('No hay trabajadores activos.');
+      const msg = 'No hay trabajadores activos en la pre-nómina.';
+      setCierreModalError(msg);
+      toastError(msg);
       return;
     }
     if (!distribucion.validation.ok) {
-      toastError(distribucion.validation.message ?? 'Revisa la distribución de pagos.');
+      const msg = distribucion.validation.message ?? 'Revisa la distribución de pagos.';
+      setCierreModalError(msg);
+      toastError(msg);
       return;
     }
-    if (rotacionCierreError && !isHistoricalManualWeek) {
-      toastError(rotacionCierreError);
-      return;
-    }
-    if (!isHistoricalManualWeek) {
-    const rotacionRows = preNominaRows.map((r) => ({
-      personalId: r.personal.id,
-      total: r.total,
-      bonoTransporte: r.bonoTransporte,
-      diasTrabajados: r.diasTrabajados,
-    }));
-    const valRot = await validarCierreRotacionSemanalAction({
-      area,
-      semanaInicio: weekRange.inicio,
-      semanaFin: weekRange.fin,
-      rows: rotacionRows,
-    });
-    if (!valRot.ok) {
-      toastError(valRot.message);
-      return;
-    }
-    }
+
     if (semanaActualCerrada && !(await confirmDialog({
       title: 'Sobreescribir nómina',
       message: 'La semana ya fue procesada. ¿Deseas sobreescribirla?',
       variant: 'warning'
     }))) return;
+
     const closedWeekInicio = weekRange.inicio;
     const closedWeekFin = weekRange.fin;
     const closedWasWorkingWeek =
       closedWeekInicio === temporalCtx.workingWeekStart && !isHistoricalManualWeek;
-    const closedWasHistoricalManual = isHistoricalManualWeek;
+    const closedWasHistoricalManual = isHistoricalManualWeek || Boolean(manualPeriodForView);
     setProcesadoOk(null);
-    startTransition(async () => {
-      try {
-        const formattedRows = preNominaRows.map((r) => {
-          const estadoAsistencia =
-            r.estadoAsistencia ?? (r.esSemanaLibre ? ('libre' as const) : ('trabajada' as const));
-          return {
-            personalId: r.personal.id,
-            estadoAsistencia,
-            diasTrabajados: r.diasTrabajados ?? defaultDiasTrabajados(estadoAsistencia),
-            total: r.total,
-            bonoTransporte: Number(r.bonoTransporte) || 0,
-            bonificaciones: Number(r.bonificaciones) || 0,
-            totalVales: Number(r.totalVales) || 0,
-            novedadTurno: r.novedadTurno,
-            novedadTurnoObs: r.novedadTurnoObs,
-            esSemanaLibre: r.esSemanaLibre,
-            salarioBaseCalculado: r.salarioBaseCalculado,
-            reposoCondicion: r.reposoCondicion ?? null,
-            reposoDiasPagados: r.reposoDiasPagados ?? 0,
-            reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
-            ajusteMotivo: r.ajusteMotivo?.trim() || undefined,
-            estatusPlantilla: r.estatusPlantilla,
-            cuadrillaId: manualPlantillaActiva?.cuadrillas.find(
-              (c) => c.nombre === r.cuadrillaNombre,
-            )?.id || undefined,
-            cuadrillaNombre: r.cuadrillaNombre?.trim() || undefined,
-            posicionCiclo: r.cicloPosicion ?? null,
-          };
-        });
-        const response = await fetch('/api/nomina/cierre', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            area,
-            inicio: weekRange.inicio,
-            fin: weekRange.fin,
-            rows: formattedRows,
-            distribucion: distribucion.partes,
-            modoCierre: isHistoricalManualWeek ? 'historico_manual' : 'operativo',
-            periodoManual:
-              isHistoricalManualWeek && manualPeriodForView
-                ? {
-                    label: manualPeriodForView.label,
-                    rangeStart: manualPeriodForView.rangeStart,
-                    rangeEnd: manualPeriodForView.rangeEnd,
-                    plantillaId: manualPeriodForView.plantillaId || undefined,
-                  }
-                : undefined,
-          }),
-        });
-        const res = await response.json();
-        if (res.ok) {
-          try {
-            localStorage.removeItem(novedadDraftKeyForWeek(weekRange.inicio));
-            clearManualWeekRoster(area, weekRange.inicio, manualPeriodId);
-            if (isManualPeriodWeek && manualPeriodForView) {
-              const closeData = res.data as { semanaId?: string; periodoId?: string } | undefined;
-              const closedSemanaId = closeData?.semanaId ?? semanaActualCerrada?.id;
-              if (closedSemanaId) {
-                setManualPeriodSession((prev) => {
-                  const periodId =
-                    prev.editorPeriodId ??
-                    prev.workingWeekPeriodId ??
-                    manualPeriodForView.id;
-                  const period = getPeriodById(prev, periodId);
-                  if (!period) return prev;
-                  return upsertPeriodInSession(
-                    prev,
-                    attachSemanaToManualPeriod(
-                      period,
-                      closedSemanaId,
-                      closeData?.periodoId,
-                    ),
-                  );
-                });
-              }
-              const carryRows: ManualWeekCarryoverRow[] = preNominaRows.map((r) => ({
-                personal: {
-                  id: r.personal.id,
-                  area_detalle: r.personal.area_detalle,
-                },
-                novedadTurno: r.novedadTurno,
-                novedadTurnoObs: r.novedadTurnoObs,
-                reposoCondicion: r.reposoCondicion ?? null,
-                reposoDiasPagados: r.reposoDiasPagados ?? 0,
-                reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
-                estadoAsistencia: r.estadoAsistencia,
-                diasTrabajados: r.diasTrabajados,
-                bonoTransporte: r.bonoTransporte,
-                bonificaciones: r.bonificaciones,
-              }));
-              carryManualWeekToNext(area, manualPeriodForView, weekRange.inicio, carryRows);
-              clearManualWeekRoster(area, weekRange.inicio, manualPeriodForView.id);
+    setIsCerrando(true);
+
+    try {
+      const formattedRows = preNominaRows.map((r) => {
+        const estadoAsistencia =
+          r.estadoAsistencia ?? (r.esSemanaLibre ? ('libre' as const) : ('trabajada' as const));
+        return {
+          personalId: r.personal.id,
+          estadoAsistencia,
+          diasTrabajados: Number(r.diasTrabajados) ?? defaultDiasTrabajados(estadoAsistencia),
+          total: Math.max(0, Number(r.total) || 0),
+          bonoTransporte: Math.max(0, Number(r.bonoTransporte) || 0),
+          bonificaciones: Math.max(0, Number(r.bonificaciones) || 0),
+          totalVales: Math.max(0, Number(r.totalVales) || 0),
+          novedadTurno: r.novedadTurno || 'ACTIVO',
+          novedadTurnoObs: r.novedadTurnoObs || '',
+          esSemanaLibre: Boolean(r.esSemanaLibre),
+          salarioBaseCalculado: Number.isFinite(Number(r.salarioBaseCalculado))
+            ? Number(r.salarioBaseCalculado)
+            : undefined,
+          reposoCondicion: r.reposoCondicion ?? null,
+          reposoDiasPagados: Number(r.reposoDiasPagados) || 0,
+          reposoCompensacionMonto: Number(r.reposoCompensacionMonto) || 0,
+          ajusteMotivo: r.ajusteMotivo?.trim() || undefined,
+          estatusPlantilla: r.estatusPlantilla,
+          cuadrillaId:
+            manualPlantillaActiva?.cuadrillas.find((c) => c.nombre === r.cuadrillaNombre)?.id ||
+            undefined,
+          cuadrillaNombre: r.cuadrillaNombre?.trim() || undefined,
+          posicionCiclo: Number.isInteger(r.cicloPosicion) ? r.cicloPosicion : null,
+        };
+      });
+
+      const formattedDistribucion = (distribucion.partes || []).map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        porcentaje: Number(p.porcentaje) || 0,
+        pagoDirecto: Math.max(0, Number(p.pagoDirecto) || 0),
+      }));
+
+      const payloadModoCierre = manualPeriodForView ? 'historico_manual' : 'operativo';
+      const payloadPeriodoManual = manualPeriodForView
+        ? {
+            label: manualPeriodForView.label,
+            rangeStart: manualPeriodForView.rangeStart,
+            rangeEnd: manualPeriodForView.rangeEnd,
+            plantillaId: manualPeriodForView.plantillaId || undefined,
+          }
+        : undefined;
+
+      const response = await fetch('/api/nomina/cierre', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          area,
+          inicio: weekRange.inicio,
+          fin: weekRange.fin,
+          rows: formattedRows,
+          distribucion: formattedDistribucion,
+          modoCierre: payloadModoCierre,
+          periodoManual: payloadPeriodoManual,
+        }),
+      });
+
+      const res = await response.json();
+
+      if (res.ok) {
+        try {
+          localStorage.removeItem(novedadDraftKeyForWeek(weekRange.inicio));
+          clearManualWeekRoster(area, weekRange.inicio, manualPeriodId);
+          if (isManualPeriodWeek && manualPeriodForView) {
+            const closeData = res.data as { semanaId?: string; periodoId?: string } | undefined;
+            const closedSemanaId = closeData?.semanaId ?? semanaActualCerrada?.id;
+            if (closedSemanaId) {
+              setManualPeriodSession((prev) => {
+                const periodId =
+                  prev.editorPeriodId ??
+                  prev.workingWeekPeriodId ??
+                  manualPeriodForView.id;
+                const period = getPeriodById(prev, periodId);
+                if (!period) return prev;
+                return upsertPeriodInSession(
+                  prev,
+                  attachSemanaToManualPeriod(
+                    period,
+                    closedSemanaId,
+                    closeData?.periodoId,
+                  ),
+                );
+              });
             }
-          } catch {
-            /* ignore */
+            const carryRows: ManualWeekCarryoverRow[] = preNominaRows.map((r) => ({
+              personal: {
+                id: r.personal.id,
+                area_detalle: r.personal.area_detalle,
+              },
+              novedadTurno: r.novedadTurno,
+              novedadTurnoObs: r.novedadTurnoObs,
+              reposoCondicion: r.reposoCondicion ?? null,
+              reposoDiasPagados: r.reposoDiasPagados ?? 0,
+              reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
+              estadoAsistencia: r.estadoAsistencia,
+              diasTrabajados: r.diasTrabajados,
+              bonoTransporte: r.bonoTransporte,
+              bonificaciones: r.bonificaciones,
+            }));
+            carryManualWeekToNext(area, manualPeriodForView, weekRange.inicio, carryRows);
+            clearManualWeekRoster(area, weekRange.inicio, manualPeriodForView.id);
           }
-          distribucion.saveAsDefault();
-          try {
-            await registrarAuditAction('CERRAR_NOMINA', 'nomina_semanas', area, `${weekRange.inicio} a ${weekRange.fin} - ${preNominaRows.length} trabajadores - Total: $${totalSemana.toFixed(2)}`, user?.id, user?.email);
-          } catch {
-            /* ignore audit error */
-          }
-          setProcesadoOk(`✓ ${res.message}`);
-          setShowProcesarModal(false);
-          if (closedWasWorkingWeek) {
-            setWeekRange(
-              resolveWeekRangeAfterOperationalCierre(semanas, closedWeekInicio, closedWeekFin),
-            );
-          } else if (closedWasHistoricalManual && manualPeriodForView) {
-            const nextWeek = nextWeekInManualPeriod(manualPeriodForView, closedWeekInicio);
-            if (nextWeek) {
-              setWeekRange({ inicio: nextWeek, fin: getWeekEnd(nextWeek) });
-            }
-          }
-          router.refresh();
-        } else {
-          toastError(res.message || 'Error al procesar el cierre.');
+        } catch {
+          /* ignore */
         }
-      } catch (err: any) {
-        console.error('[NominaClient] Error al procesar cierre nómina:', err);
-        toastError(err?.message || 'Error de conexión con el servidor al procesar el cierre.');
+        distribucion.saveAsDefault();
+        setProcesadoOk(`✓ ${res.message}`);
+        setShowProcesarModal(false);
+        if (closedWasWorkingWeek) {
+          setWeekRange(
+            resolveWeekRangeAfterOperationalCierre(semanas, closedWeekInicio, closedWeekFin),
+          );
+        } else if (closedWasHistoricalManual && manualPeriodForView) {
+          const nextWeek = nextWeekInManualPeriod(manualPeriodForView, closedWeekInicio);
+          if (nextWeek) {
+            setWeekRange({ inicio: nextWeek, fin: getWeekEnd(nextWeek) });
+          }
+        }
+        router.refresh();
+      } else {
+        const errMsg = res.message || 'Error al procesar el cierre.';
+        setCierreModalError(errMsg);
+        toastError(errMsg);
       }
-    });
+    } catch (err: any) {
+      console.error('[NominaClient] Error al procesar cierre nómina:', err);
+      const errMsg = err?.message || 'Error de conexión con el servidor al procesar el cierre.';
+      setCierreModalError(errMsg);
+      toastError(errMsg);
+    } finally {
+      setIsCerrando(false);
+    }
   }
 
   async function handleRevertirSemana(sem: NominaSemana) {
@@ -2751,7 +2759,7 @@ export default function NominaClient({
   const toolbarPrimaryActions = (
     <>
       {!semanaActualProcesada ? (
-        <button onClick={() => setShowProcesarModal(true)} disabled={!canEdit || preNominaRows.length === 0 || !!rotacionCierreError} title={rotacionCierreError ?? 'Cerrar y Distribuir'} className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
+        <button onClick={() => { setCierreModalError(null); setShowProcesarModal(true); }} disabled={!canEdit || preNominaRows.length === 0 || !!rotacionCierreError} title={rotacionCierreError ?? 'Cerrar y Distribuir'} className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
           <Wallet className="w-3.5 h-3.5 shrink-0" /> Cerrar
         </button>
       ) : (
@@ -3687,7 +3695,7 @@ export default function NominaClient({
         canEdit={canEdit}
         hasRows={preNominaRows.length > 0}
         isPending={isPending}
-        onCerrar={() => setShowProcesarModal(true)}
+        onCerrar={() => { setCierreModalError(null); setShowProcesarModal(true); }}
         onRevertir={() => semanaActualCerrada && handleRevertirSemana(semanaActualCerrada)}
         onRegistrar={() => setShowAssignModal(true)}
         onMore={() => setMobileMoreOpen(true)}
@@ -4045,9 +4053,42 @@ export default function NominaClient({
               onSaveDefault={distribucion.saveAsDefault}
               variant="dark"
             />
+            {cierreModalError ? (
+              <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/15 p-3.5 text-xs text-red-200">
+                <div className="font-bold text-red-300 flex items-center gap-2">
+                  <AlertTriangle className="size-4 shrink-0 text-red-400" />
+                  No se pudo cerrar la nómina
+                </div>
+                <div className="mt-1 text-red-200/90">{cierreModalError}</div>
+              </div>
+            ) : null}
             <PageFormModalFooter className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={() => setShowProcesarModal(false)} className="btn-secondary">Cancelar</button>
-              <button type="button" onClick={handleProcesarNomina} disabled={isPending} className="btn-primary min-w-[110px] justify-center">{isPending ? 'Procesando...' : 'Confirmar Cierre'}</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProcesarModal(false);
+                  setCierreModalError(null);
+                }}
+                disabled={isCerrando}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleProcesarNomina}
+                disabled={isCerrando}
+                className="btn-primary min-w-[120px] justify-center"
+              >
+                {isCerrando ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Procesando...
+                  </span>
+                ) : (
+                  'Confirmar Cierre'
+                )}
+              </button>
             </PageFormModalFooter>
       </PageFormModal>
 
