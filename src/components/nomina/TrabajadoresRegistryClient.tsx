@@ -1,13 +1,14 @@
 'use client';
 
 import {
+  Component,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  useTransition,
   type CSSProperties,
+  type ReactNode,
 } from 'react';
 import {
   getCoreRowModel,
@@ -243,7 +244,7 @@ function emptyEstadoModal(): EstadoModal {
   };
 }
 
-export default function TrabajadoresRegistryClient({
+function TrabajadoresRegistryContent({
   trabajadores = [],
   perfilesCompensacion = [],
 }: Props) {
@@ -271,7 +272,7 @@ export default function TrabajadoresRegistryClient({
   const [fotoCarnet, setFotoCarnet] = useState<File | null>(null);
   const [estadoModal, setEstadoModal] = useState<EstadoModal>(emptyEstadoModal());
   const [estadoMenu, setEstadoMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -619,16 +620,52 @@ export default function TrabajadoresRegistryClient({
     if (docCedula) fd.set('doc_cedula', docCedula);
     if (fotoCarnet) fd.set('foto_carnet', fotoCarnet);
 
-    startTransition(async () => {
-      const res = await upsertTrabajadorRegistroAction(fd);
-      if (!res.ok) {
-        toastError(res.message);
-        return;
+    setIsPending(true);
+    (async () => {
+      try {
+        const res = await upsertTrabajadorRegistroAction(fd);
+        if (!res.ok) {
+          toastError(res.message);
+          return;
+        }
+        setLocalTrabajadores((prev) => {
+          if (form.id) {
+            return prev.map((w) => {
+              if (w.id !== form.id) return w;
+              return {
+                ...w,
+                nombre_completo: formatNombrePropio(form.nombre_completo),
+                cedula: form.cedula,
+                fecha_nacimiento: form.fecha_nacimiento || null,
+                fecha_ingreso: form.fecha_ingreso,
+                ajuste_antiguedad_dias: Number(form.ajuste_antiguedad_dias || 0),
+                cargo: form.cargo,
+                area_detalle: form.area_detalle,
+                ubicacion_laboral: form.ubicacion_laboral,
+                area: form.area,
+                notas: form.notas,
+                estado_laboral: form.estado_laboral,
+                observacion_estado: form.observacion_estado,
+                perfil_compensacion_id: form.perfil_compensacion_id,
+                salario_base: Number(form.salario_base) || 0,
+                salario_libre: Number(form.salario_libre) || 0,
+                bono_transporte: Number(form.bono_transporte) || 0,
+                rotacion_inicio_fecha: form.rotacion_inicio_fecha || null,
+                cuadrilla: form.cuadrilla,
+              };
+            });
+          }
+          return prev;
+        });
+        closeModal();
+        toast.success(res.message);
+        try { router.refresh(); } catch {}
+      } catch (err: any) {
+        toastError(err?.message || 'Error inesperado al guardar trabajador');
+      } finally {
+        setIsPending(false);
       }
-      closeModal();
-      toast.success(res.message);
-      router.refresh();
-    });
+    })();
   }
 
   function toggleSelectAll() {
@@ -665,35 +702,55 @@ export default function TrabajadoresRegistryClient({
     const snapshot = localTrabajadores;
     setLocalTrabajadores((prev) => prev.filter((t) => !idsToDelete.includes(t.id)));
     setSelectedIds(new Set());
+    setIsPending(true);
 
-    startTransition(async () => {
-      const res = await bulkDeleteTrabajadoresAction(idsToDelete);
-      if (!res.ok) {
+    (async () => {
+      try {
+        const res = await bulkDeleteTrabajadoresAction(idsToDelete);
+        if (!res.ok) {
+          setLocalTrabajadores(snapshot);
+          setSelectedIds(new Set(idsToDelete));
+          toastError(res.message);
+          return;
+        }
+        toast.success(res.message);
+        try { router.refresh(); } catch {}
+      } catch (err: any) {
         setLocalTrabajadores(snapshot);
         setSelectedIds(new Set(idsToDelete));
-        toastError(res.message);
-        return;
+        toastError(err?.message || 'Error al eliminar trabajadores');
+      } finally {
+        setIsPending(false);
       }
-      toast.success(res.message);
-      router.refresh();
-    });
+    })();
   }
 
   function handleEstadoSelection(t: Personal, nextEstado: EstadoLaboral) {
     if (nextEstado === (t.estado_laboral || 'ACTIVO')) return;
     if (nextEstado === 'ACTIVO') {
-      startTransition(async () => {
-        const res = await updateTrabajadorEstadoAction({
-          id: t.id,
-          estado_laboral: 'ACTIVO',
-          observacion_estado: '',
-        });
-        if (!res.ok) toastError(res.message);
-        else {
-          toast.success('Estado actualizado exitosamente');
-          router.refresh();
+      setIsPending(true);
+      (async () => {
+        try {
+          const res = await updateTrabajadorEstadoAction({
+            id: t.id,
+            estado_laboral: 'ACTIVO',
+            observacion_estado: '',
+          });
+          if (!res.ok) {
+            toastError(res.message);
+          } else {
+            setLocalTrabajadores((prev) =>
+              prev.map((w) => (w.id === t.id ? { ...w, estado_laboral: 'ACTIVO', observacion_estado: '' } : w)),
+            );
+            toast.success('Estado actualizado exitosamente');
+            try { router.refresh(); } catch {}
+          }
+        } catch (err: any) {
+          toastError(err?.message || 'Error al actualizar estado');
+        } finally {
+          setIsPending(false);
         }
-      });
+      })();
       return;
     }
     setEstadoModal({
@@ -742,16 +799,39 @@ export default function TrabajadoresRegistryClient({
       return;
     }
 
-    startTransition(async () => {
-      const res = await updateTrabajadorEstadoAction(payload);
-      if (!res.ok) {
-        toastError(res.message);
-        return;
+    setIsPending(true);
+    (async () => {
+      try {
+        const res = await updateTrabajadorEstadoAction(payload);
+        if (!res.ok) {
+          toastError(res.message);
+          return;
+        }
+        setLocalTrabajadores((prev) =>
+          prev.map((w) =>
+            w.id === estadoModal.id
+              ? {
+                  ...w,
+                  estado_laboral: estadoModal.nextEstado,
+                  observacion_estado: estadoModal.motivo,
+                  despido_fecha: estadoModal.despidoFecha || undefined,
+                  despido_causa: estadoModal.despidoCausa || undefined,
+                  reenganche_fecha: estadoModal.reengancheFecha || undefined,
+                  reenganche_cargo: estadoModal.reengancheCargo || undefined,
+                  reenganche_observacion: estadoModal.reengancheObservacion || undefined,
+                }
+              : w,
+          ),
+        );
+        setEstadoModal(emptyEstadoModal());
+        toast.success(res.message);
+        try { router.refresh(); } catch {}
+      } catch (err: any) {
+        toastError(err?.message || 'Error al actualizar estado');
+      } finally {
+        setIsPending(false);
       }
-      setEstadoModal(emptyEstadoModal());
-      toast.success(res.message);
-      router.refresh();
-    });
+    })();
   }
 
   function onEstadoInicioChange(value: string) {
@@ -832,13 +912,13 @@ export default function TrabajadoresRegistryClient({
           </div>
         </td>
         <td className="gastos-table__cell gastos-td px-3 text-white/80">{t.cedula}</td>
-        <td className="gastos-table__cell gastos-td px-3 text-white/70">{calcEdad(t.fecha_nacimiento) ?? '-'}</td>
-        <td className="gastos-table__cell gastos-td px-3 text-white/70">
-          <p className="text-[11px] tabular-nums leading-tight">
+        <td className="gastos-table__cell gastos-td px-3 text-white/70" suppressHydrationWarning>{calcEdad(t.fecha_nacimiento) ?? '-'}</td>
+        <td className="gastos-table__cell gastos-td px-3 text-white/70" suppressHydrationWarning>
+          <p className="text-[11px] tabular-nums leading-tight" suppressHydrationWarning>
             {antiguedadLabel(t.fecha_ingreso, t.ajuste_antiguedad_dias)}
           </p>
           {fechaIngresoFmt ? (
-            <p className="mt-0.5 text-[10px] tabular-nums text-white/40" title="Fecha de ingreso">
+            <p className="mt-0.5 text-[10px] tabular-nums text-white/40" title="Fecha de ingreso" suppressHydrationWarning>
               {fechaIngresoFmt}
             </p>
           ) : null}
@@ -1603,5 +1683,71 @@ export default function TrabajadoresRegistryClient({
         {trabajadoresFiltersPanel}
       </MobileFilterSheet>
     </div>
+  );
+}
+
+class TrabajadoresErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[TrabajadoresRegistryClient] Caught render error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-[70vh] w-full flex-col items-center justify-center p-6 text-center">
+          <div className="max-w-md rounded-2xl border border-red-500/30 bg-neutral-900/90 p-6 shadow-2xl backdrop-blur-sm">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-400 text-2xl font-bold">
+              ⚠️
+            </div>
+            <h2 className="text-lg font-bold text-white mb-2">Error en base de trabajadores</h2>
+            <p className="text-xs text-neutral-400 mb-4">
+              Ocurrió un problema en la vista interactiva. Puedes restablecerla o recargar.
+            </p>
+            {this.state.error?.message && (
+              <div className="mb-4 rounded-lg bg-black/50 p-3 text-left font-mono text-[11px] text-red-300 overflow-auto max-h-32 whitespace-pre-wrap">
+                {this.state.error.message}
+              </div>
+            )}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 transition-colors shadow-sm"
+              >
+                Restablecer vista
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-2 rounded-lg bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-300 hover:bg-neutral-700 transition-colors"
+              >
+                Recargar página
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function TrabajadoresRegistryClient(props: Props) {
+  return (
+    <TrabajadoresErrorBoundary>
+      <TrabajadoresRegistryContent {...props} />
+    </TrabajadoresErrorBoundary>
   );
 }
