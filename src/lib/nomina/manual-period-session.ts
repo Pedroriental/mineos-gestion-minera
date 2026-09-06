@@ -78,9 +78,12 @@ export function sanitizeManualPeriodsSession(
   session: ManualPeriodsSession,
   area?: string,
 ): ManualPeriodsSession {
-  let periods = filterManualPeriodsEnCurso(session.periods);
+  const rawPeriods = Array.isArray(session?.periods)
+    ? session.periods
+    : Object.values(session?.periods ?? {});
+  let periods = filterManualPeriodsEnCurso(rawPeriods);
   // Conservar periodos archivados explícitamente cargados (tienen link a DB)
-  const archivedEditable = session.periods.filter(
+  const archivedEditable = rawPeriods.filter(
     (p) =>
       p.id.startsWith('arch-') &&
       (!!p.periodoArchivoId || !!p.periodoVistaId) &&
@@ -108,7 +111,8 @@ export function periodsContainingWeek(
   weekStart: string,
   onlyEnCurso = false,
 ): ManualNominaPeriod[] {
-  const pool = onlyEnCurso ? periodsEnCurso(session) : session.periods;
+  const rawPeriods = Array.isArray(session?.periods) ? session.periods : [];
+  const pool = onlyEnCurso ? filterManualPeriodsEnCurso(rawPeriods) : rawPeriods;
   return pool.filter((p) => weekInManualPeriod(weekStart, p));
 }
 
@@ -117,7 +121,8 @@ export function resolveManualPeriodForWeek(
   weekStart: string,
   workingWeekStart: string,
 ): ManualNominaPeriod | null {
-  const candidates = session.periods.filter((p) => weekInManualPeriod(weekStart, p));
+  const rawPeriods = Array.isArray(session?.periods) ? session.periods : [];
+  const candidates = rawPeriods.filter((p) => weekInManualPeriod(weekStart, p));
   if (!candidates.length) return null;
 
   const pick = (id: string | null | undefined) => {
@@ -126,7 +131,11 @@ export function resolveManualPeriodForWeek(
   };
 
   if (weekStart === workingWeekStart) {
-    return pick(session.workingWeekPeriodId);
+    const picked = pick(session.workingWeekPeriodId);
+    if (picked) return picked;
+    const byAssignment = candidates.find((p) => p.weekColumnAssignment?.includes(weekStart));
+    if (byAssignment) return byAssignment;
+    if (candidates.length === 1) return candidates[0];
   }
 
   const editor = pick(session.editorPeriodId);
@@ -208,7 +217,10 @@ export function loadManualPeriodsSession(area: string): ManualPeriodsSession {
     const v3 = localStorage.getItem(manualPeriodsSessionKey(area));
     if (v3) {
       const parsed = JSON.parse(v3) as Partial<ManualPeriodsSession>;
-      const periods = (parsed.periods ?? [])
+      const rawPeriods = Array.isArray(parsed.periods)
+        ? parsed.periods
+        : Object.values(parsed.periods ?? {});
+      const periods = rawPeriods
         .map((p) => normalizeManualPeriod(p as Partial<ManualNominaPeriod>))
         .filter(Boolean) as ManualNominaPeriod[];
       return sanitizeManualPeriodsSession(

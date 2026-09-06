@@ -590,6 +590,69 @@ export async function listNominaPeriodosAction(): Promise<{
   }
 }
 
+export async function listNominaPeriodosForAreaAction(area: string): Promise<{
+  ok: boolean;
+  periodos: NominaPeriodoSummary[];
+  message?: string;
+}> {
+  try {
+    const supabase = await createServerClient();
+
+    const { data, error } = await supabase
+      .from('nomina_periodos')
+      .select(
+        `
+        id, label, range_start, range_end, total_usd, origen, metadata, created_at,
+        nomina_periodo_semanas ( semana_id )
+      `,
+      )
+      .order('range_start', { ascending: false });
+
+    if (error) {
+      return { ok: false, periodos: [], message: error.message };
+    }
+
+    const normArea = (area || '').toLowerCase().trim();
+    const filteredData = (data || []).filter((row) => {
+      const meta = (row.metadata as Record<string, unknown>) || {};
+      const rowArea = typeof meta.area === 'string' ? meta.area.toLowerCase().trim() : '';
+      if (!rowArea) return true;
+      return rowArea === normArea;
+    });
+
+    const periodos = filteredData.map(
+      (row: {
+        id: string;
+        label: string;
+        range_start: string;
+        range_end: string;
+        total_usd: number;
+        origen: string;
+        metadata: Record<string, unknown> | null;
+        created_at: string;
+        nomina_periodo_semanas?: Array<{ semana_id: string }>;
+      }) => {
+        const semanaIds = row.nomina_periodo_semanas
+          ?.map((link) => link.semana_id)
+          .filter((id): id is string => typeof id === 'string') ?? [];
+        return mapPeriodoRow({
+          ...row,
+          semana_count: semanaIds.length,
+          semana_ids: semanaIds,
+        });
+      },
+    );
+
+    return { ok: true, periodos };
+  } catch (e) {
+    return {
+      ok: false,
+      periodos: [],
+      message: e instanceof Error ? e.message : 'Error al listar períodos de nómina por área',
+    };
+  }
+}
+
 export async function eliminarImportNominaAction(input: {
   periodoId: string;
   userId?: string;

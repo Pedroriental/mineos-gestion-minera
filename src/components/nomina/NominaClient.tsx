@@ -175,7 +175,7 @@ import {
 import { NominaPdfPreviewModal } from '@/components/nomina/NominaPdfPreviewModal';
 import type { Personal, NominaRegistro, NominaSemana, NominaVale, HistorialPagoRow, RolSemana } from '@/lib/types';
 
-import { findConsolidatedPeriodForWeekAction } from '@/lib/actions/nomina-actions';
+import { findConsolidatedPeriodForWeekAction, listNominaPeriodosForAreaAction } from '@/lib/actions/nomina-actions';
 
 import {
   getGrupoMixtoHistoryWeeksAction,
@@ -744,54 +744,82 @@ export default function NominaClient({
     setManualSessionHydrated(true);
   }, [area]);
 
-  // ── Auto-hidratar período consolidado de la DB ───────────────────────────
-  // Si localStorage no tiene un período para la semana actual, busca en la DB
-  // un período consolidado manual que cubra esa semana y lo inyecta.
-  const dbHydrateAttemptedRef = useRef<string | null>(null);
+  // ── Auto-sincronizar todos los períodos armados de la DB para esta área ────
+  // Carga todos los ciclos consolidados/creados en Supabase para el área seleccionada,
+  // permitiendo que el usuario vea y seleccione sus ciclos sin depender de predicción automática.
+  const dbAreaHydratedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!manualSessionHydrated) return;
-    // Solo buscar si la sesión local no tiene un período para esta semana
-    const localResolved = resolveManualPeriodForWeek(
-      manualPeriodSession,
-      weekRange.inicio,
-      temporalCtx.workingWeekStart,
-    );
-    if (localResolved) return;
-    // Evitar búsquedas repetidas para la misma semana+área
-    const attemptKey = `${area}:${weekRange.inicio}`;
-    if (dbHydrateAttemptedRef.current === attemptKey) return;
-    dbHydrateAttemptedRef.current = attemptKey;
+    let cancelled = false;
 
-    void findConsolidatedPeriodForWeekAction(area, weekRange.inicio).then((res) => {
-      if (!res.ok || !res.periodo) return;
-      const dbPeriod = manualPeriodFromPeriodoSummary(res.periodo);
-      if (!dbPeriod) return;
+    void listNominaPeriodosForAreaAction(area).then((res) => {
+      if (cancelled || !res.ok || !res.periodos?.length) return;
+      const dbPeriods = res.periodos
+        .map((p) => manualPeriodFromPeriodoSummary(p))
+        .filter((p): p is ManualNominaPeriod => Boolean(p));
+
+      if (!dbPeriods.length) return;
+
       setManualPeriodSession((prev) => {
-        // Re-check: otro efecto pudo haber inyectado mientras esperábamos
-        const already = resolveManualPeriodForWeek(
-          prev,
-          weekRange.inicio,
-          temporalCtx.workingWeekStart,
+        const currentPeriods = Array.isArray(prev?.periods) ? [...prev.periods] : [];
+
+        for (const dbP of dbPeriods) {
+          const existingIdx = currentPeriods.findIndex(
+            (p) =>
+              p.id === dbP.id ||
+              (p.periodoArchivoId && p.periodoArchivoId === dbP.periodoArchivoId) ||
+              (p.rangeStart === dbP.rangeStart &&
+                p.rangeEnd === dbP.rangeEnd &&
+                p.label.trim().toLowerCase() === dbP.label.trim().toLowerCase()),
+          );
+          if (existingIdx >= 0) {
+            currentPeriods[existingIdx] = {
+              ...dbP,
+              ...currentPeriods[existingIdx],
+              semanaIds: dbP.semanaIds ?? currentPeriods[existingIdx].semanaIds,
+              periodoArchivoId: dbP.periodoArchivoId ?? currentPeriods[existingIdx].periodoArchivoId,
+            };
+          } else {
+            currentPeriods.push(dbP);
+          }
+        }
+
+        currentPeriods.sort((a, b) => b.rangeStart.localeCompare(a.rangeStart));
+
+        const workingCandidate = currentPeriods.find(
+          (p) =>
+            weekInManualPeriod(temporalCtx.workingWeekStart, p) ||
+            p.weekColumnAssignment?.includes(temporalCtx.workingWeekStart),
         );
-        if (already) return prev;
-        const next = upsertPeriodInSession(prev, dbPeriod);
-        return {
-          ...next,
-          editorPeriodId: next.editorPeriodId ?? dbPeriod.id,
-          historicalPeriodId: dbPeriod.id,
-          workingWeekPeriodId: next.workingWeekPeriodId ?? dbPeriod.id,
-        };
+
+        const nextEditor =
+          prev.editorPeriodId && currentPeriods.some((p) => p.id === prev.editorPeriodId)
+            ? prev.editorPeriodId
+            : (workingCandidate?.id ?? currentPeriods[0]?.id ?? null);
+
+        const nextWorking =
+          prev.workingWeekPeriodId && currentPeriods.some((p) => p.id === prev.workingWeekPeriodId)
+            ? prev.workingWeekPeriodId
+            : (workingCandidate?.id ?? null);
+
+        return sanitizeManualPeriodsSession(
+          {
+            periods: currentPeriods,
+            editorPeriodId: nextEditor,
+            workingWeekPeriodId: nextWorking,
+            historicalPeriodId: prev.historicalPeriodId ?? nextEditor,
+          },
+          area,
+        );
       });
     }).catch((err) => {
-      console.warn('[nomina] Error buscando periodo consolidado:', err);
+      console.warn('[nomina] Error sincronizando ciclos de DB:', err);
     });
-  }, [
-    manualSessionHydrated,
-    manualPeriodSession,
-    weekRange.inicio,
-    temporalCtx.workingWeekStart,
-    area,
-  ]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manualSessionHydrated, area, temporalCtx.workingWeekStart, archivoRefreshKey]);
 
   useEffect(() => {
     if (!manualSessionHydrated) return;
@@ -1227,7 +1255,12 @@ export default function NominaClient({
         temporalCtx.workingWeekStart,
         area,
       );
-      if (closedWeek?.id) {
+      const isWeekReverted =
+        closedWeek?.id &&
+        (revertedWeeksRef.current.has(closedWeek.id) ||
+          revertedWeeksRef.current.has(`${closedWeek.area || area}:${closedWeek.semana_inicio}`));
+
+      if (closedWeek?.id && !isWeekReverted) {
         setIsHistoricalLoading(true);
         try {
           const res = await fetchSemanaRegistros(closedWeek.id);
@@ -1661,14 +1694,23 @@ export default function NominaClient({
   ]);
 
   const semanaActual = useMemo(
-    () =>
-      resolveClosedSemanaForWeekView(
+    () => {
+      const closed = resolveClosedSemanaForWeekView(
         manualPeriodForView,
         semanas,
         weekRange.inicio,
         temporalCtx.workingWeekStart,
         area,
-      ),
+      );
+      if (
+        closed?.id &&
+        (revertedWeeksRef.current.has(closed.id) ||
+          revertedWeeksRef.current.has(`${closed.area || area}:${closed.semana_inicio}`))
+      ) {
+        return undefined;
+      }
+      return closed;
+    },
     [manualPeriodForView, semanas, weekRange.inicio, temporalCtx.workingWeekStart, area],
   );
 
@@ -2540,17 +2582,19 @@ export default function NominaClient({
         // Limpiar el período en la sesión local (quitar todos los IDs eliminados)
         setManualPeriodSession((prev) => {
           if (!prev) return prev;
-          let nextPeriods = { ...prev.periods };
+          const periodsArr = Array.isArray(prev.periods)
+            ? prev.periods
+            : Object.values(prev.periods ?? {});
           let changed = false;
-          for (const [key, p] of Object.entries(nextPeriods)) {
-            if (p.semanaIds?.length) {
-              const filtered = p.semanaIds.filter((id) => !deletedIds.has(id));
-              if (filtered.length !== p.semanaIds.length) {
-                nextPeriods[key] = { ...p, semanaIds: filtered };
-                changed = true;
-              }
+          const nextPeriods = periodsArr.map((p) => {
+            if (!p.semanaIds?.length) return p;
+            const filtered = p.semanaIds.filter((id) => !deletedIds.has(id));
+            if (filtered.length !== p.semanaIds.length) {
+              changed = true;
+              return { ...p, semanaIds: filtered };
             }
-          }
+            return p;
+          });
           return changed ? { ...prev, periods: nextPeriods } : prev;
         });
 
@@ -2562,7 +2606,7 @@ export default function NominaClient({
           });
         }
 
-        dbHydrateAttemptedRef.current = null;
+        setArchivoRefreshKey((k) => k + 1);
 
         if (res.data?.registros?.length) {
           const restoredRegs = res.data.registros as Array<{
@@ -3391,7 +3435,7 @@ export default function NominaClient({
             ) : Object.keys(groupedRows).length === 0 ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
                 <Users className="w-12 h-12 text-white/20 mx-auto mb-3" />
-                {periodsEnCurso(manualPeriodSession).length > 0 &&
+                {(periodsEnCurso(manualPeriodSession).length > 0 || (manualPeriodSession.periods?.length ?? 0) > 0) &&
                 !isManualPeriodWeek &&
                 weekRange.inicio === temporalCtx.workingWeekStart ? (
                   <>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { refreshPeriodoTotalUsd } from '@/lib/nomina/cierre-semana-db';
 import { revertirCierreRotacionNominaAction } from '@/lib/actions/rotacion-instancias';
 import { registrarAuditAction } from '@/lib/actions/nomina-v3';
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     const gastoId = body.gasto_id ?? body.gastoId ?? null;
     const totalPagado = Number(body.total_pagado ?? body.totalPagado ?? 0);
 
-    const supabase = await createServerClient();
+    const supabase = getSupabaseAdmin() ?? await createServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -125,6 +126,18 @@ export async function POST(req: Request) {
 
       // 8. Refrescar totales y metadata de los periodos afectados
       const targetIdsSet = new Set(allTargetIds);
+      const { data: allPeriodsWithMeta } = await supabase
+        .from('nomina_periodos')
+        .select('id, metadata');
+      if (allPeriodsWithMeta?.length) {
+        for (const p of allPeriodsWithMeta) {
+          const meta = (p.metadata as Record<string, any>) || {};
+          if (Array.isArray(meta.semana_ids) && meta.semana_ids.some((id: string) => targetIdsSet.has(id))) {
+            periodIdsToRefresh.add(p.id);
+          }
+        }
+      }
+
       for (const pid of periodIdsToRefresh) {
         try {
           await refreshPeriodoTotalUsd(supabase, pid);

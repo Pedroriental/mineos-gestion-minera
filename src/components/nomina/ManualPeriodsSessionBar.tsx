@@ -31,15 +31,16 @@ export function ManualPeriodsSessionBar({
   onStartNewPeriod,
   onDeleteEditorPeriod,
 }: Props) {
+  const sessionPeriods = Array.isArray(session?.periods) ? session.periods : [];
   const draftPeriods = periodsEnCurso(session);
-  if (!draftPeriods.length) return null;
+  const allAvailablePeriods = sessionPeriods.length ? sessionPeriods : draftPeriods;
+  if (!allAvailablePeriods.length) return null;
 
-  const draftSession: ManualPeriodsSession = { ...session, periods: draftPeriods };
-  const editor = getEditorPeriod(draftSession);
-  const workingCandidates = periodsContainingWeek(draftSession, workingWeekStart, true);
+  const editor = getEditorPeriod(session) || getEditorPeriod({ ...session, periods: allAvailablePeriods });
+  const workingCandidates = periodsContainingWeek(session, workingWeekStart, false);
 
   const editorOptions = [
-    ...draftPeriods.map((p) => ({
+    ...allAvailablePeriods.map((p) => ({
       value: p.id,
       label: p.label.trim() || `${p.rangeStart} — ${p.rangeEnd}`,
     })),
@@ -59,7 +60,7 @@ export function ManualPeriodsSessionBar({
       <div className="mb-2 flex items-center gap-2">
         <Layers className="h-4 w-4 shrink-0 text-[var(--mineos-general-bright)]" />
         <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-          Ciclos armados ({draftPeriods.length})
+          Ciclos armados ({allAvailablePeriods.length})
         </p>
       </div>
       <div className="grid gap-2 lg:grid-cols-2">
