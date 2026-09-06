@@ -43,11 +43,6 @@ import {
   getUbicacionLaboralLabel,
 } from '@/lib/personal-master';
 import type { Personal } from '@/lib/types';
-import {
-  upsertTrabajadorRegistroAction,
-  updateTrabajadorEstadoAction,
-  bulkDeleteTrabajadoresAction,
-} from '@/lib/actions/trabajadores-registry';
 import type { PerfilCompensacion } from '@/lib/types';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
 import { AppDatePicker } from '@/components/ui/AppDatePicker';
@@ -623,9 +618,13 @@ function TrabajadoresRegistryContent({
     setIsPending(true);
     (async () => {
       try {
-        const res = await upsertTrabajadorRegistroAction(fd);
+        const response = await fetch('/api/trabajadores/upsert', {
+          method: 'POST',
+          body: fd,
+        });
+        const res = await response.json();
         if (!res.ok) {
-          toastError(res.message);
+          toastError(res.message || 'Error al guardar trabajador');
           return;
         }
         setLocalTrabajadores((prev) => {
@@ -634,6 +633,7 @@ function TrabajadoresRegistryContent({
               if (w.id !== form.id) return w;
               return {
                 ...w,
+                ...(res.data || {}),
                 nombre_completo: formatNombrePropio(form.nombre_completo),
                 cedula: form.cedula,
                 fecha_nacimiento: form.fecha_nacimiento || null,
@@ -654,12 +654,13 @@ function TrabajadoresRegistryContent({
                 cuadrilla: form.cuadrilla,
               };
             });
+          } else if (res.data) {
+            return [...prev, res.data];
           }
           return prev;
         });
         closeModal();
-        toast.success(res.message);
-        try { router.refresh(); } catch {}
+        toast.success(res.message || 'Trabajador guardado con éxito');
       } catch (err: any) {
         toastError(err?.message || 'Error inesperado al guardar trabajador');
       } finally {
@@ -706,15 +707,19 @@ function TrabajadoresRegistryContent({
 
     (async () => {
       try {
-        const res = await bulkDeleteTrabajadoresAction(idsToDelete);
+        const response = await fetch('/api/trabajadores/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: idsToDelete }),
+        });
+        const res = await response.json();
         if (!res.ok) {
           setLocalTrabajadores(snapshot);
           setSelectedIds(new Set(idsToDelete));
-          toastError(res.message);
+          toastError(res.message || 'Error al eliminar trabajadores');
           return;
         }
-        toast.success(res.message);
-        try { router.refresh(); } catch {}
+        toast.success(res.message || 'Trabajadores eliminados');
       } catch (err: any) {
         setLocalTrabajadores(snapshot);
         setSelectedIds(new Set(idsToDelete));
@@ -731,19 +736,23 @@ function TrabajadoresRegistryContent({
       setIsPending(true);
       (async () => {
         try {
-          const res = await updateTrabajadorEstadoAction({
-            id: t.id,
-            estado_laboral: 'ACTIVO',
-            observacion_estado: '',
+          const response = await fetch('/api/trabajadores/estado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: t.id,
+              estado_laboral: 'ACTIVO',
+              observacion_estado: '',
+            }),
           });
+          const res = await response.json();
           if (!res.ok) {
-            toastError(res.message);
+            toastError(res.message || 'Error al actualizar estado');
           } else {
             setLocalTrabajadores((prev) =>
               prev.map((w) => (w.id === t.id ? { ...w, estado_laboral: 'ACTIVO', observacion_estado: '' } : w)),
             );
-            toast.success('Estado actualizado exitosamente');
-            try { router.refresh(); } catch {}
+            toast.success(res.message || 'Estado actualizado exitosamente');
           }
         } catch (err: any) {
           toastError(err?.message || 'Error al actualizar estado');
@@ -802,9 +811,14 @@ function TrabajadoresRegistryContent({
     setIsPending(true);
     (async () => {
       try {
-        const res = await updateTrabajadorEstadoAction(payload);
+        const response = await fetch('/api/trabajadores/estado', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const res = await response.json();
         if (!res.ok) {
-          toastError(res.message);
+          toastError(res.message || 'Error al actualizar estado');
           return;
         }
         setLocalTrabajadores((prev) =>
@@ -824,8 +838,7 @@ function TrabajadoresRegistryContent({
           ),
         );
         setEstadoModal(emptyEstadoModal());
-        toast.success(res.message);
-        try { router.refresh(); } catch {}
+        toast.success(res.message || 'Estado actualizado exitosamente');
       } catch (err: any) {
         toastError(err?.message || 'Error al actualizar estado');
       } finally {
