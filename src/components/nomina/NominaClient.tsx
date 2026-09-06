@@ -2497,8 +2497,22 @@ export default function NominaClient({
       });
       const res = await response.json();
       if (res.ok) {
-        // 1. Inmediatamente remover la semana de la lista de cerradas en memoria
-        setSemanas((prev) => prev.filter((s) => s.id !== sem.id));
+        // 1. Remover de memoria todas las semanas que coincidan con este id o con (semana_inicio, area)
+        setSemanas((prev) =>
+          prev.filter(
+            (s) =>
+              s.id !== sem.id &&
+              !(s.semana_inicio === sem.semana_inicio && (s.area || area) === (sem.area || area)),
+          ),
+        );
+
+        // 2. Localizar el periodo que contiene esta semana (no asumir solo el de la vista actual)
+        const targetPeriod =
+          (manualPeriodSession && sem.periodo_id ? getPeriodById(manualPeriodSession, sem.periodo_id) : null) ||
+          (manualPeriodSession ? resolveManualPeriodForWeek(manualPeriodSession, sem.semana_inicio, temporalCtx.workingWeekStart) : null) ||
+          manualPeriodForView;
+
+        const manualPeriodId = targetPeriod?.id ?? null;
 
         if (res.data?.registros?.length) {
           const restoredRegs = res.data.registros as Array<{
@@ -2512,15 +2526,16 @@ export default function NominaClient({
             novedad_turno_obs?: string | null;
           }>;
           const restoredIds = restoredRegs.map((r) => r.personal_id);
-          const manualPeriodId = manualPeriodForView?.id;
 
           // Roster para el ciclo del periodo manual activo
-          writeManualWeekRosterEntries(
-            area,
-            sem.semana_inicio,
-            restoredIds.map((id) => ({ id })),
-            manualPeriodId,
-          );
+          if (manualPeriodId) {
+            writeManualWeekRosterEntries(
+              area,
+              sem.semana_inicio,
+              restoredIds.map((id) => ({ id })),
+              manualPeriodId,
+            );
+          }
           // Roster para la vista semanal general (fallback cuando no hay periodoId activo)
           writeManualWeekRosterEntries(
             area,
@@ -2558,49 +2573,54 @@ export default function NominaClient({
           writeNominaNovedadDraft(draftKeyWithPeriod, restoredDraftWithPeriod);
           writeNominaNovedadDraft(draftKeyNoPeriod, restoredDraftNoPeriod);
 
-          // Si estamos viendo esta semana, regenerar las filas de forma inmediata y editable
-          if (weekRange.inicio === sem.semana_inicio) {
-            const draftMap = manualPeriodId ? restoredDraftWithPeriod : restoredDraftNoPeriod;
-            const restoredRows = restoredRegs.map((reg) => {
-              const p = personalCatalogMerged.find((w) => w.id === reg.personal_id) || {
-                id: reg.personal_id,
-                nombre_completo: 'Trabajador',
-                cedula: 'SC-N/A',
-                cargo: 'General',
-                area: area,
-                area_detalle: 'General',
-                salario_base: Number(reg.salario_base_calculado || 0),
-                salario_libre: Number(reg.salario_base_calculado || 0),
-                bono_transporte: 0,
-                esquema_rotacion: 'FIJO_SEMANAL',
-                estatus: 'ACTIVO',
-                fecha_ingreso: '',
-                activo: false,
-                created_at: '',
-                updated_at: '',
-              } as Personal;
-              const baseRow = buildOperationalNominaRow(p, sem.semana_inicio, {});
-              return applyWeekDraft(baseRow, sem.semana_inicio, draftMap[p.id]);
-            });
-            setPreNominaRows(restoredRows);
-          }
-
+          // Generar inmediatamente las filas editables para la vista semanal
+          const draftMap = manualPeriodId ? restoredDraftWithPeriod : restoredDraftNoPeriod;
+          const restoredRows = restoredRegs.map((reg) => {
+            const p = personalCatalogMerged.find((w) => w.id === reg.personal_id) || {
+              id: reg.personal_id,
+              nombre_completo: 'Trabajador',
+              cedula: 'SC-N/A',
+              cargo: 'General',
+              area: area,
+              area_detalle: 'General',
+              salario_base: Number(reg.salario_base_calculado || 0),
+              salario_libre: Number(reg.salario_base_calculado || 0),
+              bono_transporte: 0,
+              esquema_rotacion: 'FIJO_SEMANAL',
+              estatus: 'ACTIVO',
+              fecha_ingreso: '',
+              activo: false,
+              created_at: '',
+              updated_at: '',
+            } as Personal;
+            const baseRow = buildOperationalNominaRow(p, sem.semana_inicio, {});
+            return applyWeekDraft(baseRow, sem.semana_inicio, draftMap[p.id]);
+          });
+          setPreNominaRows(restoredRows);
           setManualRosterTick((t) => t + 1);
         }
 
-        if (manualPeriodForView && weekInManualPeriod(sem.semana_inicio, manualPeriodForView)) {
+        if (targetPeriod) {
           setManualPeriodSession((prev) => {
-            const period = getPeriodById(prev, manualPeriodForView.id);
+            const period = getPeriodById(prev, targetPeriod.id);
             if (!period?.semanaIds?.length) return prev;
             return upsertPeriodInSession(prev, detachSemanaFromManualPeriod(period, sem.id));
           });
           setConsolidatedLockedIds((prev) => {
             const next = new Set(prev);
-            next.delete(manualPeriodForView.id);
+            next.delete(targetPeriod.id);
             return next;
           });
         }
-        toastSuccess('Nómina revertida. Los datos y trabajadores se conservaron en el borrador.');
+
+        // Navegar inmediatamente a la semana revertida en Vista Semanal
+        setWeekRange({
+          inicio: sem.semana_inicio,
+          fin: sem.semana_fin || getWeekEnd(sem.semana_inicio),
+        });
+        setViewMode('semanal');
+
+        toastSuccess(`Nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)} revertida. Ya puedes editar los trabajadores.`);
         try { router.refresh(); } catch {}
       } else {
         toastError(res.message || 'Error al revertir');
@@ -3219,6 +3239,18 @@ export default function NominaClient({
                         setArchivoRefreshKey((k) => k + 1);
                       }}
                       periodosRefreshKey={archivoRefreshKey}
+                      onRevertirWeek={(ws) => {
+                        const targetSem = semanas.find(
+                          (s) => s.semana_inicio === ws && (s.area || area) === area,
+                        ) || ({
+                          id: '',
+                          semana_inicio: ws,
+                          semana_fin: getWeekEnd(ws),
+                          area: area,
+                          total_pagado: 0,
+                        } as NominaSemana);
+                        handleRevertirSemana(targetSem);
+                      }}
                     />
                   ) : viewMode === 'despedidos' ? (
                     <LiquidacionDespedidosPanel

@@ -60,16 +60,18 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
     if (Date.now() - openTimeRef.current < 150) return;
     setIsOpen(false);
     if (resolveRef.current) {
-      resolveRef.current(false);
+      const cb = resolveRef.current;
       resolveRef.current = null;
+      cb(false);
     }
   }, []);
 
   const handleConfirm = useCallback(() => {
     setIsOpen(false);
     if (resolveRef.current) {
-      resolveRef.current(true);
+      const cb = resolveRef.current;
       resolveRef.current = null;
+      cb(true);
     }
   }, []);
 

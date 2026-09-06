@@ -97,6 +97,7 @@ type Props = {
   editedAfterConsolidation?: boolean;
   onExitEditor?: () => void;
   onDeleteDraft?: () => void;
+  onRevertirWeek?: (weekStart: string) => void;
   canEdit?: boolean;
 };
 
@@ -116,6 +117,7 @@ export function NominaManualPeriodPanel({
   editedAfterConsolidation = false,
   onExitEditor,
   onDeleteDraft,
+  onRevertirWeek,
   canEdit = true,
 }: Props) {
   const [pending, startTransition] = useTransition();
@@ -726,14 +728,28 @@ export function NominaManualPeriodPanel({
                           </span>
                           {assignedWeek ? (
                             weekClosed && weekTotalUsd != null ? (
-                              <p
-                                className={cn(
-                                  mineosKpiValue('general'),
-                                  'text-[9px] font-bold tabular-nums leading-tight',
+                              <div className="flex flex-col items-center gap-0.5">
+                                <p
+                                  className={cn(
+                                    mineosKpiValue('general'),
+                                    'text-[9px] font-bold tabular-nums leading-tight',
+                                  )}
+                                >
+                                  ${weekTotalUsd.toLocaleString('es', { minimumFractionDigits: 2 })}
+                                </p>
+                                {canEdit && onRevertirWeek && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onRevertirWeek(assignedWeek);
+                                    }}
+                                    className="text-[8px] font-bold uppercase tracking-tight text-red-400 hover:text-red-300 hover:underline transition-colors"
+                                  >
+                                    Revertir
+                                  </button>
                                 )}
-                              >
-                                ${weekTotalUsd.toLocaleString('es', { minimumFractionDigits: 2 })}
-                              </p>
+                              </div>
                             ) : (
                               <p className="text-[8px] font-medium tabular-nums text-[var(--text-muted)]">
                                 Pendiente
@@ -812,8 +828,7 @@ export function NominaManualPeriodPanel({
               type="button"
               onClick={() => {
                 const next = firstOpenWeekInPeriod(period, semanas, area);
-                if (next) openWeekInSemanal(next);
-                else toast.info('Todas las semanas están cerradas.');
+                openWeekInSemanal(next || period.rangeStart);
               }}
               className={cn(
                 MINEOS_BTN_NOMINA_PRIMARY,

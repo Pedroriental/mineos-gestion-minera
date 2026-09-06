@@ -9,23 +9,34 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const semanaId = String(body.semanaId ?? body.id ?? '').trim();
+    let semanaId = String(body.semanaId ?? body.id ?? '').trim();
     const area = String(body.area ?? '').trim();
     const semanaInicio = String(body.semana_inicio ?? body.semanaInicio ?? '').trim();
     const gastoId = body.gasto_id ?? body.gastoId ?? null;
     const totalPagado = Number(body.total_pagado ?? body.totalPagado ?? 0);
 
-    if (!semanaId) {
-      return NextResponse.json(
-        { ok: false, message: 'ID de la semana es obligatorio' },
-        { status: 400 },
-      );
-    }
-
     const supabase = await createServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    if (!semanaId && semanaInicio && area) {
+      const { data: found } = await supabase
+        .from('nomina_semanas')
+        .select('id')
+        .eq('semana_inicio', semanaInicio)
+        .eq('area', area)
+        .limit(1)
+        .maybeSingle();
+      if (found?.id) semanaId = found.id;
+    }
+
+    if (!semanaId) {
+      return NextResponse.json(
+        { ok: false, message: 'ID o fecha/área de la semana es obligatorio' },
+        { status: 400 },
+      );
+    }
 
     // 1. Restaurar vales asociados
     const { data: valesRows } = await supabase
@@ -73,6 +84,18 @@ export async function POST(req: Request) {
     for (const pid of periodIdsToRefresh) {
       try {
         await refreshPeriodoTotalUsd(supabase, pid);
+        const { data: pRow } = await supabase
+          .from('nomina_periodos')
+          .select('metadata')
+          .eq('id', pid)
+          .maybeSingle();
+        if (pRow?.metadata && typeof pRow.metadata === 'object') {
+          const meta = { ...pRow.metadata } as Record<string, any>;
+          if (Array.isArray(meta.semana_ids)) {
+            meta.semana_ids = meta.semana_ids.filter((id: string) => id !== semanaId);
+            await supabase.from('nomina_periodos').update({ metadata: meta }).eq('id', pid);
+          }
+        }
       } catch (pErr) {
         console.warn('[/api/nomina/revertir] Error al refrescar total de periodo:', pErr);
       }
@@ -109,6 +132,29 @@ export async function POST(req: Request) {
         { ok: false, message: `Error al revertir: ${delError.message}` },
         { status: 400 },
       );
+    }
+
+    // Limpieza de duplicadas residuales del mismo intervalo y área si existían
+    if (semanaInicio && area) {
+      try {
+        const { data: duplicates } = await supabase
+          .from('nomina_semanas')
+          .select('id')
+          .eq('semana_inicio', semanaInicio)
+          .eq('area', area);
+
+        if (duplicates?.length) {
+          for (const dup of duplicates) {
+            await supabase.from('nomina_registros').delete().eq('semana_id', dup.id);
+            await supabase.from('nomina_cierres').delete().eq('semana_id', dup.id);
+            await supabase.from('nomina_periodo_semanas').delete().eq('semana_id', dup.id);
+            await supabase.from('rotacion_instancia_semanas').delete().eq('nomina_semana_id', dup.id);
+            await supabase.from('nomina_semanas').delete().eq('id', dup.id);
+          }
+        }
+      } catch (dupErr) {
+        console.warn('[/api/nomina/revertir] Error limpiando semanas duplicadas:', dupErr);
+      }
     }
 
     // 9. Registrar auditoría

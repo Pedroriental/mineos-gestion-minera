@@ -44,6 +44,7 @@ type Props = {
   personal?: Personal[];
   valesPorPersonal?: Record<string, number>;
   periodosRefreshKey?: number;
+  onRevertirWeek?: (weekStart: string) => void;
 };
 
 export function NominaCiclosView({
@@ -70,6 +71,8 @@ export function NominaCiclosView({
   editedAfterConsolidationPeriodIds = new Set(),
   personal = [],
   valesPorPersonal = {},
+  periodosRefreshKey,
+  onRevertirWeek,
 }: Props) {
   const editorPeriod = getEditorPeriod(periodsSession);
   const editorLocked =
@@ -143,6 +146,7 @@ export function NominaCiclosView({
         editedAfterConsolidation={editorEditedAfterConsolidation}
         canEdit={canEdit}
         onDeleteDraft={canEdit ? onDeleteDraftPeriod : undefined}
+        onRevertirWeek={onRevertirWeek}
         onExitEditor={() =>
           onSessionChange({ ...periodsSession, editorPeriodId: null })
         }
