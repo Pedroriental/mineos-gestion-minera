@@ -49,21 +49,32 @@ export async function POST(req: Request) {
       .eq('semana_id', semanaId);
 
     // 3. Limpiar links del periodo consolidado y recalcular total
+    const { data: semRow } = await supabase
+      .from('nomina_semanas')
+      .select('periodo_id')
+      .eq('id', semanaId)
+      .maybeSingle();
+
     const { data: periodoLinks } = await supabase
       .from('nomina_periodo_semanas')
       .select('periodo_id')
       .eq('semana_id', semanaId);
 
+    const periodIdsToRefresh = new Set<string>();
+    if (semRow?.periodo_id) periodIdsToRefresh.add(semRow.periodo_id);
+
     if (periodoLinks?.length) {
       await supabase.from('nomina_periodo_semanas').delete().eq('semana_id', semanaId);
       for (const link of periodoLinks) {
-        if (link.periodo_id) {
-          try {
-            await refreshPeriodoTotalUsd(supabase, link.periodo_id);
-          } catch (pErr) {
-            console.warn('[/api/nomina/revertir] Error al refrescar total de periodo:', pErr);
-          }
-        }
+        if (link.periodo_id) periodIdsToRefresh.add(link.periodo_id);
+      }
+    }
+
+    for (const pid of periodIdsToRefresh) {
+      try {
+        await refreshPeriodoTotalUsd(supabase, pid);
+      } catch (pErr) {
+        console.warn('[/api/nomina/revertir] Error al refrescar total de periodo:', pErr);
       }
     }
 
@@ -87,6 +98,7 @@ export async function POST(req: Request) {
     } catch (rotErr) {
       console.warn('[/api/nomina/revertir] Error revirtiendo rotación:', rotErr);
     }
+    await supabase.from('rotacion_instancia_semanas').delete().eq('nomina_semana_id', semanaId);
 
     // 8. Eliminar la semana
     const { error: delError } = await supabase.from('nomina_semanas').delete().eq('id', semanaId);

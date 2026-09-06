@@ -508,13 +508,19 @@ export default function NominaClient({
   data,
   masterCatalog,
   perfilesCompensacion = [],
-  semanas,
+  semanas: semanasProp = [],
   area,
   instanciaActiva: instanciaActivaProp = null,
   rotacionPlantillas: rotacionPlantillasProp = [],
   rotacionMigrationRequired = false,
 }: NominaClientProps) {
   const router = useRouter();
+  const [semanas, setSemanas] = useState<NominaSemana[]>(semanasProp);
+
+  useEffect(() => {
+    setSemanas(semanasProp);
+  }, [semanasProp]);
+
   const [rotacionPlantillas, setRotacionPlantillas] = useState(rotacionPlantillasProp);
 
   useEffect(() => {
@@ -2427,6 +2433,19 @@ export default function NominaClient({
         } catch {
           /* ignore */
         }
+        if (res.data?.semanaId) {
+          const newSemana: NominaSemana = {
+            id: res.data.semanaId,
+            area,
+            semana_inicio: weekRange.inicio,
+            semana_fin: weekRange.fin,
+            total_pagado: formattedRows.reduce((acc, r) => acc + (r.total || 0), 0),
+            total_trabajadores: formattedRows.length,
+            created_at: new Date().toISOString(),
+            periodo_id: res.data.periodoId ?? null,
+          } as NominaSemana;
+          setSemanas((prev) => [newSemana, ...prev.filter((s) => s.id !== newSemana.id)]);
+        }
         distribucion.saveAsDefault();
         setProcesadoOk(`✓ ${res.message}`);
         setShowProcesarModal(false);
@@ -2478,12 +2497,17 @@ export default function NominaClient({
       });
       const res = await response.json();
       if (res.ok) {
+        // 1. Inmediatamente remover la semana de la lista de cerradas en memoria
+        setSemanas((prev) => prev.filter((s) => s.id !== sem.id));
+
         if (res.data?.registros?.length) {
           const restoredRegs = res.data.registros as Array<{
             personal_id: string;
+            monto_pagado?: number | string;
+            es_semana_libre?: boolean;
             estado_asistencia?: any;
             dias_trabajados?: number | null;
-            es_semana_libre?: boolean;
+            salario_base_calculado?: number | string;
             novedad_turno?: string | null;
             novedad_turno_obs?: string | null;
           }>;
@@ -2533,6 +2557,33 @@ export default function NominaClient({
 
           writeNominaNovedadDraft(draftKeyWithPeriod, restoredDraftWithPeriod);
           writeNominaNovedadDraft(draftKeyNoPeriod, restoredDraftNoPeriod);
+
+          // Si estamos viendo esta semana, regenerar las filas de forma inmediata y editable
+          if (weekRange.inicio === sem.semana_inicio) {
+            const draftMap = manualPeriodId ? restoredDraftWithPeriod : restoredDraftNoPeriod;
+            const restoredRows = restoredRegs.map((reg) => {
+              const p = personalCatalogMerged.find((w) => w.id === reg.personal_id) || {
+                id: reg.personal_id,
+                nombre_completo: 'Trabajador',
+                cedula: 'SC-N/A',
+                cargo: 'General',
+                area: area,
+                area_detalle: 'General',
+                salario_base: Number(reg.salario_base_calculado || 0),
+                salario_libre: Number(reg.salario_base_calculado || 0),
+                bono_transporte: 0,
+                esquema_rotacion: 'FIJO_SEMANAL',
+                estatus: 'ACTIVO',
+                fecha_ingreso: '',
+                activo: false,
+                created_at: '',
+                updated_at: '',
+              } as Personal;
+              const baseRow = buildOperationalNominaRow(p, sem.semana_inicio, {});
+              return applyWeekDraft(baseRow, sem.semana_inicio, draftMap[p.id]);
+            });
+            setPreNominaRows(restoredRows);
+          }
 
           setManualRosterTick((t) => t + 1);
         }
