@@ -11,10 +11,10 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function MinaNominaPage() {
-  const supabase = await createServerClient();
   const area = 'mina';
 
   try {
+    const supabase = await createServerClient();
     const [
       personalRes,
       masterRes,

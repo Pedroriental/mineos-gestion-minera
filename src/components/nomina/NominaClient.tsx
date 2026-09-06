@@ -771,6 +771,8 @@ export default function NominaClient({
           workingWeekPeriodId: next.workingWeekPeriodId ?? dbPeriod.id,
         };
       });
+    }).catch((err) => {
+      console.warn('[nomina] Error buscando periodo consolidado:', err);
     });
   }, [
     manualSessionHydrated,
@@ -798,8 +800,11 @@ export default function NominaClient({
         return;
       }
       if (res.vacaciones > 0 || res.reactivados > 0) {
-        router.refresh();
+        try { router.refresh(); } catch {}
       }
+    }).catch((err) => {
+      sessionStorage.removeItem(key);
+      console.warn('[nomina] Error en syncRotacion Server Action:', err);
     });
   }, [area, router]);
 
@@ -967,7 +972,7 @@ export default function NominaClient({
   const [semanaSheetOpen, setSemanaSheetOpen] = useState(false);
 
   function handleNominaImported() {
-    router.refresh();
+    try { router.refresh(); } catch {}
     setPreviewRefreshKey((k) => k + 1);
     setArchivoRefreshKey((k) => k + 1);
     
@@ -2459,7 +2464,7 @@ export default function NominaClient({
             setWeekRange({ inicio: nextWeek, fin: getWeekEnd(nextWeek) });
           }
         }
-        router.refresh();
+        try { router.refresh(); } catch {}
       } else {
         const errMsg = res.message || 'Error al procesar el cierre.';
         setCierreModalError(errMsg);
@@ -3171,7 +3176,7 @@ export default function NominaClient({
                         });
                         setConsolidatedLockedIds(new Set());
                         setEditedConsolidatedPeriodIds(new Set());
-                        router.refresh();
+                        try { router.refresh(); } catch {}
                         setArchivoRefreshKey((k) => k + 1);
                       }}
                       onViewPeriod={(p) => {
@@ -3235,7 +3240,7 @@ export default function NominaClient({
                         });
                         setConsolidatedLockedIds(new Set());
                         setEditedConsolidatedPeriodIds(new Set());
-                        router.refresh();
+                        try { router.refresh(); } catch {}
                         setArchivoRefreshKey((k) => k + 1);
                       }}
                       periodosRefreshKey={archivoRefreshKey}
@@ -3257,7 +3262,7 @@ export default function NominaClient({
                       area={area}
                       personal={personalCatalogMerged}
                       distribucionPartes={distribucion.partes}
-                      onRefresh={() => router.refresh()}
+                      onRefresh={() => { try { router.refresh(); } catch {} }}
                       canEdit={canEdit}
                     />
                   ) : (
@@ -3277,7 +3282,7 @@ export default function NominaClient({
                       }}
                       onInstanciaChange={() => {
                         void refreshPlantillas();
-                        router.refresh();
+                        try { router.refresh(); } catch {}
                       }}
                       onPreviewPdf={() => {
                         void handlePreviewPlantillaPdf();
@@ -4247,7 +4252,7 @@ export default function NominaClient({
           initialPlantillaId={sandboxPlantillaId}
           onSaved={async () => {
             await refreshPlantillas();
-            router.refresh();
+            try { router.refresh(); } catch {}
           }}
         />
       ) : null}

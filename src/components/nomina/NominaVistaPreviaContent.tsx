@@ -31,7 +31,6 @@ import { getWeekEnd } from '@/lib/nomina/week-utils';
 import { isPersonalVisibleInNomina } from '@/lib/personal-master';
 import type { Personal } from '@/lib/types';
 import type { NominaPeriodoSummary } from '@/lib/nomina/types';
-import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { ManualPeriodPlantillaContext } from '@/lib/nomina/nomina-preview-plantilla';
 
 const ZOOM_MIN = 60;
