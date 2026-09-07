@@ -516,21 +516,24 @@ export default function NominaClient({
 }: NominaClientProps) {
   const router = useRouter();
   const revertedWeeksRef = useRef<Set<string>>(new Set());
+  const [revertedWeekKeys, setRevertedWeekKeys] = useState<Set<string>>(() => new Set());
   const [semanas, setSemanas] = useState<NominaSemana[]>(semanasProp);
 
   useEffect(() => {
-    if (!revertedWeeksRef.current.size) {
+    const isReverted = (s: NominaSemana) =>
+      revertedWeeksRef.current.has(s.id) ||
+      revertedWeekKeys.has(s.id) ||
+      revertedWeeksRef.current.has(`${s.area || area}:${s.semana_inicio}`) ||
+      revertedWeekKeys.has(`${s.area || area}:${s.semana_inicio}`) ||
+      revertedWeeksRef.current.has(s.semana_inicio) ||
+      revertedWeekKeys.has(s.semana_inicio);
+
+    if (!revertedWeeksRef.current.size && !revertedWeekKeys.size) {
       setSemanas(semanasProp);
     } else {
-      setSemanas(
-        semanasProp.filter(
-          (s) =>
-            !revertedWeeksRef.current.has(s.id) &&
-            !revertedWeeksRef.current.has(`${s.area || area}:${s.semana_inicio}`),
-        ),
-      );
+      setSemanas(semanasProp.filter((s) => !isReverted(s)));
     }
-  }, [semanasProp, area]);
+  }, [semanasProp, area, revertedWeekKeys]);
 
   const [rotacionPlantillas, setRotacionPlantillas] = useState(rotacionPlantillasProp);
 
@@ -772,15 +775,24 @@ export default function NominaClient({
                 p.rangeEnd === dbP.rangeEnd &&
                 p.label.trim().toLowerCase() === dbP.label.trim().toLowerCase()),
           );
+          const sanitizedDbSemanaIds = (dbP.semanaIds ?? []).filter(
+            (id) => !revertedWeeksRef.current.has(id) && !revertedWeekKeys.has(id),
+          );
           if (existingIdx >= 0) {
+            const existingSemanaIds = (currentPeriods[existingIdx].semanaIds ?? []).filter(
+              (id) => !revertedWeeksRef.current.has(id) && !revertedWeekKeys.has(id),
+            );
             currentPeriods[existingIdx] = {
               ...dbP,
               ...currentPeriods[existingIdx],
-              semanaIds: dbP.semanaIds ?? currentPeriods[existingIdx].semanaIds,
+              semanaIds: sanitizedDbSemanaIds.length > 0 ? sanitizedDbSemanaIds : (existingSemanaIds.length > 0 ? existingSemanaIds : undefined),
               periodoArchivoId: dbP.periodoArchivoId ?? currentPeriods[existingIdx].periodoArchivoId,
             };
           } else {
-            currentPeriods.push(dbP);
+            currentPeriods.push({
+              ...dbP,
+              semanaIds: sanitizedDbSemanaIds.length > 0 ? sanitizedDbSemanaIds : undefined,
+            });
           }
         }
 
@@ -1256,9 +1268,13 @@ export default function NominaClient({
         area,
       );
       const isWeekReverted =
-        closedWeek?.id &&
-        (revertedWeeksRef.current.has(closedWeek.id) ||
-          revertedWeeksRef.current.has(`${closedWeek.area || area}:${closedWeek.semana_inicio}`));
+        (closedWeek?.id &&
+          (revertedWeeksRef.current.has(closedWeek.id) ||
+            revertedWeekKeys.has(closedWeek.id))) ||
+        revertedWeeksRef.current.has(`${area}:${currentWeekStart}`) ||
+        revertedWeekKeys.has(`${area}:${currentWeekStart}`) ||
+        revertedWeeksRef.current.has(currentWeekStart) ||
+        revertedWeekKeys.has(currentWeekStart);
 
       if (closedWeek?.id && !isWeekReverted) {
         setIsHistoricalLoading(true);
@@ -1695,6 +1711,22 @@ export default function NominaClient({
 
   const semanaActual = useMemo(
     () => {
+      const isReverted = (id?: string, ws?: string, a?: string) => {
+        if (id && (revertedWeeksRef.current.has(id) || revertedWeekKeys.has(id))) return true;
+        const targetArea = a || area;
+        if (ws && (
+          revertedWeeksRef.current.has(`${targetArea}:${ws}`) ||
+          revertedWeekKeys.has(`${targetArea}:${ws}`) ||
+          revertedWeeksRef.current.has(ws) ||
+          revertedWeekKeys.has(ws)
+        )) return true;
+        return false;
+      };
+
+      if (isReverted(undefined, weekRange.inicio, area)) {
+        return undefined;
+      }
+
       const closed = resolveClosedSemanaForWeekView(
         manualPeriodForView,
         semanas,
@@ -1704,14 +1736,13 @@ export default function NominaClient({
       );
       if (
         closed?.id &&
-        (revertedWeeksRef.current.has(closed.id) ||
-          revertedWeeksRef.current.has(`${closed.area || area}:${closed.semana_inicio}`))
+        isReverted(closed.id, closed.semana_inicio, closed.area)
       ) {
         return undefined;
       }
       return closed;
     },
-    [manualPeriodForView, semanas, weekRange.inicio, temporalCtx.workingWeekStart, area],
+    [manualPeriodForView, semanas, weekRange.inicio, temporalCtx.workingWeekStart, area, revertedWeekKeys],
   );
 
   const semanaActualCerrada = semanaActual?.id ? semanaActual : undefined;
@@ -2560,7 +2591,17 @@ export default function NominaClient({
         );
         for (const id of deletedIds) revertedWeeksRef.current.add(id);
         revertedWeeksRef.current.add(`${sem.area || area}:${sem.semana_inicio}`);
+        revertedWeeksRef.current.add(sem.semana_inicio);
         if (sem.id) revertedWeeksRef.current.add(sem.id);
+
+        setRevertedWeekKeys((prev) => {
+          const next = new Set(prev);
+          for (const id of deletedIds) next.add(id);
+          next.add(`${sem.area || area}:${sem.semana_inicio}`);
+          next.add(sem.semana_inicio);
+          if (sem.id) next.add(sem.id);
+          return next;
+        });
 
         // 1. Remover de memoria todas las semanas que coincidan con este id o con (semana_inicio, area)
         setSemanas((prev) =>
@@ -2579,7 +2620,7 @@ export default function NominaClient({
 
         const manualPeriodId = targetPeriod?.id ?? null;
 
-        // Limpiar el período en la sesión local (quitar todos los IDs eliminados)
+        // Limpiar el período en la sesión local (quitar todos los IDs eliminados) y sincronizar localStorage
         setManualPeriodSession((prev) => {
           if (!prev) return prev;
           const periodsArr = Array.isArray(prev.periods)
@@ -2595,7 +2636,9 @@ export default function NominaClient({
             }
             return p;
           });
-          return changed ? { ...prev, periods: nextPeriods } : prev;
+          const nextSession = changed ? { ...prev, periods: nextPeriods } : prev;
+          saveManualPeriodsSession(area, nextSession);
+          return nextSession;
         });
 
         if (targetPeriod) {
@@ -2691,6 +2734,32 @@ export default function NominaClient({
             return applyWeekDraft(baseRow, sem.semana_inicio, draftMap[p.id]);
           });
           setPreNominaRows(restoredRows);
+        } else {
+          // Si la BD no devolvió registros guardados (o ya estaban eliminados), reconstruir inmediatamente
+          // las filas editables desde la plantilla o catálogo maestro para permitir edición inmediata
+          if (manualPlantillaActiva && targetPeriod?.plantillaId) {
+            const plantillaIds = manualPlantillaActiva.cuadrillas.flatMap((c) =>
+              c.filas.map((f) => f.personalId),
+            );
+            const personalIds = [...new Set(plantillaIds)];
+            const baseRows = buildManualPlantillaNominaRows({
+              plantilla: manualPlantillaActiva,
+              personalCatalog: personalCatalogMerged,
+              personalIds,
+              weekStart: sem.semana_inicio,
+              periodStart: targetPeriod.rangeStart,
+              periodEnd: targetPeriod.rangeEnd,
+              weekColumnAssignment: targetPeriod.weekColumnAssignment,
+              weekColumnCuadrillas: targetPeriod.weekColumnCuadrillas,
+              valesMap: {},
+              weekEnd: sem.semana_fin || getWeekEnd(sem.semana_inicio),
+            });
+            setPreNominaRows(baseRows);
+          } else {
+            const areaWorkers = personalCatalogMerged.filter((p) => (p.area || area) === area);
+            const baseRows = areaWorkers.map((p) => buildOperationalNominaRow(p, sem.semana_inicio, {}));
+            setPreNominaRows(baseRows);
+          }
         }
 
         // Navegar inmediatamente a la semana revertida en Vista Semanal
@@ -3324,13 +3393,16 @@ export default function NominaClient({
                         const found = semanas.find(
                           (s) => s.semana_inicio === ws && (s.area || area) === area,
                         );
+                        const period = manualPeriodSession
+                          ? resolveManualPeriodForWeek(manualPeriodSession, ws, temporalCtx.workingWeekStart)
+                          : manualPeriodForView;
                         const targetSem: NominaSemana = found || {
                           id: '',
                           semana_inicio: ws,
                           semana_fin: getWeekEnd(ws),
                           area: area,
                           total_pagado: 0,
-                          periodo_id: manualPeriodForView?.id || undefined,
+                          periodo_id: period?.id || manualPeriodForView?.id || undefined,
                         };
                         if (!targetSem.periodo_id && manualPeriodForView?.id) {
                           targetSem.periodo_id = manualPeriodForView.id;

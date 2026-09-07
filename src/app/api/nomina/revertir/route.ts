@@ -35,24 +35,30 @@ export async function POST(req: Request) {
       }
     }
 
-    if (semanaInicio && area) {
-      const { data: byDate } = await supabase
+    if (semanaInicio) {
+      const query = supabase
         .from('nomina_semanas')
         .select('id, periodo_id, gasto_id, total_pagado, semana_inicio, area')
-        .eq('semana_inicio', semanaInicio)
-        .eq('area', area);
+        .eq('semana_inicio', semanaInicio);
+      if (area) {
+        query.or(`area.eq.${area},area.is.null`);
+      }
+      const { data: byDate } = await query;
       if (byDate?.length) {
         for (const row of byDate) targetRowsMap.set(row.id, row);
       }
     }
 
-    const allTargetIds = Array.from(targetRowsMap.keys());
+    // Si se especificó semanaId pero no existía en nomina_semanas, incluirlo en la lista de IDs a purgar
+    const targetIdsSet = new Set<string>(Array.from(targetRowsMap.keys()));
+    if (semanaId) targetIdsSet.add(semanaId);
+    const allTargetIds = Array.from(targetIdsSet);
 
     let registrosCerrados: any[] = [];
     const periodIdsToRefresh = new Set<string>();
 
     if (allTargetIds.length > 0) {
-      // 2. Restaurar vales asociados a cualquiera de las semanas eliminadas
+      // 2. Restaurar vales asociados
       for (const sid of allTargetIds) {
         await supabase
           .from('nomina_vales')
@@ -123,39 +129,37 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
+    }
 
-      // 8. Refrescar totales y metadata de los periodos afectados
-      const targetIdsSet = new Set(allTargetIds);
-      const { data: allPeriodsWithMeta } = await supabase
-        .from('nomina_periodos')
-        .select('id, metadata');
-      if (allPeriodsWithMeta?.length) {
-        for (const p of allPeriodsWithMeta) {
-          const meta = (p.metadata as Record<string, any>) || {};
-          if (Array.isArray(meta.semana_ids) && meta.semana_ids.some((id: string) => targetIdsSet.has(id))) {
+    // 8. Limpiar referencias en TODOS los nomina_periodos (por ID o por semanaInicio)
+    const { data: allPeriodsWithMeta } = await supabase
+      .from('nomina_periodos')
+      .select('id, metadata, range_start, range_end');
+    if (allPeriodsWithMeta?.length) {
+      for (const p of allPeriodsWithMeta) {
+        const meta = (p.metadata as Record<string, any>) || {};
+        let modified = false;
+
+        if (Array.isArray(meta.semana_ids) && meta.semana_ids.length > 0) {
+          const prevLen = meta.semana_ids.length;
+          meta.semana_ids = meta.semana_ids.filter((id: string) => !targetIdsSet.has(id));
+          if (meta.semana_ids.length !== prevLen) {
+            modified = true;
             periodIdsToRefresh.add(p.id);
           }
         }
-      }
 
-      for (const pid of periodIdsToRefresh) {
-        try {
-          await refreshPeriodoTotalUsd(supabase, pid);
-          const { data: pRow } = await supabase
-            .from('nomina_periodos')
-            .select('metadata')
-            .eq('id', pid)
-            .maybeSingle();
-          if (pRow?.metadata && typeof pRow.metadata === 'object') {
-            const meta = { ...pRow.metadata } as Record<string, any>;
-            if (Array.isArray(meta.semana_ids)) {
-              meta.semana_ids = meta.semana_ids.filter((id: string) => !targetIdsSet.has(id));
-              await supabase.from('nomina_periodos').update({ metadata: meta }).eq('id', pid);
-            }
-          }
-        } catch (pErr) {
-          console.warn('[/api/nomina/revertir] Error al refrescar total de periodo:', pErr);
+        if (modified) {
+          await supabase.from('nomina_periodos').update({ metadata: meta }).eq('id', p.id);
         }
+      }
+    }
+
+    for (const pid of periodIdsToRefresh) {
+      try {
+        await refreshPeriodoTotalUsd(supabase, pid);
+      } catch (pErr) {
+        console.warn('[/api/nomina/revertir] Error al refrescar total de periodo:', pErr);
       }
     }
 
@@ -196,6 +200,8 @@ export async function POST(req: Request) {
       data: {
         registros: registrosCerrados || [],
         deletedSemanaIds: allTargetIds,
+        semanaInicio,
+        area,
       },
     });
   } catch (err: any) {
