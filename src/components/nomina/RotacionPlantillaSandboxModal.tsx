@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useState, useTransition, useMemo, useEffect } from 'react';
+import { useReducer, useState, useMemo, useEffect, Component, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import {
   Plus,
@@ -31,10 +31,6 @@ import {
   cuadrillaPermiteSinSemanas,
 } from '@/lib/rotacion-plantillas/sandbox-state';
 import {
-  saveRotacionPlantillaAction,
-  listRotacionPlantillasAction,
-} from '@/lib/actions/rotacion-plantillas';
-import {
   mineosBtnSubtleClass,
   mineosLabelAccent,
   mineosModalHeading,
@@ -51,25 +47,36 @@ type Props = {
   area: string;
   canEdit: boolean;
   initialPlantillaId?: string;
+  plantillas?: RotacionPlantillaRecord[];
   onSaved?: (plantillaId?: string) => void | Promise<void>;
 };
 
-export function RotacionPlantillaSandboxModal({
+function RotacionPlantillaSandboxModalInner({
   open,
   onClose,
   area,
   canEdit,
   initialPlantillaId,
+  plantillas: plantillasProp,
   onSaved,
 }: Props) {
   const [sandbox, dispatch] = useReducer(sandboxReducer, area, createEmptySandbox);
   const [editId, setEditId] = useState<string | undefined>();
-  const [savedPlantillas, setSavedPlantillas] = useState<RotacionPlantillaRecord[]>([]);
+  const [savedPlantillas, setSavedPlantillas] = useState<RotacionPlantillaRecord[]>(
+    plantillasProp || [],
+  );
   const [modelCopyKey, setModelCopyKey] = useState('');
-  const [pending, startTransition] = useTransition();
+  const [isSaving, setIsSaving] = useState(false);
   const [selectedCuadrillaId, setSelectedCuadrillaId] = useState<string>('');
 
   const asignacionOptions = useBibliotecaOptions('asignacion_nomina');
+
+  // Mantener plantillas sincronizadas con las que pasa el padre
+  useEffect(() => {
+    if (plantillasProp && plantillasProp.length > 0) {
+      setSavedPlantillas(plantillasProp);
+    }
+  }, [plantillasProp]);
 
   const cuadrillaActiva = useMemo(() => {
     const found = sandbox.cuadrillas.find((c) => c.id === selectedCuadrillaId);
@@ -96,27 +103,61 @@ export function RotacionPlantillaSandboxModal({
     [],
   );
 
+  // Carga inmediata de la plantilla a editar desde props / memoria sin llamadas de red
   useEffect(() => {
     if (!open) return;
-    startTransition(async () => {
-      const list = await listRotacionPlantillasAction(area);
-      setSavedPlantillas(list);
-      if (initialPlantillaId) {
-        const target = list.find((p) => p.id === initialPlantillaId);
-        if (target) {
-          dispatch({
-            type: 'LOAD',
-            payload: {
-              ...target,
-              cuadrillas: target.cuadrillas.map((c) => ({ ...c, filas: [] })),
-            },
-          });
-          setEditId(target.id);
-          setSelectedCuadrillaId(target.cuadrillas[0]?.id ?? '');
-        }
+
+    const sourceList = plantillasProp && plantillasProp.length > 0 ? plantillasProp : savedPlantillas;
+
+    if (initialPlantillaId) {
+      const target = sourceList.find((p) => p.id === initialPlantillaId);
+      if (target) {
+        dispatch({
+          type: 'LOAD',
+          payload: {
+            ...target,
+            cuadrillas: target.cuadrillas.map((c) => ({ ...c, filas: [] })),
+          },
+        });
+        setEditId(target.id);
+        setSelectedCuadrillaId(target.cuadrillas[0]?.id ?? '');
       }
-    });
-  }, [open, area, initialPlantillaId]);
+    } else {
+      setEditId(undefined);
+    }
+
+    // Consulta de respaldo en segundo plano a la API REST (sin server action) para refrescar modelos guardados
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/nomina/plantillas?area=${encodeURIComponent(area)}`);
+        const json = await res.json();
+        if (active && json.ok && Array.isArray(json.plantillas)) {
+          setSavedPlantillas(json.plantillas);
+          if (initialPlantillaId && !editId) {
+            const target = json.plantillas.find((p: RotacionPlantillaRecord) => p.id === initialPlantillaId);
+            if (target) {
+              dispatch({
+                type: 'LOAD',
+                payload: {
+                  ...target,
+                  cuadrillas: target.cuadrillas.map((c: any) => ({ ...c, filas: [] })),
+                },
+              });
+              setEditId(target.id);
+              setSelectedCuadrillaId(target.cuadrillas[0]?.id ?? '');
+            }
+          }
+        }
+      } catch (fetchErr) {
+        console.warn('[RotacionPlantillaSandboxModal] Error refrescando lista de plantillas:', fetchErr);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [open, area, initialPlantillaId, plantillasProp]);
 
   const modelCopyOptions = useMemo(() => {
     const opts: AppSelectOption[] = [
@@ -139,7 +180,7 @@ export function RotacionPlantillaSandboxModal({
     return opts;
   }, [savedPlantillas, editId]);
 
-  function handleSave() {
+  async function handleSave() {
     const err = validateSandbox(sandbox);
     if (err) {
       toast.error(err);
@@ -149,19 +190,28 @@ export function RotacionPlantillaSandboxModal({
       ...sandbox,
       cuadrillas: sandbox.cuadrillas.map((c) => ({ ...c, filas: [] })),
     };
-    startTransition(async () => {
-      const res = await saveRotacionPlantillaAction(sandboxSinPersonal, editId);
-      if (res.ok) {
-        const list = await listRotacionPlantillasAction(area);
-        setSavedPlantillas(list);
-        if (res.id) setEditId(res.id);
-        toast.success(res.message);
-        await onSaved?.(res.id);
+
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/nomina/plantillas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sandbox: sandboxSinPersonal, plantillaId: editId }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(data.message || (editId ? 'Plantilla actualizada.' : 'Plantilla creada.'));
+        await onSaved?.(data.id || editId);
         handleClose();
       } else {
-        toast.error(res.message, { duration: 8000 });
+        toast.error(data.message || 'Error al guardar plantilla.', { duration: 8000 });
       }
-    });
+    } catch (saveErr: any) {
+      console.error('[RotacionPlantillaSandboxModal] Save error:', saveErr);
+      toast.error(saveErr?.message || 'Error de conexión al guardar plantilla.', { duration: 8000 });
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function handleCopyModel(value: string) {
@@ -513,14 +563,69 @@ export function RotacionPlantillaSandboxModal({
           <button
             type="button"
             onClick={handleSave}
-            disabled={pending}
+            disabled={isSaving}
             className={cn(MINEOS_BTN_NOMINA_PRIMARY, 'inline-flex h-8 items-center gap-1.5 px-3 text-xs')}
           >
-            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {editId ? 'Actualizar plantilla' : 'Guardar plantilla'}
           </button>
         )}
       </PageFormModalFooter>
     </PageFormModal>
+  );
+}
+
+class RotacionSandboxErrorBoundary extends Component<
+  { children: ReactNode; onClose: () => void },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode; onClose: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[RotacionPlantillaSandboxModal] Render error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <PageFormModal
+          open={true}
+          onClose={this.props.onClose}
+          sheetTitle="Editor de plantilla"
+          panelClassName="max-w-md text-center p-6"
+        >
+          <div className="flex flex-col items-center gap-3 py-4">
+            <h3 className="text-base font-bold text-white">No se pudo abrir el editor</h3>
+            <p className="text-xs text-neutral-400">
+              Ocurrió un inconveniente al cargar los datos de la plantilla seleccionada.
+            </p>
+            <button
+              type="button"
+              onClick={this.props.onClose}
+              className="btn-secondary mt-2 px-4 py-2 text-xs"
+            >
+              Cerrar
+            </button>
+          </div>
+        </PageFormModal>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export function RotacionPlantillaSandboxModal(props: Props) {
+  if (!props.open) return null;
+  return (
+    <RotacionSandboxErrorBoundary onClose={props.onClose}>
+      <RotacionPlantillaSandboxModalInner {...props} />
+    </RotacionSandboxErrorBoundary>
   );
 }

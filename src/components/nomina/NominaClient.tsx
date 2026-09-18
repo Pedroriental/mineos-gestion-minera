@@ -58,7 +58,6 @@ import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModa
 import { SheetIconBadge } from '@/components/mobile';
 import NominaDistribucionPanel from '@/components/nomina/NominaDistribucionPanel';
 import { useNominaDivisionesConfig } from '@/hooks/use-nomina-divisiones-config';
-import { listRotacionPlantillasAction } from '@/lib/actions/rotacion-plantillas';
 import { syncRotacionEstadosLaboralesAction } from '@/lib/actions/rotacion-sync';
 import {
   RotacionInstanciaPanel,
@@ -542,8 +541,15 @@ export default function NominaClient({
   }, [rotacionPlantillasProp]);
 
   const refreshPlantillas = useCallback(async () => {
-    const list = await listRotacionPlantillasAction(area);
-    setRotacionPlantillas(list);
+    try {
+      const res = await fetch(`/api/nomina/plantillas?area=${encodeURIComponent(area)}`);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.plantillas)) {
+        setRotacionPlantillas(data.plantillas);
+      }
+    } catch (err) {
+      console.warn('[NominaClient] Error refrescando plantillas:', err);
+    }
   }, [area]);
   const confirmDialog = useConfirm();
   const pathname = usePathname();
@@ -4403,6 +4409,7 @@ export default function NominaClient({
           area={area}
           canEdit={canEdit}
           initialPlantillaId={sandboxPlantillaId}
+          plantillas={rotacionPlantillas}
           onSaved={async () => {
             await refreshPlantillas();
             try { router.refresh(); } catch {}

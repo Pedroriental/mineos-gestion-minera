@@ -12,7 +12,6 @@ import {
   cancelarInstanciaAction,
   exportarBalanceRotacionAction,
 } from '@/lib/actions/rotacion-instancias';
-import { deleteRotacionPlantillaAction } from '@/lib/actions/rotacion-plantillas';
 import {
   MINEOS_BTN_NOMINA_PRIMARY,
   MINEOS_TABLE_ACTION_DELETE,
@@ -87,13 +86,21 @@ export function RotacionInstanciaPanel({
       variant: 'danger',
     });
     if (!ok) return;
-    startTransition(async () => {
-      const res = await deleteRotacionPlantillaAction(p.id);
-      if (res.ok) {
-        toast.success(res.message);
+    try {
+      const res = await fetch(`/api/nomina/plantillas?id=${encodeURIComponent(p.id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(data.message || 'Plantilla desactivada.');
         onInstanciaChange?.();
-      } else toast.error(res.message);
-    });
+      } else {
+        toast.error(data.message || 'Error al eliminar plantilla.');
+      }
+    } catch (err: any) {
+      console.error('[RotacionInstanciaPanel] Error eliminando plantilla:', err);
+      toast.error(err?.message || 'Error de red al eliminar plantilla.');
+    }
   }
 
   return (
