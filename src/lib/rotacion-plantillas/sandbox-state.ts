@@ -68,10 +68,10 @@ function defaultCuadrillaName(orden: number): string {
 }
 
 export function cuadrillaPermiteSinSemanas(
-  cuadrilla: Pick<RotacionCuadrilla, 'columnasVista'>,
+  cuadrilla?: Pick<RotacionCuadrilla, 'columnasVista'> | null,
   plantillaFallback?: PlantillaColumnaKey[],
 ): boolean {
-  const columnas = cuadrilla.columnasVista?.length ? cuadrilla.columnasVista : plantillaFallback;
+  const columnas = cuadrilla?.columnasVista?.length ? cuadrilla.columnasVista : plantillaFallback;
   return normalizeColumnasVista(columnas).includes('bono_transporte');
 }
 
@@ -114,8 +114,10 @@ export function normalizeSandbox(
   },
   area = 'mina',
 ): RotacionPlantillaSandbox {
-  if (raw.cuadrillas?.length) {
-    const fallbackColumnas = raw.columnasVista?.length ? raw.columnasVista : [...DEFAULT_COLUMNAS_VISTA];
+  if (Array.isArray(raw.cuadrillas) && raw.cuadrillas.length > 0) {
+    const fallbackColumnas = Array.isArray(raw.columnasVista) && raw.columnasVista.length
+      ? raw.columnasVista
+      : [...DEFAULT_COLUMNAS_VISTA];
     return {
       nombre: raw.nombre ?? '',
       descripcion: raw.descripcion ?? '',
@@ -124,14 +126,16 @@ export function normalizeSandbox(
       cuadrillas: raw.cuadrillas.map((c, i) => ({
         ...c,
         orden: c.orden ?? i,
-        semanas: reindexSemanas(c.semanas ?? []),
-        filas: c.filas ?? [],
-        columnasVista: c.columnasVista?.length ? c.columnasVista : fallbackColumnas,
+        semanas: reindexSemanas(Array.isArray(c.semanas) ? c.semanas : []),
+        filas: Array.isArray(c.filas) ? c.filas : [],
+        columnasVista: Array.isArray(c.columnasVista) && c.columnasVista.length ? c.columnasVista : fallbackColumnas,
       })),
     };
   }
 
-  const fallbackColumnas = raw.columnasVista?.length ? raw.columnasVista : [...DEFAULT_COLUMNAS_VISTA];
+  const fallbackColumnas = Array.isArray(raw.columnasVista) && raw.columnasVista.length
+    ? raw.columnasVista
+    : [...DEFAULT_COLUMNAS_VISTA];
   return {
     nombre: raw.nombre ?? '',
     descripcion: raw.descripcion ?? '',
@@ -143,8 +147,8 @@ export function normalizeSandbox(
         nombre: 'General',
         asignacionKey: '',
         orden: 0,
-        semanas: reindexSemanas(raw.semanas?.length ? raw.semanas : [createDefaultSemana()]),
-        filas: raw.filas ?? [],
+        semanas: reindexSemanas(Array.isArray(raw.semanas) && raw.semanas.length ? raw.semanas : [createDefaultSemana()]),
+        filas: Array.isArray(raw.filas) ? raw.filas : [],
         columnasVista: fallbackColumnas,
       },
     ],
@@ -389,14 +393,15 @@ export function resolveCeldaEstatus(
 }
 
 export function validateSandbox(state: RotacionPlantillaSandbox): string | null {
-  if (!state.nombre.trim()) return 'El nombre de la plantilla es obligatorio.';
-  if (!state.cuadrillas.length) return 'Agregue al menos una cuadrilla.';
+  if (!state?.nombre?.trim()) return 'El nombre de la plantilla es obligatorio.';
+  if (!Array.isArray(state.cuadrillas) || !state.cuadrillas.length) return 'Agregue al menos una cuadrilla.';
   for (const c of state.cuadrillas) {
-    if (!c.nombre.trim()) return 'Todas las cuadrillas deben tener nombre.';
-    if (!c.semanas.length && !cuadrillaPermiteSinSemanas(c, state.columnasVista)) {
+    if (!c?.nombre?.trim()) return 'Todas las cuadrillas deben tener nombre.';
+    const semanas = Array.isArray(c.semanas) ? c.semanas : [];
+    if (!semanas.length && !cuadrillaPermiteSinSemanas(c, state.columnasVista)) {
       return `La cuadrilla "${c.nombre}" necesita al menos una semana o la columna Bono transporte.`;
     }
-    if (c.semanas.some((s) => !s.nombre.trim())) {
+    if (semanas.some((s) => !s?.nombre?.trim())) {
       return `Todas las semanas de "${c.nombre}" deben tener nombre.`;
     }
   }

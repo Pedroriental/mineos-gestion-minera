@@ -35,6 +35,11 @@ class NominaErrorBoundary extends Component<
             {this.state.error?.message && (
               <div className="mb-4 rounded-lg bg-black/50 p-3 text-left font-mono text-[11px] text-red-300 overflow-auto max-h-32 whitespace-pre-wrap">
                 {this.state.error.message}
+                {(this.state.error as any)?.digest && (
+                  <div className="mt-2 text-[10px] text-neutral-400 font-sans border-t border-red-500/20 pt-1">
+                    Código de diagnóstico: <span className="font-mono text-amber-300">{(this.state.error as any).digest}</span>
+                  </div>
+                )}
               </div>
             )}
             <div className="flex flex-wrap items-center justify-center gap-2.5">

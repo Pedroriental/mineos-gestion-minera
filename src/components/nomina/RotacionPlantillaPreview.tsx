@@ -62,11 +62,12 @@ function valorColumnaEjemplo(key: PlantillaColumnaKey, estatusLabel: string): st
 }
 
 function buildFilasMontos(cuadrilla: RotacionCuadrilla): FilaMontos[] {
-  const celdas = cuadrilla.semanas.map((sem) => {
-    const estatus = sem.estatusDefault;
+  const semanas = Array.isArray(cuadrilla?.semanas) ? cuadrilla.semanas : [];
+  const celdas = semanas.map((sem) => {
+    const estatus = sem?.estatusDefault || 'trabajada_paga';
     return { estatus, monto: montoReferencia(estatus) };
   });
-  const totalFila = celdas.reduce((sum, c) => sum + c.monto, 0);
+  const totalFila = celdas.reduce((sum, c) => sum + (c.monto || 0), 0);
   return [{ filaId: 'ejemplo', celdas, totalFila }];
 }
 
@@ -77,8 +78,8 @@ function CuadrillaPreviewSection({
   cuadrilla: RotacionCuadrilla;
   columnas: PlantillaColumnaKey[];
 }) {
-  const semanas = cuadrilla.semanas;
-  const activeCols = cuadrilla.columnasVista?.length ? cuadrilla.columnasVista : columnas;
+  const semanas = Array.isArray(cuadrilla?.semanas) ? cuadrilla.semanas : [];
+  const activeCols = cuadrilla?.columnasVista?.length ? cuadrilla.columnasVista : columnas;
   const dataCols = activeCols.filter((k) => k !== 'subtotal_semanal' && k !== 'total_periodo');
   const showBonoOnly = !semanas.length && cuadrillaPermiteSinSemanas(cuadrilla, columnas);
   const showSubtotalRow = activeCols.includes('subtotal_semanal');
@@ -91,7 +92,7 @@ function CuadrillaPreviewSection({
   if (!semanas.length && !showBonoOnly) {
     return (
       <p className="py-6 text-center text-xs text-zinc-400">
-        La cuadrilla &quot;{cuadrilla.nombre}&quot; no tiene semanas definidas.
+        La cuadrilla &quot;{cuadrilla?.nombre || 'Cuadrilla'}&quot; no tiene semanas definidas.
       </p>
     );
   }
@@ -106,7 +107,7 @@ function CuadrillaPreviewSection({
   const bonoOnlyMonto = 30;
   const totalColumnaPeriodo = showBonoOnly
     ? bonoOnlyMonto
-    : filasData.reduce((sum, fila) => sum + fila.totalFila, 0);
+    : filasData.reduce((sum, fila) => sum + (fila.totalFila || 0), 0);
 
   return (
     <section className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
@@ -147,13 +148,13 @@ function CuadrillaPreviewSection({
                     </span>
                   </th>
                 ) : (
-                  semanas.map((sem) => (
-                    <th key={sem.id} className={`min-w-[100px] ${WEEK_HEAD_ROW}`}>
-                      <div className="text-[9px] font-bold leading-tight text-zinc-800">{sem.nombre}</div>
+                  semanas.map((sem, sIdx) => (
+                    <th key={sem?.id || `sem-${sIdx}`} className={`min-w-[100px] ${WEEK_HEAD_ROW}`}>
+                      <div className="text-[9px] font-bold leading-tight text-zinc-800">{sem?.nombre || `Semana ${sIdx + 1}`}</div>
                       <span
-                        className={`mt-0.5 inline-flex rounded px-1 py-px text-[8px] font-semibold ${estatusRotacionPreviewClass(sem.estatusDefault)}`}
+                        className={`mt-0.5 inline-flex rounded px-1 py-px text-[8px] font-semibold ${estatusRotacionPreviewClass(sem?.estatusDefault || 'trabajada_paga')}`}
                       >
-                        {estatusRotacionShort(sem.estatusDefault)}
+                        {estatusRotacionShort(sem?.estatusDefault || 'trabajada_paga')}
                       </span>
                     </th>
                   ))
@@ -179,9 +180,9 @@ function CuadrillaPreviewSection({
                     Sin semana trabajada
                   </th>
                 ) : (
-                  semanas.map((sem) => (
+                  semanas.map((sem, sIdx) => (
                     <th
-                      key={`${sem.id}-intervalo`}
+                      key={`${sem?.id || sIdx}-intervalo`}
                       className="border border-zinc-300 bg-sky-100/70 px-1 py-px text-center text-[8px] font-medium italic leading-tight text-zinc-500"
                     >
                       Del … al … (al cargar periodo)
@@ -214,21 +215,21 @@ function CuadrillaPreviewSection({
                     </td>
                   ) : (
                     fila.celdas.map((cell, i) => (
-                      <td key={semanas[i].id} className="px-1.5 py-2 text-center">
+                      <td key={semanas[i]?.id || `cell-${i}`} className="px-1.5 py-2 text-center">
                         <span
                           className={`inline-flex rounded px-1.5 py-0.5 text-[9px] font-bold ${estatusRotacionPreviewClass(cell.estatus)}`}
                         >
                           {estatusRotacionShort(cell.estatus)}
                         </span>
                         <div className="mt-0.5 text-[9px] tabular-nums text-zinc-500">
-                          ${cell.monto.toFixed(2)}
+                          ${(cell.monto || 0).toFixed(2)}
                         </div>
                       </td>
                     ))
                   )}
                   {showTotalCol && (
                     <td className={`${TOTAL_COL_CELL} text-[10px] font-semibold text-zinc-800`}>
-                      ${(showBonoOnly ? bonoOnlyMonto : fila.totalFila).toFixed(2)}
+                      ${(showBonoOnly ? bonoOnlyMonto : fila.totalFila || 0).toFixed(2)}
                     </td>
                   )}
                   <td className="px-1 py-2 text-center text-zinc-300">—</td>
@@ -253,18 +254,18 @@ function CuadrillaPreviewSection({
                       )
                       : totalesPorSemana.map((total, i) => (
                         <td
-                          key={semanas[i].id}
+                          key={semanas[i]?.id || `tot-${i}`}
                           className="px-1.5 py-2 text-center text-[11px] tabular-nums text-zinc-800"
                         >
-                          ${total.toFixed(2)}
+                          ${(total || 0).toFixed(2)}
                         </td>
                       ))
                     : showBonoOnly
                       ? <td />
-                      : semanas.map((sem) => <td key={sem.id} />)}
+                      : semanas.map((sem, sIdx) => <td key={sem?.id || `empty-${sIdx}`} />)}
                   {showTotalCol && (
                     <td className={`${TOTAL_COL_CELL} text-[10px] font-bold text-zinc-900`}>
-                      ${totalColumnaPeriodo.toFixed(2)}
+                      ${(totalColumnaPeriodo || 0).toFixed(2)}
                     </td>
                   )}
                   <td />
@@ -279,15 +280,15 @@ function CuadrillaPreviewSection({
 }
 
 export function RotacionPlantillaPreview({ sandbox }: Props) {
-  const cuadrillas = sandbox.cuadrillas;
-  const columnas = normalizeColumnasVista(sandbox.columnasVista ?? DEFAULT_COLUMNAS_VISTA);
+  const cuadrillas = Array.isArray(sandbox?.cuadrillas) ? sandbox.cuadrillas : [];
+  const columnas = normalizeColumnasVista(sandbox?.columnasVista ?? DEFAULT_COLUMNAS_VISTA);
 
   return (
     <div className="flex h-full min-h-[360px] flex-col rounded-xl border border-zinc-200 bg-zinc-100/80 text-zinc-900 shadow-inner">
       <div className="border-b border-zinc-200 bg-white px-5 py-3.5">
         <h3 className="text-sm font-semibold text-zinc-800">Vista previa — forma de la plantilla</h3>
         <p className="mt-0.5 text-xs text-zinc-500">
-          {sandbox.nombre.trim() || 'Sin nombre'} · {cuadrillas.length} cuadrilla(s) · {columnas.length}{' '}
+          {sandbox?.nombre?.trim() || 'Sin nombre'} · {cuadrillas.length} cuadrilla(s) · {columnas.length}{' '}
           columna(s) de datos
         </p>
       </div>

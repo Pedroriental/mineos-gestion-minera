@@ -63,6 +63,7 @@ import {
   RotacionInstanciaPanel,
   RotacionInstanciaBanner,
 } from '@/components/nomina/RotacionInstanciaPanel';
+import { RotacionPlantillaSandboxModal } from '@/components/nomina/RotacionPlantillaSandboxModal';
 import { resolveWorkerRotacionContext } from '@/lib/rotacion-plantillas/projection';
 import { resolveDiasInputBloqueadoPlantilla, calculatePayForPlantillaNominaRow } from '@/lib/rotacion-plantillas/semana-cierre';
 import { deserializeInstanciaSnapshot } from '@/lib/rotacion-plantillas/instancia-serialize';
@@ -211,27 +212,30 @@ type SemanaRegistroDetalle = NominaRegistro & {
 const PersonalQuickAssignModal = dynamic(() =>
   import('@/components/nomina/PersonalQuickAssignModal').then((mod) => mod.PersonalQuickAssignModal),
 );
-const NominaTrabajadorModal = dynamic(() => import('@/components/nomina/NominaTrabajadorModal'));
-const NominaCiclosView = dynamic(() =>
-  import('@/components/nomina/NominaCiclosView').then((mod) => mod.NominaCiclosView),
+const NominaTrabajadorModal = dynamic(() => import('@/components/nomina/NominaTrabajadorModal'), { ssr: false });
+const NominaCiclosView = dynamic(
+  () => import('@/components/nomina/NominaCiclosView').then((mod) => mod.NominaCiclosView),
+  { ssr: false },
 );
-const NominaCierreMesView = dynamic(() =>
-  import('@/components/nomina/NominaCierreMesView').then((mod) => mod.NominaCierreMesView),
+const NominaCierreMesView = dynamic(
+  () => import('@/components/nomina/NominaCierreMesView').then((mod) => mod.NominaCierreMesView),
+  { ssr: false },
 );
-const NominaVistaPreviaModal = dynamic(() =>
-  import('@/components/nomina/NominaVistaPreviaModal').then((mod) => mod.NominaVistaPreviaModal),
+const NominaVistaPreviaModal = dynamic(
+  () => import('@/components/nomina/NominaVistaPreviaModal').then((mod) => mod.NominaVistaPreviaModal),
+  { ssr: false },
 );
-const NominaArchivoModal = dynamic(() =>
-  import('@/components/nomina/NominaArchivoModal').then((mod) => mod.NominaArchivoModal),
+const NominaArchivoModal = dynamic(
+  () => import('@/components/nomina/NominaArchivoModal').then((mod) => mod.NominaArchivoModal),
+  { ssr: false },
 );
-const NominaImportModal = dynamic(() =>
-  import('@/components/nomina/NominaImportModal').then((mod) => mod.NominaImportModal),
+const NominaImportModal = dynamic(
+  () => import('@/components/nomina/NominaImportModal').then((mod) => mod.NominaImportModal),
+  { ssr: false },
 );
-const RotacionPlantillaSandboxModal = dynamic(() =>
-  import('@/components/nomina/RotacionPlantillaSandboxModal').then((mod) => mod.RotacionPlantillaSandboxModal),
-);
-const LiquidacionDespedidosPanel = dynamic(() =>
-  import('@/components/nomina/LiquidacionDespedidosPanel').then((mod) => mod.LiquidacionDespedidosPanel),
+const LiquidacionDespedidosPanel = dynamic(
+  () => import('@/components/nomina/LiquidacionDespedidosPanel').then((mod) => mod.LiquidacionDespedidosPanel),
+  { ssr: false },
 );
 
 function fmtDate(iso: string | null | undefined): string {

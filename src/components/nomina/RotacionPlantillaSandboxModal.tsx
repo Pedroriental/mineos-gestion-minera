@@ -109,24 +109,33 @@ function RotacionPlantillaSandboxModalInner({
 
     const sourceList = plantillasProp && plantillasProp.length > 0 ? plantillasProp : savedPlantillas;
 
+    let alreadyLoaded = false;
     if (initialPlantillaId) {
       const target = sourceList.find((p) => p.id === initialPlantillaId);
       if (target) {
+        alreadyLoaded = true;
         dispatch({
           type: 'LOAD',
           payload: {
             ...target,
-            cuadrillas: target.cuadrillas.map((c) => ({ ...c, filas: [] })),
+            cuadrillas: (target.cuadrillas || []).map((c) => ({
+              ...c,
+              filas: [],
+              semanas: Array.isArray(c.semanas) ? c.semanas : [],
+            })),
           },
         });
         setEditId(target.id);
-        setSelectedCuadrillaId(target.cuadrillas[0]?.id ?? '');
+        setSelectedCuadrillaId(target.cuadrillas?.[0]?.id ?? '');
       }
     } else {
       setEditId(undefined);
     }
 
-    // Consulta de respaldo en segundo plano a la API REST (sin server action) para refrescar modelos guardados
+    // Si ya cargó desde memoria/props, no volvemos a sobrescribir ni despachar
+    if (alreadyLoaded) return;
+
+    // Consulta de respaldo en segundo plano a la API REST solo si no estaba en memoria
     let active = true;
     (async () => {
       try {
@@ -134,18 +143,22 @@ function RotacionPlantillaSandboxModalInner({
         const json = await res.json();
         if (active && json.ok && Array.isArray(json.plantillas)) {
           setSavedPlantillas(json.plantillas);
-          if (initialPlantillaId && !editId) {
+          if (initialPlantillaId) {
             const target = json.plantillas.find((p: RotacionPlantillaRecord) => p.id === initialPlantillaId);
             if (target) {
               dispatch({
                 type: 'LOAD',
                 payload: {
                   ...target,
-                  cuadrillas: target.cuadrillas.map((c: any) => ({ ...c, filas: [] })),
+                  cuadrillas: (target.cuadrillas || []).map((c: any) => ({
+                    ...c,
+                    filas: [],
+                    semanas: Array.isArray(c.semanas) ? c.semanas : [],
+                  })),
                 },
               });
               setEditId(target.id);
-              setSelectedCuadrillaId(target.cuadrillas[0]?.id ?? '');
+              setSelectedCuadrillaId(target.cuadrillas?.[0]?.id ?? '');
             }
           }
         }
@@ -378,7 +391,7 @@ function RotacionPlantillaSandboxModalInner({
                     )}
                   >
                     {c.nombre}
-                    <span className="ml-1 opacity-60">({c.filas.length})</span>
+                    <span className="ml-1 opacity-60">({c.filas?.length ?? 0})</span>
                   </button>
                 ))}
               </div>
@@ -463,7 +476,7 @@ function RotacionPlantillaSandboxModalInner({
                     )}
                   </div>
                   <div className="flex flex-col gap-3">
-                    {cuadrillaActiva.semanas.map((sem) => (
+                    {(cuadrillaActiva.semanas || []).map((sem) => (
                       <div
                         key={sem.id}
                         className={cn(mineosPanel('neutral'), 'flex flex-col gap-3 !p-4')}
@@ -512,9 +525,9 @@ function RotacionPlantillaSandboxModalInner({
                                 onClick={() =>
                                   dispatch({ type: 'REMOVE_SEMANA', payload: { cuadrillaId, id: sem.id } })
                                 }
-                                disabled={cuadrillaActiva.semanas.length <= 1 && !puedeQuitarUltimaSemana}
+                                disabled={(cuadrillaActiva.semanas || []).length <= 1 && !puedeQuitarUltimaSemana}
                                 title={
-                                  cuadrillaActiva.semanas.length <= 1 && !puedeQuitarUltimaSemana
+                                  (cuadrillaActiva.semanas || []).length <= 1 && !puedeQuitarUltimaSemana
                                     ? 'Active Bono transporte para crear una plantilla sin semanas'
                                     : 'Quitar semana'
                                 }
@@ -604,7 +617,7 @@ class RotacionSandboxErrorBoundary extends Component<
           <div className="flex flex-col items-center gap-3 py-4">
             <h3 className="text-base font-bold text-white">No se pudo abrir el editor</h3>
             <p className="text-xs text-neutral-400">
-              Ocurrió un inconveniente al cargar los datos de la plantilla seleccionada.
+              {this.state.error?.message || 'Ocurrió un inconveniente al cargar los datos de la plantilla seleccionada.'}
             </p>
             <button
               type="button"
