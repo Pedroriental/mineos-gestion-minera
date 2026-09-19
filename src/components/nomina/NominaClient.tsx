@@ -2575,11 +2575,24 @@ export default function NominaClient({
   }
 
   async function handleRevertirSemana(sem: NominaSemana) {
-    if (!(await confirmDialog({
-      title: 'Revertir nómina',
-      message: `¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}?`,
-      variant: 'danger'
-    }))) return;
+    if (!sem) return;
+    let confirmed = false;
+    try {
+      if (typeof confirmDialog === 'function') {
+        confirmed = await confirmDialog({
+          title: 'Revertir nómina',
+          message: `¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}? Se desbloquearán los trabajadores para permitir su edición.`,
+          variant: 'danger',
+          confirmLabel: 'Revertir',
+          cancelLabel: 'Cancelar',
+        });
+      } else {
+        confirmed = typeof window !== 'undefined' ? window.confirm(`¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}?`) : true;
+      }
+    } catch {
+      confirmed = typeof window !== 'undefined' ? window.confirm(`¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}?`) : true;
+    }
+    if (!confirmed) return;
     setIsPending(true);
     try {
       const response = await fetch('/api/nomina/revertir', {
@@ -3049,7 +3062,16 @@ export default function NominaClient({
           <Wallet className="w-3.5 h-3.5 shrink-0" /> Cerrar
         </button>
       ) : (
-        <button onClick={() => semanaActualCerrada && handleRevertirSemana(semanaActualCerrada)} disabled={!canEdit || isPending || !semanaActualCerrada} title="Revertir cierre" className="nomina-page__toolbar-btn btn-danger h-9 shrink-0 text-xs disabled:opacity-40">
+        <button
+          type="button"
+          onClick={() => {
+            const target = semanaActualCerrada || semanas.find((s) => s.semana_inicio === weekRange.inicio && (s.area === area || !s.area));
+            if (target) handleRevertirSemana(target);
+          }}
+          disabled={!canEdit || isPending || (!semanaActualCerrada && !semanas.some((s) => s.semana_inicio === weekRange.inicio && (s.area === area || !s.area)))}
+          title="Revertir cierre"
+          className="nomina-page__toolbar-btn btn-danger h-9 shrink-0 text-xs disabled:opacity-40"
+        >
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
         </button>
       )}
@@ -3173,7 +3195,15 @@ export default function NominaClient({
                   </label>
                   <p className="text-[11px] text-white/50">{semanaActualCerrada?.total_trabajadores ?? 0} trabajadores · <span className="font-bold text-emerald-400">{fmtMoney(Number(semanaActualCerrada?.total_pagado ?? 0))}</span></p>
                 </div>
-                <button onClick={() => semanaActualCerrada && handleRevertirSemana(semanaActualCerrada)} disabled={!canEdit || isPending || !semanaActualCerrada} className="h-8 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-40">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = semanaActualCerrada || semanas.find((s) => s.semana_inicio === weekRange.inicio && (s.area === area || !s.area));
+                    if (target) handleRevertirSemana(target);
+                  }}
+                  disabled={!canEdit || isPending || (!semanaActualCerrada && !semanas.some((s) => s.semana_inicio === weekRange.inicio && (s.area === area || !s.area)))}
+                  className="h-8 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-40"
+                >
                   {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
                 </button>
               </div>
@@ -4002,7 +4032,10 @@ export default function NominaClient({
         hasRows={preNominaRows.length > 0}
         isPending={isPending}
         onCerrar={() => { setCierreModalError(null); setShowProcesarModal(true); }}
-        onRevertir={() => semanaActualCerrada && handleRevertirSemana(semanaActualCerrada)}
+        onRevertir={() => {
+          const target = semanaActualCerrada || semanas.find((s) => s.semana_inicio === weekRange.inicio && (s.area === area || !s.area));
+          if (target) handleRevertirSemana(target);
+        }}
         onRegistrar={() => setShowAssignModal(true)}
         onMore={() => setMobileMoreOpen(true)}
       />

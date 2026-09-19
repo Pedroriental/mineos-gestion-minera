@@ -125,12 +125,18 @@ export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
       }
     }
 
-    if (semanaInicio && area) {
-      const { data: byDate } = await supabase
+    const effectiveSemanaInicio = semanaInicio || (targetRowsMap.size > 0 ? Array.from(targetRowsMap.values())[0].semana_inicio : '');
+    const effectiveArea = area || (targetRowsMap.size > 0 ? Array.from(targetRowsMap.values())[0].area : '');
+
+    if (effectiveSemanaInicio) {
+      let query = supabase
         .from('nomina_semanas')
         .select('id, periodo_id, gasto_id, total_pagado, semana_inicio, area')
-        .eq('semana_inicio', semanaInicio)
-        .eq('area', area);
+        .eq('semana_inicio', effectiveSemanaInicio);
+      if (effectiveArea) {
+        query = query.or(`area.eq.${effectiveArea},area.is.null`);
+      }
+      const { data: byDate } = await query;
       if (byDate?.length) {
         for (const row of byDate) targetRowsMap.set(row.id, row);
       }

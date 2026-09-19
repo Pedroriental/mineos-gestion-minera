@@ -47,6 +47,10 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();
 
   const confirm = useCallback((opts: ConfirmOptions) => {
+    if (resolveRef.current) {
+      resolveRef.current(false);
+      resolveRef.current = null;
+    }
     openTimeRef.current = Date.now();
     return new Promise<boolean>((resolve) => {
       setOptions(opts);
@@ -56,8 +60,6 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleClose = useCallback(() => {
-    // Evitar cierres accidentales producidos por bubbling en el tick de apertura
-    if (Date.now() - openTimeRef.current < 150) return;
     setIsOpen(false);
     if (resolveRef.current) {
       const cb = resolveRef.current;

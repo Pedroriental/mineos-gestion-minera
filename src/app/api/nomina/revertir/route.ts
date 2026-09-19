@@ -35,27 +35,21 @@ export async function POST(req: Request) {
       }
     }
 
-    // Solo si no se encontró por ID específico, buscar por (semana_inicio, area)
-    if (targetRowsMap.size === 0 && semanaInicio) {
+    // Buscar SIEMPRE todas las semanas coincidentes por (semana_inicio, area) para eliminar duplicados o fantasmas
+    const effectiveSemanaInicio = semanaInicio || (targetRowsMap.size > 0 ? Array.from(targetRowsMap.values())[0].semana_inicio : '');
+    const effectiveArea = area || (targetRowsMap.size > 0 ? Array.from(targetRowsMap.values())[0].area : '');
+
+    if (effectiveSemanaInicio) {
       let query = supabase
         .from('nomina_semanas')
         .select('id, periodo_id, gasto_id, total_pagado, semana_inicio, area')
-        .eq('semana_inicio', semanaInicio);
-      if (area) {
-        query = query.eq('area', area);
+        .eq('semana_inicio', effectiveSemanaInicio);
+      if (effectiveArea) {
+        query = query.or(`area.eq.${effectiveArea},area.is.null`);
       }
       const { data: byDate } = await query;
       if (byDate?.length) {
         for (const row of byDate) targetRowsMap.set(row.id, row);
-      } else if (area) {
-        const { data: legacyByDate } = await supabase
-          .from('nomina_semanas')
-          .select('id, periodo_id, gasto_id, total_pagado, semana_inicio, area')
-          .eq('semana_inicio', semanaInicio)
-          .is('area', null);
-        if (legacyByDate?.length) {
-          for (const row of legacyByDate) targetRowsMap.set(row.id, row);
-        }
       }
     }
 
