@@ -21,15 +21,17 @@ export async function POST(req: Request) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    console.info('[/api/nomina/revertir] user:', user?.email, '| semanaId:', semanaId, '| area:', area, '| semanaInicio:', semanaInicio);
 
     // 1. Recopilar todas las semanas objetivo que coincidan por ID o por (semana_inicio, area)
     const targetRowsMap = new Map<string, { id: string; periodo_id?: string | null; gasto_id?: string | null; total_pagado?: number; semana_inicio?: string; area?: string }>();
 
     if (semanaId) {
-      const { data: byId } = await supabase
+      const { data: byId, error: byIdErr } = await supabase
         .from('nomina_semanas')
         .select('id, periodo_id, gasto_id, total_pagado, semana_inicio, area')
         .eq('id', semanaId);
+      console.info('[/api/nomina/revertir] Búsqueda por ID:', { semanaId, found: byId?.length ?? 0, error: byIdErr?.message });
       if (byId?.length) {
         for (const row of byId) targetRowsMap.set(row.id, row);
       }
@@ -47,7 +49,8 @@ export async function POST(req: Request) {
       if (effectiveArea) {
         query = query.or(`area.eq.${effectiveArea},area.is.null`);
       }
-      const { data: byDate } = await query;
+      const { data: byDate, error: byDateErr } = await query;
+      console.info('[/api/nomina/revertir] Búsqueda por fecha+area:', { effectiveSemanaInicio, effectiveArea, found: byDate?.length ?? 0, rows: byDate, error: byDateErr?.message });
       if (byDate?.length) {
         for (const row of byDate) targetRowsMap.set(row.id, row);
       }
@@ -57,6 +60,15 @@ export async function POST(req: Request) {
     const targetIdsSet = new Set<string>(Array.from(targetRowsMap.keys()));
     if (semanaId) targetIdsSet.add(semanaId);
     const allTargetIds = Array.from(targetIdsSet);
+    console.info('[/api/nomina/revertir] Total targets a purgar:', allTargetIds.length, allTargetIds);
+
+    if (allTargetIds.length === 0) {
+      console.warn('[/api/nomina/revertir] NO se encontraron semanas para revertir');
+      return NextResponse.json({
+        ok: false,
+        message: `No se encontraron semanas cerradas para revertir (inicio: ${semanaInicio}, area: ${area}, id: ${semanaId}). Verifica que la semana existe en la base de datos.`,
+      }, { status: 404 });
+    }
 
     let registrosCerrados: any[] = [];
     const periodIdsToRefresh = new Set<string>();
@@ -107,17 +119,23 @@ export async function POST(req: Request) {
       }
 
       // Eliminar registros residuales de rotación, registros, cierres, ajustes y ciclos
-      await supabase.from('rotacion_instancia_semanas').delete().in('nomina_semana_id', allTargetIds);
-      await supabase.from('nomina_registros').delete().in('semana_id', allTargetIds);
-      await supabase.from('nomina_cierres').delete().in('semana_id', allTargetIds);
-      await supabase.from('nomina_ajustes').delete().in('semana_id', allTargetIds);
-      await supabase.from('nomina_ciclo_semanas').delete().in('semana_id', allTargetIds);
+      const { error: rotDelErr } = await supabase.from('rotacion_instancia_semanas').delete().in('nomina_semana_id', allTargetIds);
+      console.info('[/api/nomina/revertir] Delete rotacion_instancia_semanas:', rotDelErr?.message || 'OK');
+      const { error: regDelErr } = await supabase.from('nomina_registros').delete().in('semana_id', allTargetIds);
+      console.info('[/api/nomina/revertir] Delete nomina_registros:', regDelErr?.message || 'OK');
+      const { error: cierreDelErr } = await supabase.from('nomina_cierres').delete().in('semana_id', allTargetIds);
+      console.info('[/api/nomina/revertir] Delete nomina_cierres:', cierreDelErr?.message || 'OK');
+      const { error: ajusteDelErr } = await supabase.from('nomina_ajustes').delete().in('semana_id', allTargetIds);
+      console.info('[/api/nomina/revertir] Delete nomina_ajustes:', ajusteDelErr?.message || 'OK');
+      const { error: cicloDelErr } = await supabase.from('nomina_ciclo_semanas').delete().in('semana_id', allTargetIds);
+      console.info('[/api/nomina/revertir] Delete nomina_ciclo_semanas:', cicloDelErr?.message || 'OK');
 
       // 6. Eliminar las filas de nomina_semanas
       const { error: delError } = await supabase
         .from('nomina_semanas')
         .delete()
         .in('id', allTargetIds);
+      console.info('[/api/nomina/revertir] Delete nomina_semanas:', delError?.message || 'OK');
 
       if (delError) {
         console.error('[/api/nomina/revertir] Error al eliminar semana de Supabase:', delError.message);

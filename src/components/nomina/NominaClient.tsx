@@ -2575,271 +2575,282 @@ export default function NominaClient({
   }
 
   async function handleRevertirSemana(sem: NominaSemana) {
-    if (!sem) return;
+    if (!sem) { console.warn('[Revertir] sem es null/undefined, abortando'); return; }
+    console.info('[Revertir] Iniciando revertir para semana:', { id: sem.id, inicio: sem.semana_inicio, fin: sem.semana_fin, area: sem.area, areaCtx: area });
+
+    // ── Confirmación ──
     let confirmed = false;
     try {
-      if (typeof confirmDialog === 'function') {
-        confirmed = await confirmDialog({
-          title: 'Revertir nómina',
-          message: `¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}? Se desbloquearán los trabajadores para permitir su edición.`,
-          variant: 'danger',
-          confirmLabel: 'Revertir',
-          cancelLabel: 'Cancelar',
-        });
-      } else {
-        confirmed = typeof window !== 'undefined' ? window.confirm(`¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}?`) : true;
-      }
-    } catch {
-      confirmed = typeof window !== 'undefined' ? window.confirm(`¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}?`) : true;
+      confirmed = typeof window !== 'undefined'
+        ? window.confirm(`¿Revertir la nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)}? Se desbloquearán los trabajadores para permitir su edición.`)
+        : true;
+    } catch (cfgErr) {
+      console.error('[Revertir] Error en confirmación:', cfgErr);
+      confirmed = false;
     }
-    if (!confirmed) return;
+
+    console.info('[Revertir] confirmed =', confirmed);
+    if (!confirmed) { console.info('[Revertir] Usuario canceló'); return; }
+
     setIsPending(true);
     try {
+      const payload = {
+        semanaId: sem.id,
+        area: sem.area || area,
+        semana_inicio: sem.semana_inicio,
+        semana_fin: sem.semana_fin,
+        gasto_id: sem.gasto_id,
+        total_pagado: sem.total_pagado,
+      };
+      console.info('[Revertir] Enviando fetch a /api/nomina/revertir con payload:', payload);
+
       const response = await fetch('/api/nomina/revertir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          semanaId: sem.id,
-          area: sem.area || area,
-          semana_inicio: sem.semana_inicio,
-          semana_fin: sem.semana_fin,
-          gasto_id: sem.gasto_id,
-          total_pagado: sem.total_pagado,
-        }),
+        body: JSON.stringify(payload),
       });
+
+      console.info('[Revertir] HTTP status:', response.status, response.statusText);
       const res = await response.json();
-      if (res.ok) {
-        const deletedIds = new Set<string>(
-          [sem.id, ...(res.data?.deletedSemanaIds || [])].filter(Boolean),
-        );
-        for (const id of deletedIds) revertedWeeksRef.current.add(id);
-        revertedWeeksRef.current.add(`${sem.area || area}:${sem.semana_inicio}`);
-        revertedWeeksRef.current.add(sem.semana_inicio);
-        if (sem.id) revertedWeeksRef.current.add(sem.id);
+      console.info('[Revertir] Respuesta JSON:', res);
 
-        setRevertedWeekKeys((prev) => {
-          const next = new Set(prev);
-          for (const id of deletedIds) next.add(id);
-          next.add(`${sem.area || area}:${sem.semana_inicio}`);
-          next.add(sem.semana_inicio);
-          if (sem.id) next.add(sem.id);
-          return next;
-        });
+      if (!response.ok || !res.ok) {
+        const msg = res.message || `Error HTTP ${response.status}`;
+        console.error('[Revertir] Error del servidor:', msg);
+        toastError(msg);
+        return;
+      }
 
-        // 1. Remover de memoria todas las semanas que coincidan con este id o con (semana_inicio, area)
-        setSemanas((prev) =>
-          prev.filter(
-            (s) =>
-              !deletedIds.has(s.id) &&
-              !(s.semana_inicio === sem.semana_inicio && (s.area || area) === (sem.area || area)),
-          ),
-        );
+      // --- Éxito: actualizar estado local ---
+      console.info('[Revertir] Éxito, deletedSemanaIds:', res.data?.deletedSemanaIds);
+      const deletedIds = new Set<string>(
+        [sem.id, ...(res.data?.deletedSemanaIds || [])].filter(Boolean),
+      );
+      for (const id of deletedIds) revertedWeeksRef.current.add(id);
+      revertedWeeksRef.current.add(`${sem.area || area}:${sem.semana_inicio}`);
+      revertedWeeksRef.current.add(sem.semana_inicio);
+      if (sem.id) revertedWeeksRef.current.add(sem.id);
 
-        // 2. Localizar el periodo que contiene esta semana
-        const targetPeriod =
-          (manualPeriodSession && sem.periodo_id ? getPeriodById(manualPeriodSession, sem.periodo_id) : null) ||
-          (manualPeriodSession ? resolveManualPeriodForWeek(manualPeriodSession, sem.semana_inicio, temporalCtx.workingWeekStart) : null) ||
-          manualPeriodForView;
+      setRevertedWeekKeys((prev) => {
+        const next = new Set(prev);
+        for (const id of deletedIds) next.add(id);
+        next.add(`${sem.area || area}:${sem.semana_inicio}`);
+        next.add(sem.semana_inicio);
+        if (sem.id) next.add(sem.id);
+        return next;
+      });
 
-        const manualPeriodId = targetPeriod?.id ?? null;
+      // 1. Remover de memoria todas las semanas que coincidan con este id o con (semana_inicio, area)
+      setSemanas((prev) =>
+        prev.filter(
+          (s) =>
+            !deletedIds.has(s.id) &&
+            !(s.semana_inicio === sem.semana_inicio && (s.area || area) === (sem.area || area)),
+        ),
+      );
 
-        // Limpiar el período en la sesión local (quitar todos los IDs eliminados) y sincronizar localStorage
-        setManualPeriodSession((prev) => {
-          if (!prev) return prev;
-          const periodsArr = Array.isArray(prev.periods)
-            ? prev.periods
-            : Object.values(prev.periods ?? {});
-          let changed = false;
-          const nextPeriods = periodsArr.map((p) => {
-            const isMatch =
-              p.id === targetPeriod?.id ||
-              (targetPeriod?.periodoArchivoId && p.periodoArchivoId === targetPeriod.periodoArchivoId) ||
-              (targetPeriod?.id && p.id === `arch-${targetPeriod.id}`) ||
-              (p.periodoArchivoId && sem.periodo_id && (p.periodoArchivoId === sem.periodo_id || p.id === sem.periodo_id));
+      // 2. Localizar el periodo que contiene esta semana
+      const targetPeriod =
+        (manualPeriodSession && sem.periodo_id ? getPeriodById(manualPeriodSession, sem.periodo_id) : null) ||
+        (manualPeriodSession ? resolveManualPeriodForWeek(manualPeriodSession, sem.semana_inicio, temporalCtx.workingWeekStart) : null) ||
+        manualPeriodForView;
 
-            if (!p.semanaIds?.length && !isMatch) return p;
+      const manualPeriodId = targetPeriod?.id ?? null;
 
-            const filtered = p.semanaIds ? p.semanaIds.filter((id) => !deletedIds.has(id)) : [];
-            let updatedUsd = p.periodoTotalUsd;
-            if (isMatch && sem.total_pagado != null && updatedUsd != null) {
-              updatedUsd = Math.max(0, updatedUsd - Number(sem.total_pagado));
-            }
+      // Limpiar el período en la sesión local (quitar todos los IDs eliminados) y sincronizar localStorage
+      setManualPeriodSession((prev) => {
+        if (!prev) return prev;
+        const periodsArr = Array.isArray(prev.periods)
+          ? prev.periods
+          : Object.values(prev.periods ?? {});
+        let changed = false;
+        const nextPeriods = periodsArr.map((p) => {
+          const isMatch =
+            p.id === targetPeriod?.id ||
+            (targetPeriod?.periodoArchivoId && p.periodoArchivoId === targetPeriod.periodoArchivoId) ||
+            (targetPeriod?.id && p.id === `arch-${targetPeriod.id}`) ||
+            (p.periodoArchivoId && sem.periodo_id && (p.periodoArchivoId === sem.periodo_id || p.id === sem.periodo_id));
 
-            if (filtered.length !== (p.semanaIds?.length ?? 0) || updatedUsd !== p.periodoTotalUsd) {
-              changed = true;
-              return { ...p, semanaIds: filtered, periodoTotalUsd: updatedUsd };
-            }
-            return p;
-          });
-          const nextSession = changed ? { ...prev, periods: nextPeriods } : prev;
-          saveManualPeriodsSession(area, nextSession);
-          return nextSession;
-        });
+          if (!p.semanaIds?.length && !isMatch) return p;
 
-        setConsolidatedLockedIds((prev) => {
-          const next = new Set(prev);
-          if (targetPeriod) {
-            next.delete(targetPeriod.id);
-            if (targetPeriod.periodoArchivoId) {
-              next.delete(targetPeriod.periodoArchivoId);
-              next.delete(`arch-${targetPeriod.periodoArchivoId}`);
-            }
-            if (targetPeriod.periodoVistaId) {
-              next.delete(targetPeriod.periodoVistaId);
-              next.delete(`arch-${targetPeriod.periodoVistaId}`);
-            }
-            if (targetPeriod.id.startsWith('arch-')) {
-              next.delete(targetPeriod.id.replace('arch-', ''));
-            } else {
-              next.delete(`arch-${targetPeriod.id}`);
-            }
+          const filtered = p.semanaIds ? p.semanaIds.filter((id) => !deletedIds.has(id)) : [];
+          let updatedUsd = p.periodoTotalUsd;
+          if (isMatch && sem.total_pagado != null && updatedUsd != null) {
+            updatedUsd = Math.max(0, updatedUsd - Number(sem.total_pagado));
           }
-          if (sem.periodo_id) {
-            next.delete(sem.periodo_id);
-            next.delete(`arch-${sem.periodo_id}`);
+
+          if (filtered.length !== (p.semanaIds?.length ?? 0) || updatedUsd !== p.periodoTotalUsd) {
+            changed = true;
+            return { ...p, semanaIds: filtered, periodoTotalUsd: updatedUsd };
           }
-          return next;
+          return p;
         });
+        const nextSession = changed ? { ...prev, periods: nextPeriods } : prev;
+        saveManualPeriodsSession(area, nextSession);
+        return nextSession;
+      });
 
-        setEditedConsolidatedPeriodIds((prev) => {
-          const next = new Set(prev);
-          if (targetPeriod) {
-            next.add(targetPeriod.id);
-            if (targetPeriod.periodoArchivoId) {
-              next.add(targetPeriod.periodoArchivoId);
-              next.add(`arch-${targetPeriod.periodoArchivoId}`);
-            }
+      setConsolidatedLockedIds((prev) => {
+        const next = new Set(prev);
+        if (targetPeriod) {
+          next.delete(targetPeriod.id);
+          if (targetPeriod.periodoArchivoId) {
+            next.delete(targetPeriod.periodoArchivoId);
+            next.delete(`arch-${targetPeriod.periodoArchivoId}`);
           }
-          return next;
-        });
-
-        setArchivoRefreshKey((k) => k + 1);
-
-        if (res.data?.registros?.length) {
-          const restoredRegs = res.data.registros as Array<{
-            personal_id: string;
-            monto_pagado?: number | string;
-            es_semana_libre?: boolean;
-            estado_asistencia?: any;
-            dias_trabajados?: number | null;
-            salario_base_calculado?: number | string;
-            novedad_turno?: string | null;
-            novedad_turno_obs?: string | null;
-          }>;
-          const restoredIds = restoredRegs.map((r) => r.personal_id);
-
-          // Roster para el ciclo del periodo manual activo
-          if (manualPeriodId) {
-            writeManualWeekRosterEntries(
-              area,
-              sem.semana_inicio,
-              restoredIds.map((id) => ({ id })),
-              manualPeriodId,
-            );
+          if (targetPeriod.periodoVistaId) {
+            next.delete(targetPeriod.periodoVistaId);
+            next.delete(`arch-${targetPeriod.periodoVistaId}`);
           }
-          // Roster para la vista semanal general (fallback cuando no hay periodoId activo)
+          if (targetPeriod.id.startsWith('arch-')) {
+            next.delete(targetPeriod.id.replace('arch-', ''));
+          } else {
+            next.delete(`arch-${targetPeriod.id}`);
+          }
+        }
+        if (sem.periodo_id) {
+          next.delete(sem.periodo_id);
+          next.delete(`arch-${sem.periodo_id}`);
+        }
+        return next;
+      });
+
+      setEditedConsolidatedPeriodIds((prev) => {
+        const next = new Set(prev);
+        if (targetPeriod) {
+          next.add(targetPeriod.id);
+          if (targetPeriod.periodoArchivoId) {
+            next.add(targetPeriod.periodoArchivoId);
+            next.add(`arch-${targetPeriod.periodoArchivoId}`);
+          }
+        }
+        return next;
+      });
+
+      setArchivoRefreshKey((k) => k + 1);
+
+      if (res.data?.registros?.length) {
+        const restoredRegs = res.data.registros as Array<{
+          personal_id: string;
+          monto_pagado?: number | string;
+          es_semana_libre?: boolean;
+          estado_asistencia?: any;
+          dias_trabajados?: number | null;
+          salario_base_calculado?: number | string;
+          novedad_turno?: string | null;
+          novedad_turno_obs?: string | null;
+        }>;
+        const restoredIds = restoredRegs.map((r) => r.personal_id);
+
+        // Roster para el ciclo del periodo manual activo
+        if (manualPeriodId) {
           writeManualWeekRosterEntries(
             area,
             sem.semana_inicio,
             restoredIds.map((id) => ({ id })),
-            null,
+            manualPeriodId,
           );
+        }
+        // Roster para la vista semanal general (fallback cuando no hay periodoId activo)
+        writeManualWeekRosterEntries(
+          area,
+          sem.semana_inicio,
+          restoredIds.map((id) => ({ id })),
+          null,
+        );
 
-          const draftKeyWithPeriod = nominaNovedadDraftKey(area, sem.semana_inicio, manualPeriodId);
-          const draftKeyNoPeriod = nominaNovedadDraftKey(area, sem.semana_inicio, null);
+        const draftKeyWithPeriod = nominaNovedadDraftKey(area, sem.semana_inicio, manualPeriodId);
+        const draftKeyNoPeriod = nominaNovedadDraftKey(area, sem.semana_inicio, null);
 
-          const existingWithPeriod = readNominaNovedadDraft(draftKeyWithPeriod);
-          const existingNoPeriod = readNominaNovedadDraft(draftKeyNoPeriod);
+        const existingWithPeriod = readNominaNovedadDraft(draftKeyWithPeriod);
+        const existingNoPeriod = readNominaNovedadDraft(draftKeyNoPeriod);
 
-          const restoredDraftWithPeriod: Record<string, any> = { ...existingWithPeriod };
-          const restoredDraftNoPeriod: Record<string, any> = { ...existingNoPeriod };
+        const restoredDraftWithPeriod: Record<string, any> = { ...existingWithPeriod };
+        const restoredDraftNoPeriod: Record<string, any> = { ...existingNoPeriod };
 
-          for (const reg of restoredRegs) {
-            const draftRow = {
-              estadoAsistencia: reg.estado_asistencia || (reg.es_semana_libre ? 'libre' : 'trabajada'),
-              diasTrabajados: reg.dias_trabajados != null ? Number(reg.dias_trabajados) : undefined,
-              novedadTurno: reg.novedad_turno ? parseNovedadTurno(reg.novedad_turno) : undefined,
-              novedadTurnoObs: reg.novedad_turno_obs || '',
-            };
-            restoredDraftWithPeriod[reg.personal_id] = {
-              ...(existingWithPeriod[reg.personal_id] ?? {}),
-              ...draftRow,
-            };
-            restoredDraftNoPeriod[reg.personal_id] = {
-              ...(existingNoPeriod[reg.personal_id] ?? {}),
-              ...draftRow,
-            };
-          }
-
-          writeNominaNovedadDraft(draftKeyWithPeriod, restoredDraftWithPeriod);
-          writeNominaNovedadDraft(draftKeyNoPeriod, restoredDraftNoPeriod);
-
-          // Generar inmediatamente las filas editables para la vista semanal
-          const draftMap = manualPeriodId ? restoredDraftWithPeriod : restoredDraftNoPeriod;
-          const restoredRows = restoredRegs.map((reg) => {
-            const p = personalCatalogMerged.find((w) => w.id === reg.personal_id) || {
-              id: reg.personal_id,
-              nombre_completo: 'Trabajador',
-              cedula: 'SC-N/A',
-              cargo: 'General',
-              area: area,
-              area_detalle: 'General',
-              salario_base: Number(reg.salario_base_calculado || 0),
-              salario_libre: Number(reg.salario_base_calculado || 0),
-              bono_transporte: 0,
-              esquema_rotacion: 'FIJO_SEMANAL',
-              estatus: 'ACTIVO',
-              fecha_ingreso: '',
-              activo: false,
-              created_at: '',
-              updated_at: '',
-            } as Personal;
-            const baseRow = buildOperationalNominaRow(p, sem.semana_inicio, {});
-            return applyWeekDraft(baseRow, sem.semana_inicio, draftMap[p.id]);
-          });
-          setPreNominaRows(restoredRows);
-        } else {
-          // Si la BD no devolvió registros guardados (o ya estaban eliminados), reconstruir inmediatamente
-          // las filas editables desde la plantilla o catálogo maestro para permitir edición inmediata
-          if (manualPlantillaActiva && targetPeriod?.plantillaId) {
-            const plantillaIds = manualPlantillaActiva.cuadrillas.flatMap((c) =>
-              c.filas.map((f) => f.personalId),
-            );
-            const personalIds = [...new Set(plantillaIds)];
-            const baseRows = buildManualPlantillaNominaRows({
-              plantilla: manualPlantillaActiva,
-              personalCatalog: personalCatalogMerged,
-              personalIds,
-              weekStart: sem.semana_inicio,
-              periodStart: targetPeriod.rangeStart,
-              periodEnd: targetPeriod.rangeEnd,
-              weekColumnAssignment: targetPeriod.weekColumnAssignment,
-              weekColumnCuadrillas: targetPeriod.weekColumnCuadrillas,
-              valesMap: {},
-              weekEnd: sem.semana_fin || getWeekEnd(sem.semana_inicio),
-            });
-            setPreNominaRows(baseRows);
-          } else {
-            const areaWorkers = personalCatalogMerged.filter((p) => (p.area || area) === area);
-            const baseRows = areaWorkers.map((p) => buildOperationalNominaRow(p, sem.semana_inicio, {}));
-            setPreNominaRows(baseRows);
-          }
+        for (const reg of restoredRegs) {
+          const draftRow = {
+            estadoAsistencia: reg.estado_asistencia || (reg.es_semana_libre ? 'libre' : 'trabajada'),
+            diasTrabajados: reg.dias_trabajados != null ? Number(reg.dias_trabajados) : undefined,
+            novedadTurno: reg.novedad_turno ? parseNovedadTurno(reg.novedad_turno) : undefined,
+            novedadTurnoObs: reg.novedad_turno_obs || '',
+          };
+          restoredDraftWithPeriod[reg.personal_id] = {
+            ...(existingWithPeriod[reg.personal_id] ?? {}),
+            ...draftRow,
+          };
+          restoredDraftNoPeriod[reg.personal_id] = {
+            ...(existingNoPeriod[reg.personal_id] ?? {}),
+            ...draftRow,
+          };
         }
 
-        // Navegar inmediatamente a la semana revertida en Vista Semanal
-        setWeekRange({
-          inicio: sem.semana_inicio,
-          fin: sem.semana_fin || getWeekEnd(sem.semana_inicio),
-        });
-        setIsHistoricalLoading(false);
-        setViewMode('semanal');
-        setManualRosterTick((t) => t + 1);
+        writeNominaNovedadDraft(draftKeyWithPeriod, restoredDraftWithPeriod);
+        writeNominaNovedadDraft(draftKeyNoPeriod, restoredDraftNoPeriod);
 
-        toastSuccess(`Nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)} revertida. Ya puedes editar los trabajadores.`);
-        try { router.refresh(); } catch {}
+        // Generar inmediatamente las filas editables para la vista semanal
+        const draftMap = manualPeriodId ? restoredDraftWithPeriod : restoredDraftNoPeriod;
+        const restoredRows = restoredRegs.map((reg) => {
+          const p = personalCatalogMerged.find((w) => w.id === reg.personal_id) || {
+            id: reg.personal_id,
+            nombre_completo: 'Trabajador',
+            cedula: 'SC-N/A',
+            cargo: 'General',
+            area: area,
+            area_detalle: 'General',
+            salario_base: Number(reg.salario_base_calculado || 0),
+            salario_libre: Number(reg.salario_base_calculado || 0),
+            bono_transporte: 0,
+            esquema_rotacion: 'FIJO_SEMANAL',
+            estatus: 'ACTIVO',
+            fecha_ingreso: '',
+            activo: false,
+            created_at: '',
+            updated_at: '',
+          } as Personal;
+          const baseRow = buildOperationalNominaRow(p, sem.semana_inicio, {});
+          return applyWeekDraft(baseRow, sem.semana_inicio, draftMap[p.id]);
+        });
+        setPreNominaRows(restoredRows);
       } else {
-        toastError(res.message || 'Error al revertir');
+        // Si la BD no devolvió registros guardados (o ya estaban eliminados), reconstruir inmediatamente
+        // las filas editables desde la plantilla o catálogo maestro para permitir edición inmediata
+        if (manualPlantillaActiva && targetPeriod?.plantillaId) {
+          const plantillaIds = manualPlantillaActiva.cuadrillas.flatMap((c) =>
+            c.filas.map((f) => f.personalId),
+          );
+          const personalIds = [...new Set(plantillaIds)];
+          const baseRows = buildManualPlantillaNominaRows({
+            plantilla: manualPlantillaActiva,
+            personalCatalog: personalCatalogMerged,
+            personalIds,
+            weekStart: sem.semana_inicio,
+            periodStart: targetPeriod.rangeStart,
+            periodEnd: targetPeriod.rangeEnd,
+            weekColumnAssignment: targetPeriod.weekColumnAssignment,
+            weekColumnCuadrillas: targetPeriod.weekColumnCuadrillas,
+            valesMap: {},
+            weekEnd: sem.semana_fin || getWeekEnd(sem.semana_inicio),
+          });
+          setPreNominaRows(baseRows);
+        } else {
+          const areaWorkers = personalCatalogMerged.filter((p) => (p.area || area) === area);
+          const baseRows = areaWorkers.map((p) => buildOperationalNominaRow(p, sem.semana_inicio, {}));
+          setPreNominaRows(baseRows);
+        }
       }
+
+      // Navegar inmediatamente a la semana revertida en Vista Semanal
+      setWeekRange({
+        inicio: sem.semana_inicio,
+        fin: sem.semana_fin || getWeekEnd(sem.semana_inicio),
+      });
+      setIsHistoricalLoading(false);
+      setViewMode('semanal');
+      setManualRosterTick((t) => t + 1);
+
+      toastSuccess(`Nómina del ${fmtDate(sem.semana_inicio)} al ${fmtDate(sem.semana_fin)} revertida. Ya puedes editar los trabajadores.`);
+      try { router.refresh(); } catch {}
     } catch (err: any) {
       console.error('[NominaClient] Error inesperado al revertir semana:', err);
       toastError(err?.message || 'No se pudo revertir la semana.');
