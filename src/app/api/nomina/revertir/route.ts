@@ -35,17 +35,27 @@ export async function POST(req: Request) {
       }
     }
 
-    if (semanaInicio) {
-      const query = supabase
+    // Solo si no se encontró por ID específico, buscar por (semana_inicio, area)
+    if (targetRowsMap.size === 0 && semanaInicio) {
+      let query = supabase
         .from('nomina_semanas')
         .select('id, periodo_id, gasto_id, total_pagado, semana_inicio, area')
         .eq('semana_inicio', semanaInicio);
       if (area) {
-        query.or(`area.eq.${area},area.is.null`);
+        query = query.eq('area', area);
       }
       const { data: byDate } = await query;
       if (byDate?.length) {
         for (const row of byDate) targetRowsMap.set(row.id, row);
+      } else if (area) {
+        const { data: legacyByDate } = await supabase
+          .from('nomina_semanas')
+          .select('id, periodo_id, gasto_id, total_pagado, semana_inicio, area')
+          .eq('semana_inicio', semanaInicio)
+          .is('area', null);
+        if (legacyByDate?.length) {
+          for (const row of legacyByDate) targetRowsMap.set(row.id, row);
+        }
       }
     }
 
@@ -93,30 +103,23 @@ export async function POST(req: Request) {
           .in('semana_id', allTargetIds);
       }
 
-      // 5. Eliminar registros, cierres y rotaciones de las semanas
-      await supabase.from('nomina_registros').delete().in('semana_id', allTargetIds);
-      await supabase.from('nomina_cierres').delete().in('semana_id', allTargetIds);
-      await supabase.from('rotacion_instancia_semanas').delete().in('nomina_semana_id', allTargetIds);
-
+      // 5. Revertir rotación ANTES de eliminar instancias de rotación
       for (const sid of allTargetIds) {
         try {
-          await revertirCierreRotacionNominaAction(sid);
+          await revertirCierreRotacionNominaAction(sid, supabase);
         } catch (rotErr) {
           console.warn('[/api/nomina/revertir] Error revirtiendo rotación:', rotErr);
         }
       }
 
-      // 6. Eliminar gastos vinculados
-      const gastosToDelete = new Set<string>();
-      if (gastoId) gastosToDelete.add(gastoId);
-      for (const row of targetRowsMap.values()) {
-        if (row.gasto_id) gastosToDelete.add(row.gasto_id);
-      }
-      for (const gid of gastosToDelete) {
-        await supabase.from('gastos').delete().eq('id', gid);
-      }
+      // Eliminar registros residuales de rotación, registros, cierres, ajustes y ciclos
+      await supabase.from('rotacion_instancia_semanas').delete().in('nomina_semana_id', allTargetIds);
+      await supabase.from('nomina_registros').delete().in('semana_id', allTargetIds);
+      await supabase.from('nomina_cierres').delete().in('semana_id', allTargetIds);
+      await supabase.from('nomina_ajustes').delete().in('semana_id', allTargetIds);
+      await supabase.from('nomina_ciclo_semanas').delete().in('semana_id', allTargetIds);
 
-      // 7. Eliminar las filas de nomina_semanas
+      // 6. Eliminar las filas de nomina_semanas
       const { error: delError } = await supabase
         .from('nomina_semanas')
         .delete()
@@ -128,6 +131,20 @@ export async function POST(req: Request) {
           { ok: false, message: `Error al revertir: ${delError.message}` },
           { status: 400 },
         );
+      }
+
+      // 7. Eliminar gastos vinculados (ahora que nomina_semanas ya no los referencia)
+      const gastosToDelete = new Set<string>();
+      if (gastoId) gastosToDelete.add(gastoId);
+      for (const row of targetRowsMap.values()) {
+        if (row.gasto_id) gastosToDelete.add(row.gasto_id);
+      }
+      for (const gid of gastosToDelete) {
+        try {
+          await supabase.from('gastos').delete().eq('id', gid);
+        } catch (gErr) {
+          console.warn('[/api/nomina/revertir] Error al eliminar gasto:', gErr);
+        }
       }
     }
 

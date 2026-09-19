@@ -42,7 +42,23 @@ export function getPeriodById(
   id: string | null | undefined,
 ): ManualNominaPeriod | null {
   if (!id) return null;
-  return session.periods.find((p) => p.id === id) ?? null;
+  const rawId = id.startsWith('arch-') ? id.slice(5) : id;
+  const archId = id.startsWith('arch-') ? id : `arch-${id}`;
+  const periods = Array.isArray(session?.periods)
+    ? session.periods
+    : Object.values(session?.periods ?? {});
+  return (
+    periods.find(
+      (p) =>
+        p.id === id ||
+        p.id === rawId ||
+        p.id === archId ||
+        p.periodoArchivoId === id ||
+        p.periodoArchivoId === rawId ||
+        p.periodoVistaId === id ||
+        p.periodoVistaId === rawId,
+    ) ?? null
+  );
 }
 
 export function getEditorPeriod(session: ManualPeriodsSession): ManualNominaPeriod | null {

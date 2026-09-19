@@ -728,28 +728,14 @@ export function NominaManualPeriodPanel({
                           </span>
                           {assignedWeek ? (
                             weekClosed && weekTotalUsd != null ? (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <p
-                                  className={cn(
-                                    mineosKpiValue('general'),
-                                    'text-[9px] font-bold tabular-nums leading-tight',
-                                  )}
-                                >
-                                  ${weekTotalUsd.toLocaleString('es', { minimumFractionDigits: 2 })}
-                                </p>
-                                {canEdit && onRevertirWeek && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onRevertirWeek(assignedWeek);
-                                    }}
-                                    className="text-[8px] font-bold uppercase tracking-tight text-red-400 hover:text-red-300 hover:underline transition-colors"
-                                  >
-                                    Revertir
-                                  </button>
+                              <p
+                                className={cn(
+                                  mineosKpiValue('general'),
+                                  'text-[9px] font-bold tabular-nums leading-tight',
                                 )}
-                              </div>
+                              >
+                                ${weekTotalUsd.toLocaleString('es', { minimumFractionDigits: 2 })}
+                              </p>
                             ) : (
                               <p className="text-[8px] font-medium tabular-nums text-[var(--text-muted)]">
                                 Pendiente

@@ -176,34 +176,41 @@ export async function revertirSemanaAction(semana: any): Promise<ActionResult> {
           .in('semana_id', allTargetIds);
       }
 
-      // 5. Eliminar registros, cierres, rotaciones
-      await supabase.from('nomina_registros').delete().in('semana_id', allTargetIds);
-      await supabase.from('nomina_cierres').delete().in('semana_id', allTargetIds);
-      await supabase.from('rotacion_instancia_semanas').delete().in('nomina_semana_id', allTargetIds);
-
+      // 5. Revertir rotaciones ANTES de eliminar instancias de rotación
       for (const sid of allTargetIds) {
         try {
-          await revertirCierreRotacionNominaAction(sid);
+          await revertirCierreRotacionNominaAction(sid, supabase);
         } catch (rotErr) {
           console.warn('[revertirSemanaAction] Error revirtiendo rotación:', rotErr);
         }
       }
 
-      // 6. Eliminar gastos vinculados
+      // Eliminar registros residuales de rotación, registros, cierres, ajustes y ciclos
+      await supabase.from('rotacion_instancia_semanas').delete().in('nomina_semana_id', allTargetIds);
+      await supabase.from('nomina_registros').delete().in('semana_id', allTargetIds);
+      await supabase.from('nomina_cierres').delete().in('semana_id', allTargetIds);
+      await supabase.from('nomina_ajustes').delete().in('semana_id', allTargetIds);
+      await supabase.from('nomina_ciclo_semanas').delete().in('semana_id', allTargetIds);
+
+      // 6. Eliminar semanas
+      const { error } = await supabase.from('nomina_semanas').delete().in('id', allTargetIds);
+      if (error) {
+        console.error('[Action] revertirSemanaAction Supabase error:', error.message);
+        return { ok: false, message: `Error al revertir: ${error.message}` };
+      }
+
+      // 7. Eliminar gastos vinculados (ahora que nomina_semanas ya no los referencia)
       const gastosToDelete = new Set<string>();
       if (semana.gasto_id) gastosToDelete.add(semana.gasto_id);
       for (const row of targetRowsMap.values()) {
         if (row.gasto_id) gastosToDelete.add(row.gasto_id);
       }
       for (const gid of gastosToDelete) {
-        await supabase.from('gastos').delete().eq('id', gid);
-      }
-
-      // 7. Eliminar semanas
-      const { error } = await supabase.from('nomina_semanas').delete().in('id', allTargetIds);
-      if (error) {
-        console.error('[Action] revertirSemanaAction Supabase error:', error.message);
-        return { ok: false, message: `Error al revertir: ${error.message}` };
+        try {
+          await supabase.from('gastos').delete().eq('id', gid);
+        } catch (gErr) {
+          console.warn('[revertirSemanaAction] Error al eliminar gasto:', gErr);
+        }
       }
 
       // 8. Refrescar totales y metadata de los periodos

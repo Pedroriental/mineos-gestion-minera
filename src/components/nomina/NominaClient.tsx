@@ -2638,11 +2638,23 @@ export default function NominaClient({
             : Object.values(prev.periods ?? {});
           let changed = false;
           const nextPeriods = periodsArr.map((p) => {
-            if (!p.semanaIds?.length) return p;
-            const filtered = p.semanaIds.filter((id) => !deletedIds.has(id));
-            if (filtered.length !== p.semanaIds.length) {
+            const isMatch =
+              p.id === targetPeriod?.id ||
+              (targetPeriod?.periodoArchivoId && p.periodoArchivoId === targetPeriod.periodoArchivoId) ||
+              (targetPeriod?.id && p.id === `arch-${targetPeriod.id}`) ||
+              (p.periodoArchivoId && sem.periodo_id && (p.periodoArchivoId === sem.periodo_id || p.id === sem.periodo_id));
+
+            if (!p.semanaIds?.length && !isMatch) return p;
+
+            const filtered = p.semanaIds ? p.semanaIds.filter((id) => !deletedIds.has(id)) : [];
+            let updatedUsd = p.periodoTotalUsd;
+            if (isMatch && sem.total_pagado != null && updatedUsd != null) {
+              updatedUsd = Math.max(0, updatedUsd - Number(sem.total_pagado));
+            }
+
+            if (filtered.length !== (p.semanaIds?.length ?? 0) || updatedUsd !== p.periodoTotalUsd) {
               changed = true;
-              return { ...p, semanaIds: filtered };
+              return { ...p, semanaIds: filtered, periodoTotalUsd: updatedUsd };
             }
             return p;
           });
@@ -2651,13 +2663,42 @@ export default function NominaClient({
           return nextSession;
         });
 
-        if (targetPeriod) {
-          setConsolidatedLockedIds((prev) => {
-            const next = new Set(prev);
+        setConsolidatedLockedIds((prev) => {
+          const next = new Set(prev);
+          if (targetPeriod) {
             next.delete(targetPeriod.id);
-            return next;
-          });
-        }
+            if (targetPeriod.periodoArchivoId) {
+              next.delete(targetPeriod.periodoArchivoId);
+              next.delete(`arch-${targetPeriod.periodoArchivoId}`);
+            }
+            if (targetPeriod.periodoVistaId) {
+              next.delete(targetPeriod.periodoVistaId);
+              next.delete(`arch-${targetPeriod.periodoVistaId}`);
+            }
+            if (targetPeriod.id.startsWith('arch-')) {
+              next.delete(targetPeriod.id.replace('arch-', ''));
+            } else {
+              next.delete(`arch-${targetPeriod.id}`);
+            }
+          }
+          if (sem.periodo_id) {
+            next.delete(sem.periodo_id);
+            next.delete(`arch-${sem.periodo_id}`);
+          }
+          return next;
+        });
+
+        setEditedConsolidatedPeriodIds((prev) => {
+          const next = new Set(prev);
+          if (targetPeriod) {
+            next.add(targetPeriod.id);
+            if (targetPeriod.periodoArchivoId) {
+              next.add(targetPeriod.periodoArchivoId);
+              next.add(`arch-${targetPeriod.periodoArchivoId}`);
+            }
+          }
+          return next;
+        });
 
         setArchivoRefreshKey((k) => k + 1);
 
@@ -2777,6 +2818,7 @@ export default function NominaClient({
           inicio: sem.semana_inicio,
           fin: sem.semana_fin || getWeekEnd(sem.semana_inicio),
         });
+        setIsHistoricalLoading(false);
         setViewMode('semanal');
         setManualRosterTick((t) => t + 1);
 

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase-server';
 import { listRotacionPlantillasAction } from '@/lib/actions/rotacion-plantillas';
 import {
@@ -395,47 +396,43 @@ export async function procesarCierreRotacionNominaAction(input: {
 
 export async function revertirCierreRotacionNominaAction(
   semanaId: string,
+  client?: SupabaseClient,
 ): Promise<RotacionInstanciaActionResult> {
-  const supabase = await createServerClient();
+  const supabase = client ?? (await createServerClient());
 
   const { data: instSemanas } = await supabase
     .from('rotacion_instancia_semanas')
     .select('*, instancia_cuadrilla_id, cuadrilla_id, instancia_id, orden')
-    .eq('nomina_semana_id', semanaId)
-    .eq('estado', 'CERRADA_AUDITADA');
+    .eq('nomina_semana_id', semanaId);
 
   if (!instSemanas?.length) return { ok: true, message: 'Sin cierres de rotación vinculados.' };
 
   for (const is of instSemanas) {
-    const { data: ic } = await supabase
-      .from('rotacion_instancia_cuadrillas')
-      .select('posicion_activa, ciclos_completados')
-      .eq('id', is.instancia_cuadrilla_id)
-      .maybeSingle();
-
-    if (ic) {
-      const { data: cuadrillaDb } = await supabase
-        .from('rotacion_plantilla_cuadrillas')
-        .select('id')
-        .eq('id', is.cuadrilla_id)
+    if (is.estado === 'CERRADA_AUDITADA' || is.estado === 'BLOQUEADA') {
+      const { data: ic } = await supabase
+        .from('rotacion_instancia_cuadrillas')
+        .select('posicion_activa, ciclos_completados')
+        .eq('id', is.instancia_cuadrilla_id)
         .maybeSingle();
 
-      const { count } = await supabase
-        .from('rotacion_plantilla_semanas')
-        .select('id', { count: 'exact', head: true })
-        .eq('cuadrilla_id', is.cuadrilla_id);
+      if (ic) {
+        const { count } = await supabase
+          .from('rotacion_plantilla_semanas')
+          .select('id', { count: 'exact', head: true })
+          .eq('cuadrilla_id', is.cuadrilla_id);
 
-      const totalSemanas = count ?? 1;
-      const prevPos = retrocederPosicionCuadrilla(ic.posicion_activa, totalSemanas);
+        const totalSemanas = count ?? 1;
+        const prevPos = retrocederPosicionCuadrilla(ic.posicion_activa, totalSemanas);
 
-      await supabase
-        .from('rotacion_instancia_cuadrillas')
-        .update({
-          posicion_activa: prevPos,
-          estado: 'ACTIVA',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', is.instancia_cuadrilla_id);
+        await supabase
+          .from('rotacion_instancia_cuadrillas')
+          .update({
+            posicion_activa: prevPos,
+            estado: 'ACTIVA',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', is.instancia_cuadrilla_id);
+      }
     }
 
     await supabase.from('rotacion_instancia_semanas').delete().eq('id', is.id);
