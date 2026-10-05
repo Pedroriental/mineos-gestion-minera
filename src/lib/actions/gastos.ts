@@ -13,6 +13,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { GastoSchema, GastoUpdateSchema } from '@/lib/validations/gastos';
 import { GastoConceptoSchema } from '@/lib/validations/conceptos';
 import { checkGastoDuplicatesForSave } from '@/lib/actions/gastos-audit';
@@ -21,6 +22,7 @@ import { formatDuplicateMatches, type GastoDuplicateMatch } from '@/lib/gastos-a
 import { z } from 'zod';
 import { getServerUser } from '@/lib/rbac';
 import { notifyAdmins } from '@/lib/notify-admins';
+import { RAW_AGOSTO_2026_ITEMS } from '@/lib/data/agosto-2026-gastos';
 
 // ── Tipo de respuesta estándar ────────────────────────────────
 export type ActionResult =
@@ -916,20 +918,121 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
       ok: true,
       message: `Se cargó exitosamente la compensación del mes completo de Julio 2026 ($97.600,33).`,
     };
+  } catch (err: any) {
+    console.error('[restaurarGastosJulio2026] Exception:', err);
+    return { ok: false, message: `Error al restaurar gastos: ${err.message}` };
+  }
+}
 
+export async function restaurarGastosAgosto2026Action(): Promise<ActionResult> {
+  try {
+    const supabase = getSupabaseAdmin() ?? await createServerClient();
+    const user = await getServerUser();
 
+    // 1. Obtener empresas inversoras
+    const { data: empresasData } = await supabase
+      .from('empresas_inversoras')
+      .select('id, nombre, nombre_corto')
+      .eq('activo', true);
 
-    if (creadosCount === 0 && lastErrorMsg) {
-      return { ok: false, message: `No se pudieron guardar los gastos: ${lastErrorMsg}` };
+    const riasco = empresasData?.find(
+      (e) => (e.nombre_corto ?? '').toLowerCase().includes('riasco') || e.nombre.toLowerCase().includes('riasco'),
+    ) ?? { id: '9be97e7c-18dc-44da-a334-0c7e0188e92d', nombre: 'Los Riasco' };
+
+    const fe = empresasData?.find(
+      (e) => (e.nombre_corto ?? '').toLowerCase().includes('fe') || e.nombre.toLowerCase().includes('fe'),
+    ) ?? { id: 'eb283419-a0ff-4543-9199-55bdc1cdc295', nombre: 'La Fé' };
+
+    // 2. Obtener o crear categorías
+    const getCatId = async (nombre: string): Promise<string | null> => {
+      const { data: existing } = await supabase
+        .from('categorias_gasto')
+        .select('id')
+        .ilike('nombre', nombre)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing?.id) return existing.id;
+
+      const { data: ins } = await supabase
+        .from('categorias_gasto')
+        .insert({ nombre, tipo: 'general', activo: true })
+        .select('id')
+        .maybeSingle();
+
+      return ins?.id ?? null;
+    };
+
+    const catVoladurasId = await getCatId('Voladuras (Exp y Barre)');
+    const catOperacionesId = await getCatId('Operaciones de Mina');
+    const catComidaId = await getCatId('Comida en Mina');
+    const catNominaId = await getCatId('Nómina en Mina');
+
+    const catMap: Record<string, string | null> = {
+      'Voladuras (Exp y Barre)': catVoladurasId,
+      'Operaciones de Mina': catOperacionesId,
+      'Comida en Mina': catComidaId,
+      'Nómina en Mina': catNominaId,
+    };
+
+    let creadosCount = 0;
+    let lastErrorMsg = '';
+
+    for (const item of RAW_AGOSTO_2026_ITEMS) {
+      const categoria_id = catMap[item.categoriaNombre] ?? null;
+
+      // Buscar si ya existe
+      const { data: existing } = await supabase
+        .from('gastos')
+        .select('id')
+        .eq('fecha', item.fecha)
+        .eq('monto', item.monto)
+        .eq('descripcion', item.descripcion)
+        .limit(1)
+        .maybeSingle();
+
+      let gastoId = existing?.id;
+
+      if (!gastoId) {
+        const { data: gastoIns, error: gastoErr } = await supabase
+          .from('gastos')
+          .insert({
+            complex_id: user?.complexId ?? null,
+            registrado_por: user?.id ?? null,
+            fecha: item.fecha,
+            monto: item.monto,
+            categoria_id,
+            descripcion: item.descripcion,
+            proveedor: item.proveedor ?? null,
+          })
+          .select('id');
+
+        if (gastoErr || !gastoIns || gastoIns.length === 0) {
+          lastErrorMsg = gastoErr?.message ?? 'Error insertando gasto';
+          continue;
+        }
+
+        gastoId = gastoIns[0].id;
+        creadosCount++;
+      }
+
+      // Asignar empresas pagadoras
+      const empresasPagadoras = item.pagos.map((p) => ({
+        empresa_id: p.pagador === 'fe' ? fe.id : riasco.id,
+        monto_pagado: p.monto_pagado,
+        porcentaje: p.porcentaje,
+      }));
+
+      await asignarEmpresasAGasto(supabase, gastoId, item.monto, empresasPagadoras);
     }
 
     revalidateAll();
     return {
       ok: true,
-      message: `Se sincronizaron e ingresaron exitosamente los gastos de Julio 2026.`,
+      message: `Se cargaron exitosamente los gastos de Mina de Agosto 2026 ($82.477,75). Registros procesados: ${RAW_AGOSTO_2026_ITEMS.length}.`,
     };
   } catch (err: any) {
-    console.error('[restaurarGastosJulio2026] Exception:', err);
-    return { ok: false, message: `Error al restaurar gastos: ${err.message}` };
+    console.error('[restaurarGastosAgosto2026] Exception:', err);
+    return { ok: false, message: `Error al cargar gastos de Agosto: ${err.message}` };
   }
 }

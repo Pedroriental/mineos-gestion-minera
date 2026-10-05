@@ -22,7 +22,7 @@ import type { Gasto, CategoriaGasto, EmpresaInversora } from '@/lib/types';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth-context';
 import { useCanEdit } from '@/lib/use-can-edit';
-import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto, createGastosBulk, restaurarGastosJulio2026Action } from '@/lib/actions/gastos';
+import { createGasto, updateGasto, deleteGasto, getOrCreateCategoria, upsertGastoConcepto, createGastosBulk, restaurarGastosJulio2026Action, restaurarGastosAgosto2026Action } from '@/lib/actions/gastos';
 import { verifyGastosBeforeSave } from '@/lib/actions/gastos-audit';
 import { getPrecioOroParaFecha } from '@/lib/actions/gastos-oro';
 import { GastoEmpresaSelector } from '@/components/gastos/GastoEmpresaSelector';
@@ -1070,7 +1070,7 @@ export default function GastosClient({
                         action={canEdit && !globalFilter ? { label: 'Registrar gasto', onClick: openNew } : undefined}
                       />
                       {canEdit && !globalFilter && (
-                        <div className="mt-4 flex justify-center">
+                        <div className="mt-4 flex flex-wrap justify-center gap-2">
                           <button
                             type="button"
                             onClick={async () => {
@@ -1087,6 +1087,23 @@ export default function GastosClient({
                           >
                             <Receipt className="h-4 w-4" />
                             Restaurar Gastos Julio 2026 ($97.600,33)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              toast.info('Cargando gastos de Mina Agosto 2026...');
+                              const res = await restaurarGastosAgosto2026Action();
+                              if (res.ok) {
+                                toast.success(res.message);
+                                window.location.reload();
+                              } else {
+                                toast.error(res.message);
+                              }
+                            }}
+                            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600/20 px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/30 transition-colors"
+                          >
+                            <Receipt className="h-4 w-4" />
+                            Cargar Gastos Mina Agosto 2026 ($82.477,75)
                           </button>
                         </div>
                       )}

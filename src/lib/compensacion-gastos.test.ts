@@ -307,6 +307,46 @@ describe('resolverCompensacionGastos', () => {
     assert.equal(repFe.empresa.nombre, 'La Fé');
     assert.ok(repFe.totalGastado > 0);
   });
+
+  it('calcula compensación de Mina Agosto 2026 con exactitud matemática ($82.477,75)', async () => {
+    const { getAgosto2026GastosParaCompensacion, getAgosto2026GastosParaEmpresa } = await import(
+      '@/lib/data/agosto-2026-gastos'
+    );
+    const gastosAgosto = getAgosto2026GastosParaCompensacion(empresas);
+    assert.ok(gastosAgosto.length > 0);
+
+    const resumen = resolverCompensacionGastos({
+      gastos: gastosAgosto,
+      empresas,
+      mes: '2026-08',
+      desde: '2026-08-01',
+      hasta: '2026-08-31',
+    });
+
+    const feEmp = empresas.find((e) => e.nombre_corto.includes('fe'))!;
+    const riascoEmp = empresas.find((e) => e.nombre_corto.includes('riasco'))!;
+
+    assert.equal(resumen.totalGasto, 82477.75);
+    assert.equal(resumen.totalRealPorEmpresa[riascoEmp.id], 52584.96);
+    assert.equal(resumen.totalRealPorEmpresa[feEmp.id], 29892.79);
+    assert.equal(resumen.totalTeoricoPorEmpresa[riascoEmp.id], 49486.65);
+    assert.equal(resumen.totalTeoricoPorEmpresa[feEmp.id], 32991.10);
+    assert.equal(resumen.totalCompensacionPorEmpresa[riascoEmp.id], 3098.31);
+    assert.equal(resumen.totalCompensacionPorEmpresa[feEmp.id], -3098.31);
+
+    assert.equal(resumen.resumenPorEmpresa['los_riascos'].estado, 'debe_cobrar');
+    assert.equal(resumen.resumenPorEmpresa['la_fe'].estado, 'debe_pagar');
+
+    const repFe = getAgosto2026GastosParaEmpresa(feEmp.id, empresas);
+    assert.equal(repFe.empresa.nombre, 'La Fé');
+    assert.equal(repFe.totalGastado, 29892.79);
+    assert.equal(repFe.compensacion.saldo, -3098.31);
+
+    const repRiasco = getAgosto2026GastosParaEmpresa(riascoEmp.id, empresas);
+    assert.equal(repRiasco.empresa.nombre, 'Los Riasco');
+    assert.equal(repRiasco.totalGastado, 52584.96);
+    assert.equal(repRiasco.compensacion.saldo, 3098.31);
+  });
 });
 
 describe('formatCurrency', () => {

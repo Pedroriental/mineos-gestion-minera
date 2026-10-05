@@ -14,6 +14,10 @@ import {
   getJulio2026GastosParaCompensacion,
   getJulio2026GastosParaEmpresa,
 } from '@/lib/data/julio-2026-gastos';
+import {
+  getAgosto2026GastosParaCompensacion,
+  getAgosto2026GastosParaEmpresa,
+} from '@/lib/data/agosto-2026-gastos';
 
 export type CompensacionResponse =
   | { ok: true; data: CompensacionResumen }
@@ -69,6 +73,19 @@ export async function generarCompensacionGastosAction(
         const gastosJulio = getJulio2026GastosParaCompensacion(empresas);
         const resumen = resolverCompensacionGastos({
           gastos: gastosJulio,
+          empresas,
+          mes,
+          desde,
+          hasta,
+          dia: dia ?? null,
+        });
+        return { ok: true, data: resumen };
+      }
+
+      if (mes === '2026-08') {
+        const gastosAgosto = getAgosto2026GastosParaCompensacion(empresas);
+        const resumen = resolverCompensacionGastos({
+          gastos: gastosAgosto,
           empresas,
           mes,
           desde,
@@ -299,6 +316,25 @@ export async function generarGastosEmpresaAction(
           : DEFAULT_EMPRESAS_INVERSORAS;
 
         return { ok: true, data: getJulio2026GastosParaEmpresa(empresa.id, empresasList) };
+      }
+
+      if (mes === '2026-08') {
+        const { data: todasEmpresas } = await supabase
+          .from('empresas_inversoras')
+          .select('id, nombre, nombre_corto, porcentaje_participacion, color')
+          .eq('activo', true);
+
+        const empresasList: CompensacionEmpresa[] = (todasEmpresas && todasEmpresas.length > 0)
+          ? todasEmpresas.map((e) => ({
+              id: e.id,
+              nombre: e.nombre,
+              nombre_corto: e.nombre_corto,
+              porcentaje: Number(e.porcentaje_participacion),
+              color: e.color ?? '#DAA520',
+            }))
+          : DEFAULT_EMPRESAS_INVERSORAS;
+
+        return { ok: true, data: getAgosto2026GastosParaEmpresa(empresa.id, empresasList) };
       }
 
       if (gastosError) return { ok: false, message: gastosError.message };
