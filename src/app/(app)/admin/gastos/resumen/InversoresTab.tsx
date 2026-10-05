@@ -2,20 +2,18 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { Building2, Plus, Edit2, Trash2, Loader2, Save, X, RefreshCw } from 'lucide-react';
-import {
-  listEmpresasInversorasAction,
-  createEmpresaInversoraAction,
-  updateEmpresaInversoraAction,
-  deleteEmpresaInversoraAction,
-} from '@/lib/actions/empresas-inversoras';
 import type { CompensacionEmpresa } from '@/lib/compensacion-gastos';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/app-toast';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
-export default function InversoresTab() {
-  const [empresas, setEmpresas] = useState<CompensacionEmpresa[]>([]);
-  const [loading, setLoading] = useState(true);
+type Props = {
+  initialEmpresas?: CompensacionEmpresa[];
+};
+
+export default function InversoresTab({ initialEmpresas }: Props) {
+  const [empresas, setEmpresas] = useState<CompensacionEmpresa[]>(initialEmpresas ?? []);
+  const [loading, setLoading] = useState(initialEmpresas && initialEmpresas.length > 0 ? false : true);
   const [isPending, startTransition] = useTransition();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<CompensacionEmpresa | null>(null);
@@ -28,32 +26,32 @@ export default function InversoresTab() {
   const [color, setColor] = useState('#DAA520');
   const [notas, setNotas] = useState('');
 
-  const cargarEmpresas = () => {
+  const cargarEmpresas = async () => {
     setLoading(true);
-    listEmpresasInversorasAction().then((res) => {
-      if (res.ok && res.data) {
-        setEmpresas(res.data);
+    try {
+      const res = await fetch('/api/admin/empresas-inversoras', { cache: 'no-store' });
+      const json = await res.json();
+      if (json.ok && Array.isArray(json.data)) {
+        setEmpresas(json.data);
       } else {
-        toastError('Error al cargar empresas inversoras');
+        toastError(json.message || 'Error al cargar empresas inversoras');
       }
+    } catch (err: any) {
+      console.error('[InversoresTab] Error cargando empresas:', err);
+      toastError('Error al conectar con el servidor');
+    } finally {
       setLoading(false);
-    });
+    }
   };
 
   useEffect(() => {
-    // Evitar setState sincronico en effect para cumplir con las reglas del proyecto
-    const init = async () => {
-      listEmpresasInversorasAction().then((res) => {
-        if (res.ok && res.data) {
-          setEmpresas(res.data);
-        } else {
-          toastError('Error al cargar empresas inversoras');
-        }
-        setLoading(false);
-      });
-    };
-    init();
-  }, []);
+    if (!initialEmpresas || initialEmpresas.length === 0) {
+      cargarEmpresas();
+    } else {
+      setEmpresas(initialEmpresas);
+      setLoading(false);
+    }
+  }, [initialEmpresas]);
 
   const openAddModal = () => {
     setEditingEmpresa(null);
@@ -97,19 +95,32 @@ export default function InversoresTab() {
     };
 
     startTransition(async () => {
-      let res;
-      if (editingEmpresa) {
-        res = await updateEmpresaInversoraAction(editingEmpresa.id, payload);
-      } else {
-        res = await createEmpresaInversoraAction(payload);
-      }
+      try {
+        let res;
+        if (editingEmpresa) {
+          res = await fetch('/api/admin/empresas-inversoras', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editingEmpresa.id, ...payload }),
+          });
+        } else {
+          res = await fetch('/api/admin/empresas-inversoras', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        }
 
-      if (res.ok) {
-        toast.success(res.message || 'Operacion realizada correctamente');
-        setIsModalOpen(false);
-        cargarEmpresas();
-      } else {
-        toastError(res.message || 'Error al guardar la empresa inversora');
+        const json = await res.json();
+        if (json.ok) {
+          toast.success(json.message || 'Operacion realizada correctamente');
+          setIsModalOpen(false);
+          cargarEmpresas();
+        } else {
+          toastError(json.message || 'Error al guardar la empresa inversora');
+        }
+      } catch (err: any) {
+        toastError('Error al guardar: ' + (err?.message || 'desconocido'));
       }
     });
   };
@@ -125,12 +136,19 @@ export default function InversoresTab() {
     if (!ok) return;
 
     startTransition(async () => {
-      const res = await deleteEmpresaInversoraAction(emp.id);
-      if (res.ok) {
-        toast.success(res.message || 'Empresa desactivada');
-        cargarEmpresas();
-      } else {
-        toastError(res.message || 'Error al desactivar la empresa');
+      try {
+        const res = await fetch(`/api/admin/empresas-inversoras?id=${emp.id}`, {
+          method: 'DELETE',
+        });
+        const json = await res.json();
+        if (json.ok) {
+          toast.success(json.message || 'Empresa desactivada');
+          cargarEmpresas();
+        } else {
+          toastError(json.message || 'Error al desactivar la empresa');
+        }
+      } catch (err: any) {
+        toastError('Error al desactivar: ' + (err?.message || 'desconocido'));
       }
     });
   };

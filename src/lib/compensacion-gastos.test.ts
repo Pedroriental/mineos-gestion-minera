@@ -283,6 +283,30 @@ describe('resolverCompensacionGastos', () => {
     assert.equal(cat.gastoTeoricoPorEmpresa['los_riascos'], 200);
     assert.equal(cat.gastoTeoricoPorEmpresa['la_fe'], 133.33);
   });
+
+  it('calcula compensación correctamente con getJulio2026GastosParaCompensacion', async () => {
+    const { getJulio2026GastosParaCompensacion, getJulio2026GastosParaEmpresa } = await import(
+      '@/lib/data/julio-2026-gastos'
+    );
+    const gastosJulio = getJulio2026GastosParaCompensacion(empresas);
+    assert.ok(gastosJulio.length > 0);
+
+    const resumen = resolverCompensacionGastos({
+      gastos: gastosJulio,
+      empresas,
+      mes: '2026-07',
+      desde: '2026-07-01',
+      hasta: '2026-07-31',
+    });
+
+    assert.equal(resumen.totalGasto, 97600.32);
+    assert.equal(resumen.resumenPorEmpresa['los_riascos'].estado, 'debe_pagar');
+    assert.equal(resumen.resumenPorEmpresa['la_fe'].estado, 'debe_cobrar');
+
+    const repFe = getJulio2026GastosParaEmpresa('la_fe', empresas);
+    assert.equal(repFe.empresa.nombre, 'La Fé');
+    assert.ok(repFe.totalGastado > 0);
+  });
 });
 
 describe('formatCurrency', () => {

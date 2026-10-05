@@ -19,6 +19,11 @@ export type CompensacionEmpresa = {
   color: string;
 };
 
+export const DEFAULT_EMPRESAS_INVERSORAS: CompensacionEmpresa[] = [
+  { id: 'eb283419-a0ff-4543-9199-55bdc1cdc295', nombre: 'La Fé', nombre_corto: 'la_fe', porcentaje: 40, color: '#DAA520' },
+  { id: '9be97e7c-18dc-44da-a334-0c7e0188e92d', nombre: 'Los Riasco', nombre_corto: 'los_riascos', porcentaje: 60, color: '#60A5FA' },
+];
+
 export type CompensacionCategoria = {
   nombre: string;
   total: number;

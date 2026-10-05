@@ -17,6 +17,7 @@ import { toastError } from '@/lib/app-toast';
 type Props = {
   initialMes: string;
   initialDia?: string | null;
+  initialEmpresas?: CompensacionEmpresa[];
 };
 
 function pad2(n: number): string {
@@ -41,21 +42,37 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
     setLoading(true);
     startTransition(async () => {
       try {
-        const res = await generarCompensacionGastosAction(m, initialDia);
-        if (res.ok) {
-          setResumen(res.data);
+        const url = `/api/admin/compensacion-gastos?mes=${encodeURIComponent(m)}${
+          initialDia ? `&dia=${encodeURIComponent(initialDia)}` : ''
+        }`;
+        const res = await fetch(url, { cache: 'no-store' });
+        const json = await res.json();
+        if (json.ok && json.data) {
+          setResumen(json.data);
         } else {
-          setResumen(null);
-          if (
-            !res.message.includes('No hay gastos') &&
-            !res.message.includes('No hay empresas')
-          ) {
-            toastError(`Error al cargar compensación: ${res.message}`);
+          // Fallback to Server Action if needed
+          const actionRes = await generarCompensacionGastosAction(m, initialDia);
+          if (actionRes.ok && actionRes.data) {
+            setResumen(actionRes.data);
+          } else {
+            setResumen(null);
+            if (actionRes.message && !actionRes.message.includes('No hay gastos')) {
+              toastError(actionRes.message);
+            }
           }
         }
       } catch (err) {
-        toastError('Error al cargar compensación');
-        console.error(err);
+        try {
+          const actionRes = await generarCompensacionGastosAction(m, initialDia);
+          if (actionRes.ok && actionRes.data) {
+            setResumen(actionRes.data);
+          } else {
+            setResumen(null);
+          }
+        } catch {
+          toastError('Error al cargar compensación');
+          console.error(err);
+        }
       } finally {
         setLoading(false);
       }

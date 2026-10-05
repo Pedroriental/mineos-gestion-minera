@@ -26,9 +26,11 @@ import type {
   GastosResumenDiaRow,
   GastosResumenNominaSemana,
 } from '@/lib/gastos-resumen';
+import type { CompensacionEmpresa } from '@/lib/compensacion-gastos';
 
 type Props = {
   summary: GastosResumenSummary;
+  initialEmpresas?: CompensacionEmpresa[];
 };
 
 const fmt = (n: number) =>
@@ -44,7 +46,7 @@ const AREA_LABELS: Record<string, string> = {
   administracion: 'Administración',
 };
 
-export default function GastosResumenClient({ summary }: Props) {
+export default function GastosResumenClient({ summary, initialEmpresas }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -92,10 +94,16 @@ export default function GastosResumenClient({ summary }: Props) {
       >
         {(activeTab) => {
           if (activeTab === 'compensacion') {
-            return <CompensacionTab initialMes={period.mes} initialDia={period.dia} />;
+            return (
+              <CompensacionTab
+                initialMes={period.mes}
+                initialDia={period.dia}
+                initialEmpresas={initialEmpresas}
+              />
+            );
           }
           if (activeTab === 'inversores') {
-            return <InversoresTab />;
+            return <InversoresTab initialEmpresas={initialEmpresas} />;
           }
           if (activeTab === 'balance_prod_gastos') {
             return <BalanceProdGastosTab initialMes={period.mes} initialDia={period.dia} />;
