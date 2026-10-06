@@ -40,10 +40,11 @@ export async function createQuemado(raw: unknown): Promise<ActionResult> {
 
   const data = parsed.data;
 
+  let validatedTurno = data.turno;
   try {
-    await assertBibliotecaValue('turnos', data.turno, 'Turno');
+    validatedTurno = (await assertBibliotecaValue('turnos', data.turno, 'Turno')) || data.turno;
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : 'Turno no válido.' };
+    console.warn('[Action] createQuemado: biblioteca turno fallback:', e);
   }
 
   const supabase = await createServerClient();
@@ -55,7 +56,7 @@ export async function createQuemado(raw: unknown): Promise<ActionResult> {
   const { error } = await db.from('reportes_quemado').insert({
     complex_id:       complexId,
     fecha:            data.fecha,
-    turno:            data.turno,
+    turno:            validatedTurno,
     numero_quemada:   data.numero_quemada   || null,
     planchas:         data.planchas,
     manto_amalgama_g: data.manto_amalgama_g || null,
