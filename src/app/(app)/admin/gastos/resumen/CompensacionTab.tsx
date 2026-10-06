@@ -30,6 +30,7 @@ function defaultMes(): string {
 
 export default function CompensacionTab({ initialMes, initialDia }: Props) {
   const [mes, setMes] = useState<string>(initialMes || defaultMes());
+  const [precioOro, setPrecioOro] = useState<number>(100);
   const [resumen, setResumen] = useState<CompensacionResumen | null>(null);
   const [loading, setLoading] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -107,7 +108,7 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
   const handleDescargarPDFGlobal = () => {
     if (!resumen) return;
     try {
-      generarPdfCompensacionGastos(resumen);
+      generarPdfCompensacionGastos(resumen, precioOro);
       toast.success('PDF Global descargado');
     } catch (err) {
       toastError(`Error al generar PDF: ${err instanceof Error ? err.message : 'desconocido'}`);
@@ -147,6 +148,24 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
             onChange={(val) => setMes(val)}
             className="w-[140px]"
           />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--dashboard-text-muted)]">
+            Precio Au
+          </span>
+          <div className="flex items-center rounded-lg border border-[var(--dashboard-border)] bg-[var(--dashboard-card-bg)] px-2 py-1">
+            <span className="text-[11px] text-[var(--dashboard-text-muted)] mr-0.5">$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="1"
+              value={precioOro}
+              onChange={(e) => setPrecioOro(Number(e.target.value) || 100)}
+              className="w-14 bg-transparent text-xs font-semibold text-[var(--dashboard-text)] outline-none"
+              title="Precio del oro para cálculo de compensación (USD/g)"
+            />
+            <span className="text-[10px] text-[var(--dashboard-text-muted)] ml-0.5">/g</span>
+          </div>
         </div>
         <div className="flex-1" />
         <button

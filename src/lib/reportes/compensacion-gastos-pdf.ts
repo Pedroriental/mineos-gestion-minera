@@ -20,7 +20,7 @@ function fmtDate(iso: string): string {
   });
 }
 
-export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void {
+export function generarPdfCompensacionGastos(resumen: CompensacionResumen, precioOroManual?: number): void {
   const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 14;
@@ -199,7 +199,7 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
 
   histY += 4;
 
-  const PRECIO_ORO = 98.00;
+  const PRECIO_ORO = precioOroManual && precioOroManual > 0 ? precioOroManual : 100.00;
   const fe = resumen.empresas.find(e => (e.nombre_corto ?? '').toLowerCase().includes('fe') || e.nombre.toLowerCase().includes('fe')) ?? resumen.empresas[0];
   const riasco = resumen.empresas.find(e => (e.nombre_corto ?? '').toLowerCase().includes('riasco') || e.nombre.toLowerCase().includes('riasco')) ?? resumen.empresas[1];
 
@@ -209,7 +209,7 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
   const compFeUsd = resumen.totalCompensacionPorEmpresa[fe?.id ?? ''] ?? 0;
   const compRiascoUsd = resumen.totalCompensacionPorEmpresa[riasco?.id ?? ''] ?? 0;
 
-  // Conversión a gramos de oro (@ $98.00/g)
+  // Conversión a gramos de oro (@ $100.00/g por defecto)
   const gMesFe = Math.round((compFeUsd / PRECIO_ORO) * 100) / 100;
   const gMesRiasco = Math.round((compRiascoUsd / PRECIO_ORO) * 100) / 100;
 
@@ -218,12 +218,23 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
     return val > 0 ? `+${formatted} g` : val < 0 ? `-${formatted} g` : '0,00 g';
   };
 
-  // Histórico previo consolidado:
-  // Feb - Jun saldo acumulado: Los Riasco +101,90 g | La Fé -101,90 g
-  // Julio 2026: Los Riasco -122,98 g (-$12.051,73) | La Fé +122,98 g (+$12.051,73)
-  // Cierre Julio: Los Riasco -21,08 g | La Fé +21,08 g
-  // Agosto 2026: Los Riasco +31,62 g (+$3.098,31) | La Fé -31,62 g (-$3.098,31)
-  // Cierre Agosto: Los Riasco +10,54 g (~$1.032,92) | La Fé -10,54 g (~-$1.032,92)
+  const getMesNombre = (mesKey: string) => {
+    try {
+      const d = new Date(`${mesKey}-02T12:00:00`);
+      const str = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    } catch {
+      return mesKey;
+    }
+  };
+  const labelMes = mesEvaluado === '2026-07' ? 'Julio 2026' : mesEvaluado === '2026-08' ? 'Agosto 2026' : getMesNombre(mesEvaluado);
+
+  const gJulioRiasco = -122.98;
+  const gJulioFe = 122.98;
+  const cierreJulioRiasco = 101.90 + gJulioRiasco; // -21.08 g
+  const cierreJulioFe = -101.90 + gJulioFe;       // +21.08 g
+  const saldoFinalRiascoG = Math.round((cierreJulioRiasco + gMesRiasco) * 100) / 100;
+  const saldoFinalFeG = Math.round((cierreJulioFe + gMesFe) * 100) / 100;
 
   let histBody: (string | { content: string; styles?: any })[][];
 
@@ -239,14 +250,7 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
       ['SALDO ACUMULADO TOTAL (CIERRE JULIO)', fmtG(101.90 + gMesRiasco), fmtG(-101.90 + gMesFe)],
     ];
   } else {
-    // Agosto 2026 o posterior: muestra Julio como mes cerrado y Agosto como mes evaluado
-    const gJulioRiasco = -122.98;
-    const gJulioFe = 122.98;
-    const cierreJulioRiasco = 101.90 + gJulioRiasco; // -21.08 g
-    const cierreJulioFe = -101.90 + gJulioFe;       // +21.08 g
-    const saldoFinalRiascoG = Math.round((cierreJulioRiasco + gMesRiasco) * 100) / 100; // +10.54 g
-    const saldoFinalFeG = Math.round((cierreJulioFe + gMesFe) * 100) / 100;             // -10.54 g
-
+    // Agosto 2026 o posterior: muestra Julio como mes cerrado y el mes actual como mes evaluado
     histBody = [
       ['Febrero', '-135,29 g', '+135,29 g'],
       ['Marzo', '+48,53 g', '-48,53 g'],
@@ -256,8 +260,8 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
       ['Saldo Acumulado Previo (Feb - Jun)', '+101,90 g', '-101,90 g'],
       ['Julio 2026 (Cerrado)', fmtG(gJulioRiasco), fmtG(gJulioFe)],
       ['Saldo Acumulado al Cierre de Julio', fmtG(cierreJulioRiasco), fmtG(cierreJulioFe)],
-      [`Agosto 2026 (Mes Evaluado @ $${PRECIO_ORO.toFixed(2)}/g)`, fmtG(gMesRiasco), fmtG(gMesFe)],
-      ['SALDO ACUMULADO TOTAL (CIERRE AGOSTO)', fmtG(saldoFinalRiascoG), fmtG(saldoFinalFeG)],
+      [`${labelMes} (Mes Evaluado @ $${PRECIO_ORO.toFixed(2)}/g)`, fmtG(gMesRiasco), fmtG(gMesFe)],
+      [`SALDO ACUMULADO TOTAL (CIERRE ${labelMes.toUpperCase()})`, fmtG(saldoFinalRiascoG), fmtG(saldoFinalFeG)],
     ];
   }
 
@@ -314,8 +318,8 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
     ['Aporte Real La Fé', '$51.091,86 (52,3%)', '$29.892,79 (36,2%)', '-$21.199,07 (-41,5%)'],
     ['Cuota Teórica Pactada', '60% Riasco / 40% Fé', '60% Riasco / 40% Fé', 'Pacto 60/40 Vigente'],
     ['Compensación Neta (USD)', 'Riasco: -$12.051,73\nLa Fé: +$12.051,73', 'Riasco: +$3.098,31\nLa Fé: -$3.098,31', '+$15.150,04 Favorable\na Los Riasco'],
-    ['Compensación Oro (@ $98/g)', 'Riasco: -122,98 g\nLa Fé: +122,98 g', 'Riasco: +31,62 g\nLa Fé: -31,62 g', '+154,60 g Variación\na favor Riasco'],
-    ['Saldo Acumulado al Cierre', 'Riasco: -21,08 g\nLa Fé: +21,08 g', 'Riasco: +10,54 g\nLa Fé: -10,54 g', '+31,62 g Reversión\na favor Riasco'],
+    [`Compensación Oro (@ $${PRECIO_ORO.toFixed(0)}/g)`, 'Riasco: -122,98 g\nLa Fé: +122,98 g', `Riasco: ${fmtG(gMesRiasco)}\nLa Fé: ${fmtG(gMesFe)}`, `${fmtG(Math.round((gMesRiasco - gJulioRiasco) * 100) / 100)} Variación\na favor Riasco`],
+    ['Saldo Acumulado al Cierre', 'Riasco: -21,08 g\nLa Fé: +21,08 g', `Riasco: ${fmtG(saldoFinalRiascoG)}\nLa Fé: ${fmtG(saldoFinalFeG)}`, `${fmtG(Math.round((saldoFinalRiascoG - cierreJulioRiasco) * 100) / 100)} Reversión\na favor Riasco`],
     ['Estatus de Liquidación', 'Los Riasco DEBE PAGAR\nLa Fé DEBE COBRAR', 'Los Riasco DEBE COBRAR\nLa Fé DEBE PAGAR', 'Reversión mensual\nde acreedor a deudor'],
   ];
 
