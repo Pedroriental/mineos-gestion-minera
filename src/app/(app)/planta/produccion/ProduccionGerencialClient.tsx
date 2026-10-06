@@ -513,11 +513,17 @@ export default function ProduccionGerencialClient({
         }
       }
 
-      downloadBalanceRecuperacionPDF(todosLosRegistros, label, totalOroQ, countQ);
+      try {
+        downloadBalanceRecuperacionPDF(todosLosRegistros, label, totalOroQ, countQ);
+      } catch (pdfErr) {
+        console.error('Error in downloadBalanceRecuperacionPDF:', pdfErr);
+        throw pdfErr;
+      }
       setShowBalanceModal(false);
     } catch (err) {
       console.error('Error al generar Balance PDF:', err);
-      alert('Error al generar el Balance de Recuperación.');
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Error al generar el Balance de Recuperación: ${msg}`);
     } finally {
       setIsExportingBalance(false);
     }

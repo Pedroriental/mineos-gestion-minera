@@ -693,13 +693,15 @@ export async function generarBalanceProdGastosAction(
 export async function getUltimasQuemadasAction(limit: number): Promise<{ ok: boolean; data?: any[]; error?: string }> {
   try {
     const supabase = await createServerClient();
-    const { data, error } = await supabase
+    const db = getSupabaseAdmin() ?? supabase;
+    const { data, error } = await db
       .from('reportes_quemado')
       .select('total_oro_g, fecha')
       .order('fecha', { ascending: false })
       .limit(limit);
 
     if (error) {
+      console.warn('[compensacion-gastos] getUltimasQuemadasAction db error:', error.message);
       return { ok: false, error: error.message };
     }
     return { ok: true, data: data ?? [] };
