@@ -6,7 +6,6 @@ import { useCanEdit } from '@/lib/use-can-edit';
 import { createProduccion, updateProduccion, deleteProduccion } from '@/lib/actions/produccion';
 import type { ReporteProduccion } from '@/lib/types';
 import { downloadProduccionPDF, downloadBalanceRecuperacionPDF } from '@/lib/pdf-reports';
-import { getUltimasQuemadasAction } from '@/lib/actions/compensacion-gastos';
 import {
   Loader2, Plus, X, Calculator, Download, AlertCircle, Search, TrendingUp, Factory,
   ChevronLeft, ChevronRight,
