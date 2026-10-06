@@ -188,7 +188,7 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
     },
   });
 
-  // ============ SECCIÓN 4: HISTÓRICO Y ESTATUS ACUMULADO DE COMPENSACIÓN ============
+  // ============ SECCIÓN 4: HISTÓRICO Y COMPARATIVA DE COMPENSACIÓN ============
   const finalYResumen = docWithTable.lastAutoTable?.finalY ?? resumenY + 15;
   let histY = finalYResumen + 5;
 
@@ -198,66 +198,152 @@ export function generarPdfCompensacionGastos(resumen: CompensacionResumen): void
   doc.text('HISTÓRICO Y ESTATUS ACUMULADO DE COMPENSACIÓN', margin, histY);
 
   histY += 4;
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(60, 60, 60);
-  doc.text('Histórico y Liquidación acumulada en gramos de Oro (Tasa: $98.00/g)', margin, histY);
-
-  histY += 3;
 
   const PRECIO_ORO = 98.00;
   const fe = resumen.empresas.find(e => (e.nombre_corto ?? '').toLowerCase().includes('fe') || e.nombre.toLowerCase().includes('fe')) ?? resumen.empresas[0];
   const riasco = resumen.empresas.find(e => (e.nombre_corto ?? '').toLowerCase().includes('riasco') || e.nombre.toLowerCase().includes('riasco')) ?? resumen.empresas[1];
 
-  const compFeUsd = resumen.totalCompensacionPorEmpresa[fe?.id ?? ''] ?? 12051.73;
-  const compRiascoUsd = resumen.totalCompensacionPorEmpresa[riasco?.id ?? ''] ?? -12051.73;
+  const mesEvaluado = resumen.period.mes; // '2026-08' o '2026-07'
 
-  const gJulioFe = Math.round((compFeUsd / PRECIO_ORO) * 100) / 100;
-  const gJulioRiasco = Math.round((compRiascoUsd / PRECIO_ORO) * 100) / 100;
+  // Compensación del mes evaluado en USD
+  const compFeUsd = resumen.totalCompensacionPorEmpresa[fe?.id ?? ''] ?? 0;
+  const compRiascoUsd = resumen.totalCompensacionPorEmpresa[riasco?.id ?? ''] ?? 0;
 
-  const gJulioFeStr = gJulioFe > 0 ? `+${gJulioFe.toFixed(2)} g` : `${gJulioFe.toFixed(2)} g`;
-  const gJulioRiascoStr = gJulioRiasco > 0 ? `+${gJulioRiasco.toFixed(2)} g` : `${gJulioRiasco.toFixed(2)} g`;
+  // Conversión a gramos de oro (@ $98.00/g)
+  const gMesFe = Math.round((compFeUsd / PRECIO_ORO) * 100) / 100;
+  const gMesRiasco = Math.round((compRiascoUsd / PRECIO_ORO) * 100) / 100;
 
-  // Saldo Acumulado Total final (Feb - Jul 2026)
-  const saldoFinalRiascoG = Math.round((101.90 + gJulioRiasco) * 100) / 100; // -21.08 g
-  const saldoFinalFeG = Math.round((-101.90 + gJulioFe) * 100) / 100; // +21.08 g
+  const fmtG = (val: number) => {
+    const formatted = Math.abs(val).toFixed(2).replace('.', ',');
+    return val > 0 ? `+${formatted} g` : val < 0 ? `-${formatted} g` : '0,00 g';
+  };
 
-  const saldoFinalRiascoStr = saldoFinalRiascoG > 0 ? `+${saldoFinalRiascoG.toFixed(2)} g` : `${saldoFinalRiascoG.toFixed(2)} g`;
-  const saldoFinalFeStr = saldoFinalFeG > 0 ? `+${saldoFinalFeG.toFixed(2)} g` : `${saldoFinalFeG.toFixed(2)} g`;
+  // Histórico previo consolidado:
+  // Feb - Jun saldo acumulado: Los Riasco +101,90 g | La Fé -101,90 g
+  // Julio 2026: Los Riasco -122,98 g (-$12.051,73) | La Fé +122,98 g (+$12.051,73)
+  // Cierre Julio: Los Riasco -21,08 g | La Fé +21,08 g
+  // Agosto 2026: Los Riasco +31,62 g (+$3.098,31) | La Fé -31,62 g (-$3.098,31)
+  // Cierre Agosto: Los Riasco +10,54 g (~$1.032,92) | La Fé -10,54 g (~-$1.032,92)
 
-  const histBody = [
-    ['Febrero', '-135,29 g', '+135,29 g'],
-    ['Marzo', '+48,53 g', '-48,53 g'],
-    ['Abril', '+86,02 g', '-86,02 g'],
-    ['Mayo', '+48,90 g', '-48,90 g'],
-    ['Junio', '+53,74 g', '-53,74 g'],
-    ['Saldo Acumulado Previo (Feb - Jun)', '+101,90 g', '-101,90 g'],
-    [`Julio 2026 (Mes Evaluado @ $${PRECIO_ORO.toFixed(2)}/g)`, gJulioRiascoStr, gJulioFeStr],
-    ['SALDO ACUMULADO TOTAL (CIERRE JULIO)', saldoFinalRiascoStr, saldoFinalFeStr],
-  ];
+  let histBody: (string | { content: string; styles?: any })[][];
 
+  if (mesEvaluado === '2026-07') {
+    histBody = [
+      ['Febrero', '-135,29 g', '+135,29 g'],
+      ['Marzo', '+48,53 g', '-48,53 g'],
+      ['Abril', '+86,02 g', '-86,02 g'],
+      ['Mayo', '+48,90 g', '-48,90 g'],
+      ['Junio', '+53,74 g', '-53,74 g'],
+      ['Saldo Acumulado Previo (Feb - Jun)', '+101,90 g', '-101,90 g'],
+      [`Julio 2026 (Mes Evaluado @ $${PRECIO_ORO.toFixed(2)}/g)`, fmtG(gMesRiasco), fmtG(gMesFe)],
+      ['SALDO ACUMULADO TOTAL (CIERRE JULIO)', fmtG(101.90 + gMesRiasco), fmtG(-101.90 + gMesFe)],
+    ];
+  } else {
+    // Agosto 2026 o posterior: muestra Julio como mes cerrado y Agosto como mes evaluado
+    const gJulioRiasco = -122.98;
+    const gJulioFe = 122.98;
+    const cierreJulioRiasco = 101.90 + gJulioRiasco; // -21.08 g
+    const cierreJulioFe = -101.90 + gJulioFe;       // +21.08 g
+    const saldoFinalRiascoG = Math.round((cierreJulioRiasco + gMesRiasco) * 100) / 100; // +10.54 g
+    const saldoFinalFeG = Math.round((cierreJulioFe + gMesFe) * 100) / 100;             // -10.54 g
+
+    histBody = [
+      ['Febrero', '-135,29 g', '+135,29 g'],
+      ['Marzo', '+48,53 g', '-48,53 g'],
+      ['Abril', '+86,02 g', '-86,02 g'],
+      ['Mayo', '+48,90 g', '-48,90 g'],
+      ['Junio', '+53,74 g', '-53,74 g'],
+      ['Saldo Acumulado Previo (Feb - Jun)', '+101,90 g', '-101,90 g'],
+      ['Julio 2026 (Cerrado)', fmtG(gJulioRiasco), fmtG(gJulioFe)],
+      ['Saldo Acumulado al Cierre de Julio', fmtG(cierreJulioRiasco), fmtG(cierreJulioFe)],
+      [`Agosto 2026 (Mes Evaluado @ $${PRECIO_ORO.toFixed(2)}/g)`, fmtG(gMesRiasco), fmtG(gMesFe)],
+      ['SALDO ACUMULADO TOTAL (CIERRE AGOSTO)', fmtG(saldoFinalRiascoG), fmtG(saldoFinalFeG)],
+    ];
+  }
+
+  // Subtítulo tabla izquierda
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(60, 60, 60);
+  doc.text(`Histórico y Liquidación en Oro (Tasa: $${PRECIO_ORO.toFixed(2)}/g)`, margin, histY);
+
+  // Subtítulo tabla derecha
+  doc.text('Comparativa Mensual Operativa y Financiera (Julio vs Agosto 2026)', margin + 130, histY);
+  histY += 3;
+
+  // TABLA IZQUIERDA: Histórico en Oro
   autoTable(doc, {
     head: [['Mes / Período', 'Los Riasco (g)', 'La Fé (g)']],
     body: histBody,
     startY: histY,
-    pageBreak: 'avoid',
-    styles: { fontSize: 7, cellPadding: 1.4, halign: 'center' },
+    tableWidth: 124,
+    margin: { left: margin },
+    styles: { fontSize: 6.8, cellPadding: 1.2, halign: 'center' },
     headStyles: { fillColor: [218, 165, 32], textColor: [0, 0, 0], fontStyle: 'bold' },
     columnStyles: {
-      0: { halign: 'left', cellWidth: 65 },
-      1: { halign: 'center', cellWidth: 40 },
-      2: { halign: 'center', cellWidth: 40 },
+      0: { halign: 'left', cellWidth: 56 },
+      1: { halign: 'center', cellWidth: 34 },
+      2: { halign: 'center', cellWidth: 34 },
     },
     didParseCell: (data) => {
       if (data.section === 'body') {
+        // Fila 5: Saldo Previo Feb-Jun
         if (data.row.index === 5) {
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.fillColor = [240, 240, 240];
         }
+        // Fila 7 en Agosto: Saldo Cierre Julio
+        if (histBody.length > 8 && data.row.index === 7) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [245, 245, 245];
+        }
+        // Última fila: Saldo Acumulado Total
         if (data.row.index === histBody.length - 1) {
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.fillColor = [218, 165, 32];
           data.cell.styles.textColor = [0, 0, 0];
+        }
+      }
+    },
+  });
+
+  // TABLA DERECHA: Comparativa Mensual (Julio vs Agosto)
+  const compTableBody = [
+    ['Gasto Total Mina', '$97.600,33', '$82.477,75', '-$15.122,58 (-15,5%)'],
+    ['Aporte Real Los Riasco', '$46.508,47 (47,7%)', '$52.584,96 (63,8%)', '+$6.076,49 (+13,1%)'],
+    ['Aporte Real La Fé', '$51.091,86 (52,3%)', '$29.892,79 (36,2%)', '-$21.199,07 (-41,5%)'],
+    ['Cuota Teórica Pactada', '60% Riasco / 40% Fé', '60% Riasco / 40% Fé', 'Pacto 60/40 Vigente'],
+    ['Compensación Neta (USD)', 'Riasco: -$12.051,73\nLa Fé: +$12.051,73', 'Riasco: +$3.098,31\nLa Fé: -$3.098,31', '+$15.150,04 Favorable\na Los Riasco'],
+    ['Compensación Oro (@ $98/g)', 'Riasco: -122,98 g\nLa Fé: +122,98 g', 'Riasco: +31,62 g\nLa Fé: -31,62 g', '+154,60 g Variación\na favor Riasco'],
+    ['Saldo Acumulado al Cierre', 'Riasco: -21,08 g\nLa Fé: +21,08 g', 'Riasco: +10,54 g\nLa Fé: -10,54 g', '+31,62 g Reversión\na favor Riasco'],
+    ['Estatus de Liquidación', 'Los Riasco DEBE PAGAR\nLa Fé DEBE COBRAR', 'Los Riasco DEBE COBRAR\nLa Fé DEBE PAGAR', 'Reversión mensual\nde acreedor a deudor'],
+  ];
+
+  autoTable(doc, {
+    head: [['Indicador Operativo / Financiero', 'Julio 2026', 'Agosto 2026', 'Variación / Análisis']],
+    body: compTableBody,
+    startY: histY,
+    tableWidth: 139,
+    margin: { left: margin + 130 },
+    styles: { fontSize: 6.2, cellPadding: 1.1, halign: 'center', overflow: 'linebreak' },
+    headStyles: { fillColor: [50, 50, 50], textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { halign: 'left', cellWidth: 46, fontStyle: 'bold' },
+      1: { halign: 'center', cellWidth: 31 },
+      2: { halign: 'center', cellWidth: 31 },
+      3: { halign: 'center', cellWidth: 31, fontStyle: 'bold' },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body') {
+        if (data.row.index === 0) {
+          data.cell.styles.fillColor = [245, 245, 245];
+        }
+        if (data.row.index === 4 || data.row.index === 6) {
+          data.cell.styles.fillColor = [255, 250, 240];
+        }
+        if (data.row.index === compTableBody.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [240, 240, 240];
         }
       }
     },
