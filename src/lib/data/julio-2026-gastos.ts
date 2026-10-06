@@ -4,8 +4,9 @@
  * y como fallback ante problemas de replicación o RLS en Supabase.
  */
 
-import type { CompensacionEmpresa, GastoParaCompensacion } from '@/lib/compensacion-gastos';
+import { DEFAULT_EMPRESAS_INVERSORAS, type CompensacionEmpresa, type GastoParaCompensacion } from '@/lib/compensacion-gastos';
 import type { GastoEmpresa, GastosEmpresaResumen, GastoCompartidoDetalle } from '@/lib/actions/compensacion-gastos';
+import type { Gasto } from '@/lib/types';
 
 export interface Julio2026ItemRaw {
   fecha: string;
@@ -391,3 +392,36 @@ export function getJulio2026GastosParaEmpresa(
     },
   };
 }
+
+/**
+ * Obtiene los gastos de Julio 2026 formateados para la tabla de Gastos Operativos (/admin/gastos).
+ */
+export function getJulio2026GastosParaTable(): Gasto[] {
+  const fe = DEFAULT_EMPRESAS_INVERSORAS.find(e => e.nombre_corto.includes('fe')) ?? DEFAULT_EMPRESAS_INVERSORAS[0];
+  const riasco = DEFAULT_EMPRESAS_INVERSORAS.find(e => e.nombre_corto.includes('riasco')) ?? DEFAULT_EMPRESAS_INVERSORAS[1];
+
+  return RAW_JULIO_2026_ITEMS.map((item, idx) => ({
+    id: `julio-2026-${idx + 1}`,
+    fecha: item.fecha,
+    categoria_id: `cat-${item.categoriaNombre.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+    descripcion: item.descripcion,
+    monto: item.monto,
+    proveedor: item.proveedor,
+    registrado_por: 'Administración',
+    created_at: `${item.fecha}T12:00:00Z`,
+    updated_at: `${item.fecha}T12:00:00Z`,
+    categorias_gasto: {
+      id: `cat-${item.categoriaNombre.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+      nombre: item.categoriaNombre,
+      tipo: 'general',
+      activo: true,
+    },
+    gastos_empresas: item.pagos.map((p: any) => ({
+      empresa_id: p.pagador === 'fe' ? fe.id : riasco.id,
+      monto_pagado: p.monto_pagado,
+      porcentaje: p.porcentaje,
+      empresas_inversoras: p.pagador === 'fe' ? fe : riasco,
+    })),
+  }));
+}
+

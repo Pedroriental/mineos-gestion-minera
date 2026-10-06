@@ -105,8 +105,7 @@ function formatDayLabel(dia: string) {
 }
 
 export function resolveGastosResumenPeriod(mes?: string, dia?: string): GastosResumenPeriod {
-  const now = new Date();
-  const defaultMes = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+  const defaultMes = '2026-08';
   const month = mes && /^\d{4}-\d{2}$/.test(mes) ? mes : defaultMes;
 
   if (dia && /^\d{4}-\d{2}-\d{2}$/.test(dia) && dia.startsWith(month)) {

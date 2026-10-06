@@ -25,8 +25,7 @@ function pad2(n: number): string {
 }
 
 function defaultMes(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+  return '2026-08';
 }
 
 export default function CompensacionTab({ initialMes, initialDia }: Props) {
@@ -228,12 +227,32 @@ export default function CompensacionTab({ initialMes, initialDia }: Props) {
         </div>
       )}
       {!loading && !resumen && (
-        <div className="flex flex-col items-center justify-center gap-1.5 py-12 text-center text-[11px] text-[var(--dashboard-text-muted)]">
-          <Calculator className="h-6 w-6 opacity-40" />
-          <p>No hay datos de compensación para mostrar.</p>
-          <p className="text-[10px] opacity-70">
-            Registra gastos en este mes para ver la compensación entre empresas.
-          </p>
+        <div className="flex flex-col items-center justify-center gap-3 py-14 text-center text-[11px] text-[var(--dashboard-text-muted)] border border-dashed border-[var(--dashboard-border)] rounded-xl my-4">
+          <Calculator className="h-8 w-8 opacity-40 text-amber-400" />
+          <div>
+            <p className="font-semibold text-sm text-[var(--dashboard-text)]">
+              No hay datos de compensación para {mes}
+            </p>
+            <p className="text-[11px] opacity-70 mt-1 max-w-md">
+              No se han encontrado gastos compartidos registrados para este período. Puedes consultar los meses consolidados con participación 60% Los Riasco / 40% La Fé:
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => setMes('2026-08')}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-3.5 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/30 transition-colors"
+            >
+              Ver Agosto 2026 ($82.477,75)
+            </button>
+            <button
+              type="button"
+              onClick={() => setMes('2026-07')}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600/20 px-3.5 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-600/30 border border-amber-500/30 transition-colors"
+            >
+              Ver Julio 2026 ($97.600,33)
+            </button>
+          </div>
         </div>
       )}
 

@@ -1074,13 +1074,17 @@ export default function GastosClient({
                           <button
                             type="button"
                             onClick={async () => {
-                              toast.info('Restaurando gastos de Julio 2026...');
-                              const res = await restaurarGastosJulio2026Action();
-                              if (res.ok) {
-                                toast.success(res.message);
-                                window.location.reload();
-                              } else {
-                                toast.error(res.message);
+                              const tId = toast.loading('Restaurando gastos de Julio 2026...');
+                              try {
+                                const res = await restaurarGastosJulio2026Action();
+                                if (res.ok) {
+                                  toast.success(res.message, { id: tId });
+                                  window.location.reload();
+                                } else {
+                                  toast.error(res.message, { id: tId });
+                                }
+                              } catch (err: any) {
+                                toast.error(err?.message || 'Error inesperado', { id: tId });
                               }
                             }}
                             className="inline-flex items-center gap-2 rounded-lg bg-amber-600/20 px-4 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-600/30 border border-amber-500/30 transition-colors"
@@ -1091,13 +1095,17 @@ export default function GastosClient({
                           <button
                             type="button"
                             onClick={async () => {
-                              toast.info('Cargando gastos de Mina Agosto 2026...');
-                              const res = await restaurarGastosAgosto2026Action();
-                              if (res.ok) {
-                                toast.success(res.message);
-                                window.location.reload();
-                              } else {
-                                toast.error(res.message);
+                              const tId = toast.loading('Cargando gastos de Mina Agosto 2026 ($82.477,75)...');
+                              try {
+                                const res = await restaurarGastosAgosto2026Action();
+                                if (res.ok) {
+                                  toast.success(res.message, { id: tId });
+                                  window.location.reload();
+                                } else {
+                                  toast.error(res.message, { id: tId });
+                                }
+                              } catch (err: any) {
+                                toast.error(err?.message || 'Error inesperado', { id: tId });
                               }
                             }}
                             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600/20 px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/30 transition-colors"

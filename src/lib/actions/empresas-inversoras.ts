@@ -166,3 +166,63 @@ export async function deleteEmpresaInversoraAction(id: string): Promise<ActionRe
     return { ok: false, message: 'Error al desactivar empresa inversora' };
   }
 }
+
+export async function restaurarEmpresasPredeterminadasAction(): Promise<ActionResult<CompensacionEmpresa[]>> {
+  try {
+    const supabase = getSupabaseAdmin() ?? await createServerClient();
+    const { data: user } = await supabase.auth.getUser();
+
+    let targetComplexId: string | null = null;
+    if (user?.user) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('complex_id')
+        .eq('id', user.user.id)
+        .maybeSingle();
+      targetComplexId = profile?.complex_id ?? null;
+    }
+
+    if (!targetComplexId) {
+      const { data: complex } = await supabase
+        .from('complexes')
+        .select('id')
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+      targetComplexId = complex?.id ?? null;
+    }
+
+    for (const emp of DEFAULT_EMPRESAS_INVERSORAS) {
+      const { data: existing } = await supabase
+        .from('empresas_inversoras')
+        .select('id')
+        .or(`id.eq.${emp.id},nombre_corto.eq.${emp.nombre_corto}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from('empresas_inversoras').insert({
+          id: emp.id,
+          complex_id: targetComplexId,
+          nombre: emp.nombre,
+          nombre_corto: emp.nombre_corto,
+          porcentaje_participacion: emp.porcentaje,
+          color: emp.color,
+          activo: true,
+        });
+      } else {
+        await supabase.from('empresas_inversoras').update({
+          activo: true,
+          porcentaje_participacion: emp.porcentaje,
+        }).eq('id', existing.id);
+      }
+    }
+
+    revalidatePath('/admin/gastos');
+    revalidatePath('/admin/gastos/resumen');
+    return { ok: true, data: DEFAULT_EMPRESAS_INVERSORAS, message: 'Empresas inversoras (Los Riasco 60% / La Fé 40%) restauradas correctamente' };
+  } catch (err: any) {
+    console.error('[empresas-inversoras] restaurar exception:', err);
+    return { ok: false, message: `Error restaurando empresas: ${err?.message || 'Error'}` };
+  }
+}

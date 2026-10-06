@@ -526,7 +526,7 @@ export async function deleteGastoConcepto(id: string): Promise<ActionResult> {
 
 export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
   try {
-    const supabase = await createServerClient();
+    const supabase = getSupabaseAdmin() ?? await createServerClient();
     const user = await getServerUser();
 
     // 1. Obtener empresas inversoras
@@ -863,54 +863,100 @@ export async function restaurarGastosJulio2026Action(): Promise<ActionResult> {
       },
     ];
 
-    let creadosCount = 0;
-    let lastErrorMsg = '';
+    // 3. Obtener gastos ya existentes de Julio 2026 para no duplicar
+    const { data: existingGastos } = await supabase
+      .from('gastos')
+      .select('id, fecha, monto, descripcion')
+      .gte('fecha', '2026-07-01')
+      .lte('fecha', '2026-07-31');
 
-    for (const item of itemsDetallados) {
-      if (!item.categoria_id) continue;
+    const getKey = (g: { fecha: string; monto: number | string; descripcion: string }) =>
+      `${g.fecha}|${Number(g.monto).toFixed(2)}|${g.descripcion.trim().toLowerCase()}`;
 
-      // Buscar si ya existe un gasto con esa fecha y monto para NO TOCARLO ni duplicarlo
-      const { data: existingGasto } = await supabase
-        .from('gastos')
-        .select('id')
-        .eq('fecha', item.fecha)
-        .eq('categoria_id', item.categoria_id)
-        .eq('monto', item.monto)
-        .limit(1)
-        .maybeSingle();
+    const existingMap = new Map<string, string>();
+    (existingGastos ?? []).forEach((g) => {
+      existingMap.set(getKey(g), g.id);
+    });
 
-      let gastoId = existingGasto?.id;
+    const itemsParaInsertar = itemsDetallados.filter(
+      (item) => item.categoria_id && !existingMap.has(getKey(item)),
+    );
 
-      if (!gastoId) {
-        const { data: gastoIns, error: gastoErr } = await supabase
+    if (itemsParaInsertar.length > 0) {
+      const payload = itemsParaInsertar.map((item) => ({
+        complex_id: user?.complexId ?? null,
+        registrado_por: user?.id ?? null,
+        fecha: item.fecha,
+        monto: item.monto,
+        categoria_id: item.categoria_id,
+        descripcion: item.descripcion,
+        proveedor: item.proveedor ?? null,
+      }));
+
+      const chunkSize = 50;
+      for (let i = 0; i < payload.length; i += chunkSize) {
+        const chunk = payload.slice(i, i + chunkSize);
+        const { data: inserted, error: insErr } = await supabase
           .from('gastos')
-          .insert({
-            complex_id: user?.complexId ?? null,
-            registrado_por: user?.id ?? null,
-            fecha: item.fecha,
-            monto: item.monto,
-            categoria_id: item.categoria_id,
-            descripcion: item.descripcion,
-            proveedor: item.proveedor ?? null,
-          })
-          .select('id');
+          .insert(chunk)
+          .select('id, fecha, monto, descripcion');
 
-        if (gastoErr || !gastoIns || gastoIns.length === 0) {
-          lastErrorMsg = gastoErr?.message ?? 'Permisos de base de datos o RLS impidieron guardar.';
-          console.error('[restaurarGastosJulio2026] Error insertando gasto:', lastErrorMsg);
-          continue;
+        if (insErr) {
+          console.error('[restaurarGastosJulio2026] Error insertando lote:', insErr.message);
+        } else if (inserted) {
+          inserted.forEach((g) => existingMap.set(getKey(g), g.id));
         }
-
-        gastoId = gastoIns[0].id;
-        creadosCount++;
       }
-
-      // Vincular siempre la empresa pagadora real en gastos_empresas (La Fé 100%, Los Riasco 100% o 60/40)
-      await asignarEmpresasAGasto(supabase, gastoId, item.monto, item.empresas);
     }
 
-    if (creadosCount === 0 && lastErrorMsg) {
-      return { ok: false, message: `No se pudieron guardar los gastos: ${lastErrorMsg}` };
+    // Insertar asignaciones de empresas
+    const allJulioIds = Array.from(existingMap.values());
+    const existingAsignacionesSet = new Set<string>();
+
+    if (allJulioIds.length > 0) {
+      const chunkSize = 100;
+      for (let i = 0; i < allJulioIds.length; i += chunkSize) {
+        const chunk = allJulioIds.slice(i, i + chunkSize);
+        const { data: asigs } = await supabase
+          .from('gastos_empresas')
+          .select('gasto_id')
+          .in('gasto_id', chunk);
+        (asigs ?? []).forEach((a) => existingAsignacionesSet.add(a.gasto_id));
+      }
+    }
+
+    const empresasBatch: Array<{
+      gasto_id: string;
+      empresa_id: string;
+      monto_pagado: number;
+      porcentaje: number;
+      es_pago_directo: boolean;
+    }> = [];
+
+    for (const item of itemsDetallados) {
+      const gastoId = existingMap.get(getKey(item));
+      if (!gastoId || existingAsignacionesSet.has(gastoId)) continue;
+
+      for (const e of item.empresas) {
+        empresasBatch.push({
+          gasto_id: gastoId,
+          empresa_id: e.empresa_id,
+          monto_pagado: e.monto_pagado,
+          porcentaje: e.porcentaje,
+          es_pago_directo: true,
+        });
+      }
+    }
+
+    if (empresasBatch.length > 0) {
+      const chunkSize = 100;
+      for (let i = 0; i < empresasBatch.length; i += chunkSize) {
+        const chunk = empresasBatch.slice(i, i + chunkSize);
+        const { error: asigErr } = await supabase.from('gastos_empresas').insert(chunk);
+        if (asigErr) {
+          console.error('[restaurarGastosJulio2026] Error insertando asignaciones:', asigErr.message);
+        }
+      }
     }
 
     revalidateAll();
@@ -944,86 +990,129 @@ export async function restaurarGastosAgosto2026Action(): Promise<ActionResult> {
     ) ?? { id: 'eb283419-a0ff-4543-9199-55bdc1cdc295', nombre: 'La Fé' };
 
     // 2. Obtener o crear categorías
-    const getCatId = async (nombre: string): Promise<string | null> => {
-      const { data: existing } = await supabase
-        .from('categorias_gasto')
-        .select('id')
-        .ilike('nombre', nombre)
-        .limit(1)
-        .maybeSingle();
+    const catNombres = [
+      'Voladuras (Exp y Barre)',
+      'Operaciones de Mina',
+      'Comida en Mina',
+      'Nómina en Mina',
+    ];
 
-      if (existing?.id) return existing.id;
+    const { data: existingCats } = await supabase
+      .from('categorias_gasto')
+      .select('id, nombre');
 
-      const { data: ins } = await supabase
-        .from('categorias_gasto')
-        .insert({ nombre, tipo: 'general', activo: true })
-        .select('id')
-        .maybeSingle();
+    const catMap: Record<string, string> = {};
+    const existingCatsList = existingCats ?? [];
 
-      return ins?.id ?? null;
-    };
-
-    const catVoladurasId = await getCatId('Voladuras (Exp y Barre)');
-    const catOperacionesId = await getCatId('Operaciones de Mina');
-    const catComidaId = await getCatId('Comida en Mina');
-    const catNominaId = await getCatId('Nómina en Mina');
-
-    const catMap: Record<string, string | null> = {
-      'Voladuras (Exp y Barre)': catVoladurasId,
-      'Operaciones de Mina': catOperacionesId,
-      'Comida en Mina': catComidaId,
-      'Nómina en Mina': catNominaId,
-    };
-
-    let creadosCount = 0;
-    let lastErrorMsg = '';
-
-    for (const item of RAW_AGOSTO_2026_ITEMS) {
-      const categoria_id = catMap[item.categoriaNombre] ?? null;
-
-      // Buscar si ya existe
-      const { data: existing } = await supabase
-        .from('gastos')
-        .select('id')
-        .eq('fecha', item.fecha)
-        .eq('monto', item.monto)
-        .eq('descripcion', item.descripcion)
-        .limit(1)
-        .maybeSingle();
-
-      let gastoId = existing?.id;
-
-      if (!gastoId) {
-        const { data: gastoIns, error: gastoErr } = await supabase
-          .from('gastos')
-          .insert({
-            complex_id: user?.complexId ?? null,
-            registrado_por: user?.id ?? null,
-            fecha: item.fecha,
-            monto: item.monto,
-            categoria_id,
-            descripcion: item.descripcion,
-            proveedor: item.proveedor ?? null,
-          })
-          .select('id');
-
-        if (gastoErr || !gastoIns || gastoIns.length === 0) {
-          lastErrorMsg = gastoErr?.message ?? 'Error insertando gasto';
-          continue;
-        }
-
-        gastoId = gastoIns[0].id;
-        creadosCount++;
+    for (const nom of catNombres) {
+      const match = existingCatsList.find((c) => c.nombre.toLowerCase() === nom.toLowerCase());
+      if (match) {
+        catMap[nom] = match.id;
+      } else {
+        const { data: ins } = await supabase
+          .from('categorias_gasto')
+          .insert({ nombre: nom, tipo: 'general', activo: true })
+          .select('id')
+          .maybeSingle();
+        if (ins?.id) catMap[nom] = ins.id;
       }
+    }
 
-      // Asignar empresas pagadoras
-      const empresasPagadoras = item.pagos.map((p) => ({
-        empresa_id: p.pagador === 'fe' ? fe.id : riasco.id,
-        monto_pagado: p.monto_pagado,
-        porcentaje: p.porcentaje,
+    // 3. Obtener gastos ya existentes de Agosto 2026
+    const { data: existingGastos } = await supabase
+      .from('gastos')
+      .select('id, fecha, monto, descripcion')
+      .gte('fecha', '2026-08-01')
+      .lte('fecha', '2026-08-31');
+
+    const getKey = (g: { fecha: string; monto: number | string; descripcion: string }) =>
+      `${g.fecha}|${Number(g.monto).toFixed(2)}|${g.descripcion.trim().toLowerCase()}`;
+
+    const existingMap = new Map<string, string>();
+    (existingGastos ?? []).forEach((g) => {
+      existingMap.set(getKey(g), g.id);
+    });
+
+    // 4. Preparar items nuevos a insertar
+    const itemsParaInsertar = RAW_AGOSTO_2026_ITEMS.filter(
+      (item) => !existingMap.has(getKey(item)),
+    );
+
+    if (itemsParaInsertar.length > 0) {
+      const payload = itemsParaInsertar.map((item) => ({
+        complex_id: user?.complexId ?? null,
+        registrado_por: user?.id ?? null,
+        fecha: item.fecha,
+        monto: item.monto,
+        categoria_id: catMap[item.categoriaNombre] ?? null,
+        descripcion: item.descripcion,
+        proveedor: item.proveedor ?? null,
       }));
 
-      await asignarEmpresasAGasto(supabase, gastoId, item.monto, empresasPagadoras);
+      const chunkSize = 50;
+      for (let i = 0; i < payload.length; i += chunkSize) {
+        const chunk = payload.slice(i, i + chunkSize);
+        const { data: inserted, error: insErr } = await supabase
+          .from('gastos')
+          .insert(chunk)
+          .select('id, fecha, monto, descripcion');
+
+        if (insErr) {
+          console.error('[restaurarGastosAgosto2026] Error insertando lote:', insErr.message);
+        } else if (inserted) {
+          inserted.forEach((g) => existingMap.set(getKey(g), g.id));
+        }
+      }
+    }
+
+    // 5. Vincular empresas en gastos_empresas
+    const allAugustIds = Array.from(existingMap.values());
+    const existingAsignacionesSet = new Set<string>();
+
+    if (allAugustIds.length > 0) {
+      const chunkSize = 100;
+      for (let i = 0; i < allAugustIds.length; i += chunkSize) {
+        const chunk = allAugustIds.slice(i, i + chunkSize);
+        const { data: asigs } = await supabase
+          .from('gastos_empresas')
+          .select('gasto_id')
+          .in('gasto_id', chunk);
+        (asigs ?? []).forEach((a) => existingAsignacionesSet.add(a.gasto_id));
+      }
+    }
+
+    const empresasBatch: Array<{
+      gasto_id: string;
+      empresa_id: string;
+      monto_pagado: number;
+      porcentaje: number;
+      es_pago_directo: boolean;
+    }> = [];
+
+    for (const item of RAW_AGOSTO_2026_ITEMS) {
+      const gastoId = existingMap.get(getKey(item));
+      if (!gastoId || existingAsignacionesSet.has(gastoId)) continue;
+
+      for (const p of item.pagos) {
+        empresasBatch.push({
+          gasto_id: gastoId,
+          empresa_id: p.pagador === 'fe' ? fe.id : riasco.id,
+          monto_pagado: p.monto_pagado,
+          porcentaje: p.porcentaje,
+          es_pago_directo: true,
+        });
+      }
+    }
+
+    if (empresasBatch.length > 0) {
+      const chunkSize = 100;
+      for (let i = 0; i < empresasBatch.length; i += chunkSize) {
+        const chunk = empresasBatch.slice(i, i + chunkSize);
+        const { error: asigErr } = await supabase.from('gastos_empresas').insert(chunk);
+        if (asigErr) {
+          console.error('[restaurarGastosAgosto2026] Error insertando asignaciones:', asigErr.message);
+        }
+      }
     }
 
     revalidateAll();
