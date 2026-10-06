@@ -1,7 +1,7 @@
 /**
- * Datos de producción de Septiembre 2026 (16/09/2026 al 30/09/2026) - Complejo Minero La Fé.
+ * Datos consolidados de producción de Septiembre 2026 (01/09/2026 al 30/09/2026) - Complejo Minero La Fé.
  * Fuente: Reportes diarios de turno de planta (WhatsApp) debidamente validados y auditados.
- * Total Oro Recuperado en quincena: 288.75 g Au.
+ * Total mensual de 29 días operativos: 14 días (quincena 1) + 15 días (quincena 2).
  */
 
 import type { ReporteProduccion } from '@/lib/types';
@@ -31,6 +31,314 @@ export interface SeptiembreDailyTurno {
 }
 
 export const SEPTIEMBRE_2026_DATA: SeptiembreDailyTurno[] = [
+  // =========================================================================
+  // PRIMERA QUINCENA: 01/09/2026 AL 15/09/2026
+  // =========================================================================
+
+  // 01/09/2026 - Total: 10.39 g Au
+  {
+    fecha: '2026-09-01',
+    totalTurnoWhatsApp: 10.39,
+    entries: [
+      {
+        fecha: '2026-09-01', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Material Primario', material_codigo: 'V2D54',
+        amalgama_1_g: 18.00, oro_recuperado_g: 8.40, merma_1_pct: 53.33, sacos: 94.5, toneladas_procesadas: 4.72, tenor_tonelada_gpt: 1.77, tenor_saco_gps: 0.08
+      },
+      {
+        fecha: '2026-09-01', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 1.85, oro_recuperado_g: 0.98, merma_1_pct: 47.03, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-01', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 2.64, oro_recuperado_g: 1.01, merma_1_pct: 61.74, sacos: 42, toneladas_procesadas: 2.10, tenor_tonelada_gpt: 0.48, tenor_saco_gps: 0.024
+      }
+    ]
+  },
+
+  // 02/09/2026 (Reporte WA original rotulado 02/08/2026 por error de mes) - Total: 13.31 g Au
+  {
+    fecha: '2026-09-02',
+    totalTurnoWhatsApp: 13.31,
+    entries: [
+      {
+        fecha: '2026-09-02', turno: 'noche', molino: 'Molino 2', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 10.80, oro_recuperado_g: 5.64, merma_1_pct: 47.77, sacos: 40.8, toneladas_procesadas: 2.10, tenor_tonelada_gpt: 2.60, tenor_saco_gps: 0.13
+      },
+      {
+        fecha: '2026-09-02', turno: 'noche', molino: 'Molino 3', material: 'Material Primario', material_codigo: 'V1D49',
+        amalgama_1_g: 10.56, oro_recuperado_g: 5.42, merma_1_pct: 48.67, sacos: 40.8, toneladas_procesadas: 2.04, tenor_tonelada_gpt: 2.60, tenor_saco_gps: 0.13
+      },
+      {
+        fecha: '2026-09-02', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 2.46, oro_recuperado_g: 1.00, merma_1_pct: 59.35, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-02', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 2.39, oro_recuperado_g: 1.25, merma_1_pct: 47.69, sacos: 30, toneladas_procesadas: 1.50, tenor_tonelada_gpt: 0.83, tenor_saco_gps: 0.041
+      }
+    ]
+  },
+
+  // 03/09/2026 - Total: 12.27 g Au
+  {
+    fecha: '2026-09-03',
+    totalTurnoWhatsApp: 12.27,
+    entries: [
+      {
+        fecha: '2026-09-03', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 18.21, oro_recuperado_g: 9.80, merma_1_pct: 46.18, sacos: 111, toneladas_procesadas: 5.55, tenor_tonelada_gpt: 1.76, tenor_saco_gps: 0.08
+      },
+      {
+        fecha: '2026-09-03', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 1.45, oro_recuperado_g: 0.74, merma_1_pct: 48.96, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-03', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 3.53, oro_recuperado_g: 1.73, merma_1_pct: 50.99, sacos: 30, toneladas_procesadas: 1.50, tenor_tonelada_gpt: 1.15, tenor_saco_gps: 0.057
+      }
+    ]
+  },
+
+  // 04/09/2026 - Total: 12.15 g Au
+  {
+    fecha: '2026-09-04',
+    totalTurnoWhatsApp: 12.15,
+    entries: [
+      {
+        fecha: '2026-09-04', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Material Mixto', material_codigo: null,
+        amalgama_1_g: 20.16, oro_recuperado_g: 9.62, merma_1_pct: 52.28, sacos: 96, toneladas_procesadas: 4.80, tenor_tonelada_gpt: 2.00, tenor_saco_gps: 0.10
+      },
+      {
+        fecha: '2026-09-04', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 1.28, oro_recuperado_g: 0.63, merma_1_pct: 50.78, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-04', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 3.85, oro_recuperado_g: 1.90, merma_1_pct: 50.64, sacos: 42, toneladas_procesadas: 2.10, tenor_tonelada_gpt: 0.90, tenor_saco_gps: 0.045
+      }
+    ]
+  },
+
+  // 05/09/2026 - Total: 10.43 g Au
+  {
+    fecha: '2026-09-05',
+    totalTurnoWhatsApp: 10.43,
+    entries: [
+      {
+        fecha: '2026-09-05', turno: 'noche', molino: 'Molino 3', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 3.20, oro_recuperado_g: 1.26, merma_1_pct: 60.62, sacos: 66, toneladas_procesadas: 3.30, tenor_tonelada_gpt: 0.38, tenor_saco_gps: 0.01,
+        observaciones: 'Tobos: 220'
+      },
+      {
+        fecha: '2026-09-05', turno: 'noche', molino: 'Molino 2', material: 'Material Primario', material_codigo: null,
+        amalgama_1_g: 13.70, oro_recuperado_g: 6.57, merma_1_pct: 52.18, sacos: 54, toneladas_procesadas: 2.70, tenor_tonelada_gpt: 2.43, tenor_saco_gps: 0.12,
+        observaciones: 'Tobos: 180'
+      },
+      {
+        fecha: '2026-09-05', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 4.31, oro_recuperado_g: 2.00, merma_1_pct: 53.59, sacos: 42, toneladas_procesadas: 2.10, tenor_tonelada_gpt: 0.95, tenor_saco_gps: 0.04,
+        observaciones: 'Tobos: 140'
+      },
+      {
+        fecha: '2026-09-05', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 1.80, oro_recuperado_g: 0.60, merma_1_pct: 66.67, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      }
+    ]
+  },
+
+  // 07/09/2026 - Total: 5.77 g Au
+  {
+    fecha: '2026-09-07',
+    totalTurnoWhatsApp: 5.77,
+    entries: [
+      {
+        fecha: '2026-09-07', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 6.71, oro_recuperado_g: 3.32, merma_1_pct: 50.52, sacos: 112.2, toneladas_procesadas: 5.61, tenor_tonelada_gpt: 0.59, tenor_saco_gps: 0.029
+      },
+      {
+        fecha: '2026-09-07', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 4.21, oro_recuperado_g: 2.01, merma_1_pct: 52.25, sacos: 31.4, toneladas_procesadas: 1.57, tenor_tonelada_gpt: 1.28, tenor_saco_gps: 0.064
+      },
+      {
+        fecha: '2026-09-07', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 0.77, oro_recuperado_g: 0.44, merma_1_pct: 42.85, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      }
+    ]
+  },
+
+  // 08/09/2026 - Total: 5.38 g Au (Suma entradas: 5.47 g Au)
+  {
+    fecha: '2026-09-08',
+    totalTurnoWhatsApp: 5.38,
+    entries: [
+      {
+        fecha: '2026-09-08', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 8.81, oro_recuperado_g: 4.00, merma_1_pct: 54.59, sacos: 120, toneladas_procesadas: 6.00, tenor_tonelada_gpt: 0.66, tenor_saco_gps: 0.033
+      },
+      {
+        fecha: '2026-09-08', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 3.00, oro_recuperado_g: 1.21, merma_1_pct: 59.66, sacos: 22.4, toneladas_procesadas: 1.12, tenor_tonelada_gpt: 1.08, tenor_saco_gps: 0.054
+      },
+      {
+        fecha: '2026-09-08', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 0.40, oro_recuperado_g: 0.26, merma_1_pct: 35.00, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null,
+        observaciones: 'Total turno WA reportó 5,38g; suma de nodos individuales 5,47g (diff: +0.09g)'
+      }
+    ]
+  },
+
+  // 09/09/2026 - Total: 3.94 g Au
+  {
+    fecha: '2026-09-09',
+    totalTurnoWhatsApp: 3.94,
+    entries: [
+      {
+        fecha: '2026-09-09', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 5.46, oro_recuperado_g: 2.56, merma_1_pct: 53.11, sacos: 120, toneladas_procesadas: 6.00, tenor_tonelada_gpt: 0.42, tenor_saco_gps: 0.021
+      },
+      {
+        fecha: '2026-09-09', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 2.44, oro_recuperado_g: 1.15, merma_1_pct: 52.86, sacos: 30, toneladas_procesadas: 1.50, tenor_tonelada_gpt: 0.76, tenor_saco_gps: 0.038
+      },
+      {
+        fecha: '2026-09-09', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 0.39, oro_recuperado_g: 0.23, merma_1_pct: 41.02, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      }
+    ]
+  },
+
+  // 10/09/2026 - Total: 11.01 g Au
+  {
+    fecha: '2026-09-10',
+    totalTurnoWhatsApp: 11.01,
+    entries: [
+      {
+        fecha: '2026-09-10', turno: 'noche', molino: 'Molino 2', material: 'Material Primario', material_codigo: 'V1D50',
+        amalgama_1_g: 12.15, oro_recuperado_g: 6.00, merma_1_pct: 50.61, sacos: 27, toneladas_procesadas: 1.35, tenor_tonelada_gpt: 4.44, tenor_saco_gps: 0.22
+      },
+      {
+        fecha: '2026-09-10', turno: 'noche', molino: 'Molino 3', material: 'Material Primario Mixto', material_codigo: 'V1-V2',
+        amalgama_1_g: 6.62, oro_recuperado_g: 2.81, merma_1_pct: 57.55, sacos: 30, toneladas_procesadas: 1.50, tenor_tonelada_gpt: 1.87, tenor_saco_gps: 0.09
+      },
+      {
+        fecha: '2026-09-10', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 2.49, oro_recuperado_g: 1.30, merma_1_pct: 47.79, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-10', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 1.88, oro_recuperado_g: 0.90, merma_1_pct: 52.12, sacos: 30, toneladas_procesadas: 1.50, tenor_tonelada_gpt: 0.60, tenor_saco_gps: 0.03
+      }
+    ]
+  },
+
+  // 11/09/2026 - Total: 15.78 g Au
+  {
+    fecha: '2026-09-11',
+    totalTurnoWhatsApp: 15.78,
+    entries: [
+      {
+        fecha: '2026-09-11', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Material Primario', material_codigo: 'V2D56',
+        amalgama_1_g: 29.00, oro_recuperado_g: 13.80, merma_1_pct: 52.41, sacos: 72, toneladas_procesadas: 3.60, tenor_tonelada_gpt: 3.83, tenor_saco_gps: 0.19
+      },
+      {
+        fecha: '2026-09-11', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 1.60, oro_recuperado_g: 0.83, merma_1_pct: 48.12, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-11', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 2.53, oro_recuperado_g: 1.15, merma_1_pct: 54.55, sacos: 34.4, toneladas_procesadas: 1.72, tenor_tonelada_gpt: 0.66, tenor_saco_gps: 0.033
+      }
+    ]
+  },
+
+  // 12/09/2026 - Total: 19.58 g Au
+  {
+    fecha: '2026-09-12',
+    totalTurnoWhatsApp: 19.58,
+    entries: [
+      {
+        fecha: '2026-09-12', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Material Primario', material_codigo: 'V2D56',
+        amalgama_1_g: 35.60, oro_recuperado_g: 16.19, merma_1_pct: 54.52, sacos: 69, toneladas_procesadas: 3.45, tenor_tonelada_gpt: 4.60, tenor_saco_gps: 0.23
+      },
+      {
+        fecha: '2026-09-12', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 1.84, oro_recuperado_g: 0.97, merma_1_pct: 47.28, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-12', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 5.08, oro_recuperado_g: 2.42, merma_1_pct: 52.36, sacos: 39, toneladas_procesadas: 1.95, tenor_tonelada_gpt: 1.24, tenor_saco_gps: 0.062
+      }
+    ]
+  },
+
+  // 13/09/2026 - Total: 16.86 g Au
+  {
+    fecha: '2026-09-13',
+    totalTurnoWhatsApp: 16.86,
+    entries: [
+      {
+        fecha: '2026-09-13', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Material Mixto', material_codigo: null,
+        amalgama_1_g: 29.26, oro_recuperado_g: 13.34, merma_1_pct: 54.40, sacos: 93, toneladas_procesadas: 4.65, tenor_tonelada_gpt: 2.87, tenor_saco_gps: 0.14
+      },
+      {
+        fecha: '2026-09-13', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 1.40, oro_recuperado_g: 0.72, merma_1_pct: 48.57, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-13', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 5.99, oro_recuperado_g: 2.80, merma_1_pct: 53.25, sacos: 40.4, toneladas_procesadas: 2.02, tenor_tonelada_gpt: 1.38, tenor_saco_gps: 0.069
+      }
+    ]
+  },
+
+  // 14/09/2026 - Total: 17.36 g Au
+  {
+    fecha: '2026-09-14',
+    totalTurnoWhatsApp: 17.36,
+    entries: [
+      {
+        fecha: '2026-09-14', turno: 'noche', molino: 'Molinos 02 y 03', material: 'Material Primario', material_codigo: 'V2D57',
+        amalgama_1_g: 28.53, oro_recuperado_g: 14.18, merma_1_pct: 50.18, sacos: 87, toneladas_procesadas: 4.35, tenor_tonelada_gpt: 3.25, tenor_saco_gps: 0.16
+      },
+      {
+        fecha: '2026-09-14', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 1.12, oro_recuperado_g: 0.56, merma_1_pct: 50.00, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-14', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 5.54, oro_recuperado_g: 2.62, merma_1_pct: 52.70, sacos: 30, toneladas_procesadas: 1.50, tenor_tonelada_gpt: 1.74, tenor_saco_gps: 0.087
+      }
+    ]
+  },
+
+  // 15/09/2026 - Total: 13.85 g Au
+  {
+    fecha: '2026-09-15',
+    totalTurnoWhatsApp: 13.85,
+    entries: [
+      {
+        fecha: '2026-09-15', turno: 'noche', molino: 'Molino 3', material: 'Material Primario', material_codigo: 'V1D50',
+        amalgama_1_g: 17.24, oro_recuperado_g: 7.64, merma_1_pct: 55.68, sacos: 41.4, toneladas_procesadas: 2.07, tenor_tonelada_gpt: 3.69, tenor_saco_gps: 0.18
+      },
+      {
+        fecha: '2026-09-15', turno: 'noche', molino: 'Molino 2', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 5.71, oro_recuperado_g: 2.57, merma_1_pct: 54.99, sacos: 47.4, toneladas_procesadas: 2.37, tenor_tonelada_gpt: 1.08, tenor_saco_gps: 0.05
+      },
+      {
+        fecha: '2026-09-15', turno: 'noche', molino: 'Mantenimiento', material: 'Varios', material_codigo: null,
+        amalgama_1_g: 2.10, oro_recuperado_g: 1.02, merma_1_pct: 51.42, sacos: 0, toneladas_procesadas: null, tenor_tonelada_gpt: null, tenor_saco_gps: null
+      },
+      {
+        fecha: '2026-09-15', turno: 'noche', molino: 'Molino Continuo', material: 'Repaso', material_codigo: null,
+        amalgama_1_g: 5.87, oro_recuperado_g: 2.62, merma_1_pct: 55.36, sacos: 30, toneladas_procesadas: 1.50, tenor_tonelada_gpt: 1.74, tenor_saco_gps: 0.087
+      }
+    ]
+  },
+
+  // =========================================================================
+  // SEGUNDA QUINCENA: 16/09/2026 AL 30/09/2026
+  // =========================================================================
+
   // 16/09/2026 - Total: 15.68 g Au
   {
     fecha: '2026-09-16',
