@@ -504,12 +504,27 @@ export default function ProduccionGerencialClient({
       let countQ = 0;
       const limit = Number(numQuemadas);
       if (limit > 0) {
-        const res = await getUltimasQuemadasAction(limit);
-        if (res.ok && res.data) {
-          totalOroQ = res.data.reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
-          countQ = res.data.length;
-        } else {
-          alert('Error al obtener las quemadas, se generara el balance sin ellas.');
+        try {
+          const apiRes = await fetch(`/api/planta/ultimas-quemadas?limit=${limit}`);
+          if (apiRes.ok) {
+            const json = await apiRes.json();
+            if (json.ok && Array.isArray(json.data)) {
+              totalOroQ = json.data.reduce((s: number, r: any) => s + (Number(r.total_oro_g) || 0), 0);
+              countQ = json.data.length;
+            }
+          }
+        } catch {
+          // Fallback a los datos ya presentes en props si limit == 2
+          if (limit === 2 && (totalOroQuemado || 0) > 0) {
+            totalOroQ = totalOroQuemado || 0;
+            countQ = countQuemado || 0;
+          }
+        }
+
+        // Si todavía es 0 y limit coincide con los props
+        if (totalOroQ === 0 && countQ === 0 && (totalOroQuemado || 0) > 0) {
+          totalOroQ = totalOroQuemado || 0;
+          countQ = countQuemado || 0;
         }
       }
 
