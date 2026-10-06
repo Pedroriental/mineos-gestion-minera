@@ -4,6 +4,8 @@ import QuemadoClient from './QuemadoClient';
 import type { ReporteQuemado } from '@/lib/types';
 import { hasGlobalDateRange, type GlobalDateSearchParams } from '@/lib/global-date-range';
 
+export const dynamic = 'force-dynamic';
+
 export default async function QuemadoPage(props?: {
   searchParams?: Promise<GlobalDateSearchParams>;
 }) {

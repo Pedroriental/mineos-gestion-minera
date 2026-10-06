@@ -17,8 +17,6 @@ const DEFAULT_COMPLEX_ID = '86ef53c0-25d4-499e-9691-e572693cda74';
 
 const REVALIDATE_PATHS = [
   '/mina/quemado',
-  '/operaciones/resumen',
-  '/dashboard',
 ] as const;
 
 function revalidateAll() {
