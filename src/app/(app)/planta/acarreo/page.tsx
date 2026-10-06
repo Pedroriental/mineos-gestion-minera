@@ -1,22 +1,24 @@
 import { createServerClient } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import AcarreoClient from './AcarreoClient';
 import type { ReporteAcarreo } from '@/lib/types';
 import { hasGlobalDateRange, type GlobalDateSearchParams } from '@/lib/global-date-range';
 import { normalizeReportPhotoUrls } from '@/lib/report-photo-url';
 
-export default async function AcarreoPage(props: {
-  searchParams: Promise<GlobalDateSearchParams>;
+export default async function AcarreoPage(props?: {
+  searchParams?: Promise<GlobalDateSearchParams>;
 }) {
-  const searchParams = await props.searchParams;
+  const searchParams = props?.searchParams ? (await props.searchParams) ?? {} : {};
   const hasParams = hasGlobalDateRange(searchParams);
   const supabase = await createServerClient();
+  const db = getSupabaseAdmin() ?? supabase;
 
-  let query = supabase.from('reportes_acarreo').select('*');
+  let query = db.from('reportes_acarreo').select('*');
 
-  if (hasParams) {
+  if (hasParams && searchParams.desde && searchParams.hasta) {
     query = query
-      .gte('fecha', searchParams.desde!)
-      .lte('fecha', searchParams.hasta!)
+      .gte('fecha', searchParams.desde)
+      .lte('fecha', searchParams.hasta)
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false });
   } else {

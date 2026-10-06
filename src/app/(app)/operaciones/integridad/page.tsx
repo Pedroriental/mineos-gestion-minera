@@ -4,14 +4,14 @@ import { hasGlobalDateRange, type GlobalDateSearchParams } from '@/lib/global-da
 
 export const dynamic = 'force-dynamic';
 
-export default async function IntegridadPage(props: {
-  searchParams: Promise<GlobalDateSearchParams>;
+export default async function IntegridadPage(props?: {
+  searchParams?: Promise<GlobalDateSearchParams>;
 }) {
-  const searchParams = await props.searchParams;
+  const searchParams = props?.searchParams ? (await props.searchParams) ?? {} : {};
   const hasParams = hasGlobalDateRange(searchParams);
   const result = await verifyFinancialIntegrityAction(
-    hasParams ? searchParams.desde : undefined,
-    hasParams ? searchParams.hasta : undefined,
+    hasParams && searchParams.desde ? searchParams.desde : undefined,
+    hasParams && searchParams.hasta ? searchParams.hasta : undefined,
   );
 
   if (!result.ok) {

@@ -99,7 +99,8 @@ function makeAccum(name: string): Accum {
 }
 
 export default async function DashboardPage({ searchParams }: PageProps) {
-  const { desde, hasta } = await searchParams;
+  const resolved = searchParams ? (await searchParams) ?? {} : {};
+  const { desde, hasta } = resolved;
   const { from, to, today } = periodBounds(desde, hasta);
 
   const supabase = await createServerClient();

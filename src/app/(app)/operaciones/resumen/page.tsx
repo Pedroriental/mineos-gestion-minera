@@ -44,7 +44,8 @@ interface PageProps { searchParams: SearchParams }
 
 // ─────────────────────────────────────────────────────────────
 export default async function ResumenEjecutivoPage({ searchParams }: PageProps) {
-  const { desde: desdeParam, hasta: hastaParam } = await searchParams;
+  const resolved = searchParams ? (await searchParams) ?? {} : {};
+  const { desde: desdeParam, hasta: hastaParam } = resolved;
   const now = new Date();
   const defaultMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const defaultBounds = monthBounds(defaultMes);

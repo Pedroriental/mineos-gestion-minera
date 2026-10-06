@@ -1,21 +1,23 @@
 import { createServerClient } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import QuemadoClient from './QuemadoClient';
 import type { ReporteQuemado } from '@/lib/types';
 import { hasGlobalDateRange, type GlobalDateSearchParams } from '@/lib/global-date-range';
 
-export default async function QuemadoPage(props: {
-  searchParams: Promise<GlobalDateSearchParams>;
+export default async function QuemadoPage(props?: {
+  searchParams?: Promise<GlobalDateSearchParams>;
 }) {
-  const searchParams = await props.searchParams;
+  const searchParams = props?.searchParams ? (await props.searchParams) ?? {} : {};
   const hasParams = hasGlobalDateRange(searchParams);
   const supabase = await createServerClient();
+  const db = getSupabaseAdmin() ?? supabase;
 
-  let query = supabase.from('reportes_quemado').select('*');
+  let query = db.from('reportes_quemado').select('*');
 
-  if (hasParams) {
+  if (hasParams && searchParams.desde && searchParams.hasta) {
     query = query
-      .gte('fecha', searchParams.desde!)
-      .lte('fecha', searchParams.hasta!)
+      .gte('fecha', searchParams.desde)
+      .lte('fecha', searchParams.hasta)
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false });
   } else {
@@ -27,7 +29,10 @@ export default async function QuemadoPage(props: {
 
   const { data } = await query;
 
-  const reportes: ReporteQuemado[] = (data as ReporteQuemado[]) ?? [];
+  const rawReportes: ReporteQuemado[] = (data as ReporteQuemado[]) ?? [];
+  const reportes = rawReportes.filter(
+    (r) => r && typeof r.fecha === 'string' && r.fecha.trim().length > 0,
+  );
 
   return <QuemadoClient data={reportes} />;
 }

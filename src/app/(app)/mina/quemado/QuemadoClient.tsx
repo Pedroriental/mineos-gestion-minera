@@ -86,10 +86,16 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   const canEdit = useCanEdit();
   const turnoOptions = useTurnoOptions();
 
-  const defaultDate = useMemo(() => {
-    const dates = Array.from(new Set(initialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
-    return dates[0] ?? new Date().toISOString().split('T')[0];
+  const safeInitialData = useMemo(() => {
+    return Array.isArray(initialData)
+      ? initialData.filter((d) => d && typeof d.fecha === 'string' && d.fecha.trim().length > 0)
+      : [];
   }, [initialData]);
+
+  const defaultDate = useMemo(() => {
+    const dates = Array.from(new Set(safeInitialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
+    return dates[0] ?? new Date().toISOString().split('T')[0];
+  }, [safeInitialData]);
 
   const [selectedDate, setSelectedDate] = useState('todos');
   const [globalFilter, setGlobalFilter] = useState('');
@@ -119,29 +125,36 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
   const set = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }));
 
   const diasConRegistros = useMemo(() => {
-    const dates = Array.from(new Set(initialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
+    const dates = Array.from(new Set(safeInitialData.map((d) => d.fecha))).sort((a, b) => b.localeCompare(a));
     return dates.map((fecha) => ({
       fecha,
-      count: initialData.filter((r) => r.fecha === fecha).length,
+      count: safeInitialData.filter((r) => r.fecha === fecha).length,
     }));
-  }, [initialData]);
+  }, [safeInitialData]);
 
   useEffect(() => {
-    if (selectedDate !== 'todos' && diasConRegistros.length > 0 && !initialData.some((r) => r.fecha === selectedDate)) {
+    if (selectedDate !== 'todos' && diasConRegistros.length > 0 && !safeInitialData.some((r) => r.fecha === selectedDate)) {
       setSelectedDate('todos');
     }
-  }, [diasConRegistros, initialData, selectedDate]);
+  }, [diasConRegistros, safeInitialData, selectedDate]);
 
   const dataForSelectedDate = useMemo(() => {
     if (selectedDate === 'todos') {
-      return initialData;
+      return safeInitialData;
     }
-    return initialData.filter((d) => d.fecha === selectedDate);
-  }, [initialData, selectedDate]);
+    return safeInitialData.filter((d) => d.fecha === selectedDate);
+  }, [safeInitialData, selectedDate]);
 
   const openEdit = (item: ReporteQuemado) => {
     setEditItem(item);
-    setPlanchas(item.planchas.map((p) => ({ amalgama_g: String(p.amalgama_g), oro_recuperado_g: String(p.oro_recuperado_g) })));
+    setPlanchas(
+      Array.isArray(item.planchas) && item.planchas.length > 0
+        ? item.planchas.map((p) => ({
+            amalgama_g: String(p.amalgama_g ?? ''),
+            oro_recuperado_g: String(p.oro_recuperado_g ?? ''),
+          }))
+        : [emptyPlancha()],
+    );
     setForm({
       fecha: item.fecha,
       turno: item.turno,
@@ -244,7 +257,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
 
   const diariaChart = useMemo(() => {
     const byDate = new Map<string, { fecha: string; oro: number }>();
-    for (const r of initialData) {
+    for (const r of safeInitialData) {
       const cur = byDate.get(r.fecha) ?? { fecha: r.fecha, oro: 0 };
       cur.oro += Number(r.total_oro_g) || 0;
       byDate.set(r.fecha, cur);
@@ -252,7 +265,7 @@ export default function QuemadoClient({ data: initialData }: QuemadoClientProps)
     return Array.from(byDate.values())
       .sort((a, b) => a.fecha.localeCompare(b.fecha))
       .slice(-CHART_DAYS_MAX);
-  }, [initialData]);
+  }, [safeInitialData]);
 
   const formAmalgama = planchas.reduce((s, p) => s + (parseFloat(p.amalgama_g) || 0), 0) + (parseFloat(form.manto_amalgama_g) || 0);
   const formOro =

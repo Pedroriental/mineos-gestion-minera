@@ -10,11 +10,17 @@ const fmtN = (n: number) =>
 
 const fmtDate = (fecha?: string | null) => {
   if (!fecha) return '—';
-  return new Date(fecha + 'T12:00:00').toLocaleDateString('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  try {
+    const d = new Date(fecha + 'T12:00:00');
+    if (isNaN(d.getTime())) return fecha;
+    return d.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return fecha;
+  }
 };
 
 export const columns = (
@@ -51,7 +57,7 @@ export const columns = (
     header: () => <div className="text-center">Planchas</div>,
     cell: ({ row }) => {
       const planchas = row.original.planchas;
-       return <div className="text-center text-white/65">{planchas?.length || 0}</div>;
+      return <div className="text-center text-white/65">{Array.isArray(planchas) ? planchas.length : 0}</div>;
     },
   },
   {

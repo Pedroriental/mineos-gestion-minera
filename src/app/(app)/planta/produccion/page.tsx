@@ -7,10 +7,10 @@ import { getSeptiembre2026Reportes } from '@/lib/data/septiembre-2026-produccion
 
 const DAILY_GOLD_TARGET = 15; // 15g de Au/día según requerimiento de Planta
 
-export default async function ProduccionPage(props: {
-  searchParams: Promise<{ desde?: string; hasta?: string }>;
+export default async function ProduccionPage(props?: {
+  searchParams?: Promise<{ desde?: string; hasta?: string }>;
 }) {
-  const searchParams = await props.searchParams;
+  const searchParams = props?.searchParams ? (await props.searchParams) ?? {} : {};
   const supabase = await createServerClient();
   const db = getSupabaseAdmin() ?? supabase;
 

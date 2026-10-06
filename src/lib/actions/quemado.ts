@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { QuemadoSchema, QuemadoUpdateSchema } from '@/lib/validations/quemado';
 import { assertBibliotecaValue } from '@/lib/validations/biblioteca';
 import { z } from 'zod';
@@ -12,6 +13,8 @@ export type ActionResult =
   | { ok: true;  message: string }
   | { ok: false; message: string; fieldErrors?: Record<string, string[]> };
 
+const DEFAULT_COMPLEX_ID = '86ef53c0-25d4-499e-9691-e572693cda74';
+
 const REVALIDATE_PATHS = [
   '/mina/quemado',
   '/operaciones/resumen',
@@ -19,7 +22,11 @@ const REVALIDATE_PATHS = [
 ] as const;
 
 function revalidateAll() {
-  REVALIDATE_PATHS.forEach((p) => revalidatePath(p));
+  try {
+    REVALIDATE_PATHS.forEach((p) => revalidatePath(p));
+  } catch (err) {
+    console.warn('[revalidateAll] Warning revalidating paths:', err);
+  }
 }
 
 export async function createQuemado(raw: unknown): Promise<ActionResult> {
@@ -40,10 +47,13 @@ export async function createQuemado(raw: unknown): Promise<ActionResult> {
   }
 
   const supabase = await createServerClient();
+  const db = getSupabaseAdmin() ?? supabase;
   const user = await getServerUser();
 
-  const { error } = await supabase.from('reportes_quemado').insert({
-    complex_id:       user?.complexId ?? null,
+  const complexId = user?.complexId ?? DEFAULT_COMPLEX_ID;
+
+  const { error } = await db.from('reportes_quemado').insert({
+    complex_id:       complexId,
     fecha:            data.fecha,
     turno:            data.turno,
     numero_quemada:   data.numero_quemada   || null,
@@ -55,7 +65,7 @@ export async function createQuemado(raw: unknown): Promise<ActionResult> {
     total_oro_g:      data.total_oro_g,
     responsable:      data.responsable      || null,
     observaciones:    data.observaciones    || null,
-    registrado_por:   data.registrado_por   || null,
+    registrado_por:   data.registrado_por   || user?.id || null,
   });
 
   if (error) {
@@ -64,16 +74,20 @@ export async function createQuemado(raw: unknown): Promise<ActionResult> {
   }
 
   // Notify admins if a supervisor submitted the report
-  if (user?.complexId) {
-    await notifyAdmins({
-      complexId: user.complexId,
-      type: 'report_submitted',
-      title: 'Nuevo reporte de quemado',
-      body: `${user.email} envió un reporte de quemado`,
-      href: '/mina/quemado',
-      actorId: user.id,
-      actorRole: user.role,
-    });
+  if (complexId && user?.id) {
+    try {
+      await notifyAdmins({
+        complexId: complexId,
+        type: 'report_submitted',
+        title: 'Nuevo reporte de quemado',
+        body: `${user.email || 'Supervisor'} envió un reporte de quemado`,
+        href: '/mina/quemado',
+        actorId: user.id,
+        actorRole: user.role,
+      });
+    } catch (notifErr) {
+      console.warn('[Action] notifyAdmins warning:', notifErr);
+    }
   }
 
   revalidateAll();
@@ -91,8 +105,9 @@ export async function updateQuemado(raw: unknown): Promise<ActionResult> {
 
   const { id, registrado_por: _rp, ...rest } = parsed.data;
   const supabase = await createServerClient();
+  const db = getSupabaseAdmin() ?? supabase;
 
-  const { error } = await supabase.from('reportes_quemado').update({
+  const { error } = await db.from('reportes_quemado').update({
     fecha:            rest.fecha,
     turno:            rest.turno,
     numero_quemada:   rest.numero_quemada   || null,
@@ -120,7 +135,8 @@ export async function deleteQuemado(id: string): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, message: 'ID inválido' };
 
   const supabase = await createServerClient();
-  const { error } = await supabase.from('reportes_quemado').delete().eq('id', parsed.data);
+  const db = getSupabaseAdmin() ?? supabase;
+  const { error } = await db.from('reportes_quemado').delete().eq('id', parsed.data);
 
   if (error) {
     console.error('[Action] deleteQuemado:', error.message);
