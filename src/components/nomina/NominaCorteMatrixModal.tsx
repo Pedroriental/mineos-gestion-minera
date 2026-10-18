@@ -39,7 +39,7 @@ import {
   type ModoCortePreset,
 } from '@/lib/nomina/corte-grupo-engine';
 import { consolidarPeriodoClient } from '@/lib/nomina/consolidar-client';
-import { fetchSemanaRegistros as getSemanaRegistrosAction } from '@/lib/actions/nomina';
+import { getSemanaRegistrosAction } from '@/lib/actions/nomina-v2';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { NominaSemana, Personal } from '@/lib/types';
 import { cn } from '@/lib/utils';
