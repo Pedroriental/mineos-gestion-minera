@@ -85,7 +85,9 @@ export async function POST(req: Request) {
       // 3. Rescatar registros guardados antes de eliminar para conservar el borrador
       const { data: regs } = await supabase
         .from('nomina_registros')
-        .select('personal_id, monto_pagado, es_semana_libre, estado_asistencia, dias_trabajados, salario_base_calculado, novedad_turno, novedad_turno_obs')
+        .select(
+          'personal_id, monto_pagado, es_semana_libre, estado_asistencia, dias_trabajados, salario_base_calculado, bono_transporte_pagado, novedad_turno, novedad_turno_obs, personal_snapshot, posicion_en_ciclo, periodo_id',
+        )
         .in('semana_id', allTargetIds);
       if (regs?.length) registrosCerrados = regs;
 
