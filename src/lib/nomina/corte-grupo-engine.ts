@@ -604,7 +604,8 @@ export function matchWorkerFromText(
       };
     }
 
-    // Coincidencia difusa de cédula para fotos/OCR donde 1 o 2 dígitos se leen distinto
+    // Coincidencia difusa de cédula para fotos/OCR donde 1 o 2 dígitos se leen distinto:
+    // Exigimos siempre coincidencia parcial de nombre para no confundir a un trabajador NUEVO con otro existente.
     let bestCedulaWorker: Personal | null = null;
     let bestDist = 99;
     for (const p of catalog) {
@@ -616,29 +617,17 @@ export function matchWorkerFromText(
         bestCedulaWorker = p;
       }
     }
-    if (bestCedulaWorker && bestDist <= 1) {
-      return {
-        worker: bestCedulaWorker,
-        confidence: 0.95,
-        reason: `Cédula OCR (${candidateDigits})`,
-        extractedCedula: candidateDigits,
-      };
-    }
-    if (bestCedulaWorker && bestDist === 2) {
-      const pDigits = (bestCedulaWorker.cedula || '').replace(/\D/g, '');
-      const samePrefixAndLen =
-        pDigits.length === candidateDigits.length &&
-        pDigits.slice(0, 3) === candidateDigits.slice(0, 3);
+    if (bestCedulaWorker && bestDist <= 2) {
       const nameSim = nameSimilarity(clean, bestCedulaWorker.nombre_completo);
       const qTokens = tokenizeName(clean);
       const dbTokens = tokenizeName(bestCedulaWorker.nombre_completo);
       const tokenOverlap = qTokens.some((qt) =>
         dbTokens.some((dt) => nameSimilarity(qt, dt) >= 0.6),
       );
-      if (samePrefixAndLen || nameSim >= 0.35 || tokenOverlap) {
+      if (nameSim >= 0.42 || tokenOverlap) {
         return {
           worker: bestCedulaWorker,
-          confidence: 0.91,
+          confidence: bestDist === 1 ? 0.95 : 0.91,
           reason: `Cédula + Nombre OCR (${candidateDigits})`,
           extractedCedula: candidateDigits,
         };
@@ -716,7 +705,7 @@ export function matchWorkerFromText(
     cargo: p.cargo,
     area: p.area,
   }));
-  const fuzzy = findFuzzyWorkerCandidates(clean, matchRecords, { threshold: 0.62, limit: 1 });
+  const fuzzy = findFuzzyWorkerCandidates(clean, matchRecords, { threshold: 0.65, limit: 1 });
   if (fuzzy.length > 0) {
     const found = catalog.find((p) => p.id === fuzzy[0].worker.id) ?? null;
     if (found) {
@@ -730,6 +719,25 @@ export function matchWorkerFromText(
   }
 
   return { worker: null, confidence: 0, reason: 'No encontrado en base', extractedCedula: candidateDigits };
+}
+
+function detectCargoFromText(text: string): string | undefined {
+  if (/\b(martiller[oa]|martiler[oa])\b/i.test(text)) return 'Martillero';
+  if (/\b(ayudante\s+barrenador)\b/i.test(text)) return 'Ayudante Barrenador';
+  if (/\b(barrenador)\b/i.test(text)) return 'Barrenador';
+  if (/\b(recorter[oa]|recomer[oa]|recorer[oa])\b/i.test(text)) return 'Recortero';
+  if (/\b(cociner[oa])\b/i.test(text)) return 'Cocinera';
+  if (/\b(wincher[oa]|winchere)\b/i.test(text)) return 'Winchero';
+  if (/\b(bomber[oa])\b/i.test(text)) return 'Bombero';
+  if (/\b(supervisor[a]?)\b/i.test(text)) return 'Supervisor';
+  if (/\b(moliner[oa])\b/i.test(text)) return 'Molinero';
+  if (/\b(compresorista|operador\s+de\s+compresor)\b/i.test(text)) return 'Operador de Compresor';
+  if (/\b(mec[aá]nic[oa])\b/i.test(text)) return 'Mecánico';
+  if (/\b(electricista)\b/i.test(text)) return 'Electricista';
+  if (/\b(soldador)\b/i.test(text)) return 'Soldador';
+  if (/\b(chofer|conductor)\b/i.test(text)) return 'Chofer';
+  if (/\b(vigilante|seguridad)\b/i.test(text)) return 'Vigilante';
+  return undefined;
 }
 
 /**
@@ -789,11 +797,26 @@ export function parseSupervisorListInput(
     let pagoExtra = 0;
     const motivosExtra: string[] = [];
     let bonoTransporteOverride: number | undefined = undefined;
-    let cargoOverride: string | undefined = undefined;
+    let cargoOverride: string | undefined = detectCargoFromText(withoutBullet);
     let esNuevoExplicito = false;
     let esDespidoExplicito = false;
 
     const lower = withoutBullet.toLowerCase();
+
+    // Detectar Frente en cualquier formato (V1, V2, V3, Vertical 1, Molino 1)
+    const frenteMatch = withoutBullet.match(/\b(V[123I]|M[12]|Vertical\s*[123])\b/i);
+    if (frenteMatch) {
+      const rawFrente = frenteMatch[1].toUpperCase().replace(/\s+/g, '');
+      if (rawFrente === 'VI' || rawFrente === 'V1' || rawFrente === 'VERTICAL1') {
+        frenteReportado = 'V1';
+      } else if (rawFrente === 'V2' || rawFrente === 'VERTICAL2') {
+        frenteReportado = 'V2';
+      } else if (rawFrente === 'V3' || rawFrente === 'VERTICAL3') {
+        frenteReportado = 'V3';
+      } else {
+        frenteReportado = rawFrente;
+      }
+    }
 
     // Detectar si es una fila tabular de cuadro de nómina (Excel o Foto OCR con columnas | o ])
     const isTabularRow =
@@ -801,15 +824,8 @@ export function parseSupervisorListInput(
       /\b(14[.,]?2[089]|21[.,]?43|25[.,]?00)\b/.test(withoutBullet);
 
     if (isTabularRow) {
-      // Detectar Frente (V1, V2, V3; en OCR "V1" suele leerse "VI" o "vi")
-      const frenteMatch = withoutBullet.match(/\b(V[123I]|M[12])\b/i);
-      if (frenteMatch) {
-        const rawFrente = frenteMatch[1].toUpperCase();
-        frenteReportado = rawFrente === 'VI' ? 'V1' : rawFrente;
-      }
-
       // Detectar Sueldo Semanal en tabla (100,00 / 150,00 / 175,00 o en OCR 10000 / 15000 / i5000 / 17500)
-      if (/\b[i1]75(?:[.,]00|00)?\b/i.test(withoutBullet)) {
+      if (/\b[i1]75(?:[.,]00|00)?\b/i.test(withoutBullet) || /\b25[.,]?00\b/.test(withoutBullet)) {
         salarioOverride = 175;
       } else if (/\b[i1]50(?:[.,]00|00)?\b/i.test(withoutBullet) || /\b21[.,]?43\b/.test(withoutBullet)) {
         salarioOverride = 150;
@@ -855,6 +871,24 @@ export function parseSupervisorListInput(
             cobraSemanaLibre = true;
           }
         }
+      }
+    } else {
+      // En texto libre, detectar sueldo explícito (ej. "sueldo 150", "150/sem", "gana 120$")
+      const sueldoTextMatch = withoutBullet.match(
+        /(?:sueldo|salario|base|gana)\s*[:\$]?\s*(\d{2,3}(?:[.,]\d+)?)\b|\b(100|120|125|150|175|200)\s*(?:\$\s*\/\s*sem|\/\s*sem)/i,
+      );
+      if (sueldoTextMatch) {
+        salarioOverride = parseFloat((sueldoTextMatch[1] || sueldoTextMatch[2]).replace(',', '.'));
+      }
+    }
+
+    // Si no se detectó sueldo pero sí cargo, sugerir sueldo estándar del cargo en MineOS
+    if (salarioOverride === undefined && cargoOverride) {
+      if (cargoOverride === 'Supervisor') salarioOverride = 175;
+      else if (cargoOverride === 'Martillero' || cargoOverride === 'Barrenador' || cargoOverride === 'Ayudante Barrenador') {
+        salarioOverride = 150;
+      } else {
+        salarioOverride = 100;
       }
     }
 
@@ -927,12 +961,12 @@ export function parseSupervisorListInput(
     }
 
     const cleanedName = nameSegment
-      .replace(/(?:extra|bono|adicional|incentivo|carro|transporte|pasaje|\+)\s*[:\$]?\s*\d+(?:[.,]\d+)?\s*\$?/gi, ' ')
+      .replace(/(?:extra|bono|adicional|incentivo|carro|transporte|pasaje|sueldo|salario|base|gana|\+)\s*[:\$]?\s*\d+(?:[.,]\d+)?\s*(?:\/\s*sem|\$)?/gi, ' ')
       .replace(/\b\d+(?:[.,]\d+)?\s*\$/gi, ' ')
       .replace(/\b\d{1,2}\s*(?:d[ií]as?|d\b)/gi, ' ')
       .replace(/falt[oó]\s*\d{1,2}\s*(?:d[ií]as?|d\b)?/gi, ' ')
       .replace(
-        /\b(nuevo|ingreso|despedido|despido|retirado|retiro|libre|semana libre|reposo|falta|turno|extra|bono|adicional|carro|transporte|pasaje|martillero|recortero|cocinera|winchero|bombero|supervisor|molinero|v1|v2|v3|vi)\b/gi,
+        /\b(nuevo|ingreso|despedido|despido|retirado|retiro|libre|semana libre|reposo|falta|turno|extra|bono|adicional|carro|transporte|pasaje|martillero|martilero|recortero|recomero|recorero|cocinera|winchero|winchere|bombero|supervisor|molinero|barrenador|compresorista|v1|v2|v3|vi)\b/gi,
         ' ',
       )
       .replace(/\b\d+\b/g, ' ')

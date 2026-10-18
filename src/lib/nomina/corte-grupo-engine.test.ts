@@ -170,4 +170,35 @@ describe('corte-grupo-engine', () => {
     filaCarvajal = applyDiasGuardiaToFilaCorte(filaCarvajal, 12, columnas);
     assert.equal(filaCarvajal.totalNetoCorte, 171.43);
   });
+
+  it('detecta trabajadores que NO existen en la base de datos y extrae su nombre, cédula, cargo y sueldo para crearlos', () => {
+    const catalog = [
+      makeWorker({ id: 'm1', nombre_completo: 'Manuel Bermudez', cedula: '23924471', salario_base: 150 }),
+    ];
+
+    const listWithNewWorkers = [
+      '1 | Manuel Bermudez | 23924471 | Martillero | V1 | 150,00 | 21,43 | 14',
+      '2 | Pedro Mendoza | 30999111 | Martillero | V2 | 150,00 | 21,43 | 14',
+      '3. Luis Salazar 29111222 Cocinera sueldo 100',
+    ].join('\n');
+
+    const parsed = parseSupervisorListInput(listWithNewWorkers, catalog, 'mina');
+    assert.equal(parsed.length, 3);
+
+    // 1. Existe en BD
+    assert.equal(parsed[0].matchedPersonal?.id, 'm1');
+
+    // 2. No existe en BD -> detectado para crear con cargo Martillero, V2 y $150
+    assert.equal(parsed[1].matchedPersonal, null);
+    assert.equal(parsed[1].extractedCedula, '30999111');
+    assert.equal(parsed[1].cargoOverride, 'Martillero');
+    assert.equal(parsed[1].frenteReportado, 'V2');
+    assert.equal(parsed[1].salarioOverride, 150);
+
+    // 3. No existe en BD (texto libre) -> detectado para crear con cargo Cocinera y $100
+    assert.equal(parsed[2].matchedPersonal, null);
+    assert.equal(parsed[2].extractedCedula, '29111222');
+    assert.equal(parsed[2].cargoOverride, 'Cocinera');
+    assert.equal(parsed[2].salarioOverride, 100);
+  });
 });

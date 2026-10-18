@@ -588,6 +588,8 @@ export default function NominaClient({
     [masterCatalog],
   );
 
+  const [newlyCreatedWorkers, setNewlyCreatedWorkers] = useState<Personal[]>([]);
+
   /** Área + maestro: permite proyectar filas manuales antes de que `data` se actualice tras refresh. */
   const personalCatalogMerged = useMemo(() => {
     const byId = new Map<string, Personal>();
@@ -595,8 +597,11 @@ export default function NominaClient({
     for (const p of baseTrabajadores) {
       if (!byId.has(p.id)) byId.set(p.id, p);
     }
+    for (const p of newlyCreatedWorkers) {
+      byId.set(p.id, p);
+    }
     return [...byId.values()];
-  }, [personalCatalog, baseTrabajadores]);
+  }, [personalCatalog, baseTrabajadores, newlyCreatedWorkers]);
   const [rotacionCierreError, setRotacionCierreError] = useState<string | null>(null);
   const [isTransitionPending, startTransition] = useTransition();
   const [isReverting, setIsPending] = useState(false);
@@ -4779,6 +4784,12 @@ export default function NominaClient({
         onClose={() => setShowSupervisorListModal(false)}
         area={area}
         catalog={personalCatalogMerged}
+        onWorkersCreated={(workers) => {
+          setNewlyCreatedWorkers((prev) => [...prev, ...workers]);
+          try {
+            router.refresh();
+          } catch {}
+        }}
         onApplyList={handleApplySupervisorList}
         onApplyToCorteMatrix={(items) => {
           setSupervisorItemsForCorte(items);
