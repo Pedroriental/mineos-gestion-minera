@@ -575,7 +575,7 @@ export async function procesarCierreHistoricoManualV3(
 ): Promise<ActionResult> {
   const { area, inicio, fin, rows, distribucion } = data;
   const origenRegistro = 'ajuste_manual';
-  const totalNomina = rows.reduce((s, r) => s + r.total, 0);
+  const totalNomina = parseFloat(rows.reduce((s, r) => s + r.total, 0).toFixed(2));
 
   if (!isManualPeriodCompatibleWithArea({ label: periodoManual.label }, area)) {
     const implied =
@@ -657,7 +657,7 @@ export async function procesarCierreHistoricoManualV3(
     return {
       semana_id: semanaId,
       personal_id: r.personalId,
-      monto_pagado: r.total,
+      monto_pagado: parseFloat((r.total ?? 0).toFixed(2)),
       es_semana_libre: esSemanaLibre,
       bono_transporte_pagado: r.bonoTransporte,
       estado_asistencia: r.estadoAsistencia,
@@ -683,6 +683,33 @@ export async function procesarCierreHistoricoManualV3(
   });
   const { error: regError } = await supabase.from('nomina_registros').insert(registros);
   if (regError) return { ok: false, message: `Error registros: ${regError.message}` };
+
+  // 1. Si la semana tiene un gasto vinculado, actualizar monto en tabla gastos
+  const { data: semanaRow } = await supabase
+    .from('nomina_semanas')
+    .select('gasto_id')
+    .eq('id', semanaId)
+    .maybeSingle();
+
+  if (semanaRow?.gasto_id) {
+    await supabase
+      .from('gastos')
+      .update({ monto: totalNomina, updated_at: new Date().toISOString() })
+      .eq('id', semanaRow.gasto_id);
+  }
+
+  // 2. Ahora que los registros están insertados, actualizar total_pagado y total_trabajadores en nomina_semanas.
+  // El trigger trg_nomina_gasto_integrity validará que total_pagado coincida con SUM(nomina_registros.monto_pagado).
+  const { error: updateSemanaError } = await supabase
+    .from('nomina_semanas')
+    .update({
+      total_pagado: totalNomina,
+      total_trabajadores: rows.length,
+    })
+    .eq('id', semanaId);
+  if (updateSemanaError) {
+    return { ok: false, message: `Error al actualizar totales de semana: ${updateSemanaError.message}` };
+  }
 
   const cierrePayload = distribucionToCierrePayload(totalNomina, distribucion);
   const cierreRes = await upsertNominaCierreForSemana(supabase, semanaId, {
@@ -1171,6 +1198,7 @@ export async function procesarLiquidacionDespedidosAction(
         throw new Error(findResult.error);
       }
       const semanaId = findResult.semanaId;
+      semanasProcesadas.add(semanaId);
 
       const { data: regExist } = await supabase
         .from('nomina_registros')
@@ -1235,6 +1263,36 @@ export async function procesarLiquidacionDespedidosAction(
         `Liquidación procesada: $${liq.montoLiquidacion} (bono: $${liq.bonificaciones}${liq.cobraSemanaLibre ? ', incluye semana libre' : ''})`,
         user.id,
       );
+    }
+
+    // Actualizar total_pagado en cada semana procesada según la suma real de sus registros
+    for (const semanaId of semanasProcesadas) {
+      const { data: regSumData } = await supabase
+        .from('nomina_registros')
+        .select('monto_pagado')
+        .eq('semana_id', semanaId);
+      const sumPagado = parseFloat(
+        (regSumData ?? []).reduce((acc, r) => acc + Number(r.monto_pagado || 0), 0).toFixed(2),
+      );
+      const totalTrab = (regSumData ?? []).length;
+
+      const { data: semanaRow } = await supabase
+        .from('nomina_semanas')
+        .select('gasto_id')
+        .eq('id', semanaId)
+        .maybeSingle();
+
+      if (semanaRow?.gasto_id) {
+        await supabase
+          .from('gastos')
+          .update({ monto: sumPagado, updated_at: new Date().toISOString() })
+          .eq('id', semanaRow.gasto_id);
+      }
+
+      await supabase
+        .from('nomina_semanas')
+        .update({ total_pagado: sumPagado, total_trabajadores: totalTrab })
+        .eq('id', semanaId);
     }
 
     // Distribución de pagos (Pedro / Darinel / La Fe) — igual que el cierre de nómina semanal

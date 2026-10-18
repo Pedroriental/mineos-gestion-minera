@@ -68,7 +68,7 @@ export async function findOrCreateNominaSemanaForCierre(
   }
   let lookup = supabase
     .from('nomina_semanas')
-    .select('id')
+    .select('id, gasto_id')
     .eq('semana_inicio', input.semanaInicio)
     .eq('area', input.area);
 
@@ -80,37 +80,45 @@ export async function findOrCreateNominaSemanaForCierre(
   const { data: existing, error: lookupError } = await lookup.maybeSingle();
   if (lookupError) return { error: lookupError.message };
 
-  const patch = {
-    semana_fin: input.semanaFin,
-    area: input.area,
-    total_trabajadores: input.totalTrabajadores,
-    total_pagado: input.totalPagado,
-    registrado_por: input.registradoPor ?? null,
-    origen: input.origen,
-    periodo_id: input.periodoId ?? null,
-  };
-
   if (existing?.id) {
+    // IMPORTANTE: Al actualizar una semana existente, NO actualizar total_pagado aquí
+    // antes de que los registros de nomina_registros sean reemplazados.
+    // De lo contrario, el trigger trg_nomina_gasto_integrity fallará porque comparará
+    // el nuevo total_pagado contra los registros viejos aún presentes en la BD.
+    // El llamador debe actualizar total_pagado una vez insertados los registros.
+    const patchMeta = {
+      semana_fin: input.semanaFin,
+      area: input.area,
+      registrado_por: input.registradoPor ?? null,
+      origen: input.origen,
+      periodo_id: input.periodoId ?? null,
+    };
     const { error: updateError } = await supabase
       .from('nomina_semanas')
-      .update(patch)
+      .update(patchMeta)
       .eq('id', existing.id);
     if (updateError) return { error: updateError.message };
-    return { semanaId: existing.id };
+    return { semanaId: existing.id, gastoId: existing.gasto_id ?? null };
   }
 
   const { data: inserted, error: insertError } = await supabase
     .from('nomina_semanas')
     .insert({
       semana_inicio: input.semanaInicio,
-      ...patch,
+      semana_fin: input.semanaFin,
+      area: input.area,
+      total_trabajadores: input.totalTrabajadores,
+      total_pagado: input.totalPagado,
+      registrado_por: input.registradoPor ?? null,
+      origen: input.origen,
+      periodo_id: input.periodoId ?? null,
     })
-    .select('id')
+    .select('id, gasto_id')
     .maybeSingle();
 
   if (insertError) return { error: insertError.message };
   if (!inserted?.id) return { error: 'No se pudo crear la semana de nómina.' };
-  return { semanaId: inserted.id };
+  return { semanaId: inserted.id, gastoId: inserted.gasto_id ?? null };
 }
 
 export async function upsertNominaCierreForSemana(

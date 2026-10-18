@@ -108,7 +108,7 @@ export async function procesarCierreNominaV2Action(payload: {
     const supabase = await createServerClient();
     const fechaHoy = new Date().toISOString().split('T')[0];
 
-    const totalNomina = rows.reduce((s, r) => s + r.total, 0);
+    const totalNomina = parseFloat(rows.reduce((s, r) => s + r.total, 0).toFixed(2));
 
     const semanaRes = await findOrCreateNominaSemanaForCierre(supabase, {
       semanaInicio: inicio,
@@ -128,13 +128,35 @@ export async function procesarCierreNominaV2Action(payload: {
     const registros = rows.map((r) => ({
       semana_id: semanaId,
       personal_id: r.personal.id,
-      monto_pagado: r.total,
+      monto_pagado: parseFloat((r.total ?? 0).toFixed(2)),
       es_semana_libre: r.esSemanaLibre,
       bono_transporte_pagado: r.bonoTransporte,
     }));
 
     const { error: regError } = await supabase.from('nomina_registros').insert(registros);
     if (regError) return { ok: false, message: `Error registros: ${regError.message}` };
+
+    const { data: semanaRow } = await supabase
+      .from('nomina_semanas')
+      .select('gasto_id')
+      .eq('id', semanaId)
+      .maybeSingle();
+
+    if (semanaRow?.gasto_id) {
+      await supabase
+        .from('gastos')
+        .update({ monto: totalNomina, updated_at: new Date().toISOString() })
+        .eq('id', semanaRow.gasto_id);
+    }
+
+    const { error: updateSemanaError } = await supabase
+      .from('nomina_semanas')
+      .update({
+        total_pagado: totalNomina,
+        total_trabajadores: rows.length,
+      })
+      .eq('id', semanaId);
+    if (updateSemanaError) return { ok: false, message: `Error semana: ${updateSemanaError.message}` };
 
     const montoPedro = parseFloat(((pctPedro / 100) * totalNomina).toFixed(2));
     const montoDarinel = parseFloat(((pctDarinel / 100) * totalNomina).toFixed(2));
