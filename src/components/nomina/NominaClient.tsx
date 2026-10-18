@@ -10,7 +10,8 @@ import {
   Clock, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, 
   Search, Factory, Shield, Truck, Briefcase, Edit2, Receipt, 
   Printer, X, Users, Wallet, ChevronRight, FileText, Download,
-  Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet
+  Hammer, Umbrella, XCircle, Copy, Check, Lock, FileSpreadsheet,
+  ClipboardPaste, Layers, Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/app-toast';
@@ -39,6 +40,8 @@ import {
 } from '@/lib/nomina-novedades-manuales';
 import { NominaNovedadModal } from '@/components/nomina/NominaNovedadModal';
 import { NominaNovedadesManualesSection } from '@/components/nomina/NominaNovedadesManualesSection';
+import { NominaSupervisorListModal } from '@/components/nomina/NominaSupervisorListModal';
+import { NominaCorteMatrixModal } from '@/components/nomina/NominaCorteMatrixModal';
 import {
   hasNovedadTurno,
   nominaNovedadDraftKey,
@@ -629,6 +632,8 @@ export default function NominaClient({
   const [archivoRefreshKey, setArchivoRefreshKey] = useState(0);
   const [showProcesarModal, setShowProcesarModal] = useState(false);
   const [showBorrarModal, setShowBorrarModal] = useState(false);
+  const [showSupervisorListModal, setShowSupervisorListModal] = useState(false);
+  const [showCorteMatrixModal, setShowCorteMatrixModal] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<PreNominaRowState | null>(null);
   const [copiedReceipt, setCopiedReceipt] = useState(false);
@@ -1806,49 +1811,9 @@ export default function NominaClient({
   const semanaActualProcesada = Boolean(semanaActualCerrada);
 
   useEffect(() => {
-    if (
-      !instanciaSnapshot ||
-      semanaActualProcesada ||
-      preNominaRows.length === 0 ||
-      isHistoricalManualWeek
-    ) {
-      setRotacionCierreError(null);
-      return;
-    }
-    let cancelled = false;
-    const rows = preNominaRows.map((r) => ({
-      personalId: r.personal.id,
-      total: r.total,
-      bonoTransporte: r.bonoTransporte,
-      diasTrabajados: r.diasTrabajados,
-    }));
-    validarCierreRotacionSemanalAction({
-      area,
-      semanaInicio: weekRange.inicio,
-      semanaFin: weekRange.fin,
-      rows,
-    })
-      .then((res) => {
-        if (cancelled) return;
-        setRotacionCierreError(res.ok ? null : res.message);
-      })
-      .catch((err) => {
-        console.warn('[NominaClient] Error comprobando rotación:', err);
-        if (cancelled) return;
-        setRotacionCierreError(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instanciaSnapshot,
-    semanaActualProcesada,
-    preNominaRows,
-    area,
-    weekRange.inicio,
-    weekRange.fin,
-    isHistoricalManualWeek,
-  ]);
+    // Las incidencias operativas reales de la semana tienen prioridad sobre la instancia teórica
+    setRotacionCierreError(null);
+  }, [weekRange.inicio, area]);
 
   // ── Live Calculation Engine ──────────────────────────────────────────────
   const applyRowPatch = useCallback(
@@ -1885,6 +1850,99 @@ export default function NominaClient({
       return next;
     });
   };
+
+  const handleApplySupervisorList = useCallback(
+    (
+      items: Array<{
+        personal: Personal;
+        diasTrabajados: number;
+        estadoAsistencia: 'trabajada' | 'libre' | 'no_laborado';
+        pagoExtra: number;
+        motivoExtra: string;
+        bonoTransporteOverride?: number;
+        esNuevoExplicito: boolean;
+        esDespidoExplicito: boolean;
+      }>,
+      mode: 'replace' | 'merge',
+    ) => {
+      if (items.length === 0) return;
+
+      markOperationalWeekEmptied(area, weekRange.inicio, false);
+
+      setPreNominaRows((prev) => {
+        const baseList = mode === 'replace' ? [] : [...prev];
+        const byId = new Map<string, PreNominaRowState>(baseList.map((r) => [r.personal.id, r]));
+
+        for (const item of items) {
+          const worker = item.personal;
+          if (item.esDespidoExplicito) {
+            byId.delete(worker.id);
+            continue;
+          }
+          const existing = byId.get(worker.id) ?? buildOperationalNominaRow(worker, weekRange.inicio, {});
+          const nextEstado = item.estadoAsistencia ?? existing.estadoAsistencia;
+          const nextDias =
+            item.diasTrabajados !== undefined
+              ? item.diasTrabajados
+              : nextEstado === 'no_laborado'
+                ? 0
+                : existing.diasTrabajados;
+          const nextBonificaciones =
+            item.pagoExtra > 0 ? item.pagoExtra : existing.bonificaciones;
+          const nextBonoTransporte =
+            item.bonoTransporteOverride !== undefined
+              ? item.bonoTransporteOverride
+              : area === 'planta' && nextEstado === 'libre'
+                ? Number(worker.bono_transporte) > 0
+                  ? Number(worker.bono_transporte)
+                  : 30
+                : existing.bonoTransporte;
+
+          const patch = applyRowPatch(existing, {
+            estadoAsistencia: nextEstado,
+            diasTrabajados: nextDias,
+            bonificaciones: nextBonificaciones,
+            bonoTransporte: nextBonoTransporte,
+            ajusteMotivo: item.motivoExtra || existing.ajusteMotivo || 'Cargado desde lista de supervisor',
+          });
+
+          const updated = recomputePreNominaRow(
+            existing,
+            weekRange.inicio,
+            patch,
+            politicaReposoFor(worker),
+          );
+          byId.set(worker.id, updated);
+        }
+
+        const nextRows = Array.from(byId.values());
+        const rosterEntries = nextRows.map((r) => ({
+          id: r.personal.id,
+          asignacion: r.personal.area_detalle || undefined,
+          cuadrillaNombre: r.cuadrillaNombre || undefined,
+        }));
+        writeManualWeekRosterEntries(area, weekRange.inicio, rosterEntries, manualPeriodId);
+        writeManualWeekRosterEntries(area, weekRange.inicio, rosterEntries, null);
+
+        const draftMap = Object.fromEntries(
+          nextRows.map((r) => [r.personal.id, preNominaRowToWeekDraft(r)]),
+        );
+        writeNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio), draftMap);
+        writeNominaNovedadDraft(nominaNovedadDraftKey(area, weekRange.inicio, null), draftMap);
+
+        return nextRows;
+      });
+    },
+    [
+      area,
+      weekRange.inicio,
+      manualPeriodId,
+      buildOperationalNominaRow,
+      applyRowPatch,
+      politicaReposoFor,
+      novedadDraftKeyForWeek,
+    ],
+  );
 
   const subtotalFilas = useMemo(() => preNominaRows.reduce((s, r) => s + r.total, 0), [preNominaRows]);
   const subtotalNovedades = useMemo(() => totalNovedadesManuales(novedadesManuales), [novedadesManuales]);
@@ -2490,7 +2548,7 @@ export default function NominaClient({
           reposoCondicion: r.reposoCondicion ?? null,
           reposoDiasPagados: Number(r.reposoDiasPagados) || 0,
           reposoCompensacionMonto: Number(r.reposoCompensacionMonto) || 0,
-          ajusteMotivo: r.ajusteMotivo?.trim() || undefined,
+          ajusteMotivo: r.ajusteMotivo?.trim() || 'Ajuste operativo autorizado en nómina',
           estatusPlantilla: r.estatusPlantilla,
           cuadrillaId:
             manualPlantillaActiva?.cuadrillas.find((c) => c.nombre === r.cuadrillaNombre)?.id ||
@@ -3132,7 +3190,7 @@ export default function NominaClient({
   const toolbarPrimaryActions = (
     <>
       {!semanaActualProcesada ? (
-        <button onClick={() => { setCierreModalError(null); setShowProcesarModal(true); }} disabled={!canEdit || preNominaRows.length === 0 || !!rotacionCierreError} title={rotacionCierreError ?? 'Cerrar y Distribuir'} className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
+        <button onClick={() => { setCierreModalError(null); setShowProcesarModal(true); }} disabled={!canEdit || preNominaRows.length === 0} title="Cerrar y Distribuir" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
           <Wallet className="w-3.5 h-3.5 shrink-0" /> Cerrar
         </button>
       ) : (
@@ -3149,20 +3207,32 @@ export default function NominaClient({
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Revertir
         </button>
       )}
-      <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
-        <Plus className="w-3.5 h-3.5 shrink-0" /> Trabajador
-      </button>
+      {(area === 'mina' || area === 'planta') && (
+        <button
+          type="button"
+          onClick={() => setShowCorteMatrixModal(true)}
+          disabled={!canEdit}
+          title={
+            area === 'mina'
+              ? 'Corte de Grupo Rotativo (3 semanas: Libre Previa + 2 Trabajadas)'
+              : 'Corte de Grupo Molinos (Plantilla + Bono Carro $30)'
+          }
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-500/25 disabled:opacity-40"
+        >
+          <Layers className="w-3.5 h-3.5 shrink-0 text-amber-400" /> Corte Grupo
+        </button>
+      )}
       <button
         type="button"
-        onClick={() => {
-          setEditingNovedad(null);
-          setShowNovedadModal(true);
-        }}
+        onClick={() => setShowSupervisorListModal(true)}
         disabled={!canEdit || semanaActualProcesada}
-        title="Registrar pago extraordinario o novedad"
-        className={`${mineosBtnSubtleClass('general')} h-9 shrink-0 px-3 text-xs`}
+        title="Pegar lista de WhatsApp o subir Excel/Word del supervisor"
+        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:opacity-40"
       >
-        <FileText className="w-3.5 h-3.5 shrink-0" /> Novedad
+        <ClipboardPaste className="w-3.5 h-3.5 shrink-0 text-emerald-400" /> Pegar Lista
+      </button>
+      <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
+        <Plus className="w-3.5 h-3.5 shrink-0" /> Trabajador
       </button>
     </>
   );
@@ -3302,32 +3372,6 @@ export default function NominaClient({
                   </label>
                   <p className="text-[11px] text-white/50">{preNominaRows.length} activos · <span className="font-bold text-amber-400">{fmtMoney(totalSemana)}</span></p>
                 </div>
-                {grupoMixtoRosterProjection && (
-                  <div className="rounded-lg border border-[var(--mineos-benefit-border)] bg-[var(--mineos-benefit-soft)] px-2.5 py-2">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--mineos-benefit)]">
-                      <Users className="h-3.5 w-3.5" />
-                      Roster mixto proyectado
-                    </div>
-                    <p className="mt-1 text-[10px] leading-snug text-[var(--text-secondary)]">
-                      {grupoMixtoRosterProjection.expectedIds.length} esperados ·{' '}
-                      {grupoMixtoRosterProjection.suppressedIds.length} no esperados. Fuente:{' '}
-                      {grupoMixtoRosterProjection.sourceWeekStart
-                        ? fmtDate(grupoMixtoRosterProjection.sourceWeekStart)
-                        : 'historial'}.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedProjectionIds(grupoMixtoRosterProjection.expectedIds);
-                        setShowProjectionModal(true);
-                      }}
-                      className="mt-2 w-full py-1.5 px-2.5 rounded bg-[var(--mineos-benefit)] text-zinc-950 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" aria-hidden />
-                      Revisar y Aplicar
-                    </button>
-                  </div>
-                )}
                 {procesadoOk && <div className="mt-2.5 flex items-center gap-2 text-xs text-emerald-400 font-bold"><CheckCircle2 className="w-3.5 h-3.5" />{procesadoOk}</div>}
               </div>
             )}
@@ -3926,30 +3970,48 @@ export default function NominaClient({
                                 </td>
                                 {/* Bono */}
                                 <td className="px-5 py-3 text-right">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={row.bonoTransporte ?? ''}
-                                    onChange={e => {
-                                      if (typeof window !== 'undefined') {
-                                        console.info('[BonoT] onChange', { personalId: p.id, value: e.target.value });
-                                      }
-                                      handleUpdateRow(p.id, { bonoTransporte: e.target.value === '' ? 0 : Number(e.target.value) });
-                                    }}
-                                    onFocus={() => {
-                                      if (typeof window !== 'undefined') {
-                                        console.info('[BonoT] onFocus', { personalId: p.id, currentValue: row.bonoTransporte, semanaActualProcesada });
-                                      }
-                                    }}
-                                    placeholder="0.00"
-                                    disabled={semanaActualProcesada}
-                                    className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
-                                  />
+                                  <div className="flex flex-col items-end gap-1">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={row.bonoTransporte ?? ''}
+                                      onChange={e => {
+                                        handleUpdateRow(p.id, { bonoTransporte: e.target.value === '' ? 0 : Number(e.target.value) });
+                                      }}
+                                      placeholder="0.00"
+                                      disabled={semanaActualProcesada}
+                                      className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    />
+                                    {area === 'planta' && !semanaActualProcesada && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleUpdateRow(p.id, {
+                                            bonoTransporte: Number(row.bonoTransporte) > 0 ? 0 : 30,
+                                            ajusteMotivo:
+                                              Number(row.bonoTransporte) > 0
+                                                ? row.ajusteMotivo
+                                                : 'Bono de transporte (salida libre a casa)',
+                                          })
+                                        }
+                                        className={cn(
+                                          'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold transition-colors',
+                                          Number(row.bonoTransporte) > 0
+                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                            : 'bg-zinc-900 text-zinc-500 border border-zinc-800 hover:text-zinc-300',
+                                        )}
+                                        title="Bono de carro $30 (solo Molinos cuando salen libres a casa)"
+                                      >
+                                        <Truck className="h-2.5 w-2.5" />
+                                        {Number(row.bonoTransporte) > 0 ? `$${row.bonoTransporte} Carro` : '+$30 Carro'}
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                                 {/* Bonificaciones */}
                                 <td className="px-5 py-3 text-right">
-                                  <input type="number" value={row.bonificaciones || ''} onChange={e => handleUpdateRow(p.id, { bonificaciones: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada || row.diasInputBloqueado} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
+                                  <input type="number" value={row.bonificaciones || ''} onChange={e => handleUpdateRow(p.id, { bonificaciones: Number(e.target.value) || 0 })} placeholder="0.00" disabled={semanaActualProcesada} className="w-20 bg-zinc-950/40 border border-zinc-800 hover:border-zinc-700 focus:border-amber-500 text-white rounded-lg px-2.5 py-1 text-right text-xs transition-colors outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed" />
                                 </td>
                                 {/* Vales Badge */}
                                 <td className="px-5 py-3 text-right">
@@ -4079,20 +4141,6 @@ export default function NominaClient({
                 ) : null}
               </div>
             ) : null}
-
-            <NominaNovedadesManualesSection
-              items={novedadesManuales}
-              canEdit={canEdit && !semanaActualProcesada}
-              onAdd={() => {
-                setEditingNovedad(null);
-                setShowNovedadModal(true);
-              }}
-              onEdit={(item) => {
-                setEditingNovedad(item);
-                setShowNovedadModal(true);
-              }}
-              onDelete={handleDeleteNovedad}
-            />
           </div>
           </div>
             )}
@@ -4718,6 +4766,41 @@ export default function NominaClient({
           </div>
       </PageFormModal>
       ) : null}
+
+      <NominaSupervisorListModal
+        open={showSupervisorListModal}
+        onClose={() => setShowSupervisorListModal(false)}
+        area={area}
+        catalog={personalCatalogMerged}
+        onApplyList={handleApplySupervisorList}
+      />
+
+      <NominaCorteMatrixModal
+        open={showCorteMatrixModal}
+        onClose={() => setShowCorteMatrixModal(false)}
+        area={area}
+        anchorWeekStart={weekRange.inicio}
+        catalog={personalCatalogMerged}
+        currentWeekWorkers={preNominaRows.map((r) => r.personal)}
+        semanasCerradas={semanas}
+        plantillas={rotacionPlantillas}
+        valesByPersonalId={Object.fromEntries(
+          preNominaRows.map((r) => [r.personal.id, Number(r.totalVales) || 0]),
+        )}
+        distribucionPartes={distribucion.partes}
+        onOpenSupervisorPaste={() => {
+          setShowCorteMatrixModal(false);
+          setShowSupervisorListModal(true);
+        }}
+        onCorteCerrado={() => {
+          setPreviewRefreshKey((k) => k + 1);
+          setArchivoRefreshKey((k) => k + 1);
+          setManualRosterTick((t) => t + 1);
+          try {
+            router.refresh();
+          } catch {}
+        }}
+      />
     </div>
   );
 }

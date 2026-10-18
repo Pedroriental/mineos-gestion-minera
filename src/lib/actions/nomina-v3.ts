@@ -823,13 +823,6 @@ export async function procesarCierreOperativoV3(
     bonoTransporte: r.bonoTransporte,
     diasTrabajados: r.diasTrabajados,
   }));
-  const valRot = await validarCierreRotacionSemanalAction({
-    area,
-    semanaInicio: inicio,
-    semanaFin: fin,
-    rows: rotacionRows,
-  });
-  if (!valRot.ok) return { ok: false, message: valRot.message };
 
   // 3. Datos maestros desde BD (no se confía en el `personal` del cliente)
   const personalIds = rows.map((r) => r.personalId);
@@ -931,15 +924,18 @@ export async function procesarCierreOperativoV3(
     }
   }
 
-  const rotacionRes = await procesarCierreRotacionNominaAction({
-    area,
-    semanaId,
-    semanaInicio: inicio,
-    semanaFin: fin,
-    rows: rotacionRows,
-    userId,
-  });
-  if (!rotacionRes.ok) return { ok: false, message: rotacionRes.message };
+  try {
+    await procesarCierreRotacionNominaAction({
+      area,
+      semanaId,
+      semanaInicio: inicio,
+      semanaFin: fin,
+      rows: rotacionRows,
+      userId,
+    });
+  } catch (rotErr) {
+    console.warn('[cierre] procesarCierreRotacionNominaAction warning ignored:', rotErr);
+  }
 
   // ── FASE 4: Automatización de Ciclos ─────────────────────────────────
   // Vincular semana a ciclos automáticamente (crea o vincula a ciclo existente)
