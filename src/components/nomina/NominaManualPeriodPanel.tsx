@@ -18,7 +18,6 @@ import { AppDatePicker } from '@/components/ui/AppDatePicker';
 import { AppCheckbox } from '@/components/ui/AppCheckbox';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { consolidarPeriodoClient } from '@/lib/nomina/consolidar-client';
-import { ensureManualPeriodoVistaAction } from '@/lib/actions/nomina-v3';
 import {
   buildDefaultWeekColumnAssignment,
   computeManualPeriodProgress,
@@ -60,16 +59,23 @@ import { cn } from '@/lib/utils';
 
 /** Lunes igual o posterior a la fecha dada (las semanas de nómina inician en lunes). */
 function nextMondayOnOrAfter(iso: string): string {
-  const d = parseISO(iso);
-  const day = d.getDay(); // 0 = domingo … 1 = lunes
-  const offset = (8 - day) % 7;
-  return formatDate(addDays(d, offset), 'yyyy-MM-dd');
+  try {
+    const d = iso ? parseISO(iso) : new Date();
+    const safe = Number.isNaN(d.getTime()) ? new Date() : d;
+    const day = safe.getDay(); // 0 = domingo … 1 = lunes
+    const offset = (8 - day) % 7;
+    return formatDate(addDays(safe, offset), 'yyyy-MM-dd');
+  } catch {
+    return formatDate(new Date(), 'yyyy-MM-dd');
+  }
 }
 
 function suggestPeriodLabel(rangeStart: string, rangeEnd: string): string {
   try {
+    if (!rangeStart || !rangeEnd) return '';
     const s = parseISO(rangeStart);
     const e = parseISO(rangeEnd);
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return '';
     return `Periodo ${formatDate(s, 'dd/MM')} – ${formatDate(e, 'dd/MM/yyyy')}`;
   } catch {
     return '';
@@ -180,9 +186,15 @@ export function NominaManualPeriodPanel({
 
   function adjustRangeToCycle() {
     if (!draftCycleLen) return;
-    const base = draftWeeks[0] ?? nextMondayOnOrAfter(draft.rangeStart);
-    const end = formatDate(addDays(parseISO(base), draftCycleLen * 7 - 1), 'yyyy-MM-dd');
-    setDraft((d) => ({ ...d, rangeStart: base, rangeEnd: end }));
+    try {
+      const base = draftWeeks[0] ?? nextMondayOnOrAfter(draft.rangeStart);
+      const parsedBase = parseISO(base);
+      if (Number.isNaN(parsedBase.getTime())) return;
+      const end = formatDate(addDays(parsedBase, draftCycleLen * 7 - 1), 'yyyy-MM-dd');
+      setDraft((d) => ({ ...d, rangeStart: base, rangeEnd: end }));
+    } catch {
+      // ignore invalid date
+    }
   }
 
   const plantillaActiva = period ? plantillas.find((p) => p.id === period.plantillaId) : null;
@@ -208,7 +220,7 @@ export function NominaManualPeriodPanel({
   }, [period, plantillaActiva, columnCount]);
 
   useEffect(() => {
-    if (!period || !plantillaActiva) return;
+    if (!period || !plantillaActiva || columnCount === 0) return;
     const needsWeeks = !period.weekColumnAssignment?.length;
     const remapped = remapWeekColumnCuadrillasForPlantilla(
       period.weekColumnCuadrillas,
@@ -303,10 +315,23 @@ export function NominaManualPeriodPanel({
       return;
     }
     const pl = plantillas.find((x) => x.id === base.plantillaId);
-    const calendarWeeks = manualPeriodWeekStarts(base.rangeStart, base.rangeEnd);
+    let effStart = base.rangeStart;
+    let effEnd = base.rangeEnd;
+    let calendarWeeks = manualPeriodWeekStarts(effStart, effEnd);
+    if (calendarWeeks.length === 0) {
+      const cycleWeeks = pl ? Math.max(1, referenceRotationSemanas(pl).length) : 1;
+      const mondayStart = nextMondayOnOrAfter(effStart);
+      effStart = mondayStart;
+      effEnd = formatDate(addDays(parseISO(mondayStart), cycleWeeks * 7 - 1), 'yyyy-MM-dd');
+      calendarWeeks = manualPeriodWeekStarts(effStart, effEnd);
+    }
     const columnCount = pl ? referenceRotationSemanas(pl).length : calendarWeeks.length;
+    const effectiveCols = Math.max(1, columnCount || calendarWeeks.length);
+    const defaultCuads = pl ? buildDefaultWeekColumnCuadrillas(pl, effectiveCols) : undefined;
     const next: ManualNominaPeriod = {
       ...base,
+      rangeStart: effStart,
+      rangeEnd: effEnd,
       id: base.id || createManualPeriodId(),
       label: base.label.trim(),
       plantillaNombre: pl?.nombre ?? base.plantillaNombre,
@@ -314,36 +339,40 @@ export function NominaManualPeriodPanel({
       periodoArchivoId: undefined,
       periodoTotalUsd: undefined,
       periodoVistaId: base.periodoVistaId,
-      weekColumnAssignment: buildDefaultWeekColumnAssignment(
-        calendarWeeks,
-        columnCount || calendarWeeks.length,
-      ),
-      weekColumnCuadrillas: pl
-        ? buildDefaultWeekColumnCuadrillas(pl, columnCount || calendarWeeks.length)
-        : undefined,
-      weekColumnCuadrillaNombres: pl
-        ? cuadrillaNombresForColumns(
-            buildDefaultWeekColumnCuadrillas(pl, columnCount || calendarWeeks.length),
-            pl,
-          )
-        : undefined,
+      weekColumnAssignment: buildDefaultWeekColumnAssignment(calendarWeeks, effectiveCols),
+      weekColumnCuadrillas: defaultCuads,
+      weekColumnCuadrillaNombres:
+        pl && defaultCuads ? cuadrillaNombresForColumns(defaultCuads, pl) : undefined,
     };
+    if (pl) {
+      next.weekColumnEstatus = buildWeekColumnEstatusForPeriod(next, pl);
+    }
     onPeriodChange(next, { fromConsolidated: false });
     setDraft(next);
-    startTransition(async () => {
-      const res = await ensureManualPeriodoVistaAction({
-        area,
-        label: next.label,
-        rangeStart: next.rangeStart,
-        rangeEnd: next.rangeEnd,
-        plantillaId: next.plantillaId,
-      });
-      if (res.ok && res.data?.periodoId) {
-        const withDb: ManualNominaPeriod = { ...next, periodoVistaId: res.data.periodoId };
-        onPeriodChange(withDb, { fromConsolidated: false });
-        setDraft(withDb);
+    void (async () => {
+      try {
+        const res = await fetch('/api/nomina/periodo-vista', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            area,
+            label: next.label,
+            rangeStart: next.rangeStart,
+            rangeEnd: next.rangeEnd,
+            plantillaId: next.plantillaId,
+          }),
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json?.ok && json.data?.periodoId) {
+          const withDb: ManualNominaPeriod = { ...next, periodoVistaId: json.data.periodoId };
+          onPeriodChange(withDb, { fromConsolidated: false });
+          setDraft(withDb);
+        }
+      } catch (err) {
+        console.warn('[NominaManualPeriodPanel] Error sincronizando periodoVistaId:', err);
       }
-    });
+    })();
     const first = firstOpenWeekInPeriod(next, semanas, area);
     if (first) {
       onGoToWeek(first, getWeekEnd(first));

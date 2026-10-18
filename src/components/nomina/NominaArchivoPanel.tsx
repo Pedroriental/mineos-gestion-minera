@@ -75,9 +75,13 @@ export function NominaArchivoPanel({
     });
     if (!ok) return;
     startTransition(async () => {
-      const res = await eliminarImportNominaAction({ periodoId: periodo.id, userId });
-      setMsg(res.message);
-      if (res.ok) refresh();
+      try {
+        const res = await eliminarImportNominaAction({ periodoId: periodo.id, userId });
+        setMsg(res.message);
+        if (res.ok) refresh();
+      } catch (err: any) {
+        setMsg(err?.message || 'Error al eliminar importación.');
+      }
     });
   }
 

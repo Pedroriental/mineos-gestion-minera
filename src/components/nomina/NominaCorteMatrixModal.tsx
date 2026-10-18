@@ -39,7 +39,6 @@ import {
   type ModoCortePreset,
 } from '@/lib/nomina/corte-grupo-engine';
 import { consolidarPeriodoClient } from '@/lib/nomina/consolidar-client';
-import { getSemanaRegistrosAction } from '@/lib/actions/nomina-v2';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { NominaSemana, Personal } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -136,12 +135,22 @@ export function NominaCorteMatrixModal({
     }
 
     setLoadingHistory(true);
-    Promise.all(priorSemanas.map((s) => getSemanaRegistrosAction(s.id)))
+    Promise.all(
+      priorSemanas.map(async (s) => {
+        try {
+          const r = await fetch(`/api/nomina/semana-registros?semanaId=${encodeURIComponent(s.id)}`);
+          if (!r.ok) return { ok: false, data: [] };
+          return await r.json();
+        } catch {
+          return { ok: false, data: [] };
+        }
+      }),
+    )
       .then((results) => {
         if (cancelled) return;
         const ids = new Set<string>();
         for (const res of results) {
-          if (res.ok && res.data) {
+          if (res?.ok && Array.isArray(res.data)) {
             for (const reg of res.data as Array<{ personal_id: string; monto_pagado?: number }>) {
               if (reg.personal_id && Number(reg.monto_pagado ?? 0) > 0) {
                 ids.add(reg.personal_id);

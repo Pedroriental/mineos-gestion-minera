@@ -315,20 +315,24 @@ export function NominaMesCierrePanel({
       return;
     }
     startTransition(async () => {
-      const res = await cerrarNominaMesAction({
-        label: finalLabel,
-        area,
-        periodoIds: [...selectedIds],
-        userId,
-      });
-      if (res.ok) {
-        toast.success(res.message);
-        onMesClosed?.();
-        setSelectedIds(new Set());
-        setLabel('');
-        setLocalRefreshKey((k) => k + 1);
-      } else {
-        toast.error(res.message);
+      try {
+        const res = await cerrarNominaMesAction({
+          label: finalLabel,
+          area,
+          periodoIds: [...selectedIds],
+          userId,
+        });
+        if (res.ok) {
+          toast.success(res.message);
+          onMesClosed?.();
+          setSelectedIds(new Set());
+          setLabel('');
+          setLocalRefreshKey((k) => k + 1);
+        } else {
+          toast.error(res.message);
+        }
+      } catch (err: any) {
+        toast.error(err?.message || 'Error al cerrar el mes.');
       }
     });
   }

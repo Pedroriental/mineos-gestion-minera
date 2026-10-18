@@ -56,22 +56,30 @@ export function RotacionInstanciaPanel({
   function handleCancelar() {
     if (!instanciaActiva) return;
     startTransition(async () => {
-      const res = await cancelarInstanciaAction(instanciaActiva.id);
-      if (res.ok) {
-        toast.success(res.message);
-        onInstanciaChange?.();
-      } else toast.error(res.message);
+      try {
+        const res = await cancelarInstanciaAction(instanciaActiva.id);
+        if (res.ok) {
+          toast.success(res.message);
+          onInstanciaChange?.();
+        } else toast.error(res.message);
+      } catch (err: any) {
+        toast.error(err?.message || 'Error al cancelar el ciclo.');
+      }
     });
   }
 
   function handleExport() {
     if (!instanciaActiva) return;
     startTransition(async () => {
-      const res = await exportarBalanceRotacionAction(instanciaActiva.id);
-      if (res.ok && res.json) {
-        await navigator.clipboard.writeText(res.json);
-        toast.success('Export copiado al portapapeles.');
-      } else if (!res.ok) toast.error(res.message);
+      try {
+        const res = await exportarBalanceRotacionAction(instanciaActiva.id);
+        if (res.ok && res.json) {
+          await navigator.clipboard.writeText(res.json);
+          toast.success('Export copiado al portapapeles.');
+        } else if (!res.ok) toast.error(res.message);
+      } catch (err: any) {
+        toast.error(err?.message || 'Error al exportar.');
+      }
     });
   }
 

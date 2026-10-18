@@ -7,11 +7,11 @@ import type { NominaClientProps } from '@/components/nomina/NominaClient';
 
 class NominaErrorBoundary extends Component<
   { children: ReactNode },
-  { hasError: boolean; error: Error | null }
+  { hasError: boolean; error: Error | null; autoRecoveredCount: number }
 > {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, autoRecoveredCount: 0 };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -20,6 +20,19 @@ class NominaErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[NominaWorkspace] Caught client render error:', error, errorInfo);
+    const msg = String(error?.message || '');
+    const isTransientServerActionError =
+      msg.includes('Server Components render') ||
+      msg.includes('Server Action') ||
+      Boolean((error as any)?.digest);
+    if (isTransientServerActionError && this.state.autoRecoveredCount < 2) {
+      console.warn('[NominaWorkspace] Auto-recovering from transient Server Action transition error');
+      this.setState((prev) => ({
+        hasError: false,
+        error: null,
+        autoRecoveredCount: prev.autoRecoveredCount + 1,
+      }));
+    }
   }
 
   render() {

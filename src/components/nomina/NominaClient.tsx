@@ -1964,11 +1964,13 @@ export default function NominaClient({
 
   useEffect(() => {
     if (!semanaActualCerradaId) return;
-    getSemanaCierreAction(semanaActualCerradaId).then((res) => {
-      if (res.ok && res.data) {
-        applyDistribucionPlantilla(distribucionFromCierreLegacy(res.data));
-      }
-    });
+    getSemanaCierreAction(semanaActualCerradaId)
+      .then((res) => {
+        if (res.ok && res.data) {
+          applyDistribucionPlantilla(distribucionFromCierreLegacy(res.data));
+        }
+      })
+      .catch(() => {});
   }, [semanaActualCerradaId, applyDistribucionPlantilla]);
 
   // Week-over-week comparison
