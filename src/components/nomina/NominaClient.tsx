@@ -40,7 +40,10 @@ import {
 } from '@/lib/nomina-novedades-manuales';
 import { NominaNovedadModal } from '@/components/nomina/NominaNovedadModal';
 import { NominaNovedadesManualesSection } from '@/components/nomina/NominaNovedadesManualesSection';
-import { NominaSupervisorListModal } from '@/components/nomina/NominaSupervisorListModal';
+import {
+  NominaSupervisorListModal,
+  type SupervisorListAppliedItem,
+} from '@/components/nomina/NominaSupervisorListModal';
 import { NominaCorteMatrixModal } from '@/components/nomina/NominaCorteMatrixModal';
 import {
   hasNovedadTurno,
@@ -634,6 +637,8 @@ export default function NominaClient({
   const [showBorrarModal, setShowBorrarModal] = useState(false);
   const [showSupervisorListModal, setShowSupervisorListModal] = useState(false);
   const [showCorteMatrixModal, setShowCorteMatrixModal] = useState(false);
+  const [supervisorItemsForCorte, setSupervisorItemsForCorte] =
+    useState<SupervisorListAppliedItem[] | null>(null);
   const [showHistorial, setShowHistorial] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<PreNominaRowState | null>(null);
   const [copiedReceipt, setCopiedReceipt] = useState(false);
@@ -3228,10 +3233,10 @@ export default function NominaClient({
         type="button"
         onClick={() => setShowSupervisorListModal(true)}
         disabled={!canEdit || semanaActualProcesada}
-        title="Pegar lista de WhatsApp o subir Excel/Word del supervisor"
+        title="Subir foto/captura de la lista del supervisor, Excel o pegar de WhatsApp"
         className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:opacity-40"
       >
-        <ClipboardPaste className="w-3.5 h-3.5 shrink-0 text-emerald-400" /> Pegar Lista
+        <ClipboardPaste className="w-3.5 h-3.5 shrink-0 text-emerald-400" /> Foto / Lista
       </button>
       <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
         <Plus className="w-3.5 h-3.5 shrink-0" /> Trabajador
@@ -4775,6 +4780,11 @@ export default function NominaClient({
         area={area}
         catalog={personalCatalogMerged}
         onApplyList={handleApplySupervisorList}
+        onApplyToCorteMatrix={(items) => {
+          setSupervisorItemsForCorte(items);
+          setShowSupervisorListModal(false);
+          setShowCorteMatrixModal(true);
+        }}
       />
 
       <NominaCorteMatrixModal
@@ -4786,10 +4796,13 @@ export default function NominaClient({
         currentWeekWorkers={preNominaRows.map((r) => r.personal)}
         semanasCerradas={semanas}
         plantillas={rotacionPlantillas}
+        defaultPlantillaId={manualPeriodForView?.plantillaId || manualPlantillaActiva?.id}
         valesByPersonalId={Object.fromEntries(
           preNominaRows.map((r) => [r.personal.id, Number(r.totalVales) || 0]),
         )}
         distribucionPartes={distribucion.partes}
+        importedSupervisorItems={supervisorItemsForCorte}
+        onConsumeSupervisorItems={() => setSupervisorItemsForCorte(null)}
         onOpenSupervisorPaste={() => {
           setShowCorteMatrixModal(false);
           setShowSupervisorListModal(true);

@@ -457,6 +457,11 @@ export type ParsedSupervisorItem = {
   extractedName: string;
   extractedCedula?: string;
   diasTrabajados: number;
+  /** Total de días en la guardia de 14 días (ej. 14, 12, 7 en tabla de mina) */
+  diasGuardiaTotal?: number;
+  /** Si la tabla del supervisor indica explícitamente si cobra o no la semana libre */
+  cobraSemanaLibre?: boolean;
+  frenteReportado?: string;
   estadoAsistencia: EstadoAsistenciaNomina;
   pagoExtra: number;
   motivoExtra: string;
@@ -468,8 +473,102 @@ export type ParsedSupervisorItem = {
 };
 
 /**
+ * Distribuye un total de días de guardia (0..14) entre las semanas trabajadas del corte
+ * (ej. 14d -> 7d + 7d; 12d -> 7d + 5d; 7d -> 0d + 7d) y recalcula los totales.
+ */
+export function applyDiasGuardiaToFilaCorte(
+  fila: FilaCorteTrabajador,
+  diasGuardiaTotal: number,
+  columnas: ColumnaCorteDef[],
+): FilaCorteTrabajador {
+  const clamped = Math.max(0, Math.min(14, Math.round(Number(diasGuardiaTotal) || 0)));
+  const workedCols = columnas.filter(
+    (c) => c.tipo === 'trabajada_1' || c.tipo === 'trabajada_2' || c.tipo === 'trabajada_unica',
+  );
+  if (workedCols.length === 0) return fila;
+
+  const nextSemanas = { ...fila.semanas };
+
+  if (workedCols.length === 1) {
+    const ws = workedCols[0].weekStart;
+    const cell = nextSemanas[ws];
+    if (cell) {
+      nextSemanas[ws] = {
+        ...cell,
+        estadoAsistencia: clamped > 0 ? 'trabajada' : 'no_laborado',
+        diasTrabajados: clamped,
+      };
+    }
+  } else {
+    const col1 = workedCols[0];
+    const col2 = workedCols[workedCols.length - 1];
+    let dias1 = 0;
+    let dias2 = 0;
+    if (clamped <= 7) {
+      dias1 = 0;
+      dias2 = clamped;
+    } else {
+      dias1 = 7;
+      dias2 = clamped - 7;
+    }
+    if (nextSemanas[col1.weekStart]) {
+      nextSemanas[col1.weekStart] = {
+        ...nextSemanas[col1.weekStart],
+        estadoAsistencia: dias1 > 0 ? 'trabajada' : 'no_laborado',
+        diasTrabajados: dias1,
+      };
+    }
+    if (nextSemanas[col2.weekStart]) {
+      nextSemanas[col2.weekStart] = {
+        ...nextSemanas[col2.weekStart],
+        estadoAsistencia: dias2 > 0 ? 'trabajada' : 'no_laborado',
+        diasTrabajados: dias2,
+      };
+    }
+  }
+
+  return recomputeFilaCorteTotals({
+    ...fila,
+    semanas: nextSemanas,
+  });
+}
+
+function digitsEditDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  );
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+/**
+ * Separa palabras pegadas por OCR (ej. "BermudesManuel" -> "Bermudes Manuel", "Medina]uan" -> "Medina Juan")
+ */
+export function normalizeOcrTextLine(raw: string): string {
+  return raw
+    .replace(/[\]\|]uan\b/gi, ' Juan')
+    .replace(/([a-záéíóúñ])[lI1]ose\b/gi, '$1 Jose')
+    .replace(/([a-záéíóúñ])([A-ZÁÉÍÓÚÑ])/g, '$1 $2')
+    .replace(/([A-ZÁÉÍÓÚÑ]{2,})([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)/g, '$1 $2');
+}
+
+/**
  * Encuentra el mejor trabajador en el catálogo usando:
- * 1. Coincidencia exacta de cédula
+ * 1. Coincidencia exacta o difusa (OCR) de cédula
  * 2. Coincidencia exacta de nombre normalizado
  * 3. Coincidencia por tokens (ej. "Pedro Perez" -> "PEDRO JOSE PEREZ GOMEZ")
  * 4. Coincidencia difusa (Levenshtein / variantes de orden)
@@ -477,31 +576,85 @@ export type ParsedSupervisorItem = {
 export function matchWorkerFromText(
   rawText: string,
   catalog: Personal[],
-): { worker: Personal | null; confidence: number; reason: string } {
-  const clean = rawText.trim();
-  if (!clean) return { worker: null, confidence: 0, reason: 'vacío' };
+  fullLineForCedula?: string,
+): { worker: Personal | null; confidence: number; reason: string; extractedCedula?: string } {
+  const clean = normalizeOcrTextLine(rawText).trim();
+  const cedulaSource = normalizeOcrTextLine(fullLineForCedula || rawText).trim();
+  if (!clean && !cedulaSource) return { worker: null, confidence: 0, reason: 'vacío' };
 
-  // 1. Buscar cédula numérica (6 a 9 dígitos)
-  const cedulaMatch = clean.replace(/\./g, '').match(/\b(\d{6,9})\b/);
-  if (cedulaMatch) {
-    const digits = cedulaMatch[1];
+  // 1. Buscar cédula numérica (con puntos o de 6 a 9 dígitos)
+  const dottedCedula = cedulaSource.match(/\b(\d{1,2}[.,]\d{3}[.,]\d{3})\b/);
+  const plainCedula = cedulaSource.replace(/\./g, '').match(/\b(\d{6,9})\b/);
+  const candidateDigits = dottedCedula
+    ? dottedCedula[1].replace(/\D/g, '')
+    : plainCedula
+      ? plainCedula[1]
+      : undefined;
+
+  if (candidateDigits && candidateDigits.length >= 6 && candidateDigits.length <= 9) {
     const byCedula = catalog.find(
-      (p) => p.cedula && p.cedula.replace(/\D/g, '') === digits,
+      (p) => p.cedula && p.cedula.replace(/\D/g, '') === candidateDigits,
     );
     if (byCedula) {
-      return { worker: byCedula, confidence: 1, reason: `Cédula ${digits}` };
+      return {
+        worker: byCedula,
+        confidence: 1,
+        reason: `Cédula ${candidateDigits}`,
+        extractedCedula: candidateDigits,
+      };
+    }
+
+    // Coincidencia difusa de cédula para fotos/OCR donde 1 o 2 dígitos se leen distinto
+    let bestCedulaWorker: Personal | null = null;
+    let bestDist = 99;
+    for (const p of catalog) {
+      const pDigits = (p.cedula || '').replace(/\D/g, '');
+      if (pDigits.length < 6) continue;
+      const dist = digitsEditDistance(candidateDigits, pDigits);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestCedulaWorker = p;
+      }
+    }
+    if (bestCedulaWorker && bestDist <= 1) {
+      return {
+        worker: bestCedulaWorker,
+        confidence: 0.95,
+        reason: `Cédula OCR (${candidateDigits})`,
+        extractedCedula: candidateDigits,
+      };
+    }
+    if (bestCedulaWorker && bestDist === 2) {
+      const pDigits = (bestCedulaWorker.cedula || '').replace(/\D/g, '');
+      const samePrefixAndLen =
+        pDigits.length === candidateDigits.length &&
+        pDigits.slice(0, 3) === candidateDigits.slice(0, 3);
+      const nameSim = nameSimilarity(clean, bestCedulaWorker.nombre_completo);
+      const qTokens = tokenizeName(clean);
+      const dbTokens = tokenizeName(bestCedulaWorker.nombre_completo);
+      const tokenOverlap = qTokens.some((qt) =>
+        dbTokens.some((dt) => nameSimilarity(qt, dt) >= 0.6),
+      );
+      if (samePrefixAndLen || nameSim >= 0.35 || tokenOverlap) {
+        return {
+          worker: bestCedulaWorker,
+          confidence: 0.91,
+          reason: `Cédula + Nombre OCR (${candidateDigits})`,
+          extractedCedula: candidateDigits,
+        };
+      }
     }
   }
 
   const normQuery = normalizeWorkerName(clean);
   if (!normQuery || normQuery.length < 2) {
-    return { worker: null, confidence: 0, reason: 'sin nombre válido' };
+    return { worker: null, confidence: 0, reason: 'sin nombre válido', extractedCedula: candidateDigits };
   }
 
   // 2. Exact match
   for (const p of catalog) {
     if (normalizeWorkerName(p.nombre_completo) === normQuery) {
-      return { worker: p, confidence: 1, reason: 'Nombre exacto' };
+      return { worker: p, confidence: 1, reason: 'Nombre exacto', extractedCedula: candidateDigits };
     }
   }
 
@@ -518,29 +671,39 @@ export function matchWorkerFromText(
       let matchedCount = 0;
       for (const qt of queryTokens) {
         const hit = dbTokens.some(
-          (dt) => dt === qt || (qt.length >= 4 && dt.startsWith(qt)) || nameSimilarity(dt, qt) >= 0.84,
+          (dt) =>
+            dt === qt ||
+            (qt.length >= 4 && dt.startsWith(qt)) ||
+            nameSimilarity(dt, qt) >= 0.8,
         );
         if (hit) matchedCount++;
       }
 
       if (matchedCount === queryTokens.length) {
-        // Todos los tokens buscados están en el trabajador
         const score =
           queryTokens.length >= 2
-            ? 0.94 + Math.min(0.05, queryTokens.length / dbTokens.length * 0.05)
+            ? 0.94 + Math.min(0.05, (queryTokens.length / dbTokens.length) * 0.05)
             : 0.78;
         if (score > bestTokenScore) {
           bestTokenScore = score;
           bestTokenWorker = p;
         }
+      } else if (queryTokens.length >= 2 && matchedCount >= 1) {
+        // Caso OCR donde 1 de los 2 nombres quedó distorsionado (ej. "Iaetancout Geraldine" -> "Betancourt Geraldine")
+        const partialScore = 0.76 * (matchedCount / queryTokens.length) + 0.12;
+        if (partialScore > bestTokenScore && nameSimilarity(clean, p.nombre_completo) >= 0.58) {
+          bestTokenScore = partialScore;
+          bestTokenWorker = p;
+        }
       }
     }
 
-    if (bestTokenWorker && bestTokenScore >= 0.78) {
+    if (bestTokenWorker && bestTokenScore >= 0.74) {
       return {
         worker: bestTokenWorker,
         confidence: bestTokenScore,
         reason: bestTokenScore >= 0.9 ? 'Coincidencia de nombre y apellido' : 'Coincidencia parcial',
+        extractedCedula: candidateDigits,
       };
     }
   }
@@ -553,7 +716,7 @@ export function matchWorkerFromText(
     cargo: p.cargo,
     area: p.area,
   }));
-  const fuzzy = findFuzzyWorkerCandidates(clean, matchRecords, { threshold: 0.68, limit: 1 });
+  const fuzzy = findFuzzyWorkerCandidates(clean, matchRecords, { threshold: 0.62, limit: 1 });
   if (fuzzy.length > 0) {
     const found = catalog.find((p) => p.id === fuzzy[0].worker.id) ?? null;
     if (found) {
@@ -561,15 +724,16 @@ export function matchWorkerFromText(
         worker: found,
         confidence: fuzzy[0].score,
         reason: fuzzy[0].reason,
+        extractedCedula: candidateDigits,
       };
     }
   }
 
-  return { worker: null, confidence: 0, reason: 'No encontrado en base' };
+  return { worker: null, confidence: 0, reason: 'No encontrado en base', extractedCedula: candidateDigits };
 }
 
 /**
- * Parsea un bloque de texto pegado desde WhatsApp, Excel, Word o transcripción de nota de voz
+ * Parsea un bloque de texto pegado desde WhatsApp, Excel, Word, o extraído por OCR de una foto
  * y devuelve la lista estructurada de trabajadores e incidencias.
  */
 export function parseSupervisorListInput(
@@ -580,7 +744,7 @@ export function parseSupervisorListInput(
   const lines = rawInput
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => l.length > 1);
+    .filter((l) => l.length > 2);
 
   // Priorizar trabajadores del área actual pero permitir encontrar de otras áreas (ej. traslados mina <-> molino)
   const sortedCatalog = [...catalog].sort((a, b) => {
@@ -592,16 +756,35 @@ export function parseSupervisorListInput(
   const results: ParsedSupervisorItem[] = [];
 
   for (const rawLine of lines) {
-    // Ignorar encabezados comunes de listas de WhatsApp
-    if (/^(reporte|nomina|nómina|lista|cuadrilla|grupo|fecha|semana|mina|molino|total)\b[:\s]*$/i.test(rawLine)) {
+    const normalizedLine = normalizeOcrTextLine(rawLine);
+
+    // Ignorar encabezados o pies de tabla comunes (WhatsApp / Fotos de tablas de nómina)
+    if (
+      /^(reporte|nomina|nómina|lista|listado de trabajadores|cuadrilla|grupo|fecha|semana|mina|molino|total|elaborado por|item\s+nombre)/i.test(
+        normalizedLine,
+      ) ||
+      /\b(nombre y apellido|incentivo productivo|usd\s*\/\s*semana|elaborado por)\b/i.test(
+        normalizedLine,
+      )
+    ) {
       continue;
     }
 
-    // Limpiar viñetas o numeración inicial ("1. ", "1- ", "- ", "• ")
-    const withoutBullet = rawLine.replace(/^\s*(?:\d+[\.\)\-\s]+|[\-\•\*]\s*)/, '').trim();
+    // Ignorar líneas sin letras reales (ej. bordes de tabla OCR o líneas de solo números)
+    const alphaCount = (normalizedLine.match(/[a-záéíóúñA-ZÁÉÍÓÚÑ]/g) || []).length;
+    if (alphaCount < 3) continue;
+
+    // Limpiar viñetas o numeración inicial ("1. ", "| 1 |", "[14 [", "- ")
+    const withoutBullet = normalizedLine
+      .replace(/^\s*[\|\[\(\+\-\•\*]*\s*(?:\d{1,2}\s*[\.\)\-\|\[\]]+\s*)?/, '')
+      .trim();
     if (!withoutBullet) continue;
 
     let diasTrabajados = NOMINA_DIAS_POR_SEMANA;
+    let diasGuardiaTotal: number | undefined = undefined;
+    let cobraSemanaLibre: boolean | undefined = undefined;
+    let salarioOverride: number | undefined = undefined;
+    let frenteReportado: string | undefined = undefined;
     let estadoAsistencia: EstadoAsistenciaNomina = 'trabajada';
     let pagoExtra = 0;
     const motivosExtra: string[] = [];
@@ -612,9 +795,73 @@ export function parseSupervisorListInput(
 
     const lower = withoutBullet.toLowerCase();
 
-    // Detectar "nuevo" / "ingreso"
-    if (/\b(nuevo|ingreso|entró|entro)\b/i.test(lower)) {
+    // Detectar si es una fila tabular de cuadro de nómina (Excel o Foto OCR con columnas | o ])
+    const isTabularRow =
+      (withoutBullet.match(/[\|\]]/g) || []).length >= 2 ||
+      /\b(14[.,]?2[089]|21[.,]?43|25[.,]?00)\b/.test(withoutBullet);
+
+    if (isTabularRow) {
+      // Detectar Frente (V1, V2, V3; en OCR "V1" suele leerse "VI" o "vi")
+      const frenteMatch = withoutBullet.match(/\b(V[123I]|M[12])\b/i);
+      if (frenteMatch) {
+        const rawFrente = frenteMatch[1].toUpperCase();
+        frenteReportado = rawFrente === 'VI' ? 'V1' : rawFrente;
+      }
+
+      // Detectar Sueldo Semanal en tabla (100,00 / 150,00 / 175,00 o en OCR 10000 / 15000 / i5000 / 17500)
+      if (/\b[i1]75(?:[.,]00|00)?\b/i.test(withoutBullet)) {
+        salarioOverride = 175;
+      } else if (/\b[i1]50(?:[.,]00|00)?\b/i.test(withoutBullet) || /\b21[.,]?43\b/.test(withoutBullet)) {
+        salarioOverride = 150;
+      } else if (/\b100(?:[.,]00|00)?\b/.test(withoutBullet) || /\b14[.,]?2[089]\b/.test(withoutBullet)) {
+        salarioOverride = 100;
+      }
+
+      // Detectar Días Trabajados en la guardia (columna justo después de $/día 14.29 / 21.43 / 25.00)
+      const afterDailyRate = withoutBullet.match(
+        /(?:14[.,]?2[089]|21[.,]?43|25[.,]?00)\s*[\|\]\/\(\s]+\s*(\d{1,2})\b/,
+      );
+      if (afterDailyRate) {
+        const parsedD = parseInt(afterDailyRate[1], 10);
+        if (parsedD >= 0 && parsedD <= 14) {
+          diasGuardiaTotal = parsedD;
+        }
+      } else {
+        // Buscar columna aislada con 14, 12, 7 entre separadores
+        const isolatedDays = withoutBullet.match(/[\|\]]\s*(14|13|12|11|10|9|8|7|6|5|4|3|2|1)\s*[\|\]]/);
+        if (isolatedDays) {
+          diasGuardiaTotal = parseInt(isolatedDays[1], 10);
+        }
+      }
+
+      if (diasGuardiaTotal !== undefined) {
+        diasTrabajados = diasGuardiaTotal > 7 ? diasGuardiaTotal - 7 : diasGuardiaTotal;
+        if (diasGuardiaTotal < 14) {
+          // Si trabajó menos de 14 días en la guardia (ej. 7 o 12 días), no cobra semana libre previa
+          cobraSemanaLibre = false;
+          esNuevoExplicito = true;
+        } else {
+          // Trabajó 14 días: verificar si justo después del monto de $/Guardia (ej. 200) viene un guión (- / —) en vez del monto de Semana Libre
+          const after14Part = withoutBullet.split(/(?:14[.,]?2[089]|21[.,]?43|25[.,]?00)\s*[\|\]\/\(\s]+\s*14\b/)[1] ?? '';
+          const hasImmediateDashAfterGuardiaPay =
+            /^\s*[\|\]]?\s*\d+(?:[.,]\d+)?\s*[\|\)\]]+\s*[-—]/.test(after14Part);
+          const has200FinalFor100 =
+            salarioOverride === 100 &&
+            /\b200(?:[.,]00|00)?\s*[\|\]]?\s*$/.test(after14Part.trim());
+          if (hasImmediateDashAfterGuardiaPay || has200FinalFor100) {
+            cobraSemanaLibre = false;
+            esNuevoExplicito = true;
+          } else {
+            cobraSemanaLibre = true;
+          }
+        }
+      }
+    }
+
+    // Detectar "nuevo" / "ingreso" explícito en texto libre
+    if (/\b(nuevo|ingreso|entró|entro|sin libre)\b/i.test(lower)) {
       esNuevoExplicito = true;
+      cobraSemanaLibre = false;
     }
 
     // Detectar "despido" / "retiro" / "baja" / "se fue"
@@ -622,25 +869,37 @@ export function parseSupervisorListInput(
       esDespidoExplicito = true;
     }
 
-    // Detectar estado libre o falta total
-    if (/\b(semana libre|salió libre|salio libre|\blibre\b)\b/i.test(lower) && !/\bno libre\b/i.test(lower)) {
-      estadoAsistencia = 'libre';
-      diasTrabajados = 0;
-    } else if (/\b(no vino|ausente|no laboro|no laboró|falta completa)\b/i.test(lower)) {
-      estadoAsistencia = 'no_laborado';
-      diasTrabajados = 0;
-    }
+    // Detectar estado libre o falta total en texto libre
+    if (!isTabularRow) {
+      if (/\b(semana libre|salió libre|salio libre|\blibre\b)\b/i.test(lower) && !/\b(no libre|sin libre)\b/i.test(lower)) {
+        estadoAsistencia = 'libre';
+        diasTrabajados = 0;
+      } else if (/\b(no vino|ausente|no laboro|no laboró|falta completa)\b/i.test(lower)) {
+        estadoAsistencia = 'no_laborado';
+        diasTrabajados = 0;
+      }
 
-    // Detectar días trabajados ("5 dias", "5d", "trabajo 4 dias")
-    const diasMatch = withoutBullet.match(/\b(\d{1,2})\s*(?:d[ií]as?|d\b)/i);
-    const faltoMatch = withoutBullet.match(/falt[oó]\s*(\d{1,2})\s*(?:d[ií]as?|d\b)?/i);
-    if (faltoMatch) {
-      const faltas = Math.min(7, Math.max(0, parseInt(faltoMatch[1], 10)));
-      diasTrabajados = Math.max(0, NOMINA_DIAS_POR_SEMANA - faltas);
-      estadoAsistencia = diasTrabajados === 0 ? 'no_laborado' : 'trabajada';
-    } else if (diasMatch) {
-      diasTrabajados = Math.min(14, Math.max(0, parseInt(diasMatch[1], 10)));
-      estadoAsistencia = diasTrabajados === 0 ? 'no_laborado' : 'trabajada';
+      // Detectar días trabajados ("5 dias", "5d", "12 dias", "14d")
+      const diasMatch = withoutBullet.match(/\b(\d{1,2})\s*(?:d[ií]as?|d\b)/i);
+      const faltoMatch = withoutBullet.match(/falt[oó]\s*(\d{1,2})\s*(?:d[ií]as?|d\b)?/i);
+      if (faltoMatch) {
+        const faltas = Math.min(7, Math.max(0, parseInt(faltoMatch[1], 10)));
+        diasTrabajados = Math.max(0, NOMINA_DIAS_POR_SEMANA - faltas);
+        estadoAsistencia = diasTrabajados === 0 ? 'no_laborado' : 'trabajada';
+      } else if (diasMatch) {
+        const dParsed = Math.min(14, Math.max(0, parseInt(diasMatch[1], 10)));
+        if (dParsed > 7) {
+          diasGuardiaTotal = dParsed;
+          diasTrabajados = dParsed - 7;
+          if (dParsed < 14) {
+            cobraSemanaLibre = false;
+            esNuevoExplicito = true;
+          }
+        } else {
+          diasTrabajados = dParsed;
+        }
+        estadoAsistencia = diasTrabajados === 0 ? 'no_laborado' : 'trabajada';
+      }
     }
 
     // Detectar bono transporte / pasaje / carro
@@ -653,25 +912,36 @@ export function parseSupervisorListInput(
       bonoTransporteOverride = 0;
     }
 
-    // Detectar pago extra / bono ("extra 30", "+40$", "bono 25$")
-    const extraMatch = withoutBullet.match(/(?:extra|bono|adicional|\+)\s*\$?\s*(\d+(?:[.,]\d+)?)\s*\$?/i);
+    // Detectar pago extra / bono ("extra 30", "+40$", "bono 25$", "incentivo 50")
+    const extraMatch = withoutBullet.match(/(?:extra|bono|adicional|incentivo|\+)\s*[:\$]?\s*(\d+(?:[.,]\d+)?)\s*\$?/i);
     if (extraMatch) {
       pagoExtra = parseFloat(extraMatch[1].replace(',', '.'));
-      motivosExtra.push('Pago extra reportado por supervisor');
+      motivosExtra.push('Pago extra / incentivo reportado por supervisor');
     }
 
-    // Extraer solo la parte del nombre quitando tokens de montos, días y palabras clave
-    const cleanedName = withoutBullet
-      .replace(/(?:extra|bono|adicional|carro|transporte|pasaje|\+)\s*[:\$]?\s*\d+(?:[.,]\d+)?\s*\$?/gi, ' ')
+    // Extraer la parte del nombre (en filas tabulares está antes de la cédula o antes del cargo)
+    let nameSegment = withoutBullet;
+    const cedulaPos = withoutBullet.search(/\b(?:\d{1,2}[.,]\d{3}[.,]\d{3}|\d{6,9})\b/);
+    if (cedulaPos > 2) {
+      nameSegment = withoutBullet.slice(0, cedulaPos);
+    }
+
+    const cleanedName = nameSegment
+      .replace(/(?:extra|bono|adicional|incentivo|carro|transporte|pasaje|\+)\s*[:\$]?\s*\d+(?:[.,]\d+)?\s*\$?/gi, ' ')
       .replace(/\b\d+(?:[.,]\d+)?\s*\$/gi, ' ')
       .replace(/\b\d{1,2}\s*(?:d[ií]as?|d\b)/gi, ' ')
       .replace(/falt[oó]\s*\d{1,2}\s*(?:d[ií]as?|d\b)?/gi, ' ')
-      .replace(/\b(nuevo|ingreso|despedido|despido|retirado|retiro|libre|semana libre|reposo|falta|turno|extra|bono|adicional|carro|transporte|pasaje)\b/gi, ' ')
-      .replace(/[\$\+\-\(\)\[\]\t\|,;]+/g, ' ')
+      .replace(
+        /\b(nuevo|ingreso|despedido|despido|retirado|retiro|libre|semana libre|reposo|falta|turno|extra|bono|adicional|carro|transporte|pasaje|martillero|recortero|cocinera|winchero|bombero|supervisor|molinero|v1|v2|v3|vi)\b/gi,
+        ' ',
+      )
+      .replace(/\b\d+\b/g, ' ')
+      .replace(/[\$\+\-\(\)\[\]\t\|,;:\._—]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
-    const match = matchWorkerFromText(cleanedName || withoutBullet, sortedCatalog);
+    // Emparejar usando el nombre limpio para tokens y la línea completa para extraer la cédula
+    const match = matchWorkerFromText(cleanedName || withoutBullet, sortedCatalog, withoutBullet);
 
     results.push({
       rawLine,
@@ -679,7 +949,12 @@ export function parseSupervisorListInput(
       confidence: match.confidence,
       matchReason: match.reason,
       extractedName: cleanedName || withoutBullet,
+      extractedCedula: match.extractedCedula,
       diasTrabajados,
+      diasGuardiaTotal,
+      cobraSemanaLibre,
+      frenteReportado,
+      salarioOverride,
       estadoAsistencia,
       pagoExtra,
       motivoExtra: motivosExtra.join(' · '),

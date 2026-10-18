@@ -1,21 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CalendarRange,
-  CheckCircle2,
   Loader2,
   Plus,
-  RefreshCw,
-  Sparkles,
   Trash2,
   Truck,
-  UserCheck,
-  UserPlus,
-  Users,
   Wallet,
   ArrowLeftRight,
   ClipboardPaste,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageFormModal, PageFormModalFooter } from '@/components/ui/PageFormModal';
@@ -28,6 +25,7 @@ import {
   mineosPanel,
 } from '@/lib/mineos-visual';
 import {
+  applyDiasGuardiaToFilaCorte,
   buildColumnasCorte,
   buildFilaCorteTrabajador,
   DEFAULT_BONO_TRANSPORTE_MOLINO,
@@ -39,8 +37,10 @@ import {
   type ModoCortePreset,
 } from '@/lib/nomina/corte-grupo-engine';
 import { consolidarPeriodoClient } from '@/lib/nomina/consolidar-client';
+import { resolveCuadrillaForPersonal } from '@/lib/rotacion-plantillas/manual-plantilla-projection';
 import type { RotacionPlantillaRecord } from '@/lib/rotacion-plantillas/types';
 import type { NominaSemana, Personal } from '@/lib/types';
+import type { SupervisorListAppliedItem } from './NominaSupervisorListModal';
 import { cn } from '@/lib/utils';
 
 type DistribucionParte = {
@@ -59,8 +59,11 @@ type Props = {
   currentWeekWorkers: Personal[];
   semanasCerradas: NominaSemana[];
   plantillas: RotacionPlantillaRecord[];
+  defaultPlantillaId?: string;
   valesByPersonalId: Record<string, number>;
   distribucionPartes: DistribucionParte[];
+  importedSupervisorItems?: SupervisorListAppliedItem[] | null;
+  onConsumeSupervisorItems?: () => void;
   onOpenSupervisorPaste: () => void;
   onCorteCerrado: () => void;
 };
@@ -69,6 +72,54 @@ function fmtShortDate(iso: string): string {
   const parts = iso.split('-');
   if (parts.length !== 3) return iso;
   return `${parts[2]}/${parts[1]}`;
+}
+
+/**
+ * Resuelve los trabajadores de cada cuadrilla de una plantilla combinando:
+ * 1. Filas explícitas (`c.filas`)
+ * 2. Emparejamiento por vertical/sector/cargo (`resolveCuadrillaForPersonal`) usado en MineOS
+ */
+function resolveWorkersByCuadrillaForPlantilla(
+  plantilla: RotacionPlantillaRecord,
+  catalog: Personal[],
+  area: string,
+): Record<string, Personal[]> {
+  const byCuad: Record<string, Personal[]> = {};
+  const seenInCuad: Record<string, Set<string>> = {};
+  const allCuadIds = plantilla.cuadrillas.map((c) => c.id);
+
+  for (const c of plantilla.cuadrillas) {
+    byCuad[c.id] = [];
+    seenInCuad[c.id] = new Set();
+  }
+
+  // 1. Filas explícitas guardadas en la cuadrilla
+  const catalogById = new Map(catalog.map((p) => [p.id, p]));
+  for (const c of plantilla.cuadrillas) {
+    for (const f of c.filas) {
+      const p = catalogById.get(f.personalId);
+      if (p && !seenInCuad[c.id].has(p.id)) {
+        seenInCuad[c.id].add(p.id);
+        byCuad[c.id].push(p);
+      }
+    }
+  }
+
+  // 2. Trabajadores activos del área que coinciden con la cuadrilla por asignación/vertical/cargo
+  const areaCatalog = catalog.filter(
+    (p) => p.estatus === 'ACTIVO' && (p.area === area || !p.area),
+  );
+  for (const p of areaCatalog) {
+    const alreadyInAnyFila = plantilla.cuadrillas.some((c) => seenInCuad[c.id].has(p.id));
+    if (alreadyInAnyFila) continue;
+    const matchedCuad = resolveCuadrillaForPersonal(plantilla, p, allCuadIds);
+    if (matchedCuad && byCuad[matchedCuad.id] && !seenInCuad[matchedCuad.id].has(p.id)) {
+      seenInCuad[matchedCuad.id].add(p.id);
+      byCuad[matchedCuad.id].push(p);
+    }
+  }
+
+  return byCuad;
 }
 
 export function NominaCorteMatrixModal({
@@ -80,8 +131,11 @@ export function NominaCorteMatrixModal({
   currentWeekWorkers,
   semanasCerradas,
   plantillas,
+  defaultPlantillaId,
   valesByPersonalId,
   distribucionPartes,
+  importedSupervisorItems,
+  onConsumeSupervisorItems,
   onOpenSupervisorPaste,
   onCorteCerrado,
 }: Props) {
@@ -90,27 +144,47 @@ export function NominaCorteMatrixModal({
 
   const [preset, setPreset] = useState<ModoCortePreset>(defaultPreset);
   const [anchorWeek, setAnchorWeek] = useState<string>(anchorWeekStart);
-  const [selectedPlantillaId, setSelectedPlantillaId] = useState<string>(
-    plantillas[0]?.id ?? '',
-  );
-  const [selectedCuadrillaId, setSelectedCuadrillaId] = useState<string>('__current__');
+
+  // Seleccionar por defecto la plantilla activa del periodo o la primera disponible
+  const initialPlantillaId = useMemo(() => {
+    if (defaultPlantillaId && plantillas.some((p) => p.id === defaultPlantillaId)) {
+      return defaultPlantillaId;
+    }
+    const varianteIng = plantillas.find((p) =>
+      p.nombre.toLowerCase().includes('ingeniero'),
+    );
+    return varianteIng?.id ?? plantillas[0]?.id ?? '__none__';
+  }, [defaultPlantillaId, plantillas]);
+
+  const [selectedPlantillaId, setSelectedPlantillaId] = useState<string>(initialPlantillaId);
+  const [selectedCuadrillaId, setSelectedCuadrillaId] = useState<string>('__all_plantilla__');
   const [corteLabel, setCorteLabel] = useState<string>('');
   const [filas, setFilas] = useState<FilaCorteTrabajador[]>([]);
   const [veteranIds, setVeteranIds] = useState<Set<string>>(new Set());
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [isClosingCorte, setIsClosingCorte] = useState(false);
   const [addWorkerId, setAddWorkerId] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [relevoSourceId, setRelevoSourceId] = useState<string | null>(null);
   const [relevoTargetId, setRelevoTargetId] = useState<string>('');
   const [relevoWeekStart, setRelevoWeekStart] = useState<string>('');
   const [relevoDiasA, setRelevoDiasA] = useState<number>(3);
 
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (open) {
       setAnchorWeek(anchorWeekStart);
       setPreset(area === 'planta' ? 'molino_regreso_3sem' : 'mina_corte_3sem');
+      if (
+        selectedPlantillaId === '__none__' &&
+        plantillas.length > 0 &&
+        !importedSupervisorItems?.length
+      ) {
+        setSelectedPlantillaId(initialPlantillaId);
+      }
     }
-  }, [open, anchorWeekStart, area]);
+  }, [open, anchorWeekStart, area, initialPlantillaId, plantillas.length]);
 
   const columnas: ColumnaCorteDef[] = useMemo(
     () => buildColumnasCorte(preset, anchorWeek, undefined, area),
@@ -173,28 +247,148 @@ export function NominaCorteMatrixModal({
   }, [open, columnas, semanasCerradas, area]);
 
   const activePlantilla = useMemo(
-    () => plantillas.find((p) => p.id === selectedPlantillaId) ?? plantillas[0] ?? null,
+    () =>
+      selectedPlantillaId === '__none__'
+        ? null
+        : plantillas.find((p) => p.id === selectedPlantillaId) ?? null,
     [plantillas, selectedPlantillaId],
   );
 
-  // Inicializar o reconstruir las filas cuando cambia el grupo/plantilla o las columnas
+  const workersByCuadrilla = useMemo(() => {
+    if (!activePlantilla) return {};
+    return resolveWorkersByCuadrillaForPlantilla(activePlantilla, catalog, area);
+  }, [activePlantilla, catalog, area]);
+
+  const allPlantillaWorkers = useMemo(() => {
+    if (!activePlantilla) return [];
+    const seen = new Set<string>();
+    const list: Personal[] = [];
+    for (const c of activePlantilla.cuadrillas) {
+      for (const w of workersByCuadrilla[c.id] ?? []) {
+        if (!seen.has(w.id)) {
+          seen.add(w.id);
+          list.push(w);
+        }
+      }
+    }
+    return list;
+  }, [activePlantilla, workersByCuadrilla]);
+
+  // Si vienen trabajadores importados desde Foto / Lista del Supervisor, aplicarlos directamente al corte
+  useEffect(() => {
+    if (!open || !importedSupervisorItems || importedSupervisorItems.length === 0) return;
+
+    setSelectedPlantillaId('__none__');
+    setSelectedCuadrillaId('__supervisor__');
+
+    const builtRows: FilaCorteTrabajador[] = importedSupervisorItems
+      .filter((i) => !i.esDespidoExplicito)
+      .map((item) => {
+        const effectiveSal = item.salarioOverride ?? Number(item.personal.salario_base) ?? 0;
+        const workerForRow: Personal = {
+          ...item.personal,
+          salario_base: effectiveSal,
+          salario_libre: effectiveSal,
+        };
+        const esNuevo =
+          item.cobraSemanaLibre !== undefined
+            ? !item.cobraSemanaLibre
+            : item.esNuevoExplicito;
+
+        let fila = buildFilaCorteTrabajador({
+          personal: workerForRow,
+          columnas,
+          area,
+          esNuevoEnCiclo: esNuevo,
+          valesTotal: valesByPersonalId[workerForRow.id] ?? 0,
+          cuadrillaNombre: item.frenteReportado || workerForRow.area_detalle || 'Lista Supervisor',
+        });
+
+        const totalGuardia =
+          item.diasGuardiaTotal !== undefined
+            ? item.diasGuardiaTotal
+            : item.diasTrabajados === 7
+              ? 14
+              : item.diasTrabajados;
+
+        fila = applyDiasGuardiaToFilaCorte(fila, totalGuardia, columnas);
+
+        if (item.pagoExtra > 0 && columnas.length > 0) {
+          const lastCol = columnas[columnas.length - 1];
+          const lastCell = fila.semanas[lastCol.weekStart];
+          if (lastCell) {
+            fila = recomputeFilaCorteTotals({
+              ...fila,
+              semanas: {
+                ...fila.semanas,
+                [lastCol.weekStart]: {
+                  ...lastCell,
+                  pagoExtra: item.pagoExtra,
+                  motivoExtra: item.motivoExtra || 'Incentivo / Extra supervisor',
+                },
+              },
+            });
+          }
+        }
+        return fila;
+      });
+
+    setFilas(builtRows);
+    if (columnas.length > 0) {
+      const rangeStart = columnas[0].weekStart;
+      const rangeEnd = columnas[columnas.length - 1].weekEnd;
+      setCorteLabel(
+        `${area === 'planta' ? 'Molino' : 'Mina'} · Reporte Supervisor (${fmtShortDate(rangeStart)} al ${fmtShortDate(rangeEnd)})`,
+      );
+    }
+    onConsumeSupervisorItems?.();
+  }, [
+    open,
+    importedSupervisorItems,
+    columnas,
+    area,
+    valesByPersonalId,
+    onConsumeSupervisorItems,
+  ]);
+
+  // Inicializar o reconstruir las filas cuando cambia la plantilla/cuadrilla o las columnas
   useEffect(() => {
     if (!open) return;
+    if (selectedCuadrillaId === '__supervisor__') {
+      // Mantiene los trabajadores cargados por foto/lista de supervisor pero adapta columnas si cambian fechas
+      setFilas((prev) =>
+        prev.map((f) =>
+          buildFilaCorteTrabajador({
+            personal: f.personal,
+            columnas,
+            area,
+            esNuevoEnCiclo: f.esNuevoEnCiclo,
+            valesTotal: f.valesTotal,
+            cuadrillaNombre: f.cuadrillaNombre,
+            existingCells: f.semanas,
+          }),
+        ),
+      );
+      return;
+    }
 
     let baseWorkers: Personal[] = [];
     let cuadrillaLabel = 'Grupo Actual';
 
-    if (selectedCuadrillaId === '__current__') {
-      baseWorkers = currentWeekWorkers.length > 0
-        ? currentWeekWorkers
-        : catalog.filter((p) => p.area === area && p.estatus === 'ACTIVO');
+    if (!activePlantilla || selectedCuadrillaId === '__current__') {
+      baseWorkers =
+        currentWeekWorkers.length > 0
+          ? currentWeekWorkers
+          : catalog.filter((p) => p.area === area && p.estatus === 'ACTIVO');
       cuadrillaLabel = 'Lista en Pantalla';
-    } else if (activePlantilla) {
+    } else if (selectedCuadrillaId === '__all_plantilla__') {
+      baseWorkers = allPlantillaWorkers;
+      cuadrillaLabel = activePlantilla.nombre;
+    } else {
       const cuad = activePlantilla.cuadrillas.find((c) => c.id === selectedCuadrillaId);
       if (cuad) {
-        cuadrillaLabel = cuad.nombre;
-        const ids = new Set(cuad.filas.map((f) => f.personalId));
-        baseWorkers = catalog.filter((p) => ids.has(p.id));
+        cuadrillaLabel = `${activePlantilla.nombre} · ${cuad.nombre}`;
+        baseWorkers = workersByCuadrilla[cuad.id] ?? [];
       }
     }
 
@@ -210,13 +404,20 @@ export function NominaCorteMatrixModal({
             ? existing.esNuevoEnCiclo
             : isWorkerNewForCut(p, firstWorkedCol.weekStart, veteranIds);
 
+        const workerCuad =
+          activePlantilla && selectedCuadrillaId === '__all_plantilla__'
+            ? activePlantilla.cuadrillas.find((c) =>
+                (workersByCuadrilla[c.id] ?? []).some((w) => w.id === p.id),
+              )?.nombre ?? cuadrillaLabel
+            : cuadrillaLabel;
+
         return buildFilaCorteTrabajador({
-          personal: p,
+          personal: existing?.personal ?? p,
           columnas,
           area,
           esNuevoEnCiclo: esNuevo,
           valesTotal: valesByPersonalId[p.id] ?? 0,
-          cuadrillaNombre: cuadrillaLabel,
+          cuadrillaNombre: workerCuad,
           existingCells: existing?.semanas,
         });
       });
@@ -231,8 +432,11 @@ export function NominaCorteMatrixModal({
     }
   }, [
     open,
+    selectedPlantillaId,
     selectedCuadrillaId,
     activePlantilla,
+    allPlantillaWorkers,
+    workersByCuadrilla,
     columnas,
     veteranIds,
     currentWeekWorkers,
@@ -271,6 +475,15 @@ export function NominaCorteMatrixModal({
             [weekStart]: nextCell,
           },
         });
+      }),
+    );
+  }
+
+  function updateDiasGuardiaTotal(personalId: string, diasGuardia: number) {
+    setFilas((prev) =>
+      prev.map((f) => {
+        if (f.personal.id !== personalId) return f;
+        return applyDiasGuardiaToFilaCorte(f, diasGuardia, columnas);
       }),
     );
   }
@@ -397,7 +610,6 @@ export function NominaCorteMatrixModal({
         });
       }
 
-      // Si el suplente no estaba en la tabla, agregarlo solo con los días trabajados en esa semana
       const emptyCells: Record<string, Partial<CeldaCorteSemana>> = {};
       for (const col of columnas) {
         emptyCells[col.weekStart] =
@@ -443,6 +655,17 @@ export function NominaCorteMatrixModal({
     [filas],
   );
 
+  const filteredFilas = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filas;
+    return filas.filter(
+      (f) =>
+        f.personal.nombre_completo.toLowerCase().includes(q) ||
+        (f.personal.cedula && f.personal.cedula.toLowerCase().includes(q)) ||
+        (f.personal.cargo && f.personal.cargo.toLowerCase().includes(q)),
+    );
+  }, [filas, searchQuery]);
+
   async function handleCerrarCorteCompleto() {
     if (filas.length === 0 || columnas.length === 0) {
       toast.error('No hay trabajadores en el corte.');
@@ -466,7 +689,6 @@ export function NominaCorteMatrixModal({
 
       const closedSemanaIds: string[] = [];
 
-      // Cerrar cada semana del corte secuencialmente en modo historico_manual vinculado al mismo periodo
       for (let idx = 0; idx < columnas.length; idx++) {
         const col = columnas[idx];
         const isLastCol = idx === columnas.length - 1;
@@ -533,7 +755,6 @@ export function NominaCorteMatrixModal({
         }
       }
 
-      // Consolidar automáticamente el periodo si es mina o planta
       if (area === 'mina' || area === 'planta') {
         await consolidarPeriodoClient({
           label: labelFinal,
@@ -591,20 +812,53 @@ export function NominaCorteMatrixModal({
     ];
   }, [area]);
 
-  const groupSourceOptions = useMemo(() => {
-    const opts = [
-      { value: '__current__', label: `Trabajadores actuales en pantalla (${currentWeekWorkers.length})` },
+  const plantillaSelectOptions = useMemo(() => {
+    return [
+      ...plantillas.map((p) => ({
+        value: p.id,
+        label: p.nombre,
+      })),
+      {
+        value: '__none__',
+        label: 'Sin plantilla (Lista en pantalla / Foto Supervisor)',
+      },
     ];
+  }, [plantillas]);
+
+  const groupSourceOptions = useMemo(() => {
+    const opts: Array<{ value: string; label: string }> = [];
+    if (selectedCuadrillaId === '__supervisor__') {
+      opts.push({
+        value: '__supervisor__',
+        label: `📷 Lista / Foto del Supervisor (${filas.length} trab.)`,
+      });
+    }
     if (activePlantilla) {
+      opts.push({
+        value: '__all_plantilla__',
+        label: `⭐ Todas las cuadrillas de ${activePlantilla.nombre} (${allPlantillaWorkers.length} trab.)`,
+      });
       for (const c of activePlantilla.cuadrillas) {
+        const count = (workersByCuadrilla[c.id] ?? []).length;
         opts.push({
           value: c.id,
-          label: `Plantilla ${activePlantilla.nombre} → ${c.nombre} (${c.filas.length} trab.)`,
+          label: `${c.nombre} (${count} trab.)`,
         });
       }
     }
+    opts.push({
+      value: '__current__',
+      label: `Trabajadores actuales en pantalla (${currentWeekWorkers.length})`,
+    });
     return opts;
-  }, [currentWeekWorkers.length, activePlantilla]);
+  }, [
+    selectedCuadrillaId,
+    filas.length,
+    activePlantilla,
+    allPlantillaWorkers.length,
+    workersByCuadrilla,
+    currentWeekWorkers.length,
+  ]);
 
   const availableToAddOptions = useMemo(() => {
     const inTable = new Set(filas.map((f) => f.personal.id));
@@ -615,31 +869,56 @@ export function NominaCorteMatrixModal({
         .sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo, 'es'))
         .map((p) => ({
           value: p.id,
-          label: `${p.nombre_completo} (${p.cargo} · $${p.salario_base})`,
+          label: `${p.nombre_completo} (C.I. ${p.cedula} · ${p.cargo} · $${p.salario_base})`,
         })),
     ];
   }, [catalog, filas]);
+
+  const workedColsCount = useMemo(
+    () =>
+      columnas.filter(
+        (c) => c.tipo === 'trabajada_1' || c.tipo === 'trabajada_2' || c.tipo === 'trabajada_unica',
+      ).length,
+    [columnas],
+  );
 
   return (
     <PageFormModal
       open={open}
       onClose={onClose}
-      panelClassName="max-w-7xl"
+      panelClassName="sm:max-w-[96vw] xl:max-w-[1460px] !p-3 sm:!p-5"
     >
       <div className="space-y-3">
-        <div className="border-b border-zinc-800 pb-2.5">
-          <h3 className="page-form-modal-title text-base font-bold text-white">
-            {area === 'planta'
-              ? 'Matriz Rápida de Corte — Molinos (Plantilla + Bono Carro $30)'
-              : 'Matriz Rápida de Corte — Mina (Acumulado 3 Semanas: $300 Antiguos / $200 Nuevos)'}
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Edita todas las semanas del grupo en una sola tabla, verifica quién cobra semana libre previa y cierra todo el corte de un solo clic.
-          </p>
+        <div className="border-b border-zinc-800 pb-2.5 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="page-form-modal-title text-base font-bold text-white">
+              {area === 'planta'
+                ? 'Matriz Rápida de Corte — Molinos (Plantilla + Bono Carro $30)'
+                : 'Matriz Rápida de Corte — Mina (Acumulado 3 Semanas: $300 Antiguos / $200 Nuevos)'}
+            </h3>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Elige tu plantilla (ej. <strong>Variante Nómina + Ingeniero</strong>) o sube la <strong>foto de la lista del supervisor</strong> para armar y cerrar el corte de un solo clic.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onOpenSupervisorPaste();
+            }}
+            className={cn(
+              MINEOS_BTN_NOMINA_PRIMARY,
+              'h-8 px-3 text-xs font-bold inline-flex items-center gap-1.5',
+            )}
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Subir Foto / Pegar Lista de Supervisor
+          </button>
         </div>
-        {/* Configuración Superior del Corte */}
-        <div className={cn(mineosPanel('general'), '!p-3 grid gap-3 lg:grid-cols-12')}>
-          <div className="lg:col-span-4">
+
+        {/* Configuración Superior del Corte (5 columnas claras) */}
+        <div className={cn(mineosPanel('general'), '!p-3 grid gap-2.5 lg:grid-cols-12')}>
+          <div className="lg:col-span-3">
             <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
               1. Esquema del Corte
             </label>
@@ -652,7 +931,25 @@ export function NominaCorteMatrixModal({
 
           <div className="lg:col-span-3">
             <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              2. Grupo / Cuadrilla
+              2. Plantilla de Rotación
+            </label>
+            <AppSelect
+              value={selectedPlantillaId}
+              onChange={(val) => {
+                setSelectedPlantillaId(val);
+                if (val === '__none__') {
+                  setSelectedCuadrillaId('__current__');
+                } else {
+                  setSelectedCuadrillaId('__all_plantilla__');
+                }
+              }}
+              options={plantillaSelectOptions}
+            />
+          </div>
+
+          <div className="lg:col-span-2">
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              3. Cuadrilla / Grupo
             </label>
             <AppSelect
               value={selectedCuadrillaId}
@@ -663,14 +960,14 @@ export function NominaCorteMatrixModal({
 
           <div className="lg:col-span-2">
             <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              3. Lunes Semana Actual
+              4. Lunes Semana Salida
             </label>
             <AppDatePicker value={anchorWeek} onChange={setAnchorWeek} />
           </div>
 
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              4. Nombre del Corte
+              5. Nombre del Corte
             </label>
             <input
               type="text"
@@ -682,7 +979,7 @@ export function NominaCorteMatrixModal({
           </div>
         </div>
 
-        {/* Barra de Herramientas Rápidas del Corte */}
+        {/* Barra de Herramientas Rápidas del Corte + Controles de Scroll Horizontal */}
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--surface-elevated)]/40 px-3 py-2">
           <div className="flex flex-wrap items-center gap-2">
             <div className="w-64">
@@ -697,22 +994,35 @@ export function NominaCorteMatrixModal({
               <button
                 type="button"
                 onClick={handleAddWorker}
-                className={cn(MINEOS_BTN_NOMINA_PRIMARY, 'h-8 px-3 text-xs inline-flex items-center gap-1')}
+                className={cn(
+                  MINEOS_BTN_NOMINA_PRIMARY,
+                  'h-8 px-3 text-xs inline-flex items-center gap-1',
+                )}
               >
                 <Plus className="h-3.5 w-3.5" /> Agregar
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenSupervisorPaste();
-              }}
-              className={cn(mineosBtnSubtleClass('general'), 'h-8 px-2.5 text-[11px] inline-flex items-center gap-1.5')}
-            >
-              <ClipboardPaste className="h-3.5 w-3.5" />
-              Pegar Lista de Supervisor
-            </button>
+
+            <div className="relative w-52">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/35" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar trabajador..."
+                className="input-field h-8 w-full pl-8 pr-2 text-xs"
+              />
+            </div>
+
+            {filas.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilas([])}
+                className="h-8 rounded-lg border border-red-500/25 bg-red-500/10 px-2.5 text-[11px] font-semibold text-red-300 hover:bg-red-500/20 inline-flex items-center gap-1"
+              >
+                <Trash2 className="h-3 w-3" /> Vaciar tabla
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -740,27 +1050,50 @@ export function NominaCorteMatrixModal({
                     }),
                   );
                 }}
-                className={cn(mineosBtnSubtleClass('benefit'), 'h-8 px-2.5 text-[11px] inline-flex items-center gap-1.5')}
+                className={cn(
+                  mineosBtnSubtleClass('benefit'),
+                  'h-8 px-2.5 text-[11px] inline-flex items-center gap-1.5',
+                )}
               >
                 <Truck className="h-3.5 w-3.5" />
                 Alternar Bono Carro ($30) al Grupo
               </button>
             )}
-            {loadingHistory && (
-              <span className="text-[10px] text-[var(--text-muted)] inline-flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" /> Verificando antigüedad en cortes previos...
-              </span>
-            )}
+
+            {/* Botones explícitos para desplazar la tabla izquierda / derecha */}
+            <div className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-900 p-0.5">
+              <button
+                type="button"
+                onClick={() =>
+                  tableScrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })
+                }
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold text-white/75 hover:bg-zinc-800 hover:text-white"
+                title="Desplazar tabla hacia la izquierda"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Izq.
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  tableScrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })
+                }
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold text-white/75 hover:bg-zinc-800 hover:text-white"
+                title="Desplazar tabla hacia la derecha"
+              >
+                Der. <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Panel de Relevo Rápido (cuando se activa en un trabajador) */}
+        {/* Panel de Relevo Rápido */}
         {relevoSourceId && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <ArrowLeftRight className="h-4 w-4 text-amber-400" />
               <span className="font-bold text-amber-300">
-                Relevo para {filas.find((f) => f.personal.id === relevoSourceId)?.personal.nombre_completo}:
+                Relevo para{' '}
+                {filas.find((f) => f.personal.id === relevoSourceId)?.personal.nombre_completo}:
               </span>
               <div className="w-44">
                 <AppSelect
@@ -818,21 +1151,24 @@ export function NominaCorteMatrixModal({
           </div>
         )}
 
-        {/* Tabla Matriz Multi-Semana */}
-        <div className="overflow-x-auto rounded-xl border border-[var(--card-border)] bg-zinc-950/50 max-h-[430px]">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-zinc-900/95 border-b border-zinc-800 text-[10px] font-bold uppercase tracking-wider text-white/60">
+        {/* Tabla Matriz Multi-Semana con Scroll Horizontal Libre */}
+        <div
+          ref={tableScrollRef}
+          className="overflow-x-auto overflow-y-auto rounded-xl border border-[var(--card-border)] bg-zinc-950/60 max-h-[440px]"
+        >
+          <table className="w-full min-w-[980px] border-collapse text-left text-xs">
+            <thead className="sticky top-0 z-20 bg-zinc-900 border-b border-zinc-800 text-[10px] font-bold uppercase tracking-wider text-white/65">
               <tr>
-                <th className="px-3 py-2.5 min-w-[210px] border-r border-zinc-800">
+                <th className="sticky left-0 z-30 bg-zinc-900 px-3 py-2.5 min-w-[230px] border-r border-zinc-800">
                   Trabajador / Cargo / Sueldo Sem.
                 </th>
-                <th className="px-2 py-2.5 text-center min-w-[110px] border-r border-zinc-800">
-                  Antigüedad (Libre)
+                <th className="px-2.5 py-2.5 text-center min-w-[135px] border-r border-zinc-800">
+                  Semana Libre / Guardia
                 </th>
                 {columnas.map((col) => (
                   <th
                     key={col.weekStart}
-                    className="px-2.5 py-2 text-center min-w-[165px] border-r border-zinc-800 bg-zinc-900/60"
+                    className="px-2.5 py-2 text-center min-w-[175px] border-r border-zinc-800 bg-zinc-900/80"
                   >
                     <div className="text-amber-400 font-extrabold">{col.shortLabel}</div>
                     <div className="text-[9px] font-normal text-white/45">
@@ -840,18 +1176,31 @@ export function NominaCorteMatrixModal({
                     </div>
                   </th>
                 ))}
-                <th className="px-3 py-2.5 text-right min-w-[115px]">Total a Llevar</th>
+                <th className="px-3 py-2.5 text-right min-w-[125px] border-r border-zinc-800">
+                  Total a Llevar
+                </th>
                 <th className="px-2 py-2.5 text-center w-16">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
-              {filas.map((fila) => {
+              {filteredFilas.map((fila) => {
                 const p = fila.personal;
+                const totalDiasGuardia = columnas
+                  .filter(
+                    (c) =>
+                      c.tipo === 'trabajada_1' ||
+                      c.tipo === 'trabajada_2' ||
+                      c.tipo === 'trabajada_unica',
+                  )
+                  .reduce((acc, c) => acc + (fila.semanas[c.weekStart]?.diasTrabajados ?? 0), 0);
+
                 return (
                   <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
-                    {/* Trabajador + Cargo + Salario Semanal editable */}
-                    <td className="px-3 py-2 border-r border-zinc-800/60 align-middle">
-                      <div className="font-bold text-white/90 leading-snug">{p.nombre_completo}</div>
+                    {/* Columna Fija Izquierda: Trabajador + Cargo + Salario Semanal editable */}
+                    <td className="sticky left-0 z-10 bg-zinc-950 px-3 py-2 border-r border-zinc-800/80 align-middle">
+                      <div className="font-bold text-white/95 leading-snug">
+                        {p.nombre_completo}
+                      </div>
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         <span className="text-[10px] text-white/45">{p.cargo}</span>
                         <span className="text-[10px] text-white/30">·</span>
@@ -876,12 +1225,12 @@ export function NominaCorteMatrixModal({
                       )}
                     </td>
 
-                    {/* Botón 1-Clic: Antiguo (Cobra Libre) vs Nuevo (Sin Libre Previa) */}
-                    <td className="px-2 py-2 border-r border-zinc-800/60 text-center align-middle">
+                    {/* Antigüedad (Libre) + Días Totales de Guardia (0-14) */}
+                    <td className="px-2 py-2 border-r border-zinc-800/60 text-center align-middle space-y-1.5">
                       <button
                         type="button"
                         onClick={() => toggleNuevoEnCiclo(p.id)}
-                        title="Clic para cambiar entre Antiguo (cobra semana libre previa) y Nuevo (solo cobra semanas trabajadas)"
+                        title="Clic para alternar si cobra o no la semana libre previa"
                         className={cn(
                           'inline-flex flex-col items-center justify-center rounded-lg border px-2 py-1 text-[9px] font-bold uppercase tracking-wide transition-all w-full',
                           fila.esNuevoEnCiclo
@@ -889,11 +1238,30 @@ export function NominaCorteMatrixModal({
                             : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20',
                         )}
                       >
-                        <span>{fila.esNuevoEnCiclo ? 'NUEVO' : 'ANTIGUO'}</span>
-                        <span className="text-[8px] font-normal opacity-80">
-                          {fila.esNuevoEnCiclo ? 'Sin libre ($0)' : 'Con libre paga'}
-                        </span>
+                        <span>{fila.esNuevoEnCiclo ? 'SIN LIBRE ($0)' : 'CON LIBRE PAGA'}</span>
                       </button>
+
+                      {workedColsCount >= 2 && (
+                        <label
+                          title="Días trabajados en la guardia de 2 semanas (ej. 14, 12 o 7). Se reparten automáticamente en Trabajada 1 y Trabajada 2."
+                          className="flex items-center justify-between gap-1 rounded border border-zinc-800 bg-zinc-900/90 px-2 py-0.5 text-[10px]"
+                        >
+                          <span className="text-white/50">Guardia:</span>
+                          <span className="inline-flex items-center gap-0.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={14}
+                              value={totalDiasGuardia}
+                              onChange={(e) =>
+                                updateDiasGuardiaTotal(p.id, Number(e.target.value) || 0)
+                              }
+                              className="w-9 bg-transparent text-center font-extrabold text-amber-300 outline-none"
+                            />
+                            <span className="text-[9px] text-white/40">d</span>
+                          </span>
+                        </label>
+                      )}
                     </td>
 
                     {/* Celdas por cada Semana del Corte */}
@@ -906,7 +1274,6 @@ export function NominaCorteMatrixModal({
                           className="px-2.5 py-2 border-r border-zinc-800/60 align-top"
                         >
                           <div className="flex flex-col gap-1.5">
-                            {/* Selector rápido de Estado en esa semana */}
                             <div className="flex items-center justify-between gap-1">
                               <div className="inline-flex rounded-md border border-zinc-800 bg-zinc-900 p-0.5">
                                 <button
@@ -964,7 +1331,6 @@ export function NominaCorteMatrixModal({
                                 </button>
                               </div>
 
-                              {/* Días trabajados si es trabajada */}
                               {cell.estadoAsistencia === 'trabajada' && (
                                 <label className="inline-flex items-center gap-0.5 text-[10px]">
                                   <input
@@ -984,7 +1350,6 @@ export function NominaCorteMatrixModal({
                               )}
                             </div>
 
-                            {/* Sueldo + Extras + Bono Carro en esa semana */}
                             <div className="flex items-center justify-between gap-1 text-[10px]">
                               <span className="text-white/50">Sueldo:</span>
                               <span className="font-bold tabular-nums text-white/90">
@@ -1039,12 +1404,12 @@ export function NominaCorteMatrixModal({
                     })}
 
                     {/* Total Acumulado del Trabajador en el Corte */}
-                    <td className="px-3 py-2 text-right align-middle">
+                    <td className="px-3 py-2 text-right align-middle border-r border-zinc-800/60">
                       <div className="text-sm font-black tabular-nums text-amber-400">
                         ${fila.totalNetoCorte.toFixed(2)}
                       </div>
                       <div className="text-[9px] text-white/45 tabular-nums">
-                        Sueldo ${fila.totalBrutoCorte.toFixed(0)}
+                        Sueldo ${fila.totalBrutoCorte.toFixed(2)}
                         {fila.totalBonoTransporteCorte > 0
                           ? ` + Carro $${fila.totalBonoTransporteCorte.toFixed(0)}`
                           : ''}
@@ -1055,7 +1420,7 @@ export function NominaCorteMatrixModal({
                       </div>
                     </td>
 
-                    {/* Acciones por fila: Relevo o Quitar */}
+                    {/* Acciones por fila */}
                     <td className="px-2 py-2 text-center align-middle">
                       <div className="flex items-center justify-center gap-1">
                         <button
@@ -1086,32 +1451,37 @@ export function NominaCorteMatrixModal({
                 );
               })}
             </tbody>
-            <tfoot className="sticky bottom-0 bg-zinc-900/95 border-t border-zinc-800 text-xs font-bold">
-              <tr>
-                <td colSpan={2} className="px-3 py-2.5 text-white/70 uppercase text-[10px]">
-                  Totales por Semana ({filas.length} trabajadores)
-                </td>
-                {columnas.map((col) => (
-                  <td
-                    key={col.weekStart}
-                    className="px-2.5 py-2.5 text-center tabular-nums text-amber-300"
-                  >
-                    ${(totalesPorColumna[col.weekStart] ?? 0).toFixed(2)}
-                  </td>
-                ))}
-                <td className="px-3 py-2.5 text-right text-sm font-black tabular-nums text-amber-400">
-                  ${granTotalCorte.toFixed(2)}
-                </td>
-                <td />
-              </tr>
-            </tfoot>
           </table>
         </div>
+
+        {/* Barra de Totales por Semana FUERA del scroll para no tapar nunca la barra de desplazamiento */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/90 px-3.5 py-2.5 text-xs">
+          <div className="font-bold uppercase tracking-wider text-white/70 text-[10px]">
+            Totales por Semana ({filas.length} trabajadores)
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            {columnas.map((col) => (
+              <div key={col.weekStart} className="flex items-center gap-1.5">
+                <span className="text-[10px] text-white/50">{col.shortLabel}:</span>
+                <span className="font-bold tabular-nums text-amber-300">
+                  ${(totalesPorColumna[col.weekStart] ?? 0).toFixed(2)}
+                </span>
+              </div>
+            ))}
+            <div className="border-l border-zinc-700 pl-3 flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase text-white/60">Gran Total:</span>
+              <span className="text-sm font-black tabular-nums text-amber-400">
+                ${granTotalCorte.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
+
       <PageFormModalFooter className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-3">
         <div className="flex items-center gap-3">
           <span className="text-xs text-[var(--text-muted)]">
-            {filas.length} trabajadores · {nuevosCount} nuevo{nuevosCount === 1 ? '' : 's'} sin libre previa
+            {filas.length} trabajadores · {nuevosCount} sin semana libre previa
           </span>
           <span className={cn(mineosKpiValue('general'), 'text-sm font-black tabular-nums')}>
             Total Corte: ${granTotalCorte.toLocaleString('es', { minimumFractionDigits: 2 })}
