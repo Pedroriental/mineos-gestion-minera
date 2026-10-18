@@ -265,11 +265,8 @@ export function buildColumnasCorte(
 export function isWorkerNewForCut(
   personal: Pick<Personal, 'id' | 'fecha_ingreso'>,
   firstWorkedWeekStart: string,
-  veteranWorkerIds: Set<string>,
+  _veteranWorkerIds?: Set<string>,
 ): boolean {
-  if (veteranWorkerIds.size > 0) {
-    return !veteranWorkerIds.has(personal.id);
-  }
   if (personal.fecha_ingreso && personal.fecha_ingreso >= firstWorkedWeekStart) {
     return true;
   }

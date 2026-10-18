@@ -157,7 +157,7 @@ export function NominaCorteMatrixModal({
   }, [defaultPlantillaId, plantillas]);
 
   const [selectedPlantillaId, setSelectedPlantillaId] = useState<string>(initialPlantillaId);
-  const [selectedCuadrillaId, setSelectedCuadrillaId] = useState<string>('__all_plantilla__');
+  const [selectedCuadrillaId, setSelectedCuadrillaId] = useState<string>('__manual__');
   const [corteLabel, setCorteLabel] = useState<string>('');
   const [filas, setFilas] = useState<FilaCorteTrabajador[]>([]);
   const [veteranIds, setVeteranIds] = useState<Set<string>>(new Set());
@@ -354,7 +354,7 @@ export function NominaCorteMatrixModal({
   // Inicializar o reconstruir las filas cuando cambia la plantilla/cuadrilla o las columnas
   useEffect(() => {
     if (!open) return;
-    if (selectedCuadrillaId === '__supervisor__') {
+    if (selectedCuadrillaId === '__supervisor__' || selectedCuadrillaId === '__manual__') {
       // Mantiene los trabajadores cargados por foto/lista de supervisor pero adapta columnas si cambian fechas
       setFilas((prev) =>
         prev.map((f) =>
@@ -376,10 +376,7 @@ export function NominaCorteMatrixModal({
     let cuadrillaLabel = 'Grupo Actual';
 
     if (!activePlantilla || selectedCuadrillaId === '__current__') {
-      baseWorkers =
-        currentWeekWorkers.length > 0
-          ? currentWeekWorkers
-          : catalog.filter((p) => p.area === area && p.estatus === 'ACTIVO');
+      baseWorkers = currentWeekWorkers;
       cuadrillaLabel = 'Lista en Pantalla';
     } else if (selectedCuadrillaId === '__all_plantilla__') {
       baseWorkers = allPlantillaWorkers;
@@ -826,7 +823,12 @@ export function NominaCorteMatrixModal({
   }, [plantillas]);
 
   const groupSourceOptions = useMemo(() => {
-    const opts: Array<{ value: string; label: string }> = [];
+    const opts: Array<{ value: string; label: string }> = [
+      {
+        value: '__manual__',
+        label: `✍️ Lista manual (${selectedCuadrillaId === '__manual__' ? filas.length : 0} trab.) — tú eliges quién va`,
+      },
+    ];
     if (selectedCuadrillaId === '__supervisor__') {
       opts.push({
         value: '__supervisor__',
@@ -937,10 +939,9 @@ export function NominaCorteMatrixModal({
               value={selectedPlantillaId}
               onChange={(val) => {
                 setSelectedPlantillaId(val);
-                if (val === '__none__') {
-                  setSelectedCuadrillaId('__current__');
-                } else {
-                  setSelectedCuadrillaId('__all_plantilla__');
+                // No autocargar: el usuario elige explícitamente la cuadrilla en el paso 3.
+                if (selectedCuadrillaId !== '__supervisor__') {
+                  setSelectedCuadrillaId('__manual__');
                 }
               }}
               options={plantillaSelectOptions}

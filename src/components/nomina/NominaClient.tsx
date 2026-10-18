@@ -1021,7 +1021,7 @@ export default function NominaClient({
       selectedProjectionIds.map((id) => ({ id })),
       manualPeriodId,
     );
-    markOperationalWeekEmptied(area, weekRange.inicio, true);
+    markOperationalWeekEmptied(area, weekRange.inicio, false);
     setManualRosterTick((t) => t + 1);
     setShowProjectionModal(false);
     toast.success("Roster proyectado aplicado. Ahora puedes editarlo libremente.");
@@ -1105,33 +1105,19 @@ export default function NominaClient({
       weekStart: string,
       valesMap: Record<string, NominaVale[]>,
     ): PreNominaRowState => {
-      const rotacion = resolveWorkerRotacionContext(p, instanciaSnapshot, weekStart);
-      const predicted = rotacion
-        ? rotacion.estadoAsistencia
-        : calculateExpectedAttendance(p.esquema_rotacion, p.rotacion_inicio_fecha, weekStart);
+      // Sin predicción automática: todo trabajador agregado a la nómina inicia como turno normal (7 días trabajados)
+      // y el usuario o la lista del supervisor decide si está de turno, libre o falta.
+      const defaultEstado: EstadoAsistenciaNomina = 'trabajada';
       const workerVales = valesMap[p.id] || [];
       const totalVales = workerVales.reduce((s, v) => s + Number(v.monto), 0);
-      const cicloPosicion = rotacion ? rotacion.posicionCiclo : posicionEsquemaPersonal(p, weekStart);
-      const diasBloqueados = rotacion
-        ? resolveDiasInputBloqueadoPlantilla(rotacion.estatus, predicted)
-        : inputsDiasBloqueados(p.esquema_rotacion, cicloPosicion);
-      const diasTrabajados = rotacion
-        ? rotacion.estadoAsistencia === 'trabajada'
-          ? NOMINA_DIAS_POR_SEMANA
-          : rotacion.estadoAsistencia === 'no_laborado'
-            ? 0
-            : defaultDiasTrabajados(predicted)
-        : diasTrabajadosPorDefectoCiclo(p.esquema_rotacion, cicloPosicion, predicted);
+      const diasTrabajados = NOMINA_DIAS_POR_SEMANA;
       const pay = calculateNominaRowPay({
         personal: p,
-        estadoAsistencia: predicted,
+        estadoAsistencia: defaultEstado,
         diasTrabajados,
         weekStart,
         bonificaciones: 0,
         totalVales,
-        // El bono de transporte es un componente SEPARADO que se paga
-        // solo cuando el usuario lo captura manualmente. No se pasa
-        // aquí para que el cálculo automático retorne 0.
       });
       return {
         personal: p,
@@ -1140,7 +1126,7 @@ export default function NominaClient({
         bonificaciones: 0,
         deducciones: totalVales,
         total: pay.total,
-        estadoAsistencia: predicted,
+        estadoAsistencia: defaultEstado,
         diasTrabajados,
         salarioBaseCalculado: pay.salarioBaseCalculado,
         valesPendientes: workerVales,
@@ -1151,16 +1137,16 @@ export default function NominaClient({
         reposoDiasPagados: 0,
         reposoCompensacionMonto: 0,
         ajusteMotivo: '',
-        cicloPosicion,
-        diasInputBloqueado: diasBloqueados,
-        rotacionFuente: (rotacion ? 'plantilla' : 'legacy') as 'plantilla' | 'legacy',
-        cuadrillaNombre: rotacion?.cuadrillaNombre,
-        posicionCiclo: rotacion?.posicionCiclo,
-        estatusPlantillaLabel: rotacion?.estatusLabel,
-        estatusPlantilla: rotacion?.estatus,
+        cicloPosicion: null,
+        diasInputBloqueado: false,
+        rotacionFuente: 'legacy',
+        cuadrillaNombre: p.area_detalle || undefined,
+        posicionCiclo: undefined,
+        estatusPlantillaLabel: undefined,
+        estatusPlantilla: undefined,
       };
     },
-    [instanciaSnapshot],
+    [],
   );
 
   const appendAssignedWorker = useCallback(
@@ -1168,574 +1154,255 @@ export default function NominaClient({
       const source =
         createdPersonal ??
         baseTrabajadores.find((p) => p.id === personalId) ??
+        personalCatalogMerged.find((p) => p.id === personalId) ??
         personalCatalog.find((p) => p.id === personalId);
       if (!source) return;
 
       const personal: Personal = {
         ...source,
         area,
-        area_detalle: areaDetalle,
+        area_detalle: areaDetalle || source.area_detalle || 'General',
         activo: true,
         estatus: 'ACTIVO',
         nombre_completo: formatNombrePropio(source.nombre_completo || ''),
       };
 
       setPreNominaRows((prev) => {
-        try {
-          const existingIdx = prev.findIndex((r) => r.personal.id === personalId);
-          if (existingIdx >= 0) {
-            const updated = prev.map((r) =>
-              r.personal.id === personalId
-                ? { ...r, personal: { ...r.personal, area_detalle: areaDetalle } }
-                : r,
-            );
-            if (isManualPeriodWeek && manualPlantillaActiva && manualPeriodForView) {
-              const rebuilt = buildManualPlantillaNominaRows({
-                plantilla: manualPlantillaActiva,
-                personalCatalog: updated.map((r) => r.personal),
-                personalIds: [personalId],
-                weekStart: weekRange.inicio,
-                periodStart: manualPeriodForView.rangeStart,
-                periodEnd: manualPeriodForView.rangeEnd,
-                weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
-                weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
-                valesMap: {},
-                weekEnd: weekRange.fin,
-                forceIncludeIds: [personalId],
-              });
-              if (rebuilt.length) {
-                const weekDraft = readNominaNovedadDraft(
-                  novedadDraftKeyForWeek(weekRange.inicio),
-                );
-                const nextRow = applyWeekDraft(rebuilt[0], weekRange.inicio, weekDraft[personalId]);
-                return prev.map((r) => (r.personal.id === personalId ? nextRow : r));
-              }
-            }
-            return updated;
-          }
-
-          if (isManualPeriodWeek && manualPlantillaActiva && manualPeriodForView) {
-            const built = buildManualPlantillaNominaRows({
-              plantilla: manualPlantillaActiva,
-              personalCatalog: [personal],
-              personalIds: [personalId],
-              weekStart: weekRange.inicio,
-              periodStart: manualPeriodForView.rangeStart,
-              periodEnd: manualPeriodForView.rangeEnd,
-              weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
-              weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
-              valesMap: {},
-              weekEnd: weekRange.fin,
-              forceIncludeIds: [personalId],
-            });
-            if (!built.length) return prev;
-            const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
-            return [...prev, applyWeekDraft(built[0], weekRange.inicio, weekDraft[personalId])];
-          }
-
-          const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
-          return [
-            ...prev,
-            applyWeekDraft(
-              buildOperationalNominaRow(personal, weekRange.inicio, {}),
-              weekRange.inicio,
-              weekDraft[personalId],
-            ),
-          ];
-        } catch (err) {
-          console.error('[appendAssignedWorker] error adding row, falling back to operational row:', err);
-          const weekDraft = readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio));
-          return [
-            ...prev,
-            applyWeekDraft(
-              buildOperationalNominaRow(personal, weekRange.inicio, {}),
-              weekRange.inicio,
-              weekDraft[personalId],
-            ),
-          ];
+        const existingIdx = prev.findIndex((r) => r.personal.id === personalId);
+        const weekDraft = {
+          ...readNominaNovedadDraft(nominaNovedadDraftKey(area, weekRange.inicio, null)),
+          ...readNominaNovedadDraft(novedadDraftKeyForWeek(weekRange.inicio)),
+        };
+        if (existingIdx >= 0) {
+          return prev.map((r) =>
+            r.personal.id === personalId
+              ? {
+                  ...r,
+                  personal: { ...r.personal, area_detalle: personal.area_detalle },
+                  cuadrillaNombre: personal.area_detalle,
+                }
+              : r,
+          );
         }
+        return [
+          ...prev,
+          applyWeekDraft(
+            buildOperationalNominaRow(personal, weekRange.inicio, {}),
+            weekRange.inicio,
+            weekDraft[personalId],
+          ),
+        ];
       });
     },
     [
       area,
       baseTrabajadores,
+      personalCatalogMerged,
       personalCatalog,
-      isManualPeriodWeek,
-      manualPlantillaActiva,
-      manualPeriodForView,
       weekRange.inicio,
-      weekRange.fin,
       buildOperationalNominaRow,
       applyWeekDraft,
       novedadDraftKeyForWeek,
     ],
   );
 
-  // ── Initialize rows with rotation predictions and vales ─────────────────
+  // ── Initialize rows: ONLY closed historical weeks from DB or explicit user-added roster ──
   useEffect(() => {
     if (!data || !manualSessionHydrated) return;
     const runGen = ++initRowsGenRef.current;
     const initRows = async () => {
       try {
-      const currentWeekStart = weekRange.inicio;
-      const currentWeekEnd = weekRange.fin;
-      let rosterEntries = readManualWeekRosterEntries(
-        area,
-        currentWeekStart,
-        manualPeriodForView?.id,
-      );
-      if (!rosterEntries.length && manualPeriodForView?.id) {
-        rosterEntries = readManualWeekRosterEntries(
+        const currentWeekStart = weekRange.inicio;
+
+        // 1. Semana cerrada en Base de Datos: mostrar exactamente los registros con los que se cerró
+        const closedWeek = resolveClosedSemanaForWeekView(
+          manualPeriodForView,
+          semanas,
+          currentWeekStart,
+          temporalCtx.workingWeekStart,
+          area,
+        );
+        const isWeekReverted =
+          (closedWeek?.id &&
+            (revertedWeeksRef.current.has(closedWeek.id) ||
+              revertedWeekKeys.has(closedWeek.id))) ||
+          revertedWeeksRef.current.has(`${area}:${currentWeekStart}`) ||
+          revertedWeekKeys.has(`${area}:${currentWeekStart}`) ||
+          revertedWeeksRef.current.has(currentWeekStart) ||
+          revertedWeekKeys.has(currentWeekStart);
+
+        if (closedWeek?.id && !isWeekReverted) {
+          setIsHistoricalLoading(true);
+          try {
+            const res = await fetchSemanaRegistros(closedWeek.id);
+            if (res.ok && res.data) {
+              const rows = (res.data as SemanaRegistroDetalle[]).map((reg) => {
+                const snap = reg.personal_snapshot || null;
+                const fromCatalog = personalCatalogMerged.find((w) => w.id === reg.personal_id);
+                const pRaw = reg.personal || fromCatalog || {
+                  id: reg.personal_id,
+                  nombre_completo: snap?.nombre_completo || 'Trabajador no encontrado',
+                  cedula: snap?.cedula || 'SC-N/A',
+                  cargo: snap?.cargo || 'General',
+                  area: snap?.area || area,
+                  area_detalle: snap?.area_detalle || 'General',
+                  salario_base: Number(snap?.salario_base) || 0,
+                  salario_libre: Number(snap?.salario_libre) || 0,
+                  bono_transporte: Number(snap?.bono_transporte) || 0,
+                  esquema_rotacion: snap?.esquema_rotacion || 'FIJO_SEMANAL',
+                  rotacion_inicio_fecha: snap?.rotacion_inicio_fecha || undefined,
+                  estatus: 'ACTIVO',
+                  fecha_ingreso: snap?.fecha_ingreso || '',
+                  activo: false,
+                  created_at: '',
+                  updated_at: '',
+                };
+                const p = {
+                  ...pRaw,
+                  nombre_completo: formatNombrePropio(pRaw.nombre_completo || ''),
+                } as Personal;
+                const estadoAsistencia = (reg.estado_asistencia ||
+                  (reg.es_semana_libre ? 'libre' : 'trabajada')) as EstadoAsistenciaNomina;
+                const diasTrabajados =
+                  reg.dias_trabajados ??
+                  (estadoAsistencia === 'no_laborado' ? 0 : NOMINA_DIAS_POR_SEMANA);
+                const novedadTurno = parseNovedadTurno(reg.novedad_turno);
+                const reposoParsed =
+                  novedadTurno === 'REPOSO'
+                    ? parseReposoCondicionFromObs(String(reg.novedad_turno_obs || ''))
+                    : { novedadTurnoObs: String(reg.novedad_turno_obs || '') };
+                return {
+                  personal: p,
+                  esSemanaLibre: reg.es_semana_libre,
+                  bonoTransporte: Number(reg.bono_transporte_pagado || 0),
+                  bonificaciones: 0,
+                  deducciones: 0,
+                  total: Number(reg.monto_pagado),
+                  estadoAsistencia,
+                  diasTrabajados,
+                  salarioBaseCalculado: Number(reg.salario_base_calculado || 0),
+                  valesPendientes: [],
+                  totalVales: 0,
+                  novedadTurno,
+                  novedadTurnoObs: reposoParsed.novedadTurnoObs,
+                  reposoCondicion: reposoParsed.reposoCondicion ?? null,
+                  reposoDiasPagados: reposoParsed.reposoDiasPagados ?? 0,
+                  reposoCompensacionMonto: reposoParsed.reposoCompensacionMonto ?? 0,
+                  cuadrillaNombre: snap?.cuadrilla_nombre || undefined,
+                  rotacionFuente: reg.periodo_id ? 'plantilla' : 'legacy',
+                  cicloPosicion: reg.posicion_en_ciclo ?? null,
+                  estatusPlantillaLabel: reg.es_semana_libre ? (Number(reg.monto_pagado) === 0 ? 'Libre $0' : 'Libre Pagada') : 'Labor',
+                  estatusPlantilla: reg.es_semana_libre ? (Number(reg.monto_pagado) === 0 ? 'libre_sin_pago' : 'libre_paga') : 'trabajada_paga',
+                };
+              });
+              if (runGen !== initRowsGenRef.current) return;
+              setGrupoMixtoRosterProjection(null);
+              setPreNominaRows(rows);
+              setIsHistoricalLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error('[initRows] Error loading historical:', err);
+          }
+          setIsHistoricalLoading(false);
+        }
+
+        // 2. Semana abierta / pendiente: NUNCA autorellenar desde Historial, Plantilla ni Catálogo completo.
+        // Solo mostrar los trabajadores que el usuario haya agregado explícitamente a esta semana.
+        if (isOperationalWeekEmptied(area, currentWeekStart)) {
+          if (runGen !== initRowsGenRef.current) return;
+          setGrupoMixtoRosterProjection(null);
+          setPreNominaRows([]);
+          return;
+        }
+
+        let rosterEntries = readManualWeekRosterEntries(
           area,
           currentWeekStart,
-          manualPeriodForView.periodoArchivoId ?? null,
+          manualPeriodForView?.id,
         );
-      }
-      if (!rosterEntries.length && manualPeriodForView?.id) {
-        rosterEntries = readManualWeekRosterEntries(area, currentWeekStart, null);
-      }
-      let weekRoster = rosterEntries.map((e) => e.id);
-      const weekRosterSet = new Set(weekRoster);
-
-      // 1. Semana cerrada: operativa en curso; manual solo en semanas históricas del ciclo
-      const closedWeek = resolveClosedSemanaForWeekView(
-        manualPeriodForView,
-        semanas,
-        currentWeekStart,
-        temporalCtx.workingWeekStart,
-        area,
-      );
-      const isWeekReverted =
-        (closedWeek?.id &&
-          (revertedWeeksRef.current.has(closedWeek.id) ||
-            revertedWeekKeys.has(closedWeek.id))) ||
-        revertedWeeksRef.current.has(`${area}:${currentWeekStart}`) ||
-        revertedWeekKeys.has(`${area}:${currentWeekStart}`) ||
-        revertedWeeksRef.current.has(currentWeekStart) ||
-        revertedWeekKeys.has(currentWeekStart);
-
-      if (closedWeek?.id && !isWeekReverted) {
-        setIsHistoricalLoading(true);
-        try {
-          const res = await fetchSemanaRegistros(closedWeek.id);
-          if (res.ok && res.data) {
-            const rows = (res.data as SemanaRegistroDetalle[]).map((reg) => {
-              const snap = reg.personal_snapshot || null;
-              const fromCatalog = personalCatalogMerged.find((w) => w.id === reg.personal_id);
-              const pRaw = reg.personal || fromCatalog || {
-                id: reg.personal_id,
-                nombre_completo: snap?.nombre_completo || 'Trabajador no encontrado',
-                cedula: snap?.cedula || 'SC-N/A',
-                cargo: snap?.cargo || 'General',
-                area: snap?.area || area,
-                area_detalle: snap?.area_detalle || 'General',
-                salario_base: Number(snap?.salario_base) || 0,
-                salario_libre: Number(snap?.salario_libre) || 0,
-                bono_transporte: Number(snap?.bono_transporte) || 0,
-                esquema_rotacion: snap?.esquema_rotacion || 'FIJO_SEMANAL',
-                rotacion_inicio_fecha: snap?.rotacion_inicio_fecha || undefined,
-                estatus: 'ACTIVO',
-                fecha_ingreso: snap?.fecha_ingreso || '',
-                activo: false,
-                created_at: '',
-                updated_at: '',
-              };
-              const p = {
-                ...pRaw,
-                nombre_completo: formatNombrePropio(pRaw.nombre_completo || ''),
-              } as Personal;
-              const estadoAsistencia = (reg.estado_asistencia ||
-                (reg.es_semana_libre ? 'libre' : 'trabajada')) as EstadoAsistenciaNomina;
-              const diasTrabajados =
-                reg.dias_trabajados ??
-                (estadoAsistencia === 'no_laborado' ? 0 : NOMINA_DIAS_POR_SEMANA);
-              const novedadTurno = parseNovedadTurno(reg.novedad_turno);
-              const reposoParsed =
-                novedadTurno === 'REPOSO'
-                  ? parseReposoCondicionFromObs(String(reg.novedad_turno_obs || ''))
-                  : { novedadTurnoObs: String(reg.novedad_turno_obs || '') };
-              return {
-                personal: p,
-                esSemanaLibre: reg.es_semana_libre,
-                bonoTransporte: Number(reg.bono_transporte_pagado || 0),
-                bonificaciones: 0,
-                deducciones: 0,
-                total: Number(reg.monto_pagado),
-                estadoAsistencia,
-                diasTrabajados,
-                salarioBaseCalculado: Number(reg.salario_base_calculado || 0),
-                valesPendientes: [],
-                totalVales: 0,
-                novedadTurno,
-                novedadTurnoObs: reposoParsed.novedadTurnoObs,
-                reposoCondicion: reposoParsed.reposoCondicion ?? null,
-                reposoDiasPagados: reposoParsed.reposoDiasPagados ?? 0,
-                reposoCompensacionMonto: reposoParsed.reposoCompensacionMonto ?? 0,
-                cuadrillaNombre: snap?.cuadrilla_nombre || undefined,
-                rotacionFuente: reg.periodo_id ? 'plantilla' : 'legacy',
-                cicloPosicion: reg.posicion_en_ciclo ?? null,
-                estatusPlantillaLabel: reg.es_semana_libre ? (Number(reg.monto_pagado) === 0 ? 'Libre $0' : 'Libre Pagada') : 'Labor',
-                estatusPlantilla: reg.es_semana_libre ? (Number(reg.monto_pagado) === 0 ? 'libre_sin_pago' : 'libre_paga') : 'trabajada_paga',
-              };
-            });
-            if (runGen !== initRowsGenRef.current) return;
-            setGrupoMixtoRosterProjection(null);
-            setPreNominaRows(rows);
-            setIsHistoricalLoading(false);
-            return;
-          }
-        } catch (err) {
-          console.error('[initRows] Error loading historical:', err);
+        if (!rosterEntries.length && manualPeriodForView?.periodoArchivoId) {
+          rosterEntries = readManualWeekRosterEntries(
+            area,
+            currentWeekStart,
+            manualPeriodForView.periodoArchivoId,
+          );
         }
-        setIsHistoricalLoading(false);
-      }
-
-      // 2. Periodo manual activo: solo en semanas históricas del periodo (no la semana de curso)
-      if (manualPeriodForView) {
-        if (!weekInManualPeriod(currentWeekStart, manualPeriodForView)) {
-          if (runGen !== initRowsGenRef.current) return;
-          setGrupoMixtoRosterProjection(null);
-          setPreNominaRows([]);
-          return;
-        }
-
-        if (manualPeriodForView.plantillaId) {
-          const plantilla = rotacionPlantillas.find((p) => p.id === manualPeriodForView.plantillaId);
-          if (plantilla) {
-            if (!rosterEntries.length) {
-              const prevWeek = previousWeekInManualPeriod(manualPeriodForView, currentWeekStart);
-              const prevClosed = prevWeek
-                ? resolveClosedSemanaForManualPeriod(
-                    manualPeriodForView,
-                    semanas,
-                    prevWeek,
-                    area,
-                  )
-                : undefined;
-              if (prevClosed) {
-                try {
-                  const prevRes = await fetchSemanaRegistros(prevClosed.id);
-                  if (prevRes.ok && prevRes.data?.length) {
-                    const carryRows = carryoverRowsFromSemanaRegistros(prevRes.data, area);
-                    if (
-                      seedManualWeekIfEmpty(
-                        area,
-                        currentWeekStart,
-                        carryRows,
-                        manualPeriodForView.id,
-                      )
-                    ) {
-                      rosterEntries = readManualWeekRosterEntries(
-                        area,
-                        currentWeekStart,
-                        manualPeriodForView.id,
-                      );
-                      weekRoster = rosterEntries.map((e) => e.id);
-                    }
-                  }
-                } catch {
-                  /* silent */
-                }
-              }
-            }
-
-            const plantillaIds = plantilla.cuadrillas.flatMap((c) =>
-              c.filas.map((f) => f.personalId),
-            );
-            const personalIds =
-              isWeekReverted && weekRoster.length > 0
-                ? [...new Set(weekRoster)]
-                : [...new Set([...plantillaIds, ...weekRoster])];
-            const catalogForWeek =
-              rosterEntries.length > 0
-                ? mergePersonalCatalogWithRosterEntries(
-                    personalCatalogMerged,
-                    rosterEntries,
-                    area,
-                  )
-                : personalCatalogMerged;
-            const valesMap: Record<string, NominaVale[]> = {};
-            if (personalIds.length) {
-              try {
-                const res = await getValesPendientesBulkAction(personalIds);
-                if (res.ok && res.data) {
-                  res.data.forEach((v) => {
-                    if (!valesMap[v.personal_id]) valesMap[v.personal_id] = [];
-                    valesMap[v.personal_id].push(v);
-                  });
-                }
-              } catch {
-                /* silent */
-              }
-            }
-
-            const novedadDraft = {
-              ...readNominaNovedadDraft(nominaNovedadDraftKey(area, currentWeekStart, null)),
-              ...(manualPeriodForView.periodoArchivoId
-                ? readNominaNovedadDraft(
-                    nominaNovedadDraftKey(area, currentWeekStart, manualPeriodForView.periodoArchivoId),
-                  )
-                : {}),
-              ...readNominaNovedadDraft(
-                nominaNovedadDraftKey(area, currentWeekStart, manualPeriodForView.id),
-              ),
-            };
-            const baseRows = buildManualPlantillaNominaRows({
-              plantilla,
-              personalCatalog: catalogForWeek.length ? catalogForWeek : personalCatalogMerged,
-              personalIds,
-              weekStart: currentWeekStart,
-              periodStart: manualPeriodForView.rangeStart,
-              periodEnd: manualPeriodForView.rangeEnd,
-              weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
-              weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
-              valesMap,
-              weekEnd: currentWeekEnd,
-              forceIncludeIds: weekRoster,
-            });
-            const rows = baseRows.map((row) =>
-              applyWeekDraft(row, currentWeekStart, novedadDraft[row.personal.id]),
-            );
-            if (runGen !== initRowsGenRef.current) return;
-            setGrupoMixtoRosterProjection(null);
-            setPreNominaRows(rows);
-            return;
-          }
-        }
-
         if (!rosterEntries.length) {
-          const prevWeek = previousWeekInManualPeriod(manualPeriodForView, currentWeekStart);
-          const prevClosed = prevWeek
-            ? resolveClosedSemanaForManualPeriod(
-                manualPeriodForView,
-                semanas,
-                prevWeek,
-                area,
-              )
-            : undefined;
-          if (prevClosed) {
-            try {
-              const prevRes = await fetchSemanaRegistros(prevClosed.id);
-              if (prevRes.ok && prevRes.data?.length) {
-                const carryRows = carryoverRowsFromSemanaRegistros(prevRes.data, area);
-                if (
-                  seedManualWeekIfEmpty(
-                    area,
-                    currentWeekStart,
-                    carryRows,
-                    manualPeriodForView.id,
-                  )
-                ) {
-                  rosterEntries = readManualWeekRosterEntries(
-                    area,
-                    currentWeekStart,
-                    manualPeriodForView.id,
-                  );
-                  weekRoster = rosterEntries.map((e) => e.id);
-                }
-              }
-            } catch {
-              /* silent */
-            }
-          }
+          rosterEntries = readManualWeekRosterEntries(area, currentWeekStart, null);
         }
 
-        const catalogForFallback =
-          rosterEntries.length > 0
-            ? mergePersonalCatalogWithRosterEntries(personalCatalogMerged, rosterEntries, area)
-            : personalCatalogMerged;
-        const activeWorkersMap = new Map<string, Personal>();
-        for (const p of catalogForFallback) {
-          if (weekRoster.includes(p.id)) activeWorkersMap.set(p.id, p);
-        }
-        const manualActiveWorkers = [...activeWorkersMap.values()];
-
-        if (manualActiveWorkers.length === 0) {
+        if (rosterEntries.length === 0) {
           if (runGen !== initRowsGenRef.current) return;
           setGrupoMixtoRosterProjection(null);
           setPreNominaRows([]);
           return;
         }
 
-        const valesMapFallback: Record<string, NominaVale[]> = {};
-        const fallbackPersonalIds = manualActiveWorkers.map((p) => p.id);
+        const weekRoster = rosterEntries.map((e) => e.id);
+        const catalogForWeek = mergePersonalCatalogWithRosterEntries(
+          personalCatalogMerged,
+          rosterEntries,
+          area,
+        );
+
+        const activeWorkersMap = new Map<string, Personal>();
+        for (const id of weekRoster) {
+          const p =
+            catalogForWeek.find((row) => row.id === id) ??
+            personalCatalogMerged.find((row) => row.id === id);
+          if (!p) continue;
+          if (p.estatus && p.estatus !== 'ACTIVO') continue;
+          activeWorkersMap.set(p.id, p);
+        }
+        const activeWorkers = [...activeWorkersMap.values()];
+
+        if (activeWorkers.length === 0) {
+          if (runGen !== initRowsGenRef.current) return;
+          setGrupoMixtoRosterProjection(null);
+          setPreNominaRows([]);
+          return;
+        }
+
+        const personalIds = activeWorkers.map((p) => p.id);
+        const valesMap: Record<string, NominaVale[]> = {};
         try {
-          const res = await getValesPendientesBulkAction(fallbackPersonalIds);
+          const res = await getValesPendientesBulkAction(personalIds);
           if (res.ok && res.data) {
             res.data.forEach((v) => {
-              if (!valesMapFallback[v.personal_id]) valesMapFallback[v.personal_id] = [];
-              valesMapFallback[v.personal_id].push(v);
+              if (!valesMap[v.personal_id]) valesMap[v.personal_id] = [];
+              valesMap[v.personal_id].push(v);
             });
           }
         } catch {
           /* silent */
         }
 
-        const novedadDraftFallback = {
+        const novedadDraft = {
           ...readNominaNovedadDraft(nominaNovedadDraftKey(area, currentWeekStart, null)),
-          ...(manualPeriodForView.periodoArchivoId
+          ...(manualPeriodForView?.periodoArchivoId
             ? readNominaNovedadDraft(
                 nominaNovedadDraftKey(area, currentWeekStart, manualPeriodForView.periodoArchivoId),
               )
             : {}),
-          ...readNominaNovedadDraft(
-            nominaNovedadDraftKey(area, currentWeekStart, manualPeriodForView.id),
-          ),
+          ...(manualPeriodForView?.id
+            ? readNominaNovedadDraft(
+                nominaNovedadDraftKey(area, currentWeekStart, manualPeriodForView.id),
+              )
+            : {}),
         };
-        const fallbackRows = manualActiveWorkers.map((p) =>
+
+        const rows = activeWorkers.map((p) =>
           applyWeekDraft(
-            buildOperationalNominaRow(p, currentWeekStart, valesMapFallback),
+            buildOperationalNominaRow(p, currentWeekStart, valesMap),
             currentWeekStart,
-            novedadDraftFallback[p.id],
+            novedadDraft[p.id],
           ),
         );
 
         if (runGen !== initRowsGenRef.current) return;
         setGrupoMixtoRosterProjection(null);
-        setPreNominaRows(fallbackRows);
-        return;
-      }
-
-      // 3. Semana operativa (no cerrada) → roster vigente
-      const operationalEmptied =
-        !manualPeriodForView && isOperationalWeekEmptied(area, currentWeekStart);
-
-      // Carryover: si no hay roster guardado y la semana no fue vaciada,
-      // arrastrar el roster de la semana anterior cerrada en vez de cargar
-      // TODO el personal del área.
-      let operationalCarryoverIds: string[] | null = null;
-      if (!operationalEmptied && !weekRoster.length && !manualPeriodForView) {
-        try {
-          const prevWeekStart = getWeekStart(
-            new Date(Date.parse(currentWeekStart) - 7 * 86400000),
-          );
-          const prevClosed = semanas.find(
-            (s) =>
-              s.area === area &&
-              s.semana_inicio === prevWeekStart &&
-              s.id,
-          );
-          if (prevClosed) {
-            const prevRes = await fetchSemanaRegistros(prevClosed.id);
-            if (prevRes.ok && prevRes.data?.length) {
-              operationalCarryoverIds = prevRes.data
-                .map((r) => r.personal_id)
-                .filter(Boolean);
-            }
-          }
-        } catch {
-          /* silent — fallback a cargar todos */
-        }
-      }
-
-      const catalogForOperational =
-        rosterEntries.length > 0
-          ? mergePersonalCatalogWithRosterEntries(personalCatalogMerged, rosterEntries, area)
-          : personalCatalogMerged;
-      const activeWorkersMap = new Map<string, Personal>();
-      if (!operationalEmptied) {
-        if (isWeekReverted && weekRoster.length > 0) {
-          for (const id of weekRoster) {
-            const p = catalogForOperational.find((row) => row.id === id);
-            if (!p) continue;
-            if (p.estatus && p.estatus !== 'ACTIVO') continue;
-            activeWorkersMap.set(p.id, p);
-          }
-        } else if (operationalCarryoverIds) {
-          // Carryover: solo cargar los trabajadores de la semana anterior
-          for (const id of operationalCarryoverIds) {
-            const p = catalogForOperational.find((row) => row.id === id);
-            if (!p) continue;
-            if (p.estatus && p.estatus !== 'ACTIVO') continue;
-            activeWorkersMap.set(p.id, p);
-          }
-        } else {
-          for (const p of personalCatalog) {
-            if (p.estatus && p.estatus !== 'ACTIVO') continue;
-            if (
-              p.fecha_ingreso &&
-              currentWeekEnd &&
-              p.fecha_ingreso > currentWeekEnd &&
-              !weekRosterSet.has(p.id)
-            ) {
-              continue;
-            }
-            activeWorkersMap.set(p.id, p);
-          }
-        }
-      }
-      for (const personalId of weekRoster) {
-        if (activeWorkersMap.has(personalId)) continue;
-        const p = catalogForOperational.find((row) => row.id === personalId);
-        if (!p) continue;
-        if (p.estatus && p.estatus !== 'ACTIVO') continue;
-        activeWorkersMap.set(p.id, p);
-      }
-      let activeWorkers = [...activeWorkersMap.values()];
-
-      let grupoMixtoProjection: GrupoMixtoRosterProjection | null = null;
-      if (
-        area === 'planta' &&
-        !operationalEmptied &&
-        activeWorkers.some(isGrupoMixtoPersonal)
-      ) {
-        let historyWeeks: GrupoMixtoHistoryWeek[] = [];
-        try {
-          const historyRes = await getGrupoMixtoHistoryWeeksAction(area, currentWeekStart, 12);
-          historyWeeks = historyRes.ok
-            ? (historyRes.data ?? []).filter((week) => week.registros.length > 0)
-            : [];
-        } catch {
-          historyWeeks = [];
-        }
-
-        try {
-          grupoMixtoProjection = buildGrupoMixtoRosterProjection({
-            activePersonal: activeWorkers,
-            targetWeekStart: currentWeekStart,
-            historyWeeks,
-          });
-        } catch (err) {
-          console.error('[initRows] Grupo mixto roster projection failed:', err);
-          grupoMixtoProjection = null;
-        }
-
-
-      }
-
-      if (activeWorkers.length === 0) {
-        if (runGen !== initRowsGenRef.current) return;
-        setGrupoMixtoRosterProjection(null);
-        setPreNominaRows([]);
-        return;
-      }
-
-      const personalIds = activeWorkers.map(p => p.id);
-      const valesMap: Record<string, NominaVale[]> = {};
-      try {
-        const res = await getValesPendientesBulkAction(personalIds);
-        if (res.ok && res.data) {
-          res.data.forEach(v => {
-            if (!valesMap[v.personal_id]) valesMap[v.personal_id] = [];
-            valesMap[v.personal_id].push(v);
-          });
-        }
-      } catch { /* silent */ }
-
-      const novedadDraft = readNominaNovedadDraft(
-        nominaNovedadDraftKey(area, currentWeekStart, null),
-      );
-
-      const rows = activeWorkers.map((p) =>
-        applyWeekDraft(
-          buildOperationalNominaRow(p, currentWeekStart, valesMap),
-          currentWeekStart,
-          novedadDraft[p.id],
-        ),
-      );
-      if (runGen !== initRowsGenRef.current) return;
-      setGrupoMixtoRosterProjection(grupoMixtoProjection?.shouldApply ? grupoMixtoProjection : null);
-      setPreNominaRows(rows);
+        setPreNominaRows(rows);
       } catch (err) {
         console.error('[initRows] Failed to initialize weekly roster:', err);
         if (runGen !== initRowsGenRef.current) return;
@@ -1755,30 +1422,12 @@ export default function NominaClient({
     weekRange.fin,
     semanas,
     area,
-    instanciaSnapshot,
     manualPeriodForView,
-    rotacionPlantillas,
     temporalCtx.workingWeekStart,
     manualRosterTick,
     manualSessionHydrated,
     buildOperationalNominaRow,
     applyWeekDraft,
-  ]);
-
-  useEffect(() => {
-    const linked = manualPeriodSession.workingWeekPeriodId;
-    if (!linked || weekRange.inicio !== temporalCtx.workingWeekStart) return;
-    const ids = preNominaRows.map((r) => r.personal.id).filter(Boolean);
-    if (ids.length && manualPeriodId) {
-      mergeManualWeekRosterIds(area, weekRange.inicio, ids, manualPeriodId);
-    }
-  }, [
-    manualPeriodSession.workingWeekPeriodId,
-    weekRange.inicio,
-    temporalCtx.workingWeekStart,
-    area,
-    preNominaRows,
-    manualPeriodId,
   ]);
 
   const semanaActual = useMemo(
@@ -2474,40 +2123,20 @@ export default function NominaClient({
   }
 
   async function handleDelete(id: string) {
-    const isManuallyAdded = manuallyAddedIdsSet.has(id);
-
-    if (isManuallyAdded) {
-      if (!(await confirmDialog({
-        title: 'Quitar de la semana',
-        message: '¿Quitar este trabajador de la planilla de esta semana? (Seguirá activo en la base de datos)',
-        variant: 'warning'
-      }))) return;
-
-      setPreNominaRows(prev => prev.filter(row => row.personal.id !== id));
-      removeFromManualWeekRoster(area, weekRange.inicio, id, manualPeriodId);
-      setManualRosterTick(t => t + 1);
-      toast.success('Trabajador removido de esta semana.');
-      return;
-    }
-
     if (!(await confirmDialog({
-      title: 'Desactivar trabajador',
-      message: '¿Desactivar este trabajador del sistema? (Baja definitiva)',
-      variant: 'danger'
+      title: 'Quitar de la semana',
+      message: '¿Quitar este trabajador de la planilla de esta semana? (Seguirá activo en el Registro de Trabajadores)',
+      variant: 'warning'
     }))) return;
-    
-    // Optimistic update: remover fila inmediatamente del estado local
+
     setPreNominaRows(prev => prev.filter(row => row.personal.id !== id));
     removeFromManualWeekRoster(area, weekRange.inicio, id, manualPeriodId);
-    setManualRosterTick(t => t + 1);
-    
-    try {
-      await updatePersonalEstatusAction(id, 'INACTIVO');
-      await registrarAuditAction('DESACTIVAR_PERSONAL', 'personal', id, `Desactivado por ${user?.email}`, user?.id, user?.email);
-      toast.success('Trabajador desactivado.');
-    } catch (err) {
-      console.error('[handleDelete] error:', err);
+    if (manualPeriodForView?.periodoArchivoId) {
+      removeFromManualWeekRoster(area, weekRange.inicio, id, manualPeriodForView.periodoArchivoId);
     }
+    removeFromManualWeekRoster(area, weekRange.inicio, id, null);
+    setManualRosterTick(t => t + 1);
+    toast.success('Trabajador removido de esta semana.');
   }
 
   async function handleProcesarNomina() {
@@ -2628,22 +2257,7 @@ export default function NominaClient({
                 );
               });
             }
-            const carryRows: ManualWeekCarryoverRow[] = preNominaRows.map((r) => ({
-              personal: {
-                id: r.personal.id,
-                area_detalle: r.personal.area_detalle,
-              },
-              novedadTurno: r.novedadTurno,
-              novedadTurnoObs: r.novedadTurnoObs,
-              reposoCondicion: r.reposoCondicion ?? null,
-              reposoDiasPagados: r.reposoDiasPagados ?? 0,
-              reposoCompensacionMonto: r.reposoCompensacionMonto ?? 0,
-              estadoAsistencia: r.estadoAsistencia,
-              diasTrabajados: r.diasTrabajados,
-              bonoTransporte: r.bonoTransporte,
-              bonificaciones: r.bonificaciones,
-            }));
-            carryManualWeekToNext(area, manualPeriodForView, weekRange.inicio, carryRows);
+            // Sin arrastre autom�tico: la semana siguiente inicia vac�a y la arma el usuario.
             clearManualWeekRoster(area, weekRange.inicio, manualPeriodForView.id);
           }
         } catch {
@@ -2877,6 +2491,7 @@ export default function NominaClient({
             undefined,
         }));
 
+        markOperationalWeekEmptied(area, sem.semana_inicio, false);
         for (const pid of candidatePeriodIds) {
           writeManualWeekRosterEntries(area, sem.semana_inicio, restoredEntries, pid);
         }
@@ -2946,31 +2561,8 @@ export default function NominaClient({
         });
         setPreNominaRows(restoredRows);
       } else {
-        // Si la BD no devolvió registros guardados (o ya estaban eliminados), reconstruir inmediatamente
-        // las filas editables desde la plantilla o catálogo maestro para permitir edición inmediata
-        if (manualPlantillaActiva && targetPeriod?.plantillaId) {
-          const plantillaIds = manualPlantillaActiva.cuadrillas.flatMap((c) =>
-            c.filas.map((f) => f.personalId),
-          );
-          const personalIds = [...new Set(plantillaIds)];
-          const baseRows = buildManualPlantillaNominaRows({
-            plantilla: manualPlantillaActiva,
-            personalCatalog: personalCatalogMerged,
-            personalIds,
-            weekStart: sem.semana_inicio,
-            periodStart: targetPeriod.rangeStart,
-            periodEnd: targetPeriod.rangeEnd,
-            weekColumnAssignment: targetPeriod.weekColumnAssignment,
-            weekColumnCuadrillas: targetPeriod.weekColumnCuadrillas,
-            valesMap: {},
-            weekEnd: sem.semana_fin || getWeekEnd(sem.semana_inicio),
-          });
-          setPreNominaRows(baseRows);
-        } else {
-          const areaWorkers = personalCatalogMerged.filter((p) => (p.area || area) === area);
-          const baseRows = areaWorkers.map((p) => buildOperationalNominaRow(p, sem.semana_inicio, {}));
-          setPreNominaRows(baseRows);
-        }
+        // Sin registros guardados: la semana queda vacía para que el usuario la arme manualmente.
+        setPreNominaRows([]);
       }
 
       // Navegar inmediatamente a la semana revertida en Vista Semanal
@@ -2998,80 +2590,26 @@ export default function NominaClient({
       return;
     }
     startTransition(async () => {
-      if (manualPeriodId) {
-        // Si hay plantilla activa, conservar sus trabajadores y solo quitar
-        // los agregados manualmente. Esto preserva la estructura del ciclo.
-        if (manualPlantillaActiva && manualPeriodForView?.plantillaId) {
-          const plantillaIds = manualPlantillaActiva.cuadrillas.flatMap((c) =>
-            c.filas.map((f) => f.personalId),
-          );
-          const keptIds = [...new Set(plantillaIds)];
-          if (keptIds.length > 0) {
-            writeManualWeekRosterEntries(
-              area,
-              weekRange.inicio,
-              keptIds.map((id) => ({ id })),
-              manualPeriodId,
-            );
-            // Reset del draft para que las novedades manuales se limpien,
-            // pero conservando los IDs de la plantilla.
-            const draftKey = nominaNovedadDraftKey(area, weekRange.inicio, manualPeriodId);
-            const freshDraft = resetNovedadDraftForRoster(keptIds);
-            writeNominaNovedadDraft(draftKey, freshDraft);
-            // Recargar filas respetando la plantilla (estatus, días bloqueados, etc.)
-            const valesMapEmpty: Record<string, NominaVale[]> = {};
-            const baseRows = buildManualPlantillaNominaRows({
-              plantilla: manualPlantillaActiva,
-              personalCatalog: personalCatalogMerged,
-              personalIds: keptIds,
-              weekStart: weekRange.inicio,
-              periodStart: manualPeriodForView.rangeStart,
-              periodEnd: manualPeriodForView.rangeEnd,
-              weekColumnAssignment: manualPeriodForView.weekColumnAssignment,
-              weekColumnCuadrillas: manualPeriodForView.weekColumnCuadrillas,
-              valesMap: valesMapEmpty,
-              weekEnd: weekRange.fin,
-              forceIncludeIds: keptIds,
-            });
-            const rows = baseRows.map((row) =>
-              applyWeekDraft(row, weekRange.inicio, freshDraft[row.personal.id]),
-            );
-            setPreNominaRows(rows);
-            setManualRosterTick((t) => t + 1);
-            setShowBorrarModal(false);
-            toast.success(`Semana vaciada. Se conservan ${keptIds.length} trabajadores de la plantilla.`);
-            return;
-          }
+      const ws = weekRange.inicio;
+      const periodKeys: Array<string | null> = [
+        null,
+        manualPeriodId,
+        manualPeriodForView?.periodoArchivoId ?? null,
+      ];
+      for (const pid of new Set(periodKeys)) {
+        clearManualWeekRoster(area, ws, pid);
+        try {
+          localStorage.removeItem(nominaNovedadDraftKey(area, ws, pid));
+        } catch {
+          /* ignore */
         }
-        // Sin plantilla activa: PRESERVAR el roster existente en localStorage
-        // y solo resetear el draft. Antes se borraba el roster completo, lo cual
-        // destruía la estructura de la semana del periodo.
-        const existingRoster = readManualWeekRosterEntries(
-          area,
-          weekRange.inicio,
-          manualPeriodId,
-        );
-        const existingIds = existingRoster.map((e) => e.id);
-        const draftKey = nominaNovedadDraftKey(area, weekRange.inicio, manualPeriodId);
-        writeNominaNovedadDraft(draftKey, resetNovedadDraftForRoster(existingIds));
-        // Limpiar state; initRows se vuelve a ejecutar al cambiar manualRosterTick
-        // y regenera las filas desde el roster preservado + draft fresco.
-        setPreNominaRows([]);
-        setManualRosterTick((t) => t + 1);
-        setShowBorrarModal(false);
-        toast.success(
-          existingIds.length
-            ? `Semana vaciada. Se conservan ${existingIds.length} trabajadores del roster.`
-            : 'Semana vaciada. El roster ya estaba vacío.',
-        );
-        return;
       }
-      // Sin periodo manual: solo marcar como vaciada (modo operativo).
-      markOperationalWeekEmptied(area, weekRange.inicio, true);
+      // Marca la semana como vaciada: nada se vuelve a autorellenar hasta que el usuario agregue trabajadores.
+      markOperationalWeekEmptied(area, ws, true);
       setPreNominaRows([]);
       setManualRosterTick((t) => t + 1);
       setShowBorrarModal(false);
-      toast.success('Semana vaciada. Los trabajadores siguen activos en la base.');
+      toast.success('Semana vaciada. Agrega los trabajadores manualmente o con Foto / Lista.');
     });
   }
 
@@ -3246,6 +2784,16 @@ export default function NominaClient({
       <button onClick={() => setShowAssignModal(true)} disabled={!canEdit} title="Buscar en base o registrar nuevo" className={`${MINEOS_BTN_NOMINA_PRIMARY} h-9 shrink-0 px-3 text-xs`}>
         <Plus className="w-3.5 h-3.5 shrink-0" /> Trabajador
       </button>
+      {canEdit && preNominaRows.length > 0 && !semanaActualProcesada && (
+        <button
+          type="button"
+          onClick={() => setShowBorrarModal(true)}
+          title="Vaciar la nómina de esta semana para ingresar trabajadores manualmente"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 text-xs font-bold text-red-300 transition-colors hover:bg-red-500/20"
+        >
+          <Trash2 className="w-3.5 h-3.5 shrink-0 text-red-400" /> Vaciar
+        </button>
+      )}
     </>
   );
 
@@ -4053,12 +3601,8 @@ export default function NominaClient({
                                           <button onClick={() => openEdit(p)} title="Editar" className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/40 hover:text-amber-500 transition-colors"><Edit2 className="w-4 h-4" /></button>
                                           <button
                                             onClick={() => handleDelete(p.id)}
-                                            title={manuallyAddedIdsSet.has(p.id) ? "Quitar de esta semana" : "Baja"}
-                                            className={`p-1.5 rounded-lg transition-colors ${
-                                              manuallyAddedIdsSet.has(p.id)
-                                                ? 'hover:bg-amber-500/10 text-white/40 hover:text-amber-400'
-                                                : 'hover:bg-red-500/10 text-white/40 hover:text-red-400'
-                                            }`}
+                                            title="Quitar de esta semana"
+                                            className="p-1.5 rounded-lg transition-colors hover:bg-amber-500/10 text-white/40 hover:text-amber-400"
                                           >
                                             <Trash2 className="w-4 h-4" />
                                           </button>
